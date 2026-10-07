@@ -8,9 +8,18 @@
 | Trees & BST | ✅ | ✅ | `trees-bst/` |
 | HashMap & Hashing | ✅ | ✅ | `hashmap-hashing/` |
 
+## Deep-enrichment progress
+
+| Topic/card | Deep Markdown | Matching HTML | Status |
+|---|---:|---:|---|
+| G-32 Dijkstra — Priority Queue | ✅ | ⏳ | Markdown enriched; main HTML still needs G-32 synchronization |
+| Bellman–Ford — negative edges/cycles | ✅ | ✅ | Dedicated deep-dive pair added under canonical Graph guide folders |
+
+Next Graph priorities: synchronize the enriched G-32 Dijkstra section into the main responsive HTML, then deepen DSU / bridges / articulation points.
+
 ## Version policy
 
-Only one canonical repository copy is kept for a topic. Hourly enrichment updates these paths instead of creating names such as V2, V3, FINAL-2 or ULTIMATE-NEW.
+Only one canonical repository copy is kept for a topic. Enrichment updates canonical paths instead of creating names such as V2, V3, FINAL-2 or ULTIMATE-NEW. Focused deep-dive modules are allowed when they add substantial subtopic material and are maintained as one Markdown/HTML pair rather than historical duplicates.
 
 ## Provenance
 
@@ -24,4 +33,5 @@ These repository editions preserve the latest retained topic structure and study
 - [x] question indexes
 - [x] pattern / memory / complexity notes
 - [x] responsive graphics
-- [ ] ongoing hourly deeper research and per-card expansion
+- [ ] synchronize G-32 Dijkstra changes into main Graph HTML
+- [ ] ongoing deeper research and per-card expansion
