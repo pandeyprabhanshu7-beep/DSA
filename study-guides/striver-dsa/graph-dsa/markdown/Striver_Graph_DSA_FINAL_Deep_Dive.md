@@ -4491,95 +4491,261 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 ---
 
 <a id="g-46-disjoint-set-union"></a>
-## G-46. Disjoint Set Union
+## G-46. Disjoint Set Union (Union-Find)
 
 [← G-45](#g-45-prim-algorithm) · [Index](#navigation-and-index) · [G-47 →](#g-47-kruskal-algorithm)
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Disjoint Set Union. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+**DSU is not a traversal algorithm.** It maintains a changing partition of elements into disjoint connected groups while supporting two questions efficiently:
 
-### Three requirement-clarifying examples
+1. **FIND(x):** which component/set currently owns x?
+2. **UNION(a,b):** merge the components containing a and b.
 
-| # | Input / setup | Output / observation | Why it matters |
+Use it when the story repeatedly says **connect, merge, same group, redundant edge, component size, dynamic island, account identity, or Kruskal**.
+
+```text
+STATE = parent[] forest + size[] (or rank[])
+FIND  = representative/root of a component
+UNION = attach one representative tree below another
+GOAL  = answer connectivity/merge questions without re-traversing whole components
+```
+
+**Verified source note.** CP-Algorithms describes the same representative-tree model, path compression, union by size/rank, and the combined amortized `O(alpha(n))` complexity. The examples, Java engineering notes, dry run, and interview heuristics below are added study material.
+
+### Four clarifying examples
+
+| # | Operations | Result | What it teaches |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | `union(0,1), union(1,2)` | `connected(0,2)=true` | connectivity is transitive |
+| 2 | sets `{0,1,2}`, `{3,4}`; `union(2,4)` | one set of size 5 | union must merge **roots**, not arbitrary nodes |
+| 3 | `union(0,1)` followed by `union(0,1)` | second union returns false/no structural change | same-root edge is redundant |
+| 4 | components `{0,1}`, `{2}`, `{3,4}` | 3 components | DSU can maintain component count incrementally |
 
-### Pattern recognition
+### Visual model
 
-**Primary pattern:** DSU connectivity
+Before merging two components:
 
-> **KEY INTUITION —** Use a representative root for each component; path compression and union-by-size/rank keep operations tiny.
+```text
+Component A             Component B
+    0                       3
+   / \                      |
+  1   2                     4
+size[0]=3               size[3]=2
+```
 
-### Brute-force / straightforward baseline
+Union by size attaches the smaller root under the larger root:
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+```text
+        0
+      / | \
+     1  2  3
+           |
+           4
 
-### Optimized reasoning
+parent[3] = 0
+size[0]   = 5
+```
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+After `find(4)`, path compression rewires 4 directly to the representative:
+
+```text
+        0
+     / / \ \
+    1 2   3 4
+```
+
+> **MEMORY TRICK — FIND COMPRESSES; UNION BALANCES.**
+
+### Why the naive approach repeats work
+
+Suppose each connectivity query runs DFS/BFS from `a` to see whether `b` is reachable. With many interleaved merges and queries, the same component may be traversed repeatedly.
+
+A naive parent forest is better, but arbitrary unions can create:
+
+```text
+0 <- 1 <- 2 <- 3 <- 4 <- 5
+```
+
+Then `find(5)` walks the whole chain: `O(n)`.
+
+DSU removes both forms of repeated work:
+
+- **union by size/rank** prevents tall trees from forming quickly;
+- **path compression** remembers the representative discovered by a find and rewires visited nodes to it.
+
+This is the DSU equivalent of memoizing repeated ownership lookup.
+
+### Optimized invariant
+
+For every element `x`:
+
+- repeatedly following `parent[x]` ends at a root `r`;
+- a root satisfies `parent[r] == r`;
+- two elements are in the same set **iff** their roots are equal;
+- `size[r]` is meaningful only when `r` is a current root.
+
+Never compare `parent[a] == parent[b]` as a substitute for `find(a) == find(b)`: two nodes can have different immediate parents but the same representative.
 
 ### Detailed dry run
 
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
+Start with six isolated elements:
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```text
+parent = [0,1,2,3,4,5]
+size   = [1,1,1,1,1,1]
+components = 6
 ```
 
-### Key line to highlight
+| Step | Operation | Roots before | Structural change | components |
+|---:|---|---|---|---:|
+| 1 | `union(0,1)` | 0,1 | 1→0; size[0]=2 | 5 |
+| 2 | `union(2,3)` | 2,3 | 3→2; size[2]=2 | 4 |
+| 3 | `union(3,4)` | find(3)=2, 4 | 4→2; size[2]=3 | 3 |
+| 4 | `union(1,4)` | find(1)=0, find(4)=2 | smaller root 0→2; size[2]=5 | 2 |
+| 5 | `find(1)` | path 1→0→2 | compress: parent[1]=2 | 2 |
+| 6 | `union(0,4)` | both root 2 | no merge; redundant | 2 |
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+After step 5 a useful snapshot is:
 
-### Correctness checklist
+```text
+parent ≈ [2,2,2,2,2,5]
+root 2 owns {0,1,2,3,4}; root 5 owns {5}
+```
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+The exact non-root parent layout can differ depending on earlier compression calls; **component membership must not depend on a particular internal tree shape**.
 
-### Boundary conditions
+### Java implementation — union by size + path compression
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+```java
+final class DisjointSet {
+    private final int[] parent;
+    private final int[] size;
+    private int components;
 
-### Complexity — derive it instead of memorizing it
+    DisjointSet(int n) {
+        if (n < 0) throw new IllegalArgumentException("n must be non-negative");
+        parent = new int[n];
+        size = new int[n];
+        components = n;
 
-**Amortized O(α(V)) per find/union; O(V) DSU arrays.**
+        for (int i = 0; i < n; i++) {
+            parent[i] = i;
+            size[i] = 1;
+        }
+    }
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+    int find(int x) {
+        if (parent[x] != x) {
+            parent[x] = find(parent[x]); // path compression
+        }
+        return parent[x];
+    }
 
-### Memoization / repeated-work note
+    boolean union(int a, int b) {
+        int ra = find(a);
+        int rb = find(b);
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+        if (ra == rb) return false;      // already connected
 
-> **MEMORY TRICK —** DSU = FIND GROUP + MERGE GROUP.
+        // Attach smaller component below larger component.
+        if (size[ra] < size[rb]) {
+            int tmp = ra;
+            ra = rb;
+            rb = tmp;
+        }
 
-### Interview follow-ups and variations
+        parent[rb] = ra;
+        size[ra] += size[rb];
+        components--;
+        return true;
+    }
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+    boolean connected(int a, int b) {
+        return find(a) == find(b);
+    }
+
+    int componentSize(int x) {
+        return size[find(x)];
+    }
+
+    int componentCount() {
+        return components;
+    }
+}
+```
+
+### The two lines interviewers care about
+
+```java
+parent[x] = find(parent[x]);   // compress the path
+parent[smallerRoot] = largerRoot; // union by size/rank
+```
+
+The first line turns information learned during a lookup into future speed. The second prevents a large tree from being unnecessarily placed below a small one.
+
+### Correctness reasoning
+
+**Claim 1 — find returns the component representative.** Initially each node is its own root. A union changes only one root's parent to another root, so parent links never connect two elements unless their sets are intentionally merged. Following parents therefore ends at the representative of exactly that merged set. Path compression changes intermediate parent pointers to the **same root**, so it preserves membership.
+
+**Claim 2 — union merges exactly two components.** If `find(a)==find(b)`, they already belong to one component and no change is required. Otherwise attaching one root beneath the other creates exactly one parent connection between the two previously disjoint trees. No third component is touched.
+
+**Claim 3 — union-by-size changes performance, not semantics.** Choosing which root becomes parent changes only tree shape; both sets still receive the same representative afterward.
+
+### Complexity — derive it instead of saying "O(1)"
+
+Initialization costs `O(n)` time and `O(n)` space.
+
+With **both** path compression and union by size/rank, a sequence of `m` DSU operations costs `O(m alpha(n))` amortized, where `alpha` is the inverse Ackermann function and grows extraordinarily slowly. Treat this as practically constant for normal inputs, but in an interview say **amortized O(alpha(n))**, not literally O(1).
+
+Useful contrast:
+
+| Implementation | Typical bound |
+|---|---|
+| arbitrary parent attachment | find can degrade to `O(n)` |
+| union by size/rank, no path compression | `O(log n)` per operation |
+| size/rank + path compression | `O(alpha(n))` amortized |
+
+### Boundary conditions and common mistakes
+
+- `n=0`: constructor is valid, but no element index is valid.
+- `n=1`: find returns itself; self-union must not decrement component count.
+- Duplicate edges: `union` should return false when roots already match.
+- Always call `find` before merging; attaching `parent[b]=a` directly can corrupt balancing metadata.
+- Update `size[]` only for the surviving root.
+- Rank and size are different heuristics; do not increment "rank" as though it were component size.
+- Recursive find is concise; for extremely constrained stack environments an iterative compression variant may be preferred.
+- Standard DSU handles **merges**, not arbitrary online deletions/splits. Dynamic connectivity with deletions needs more advanced machinery or offline reversal techniques.
+
+### Pattern recognition map
+
+| Problem clue | DSU move |
+|---|---|
+| edge joins two previously separate components | `union(u,v)` |
+| "are these connected?" | compare roots |
+| redundant connection / cycle in undirected incremental graph | union fails because roots already equal |
+| Kruskal MST | accept edge iff union succeeds |
+| number of components | start at n, decrement on successful union |
+| largest merged group | maintain root size |
+| Accounts Merge | union account IDs sharing an email |
+| Number of Islands II | create/activate cells, union active neighbors |
+
+### Related variations
+
+1. **Union by rank** instead of size: same asymptotic performance.
+2. **Rollback DSU:** supports undo for offline divide-and-conquer connectivity; ordinary path compression is usually avoided because rollback must restore mutations.
+3. **Weighted/potential DSU:** stores relative information such as parity or distance-to-parent.
+4. **DSU on a grid:** flatten `(r,c)` to `r * cols + c`.
+5. **Kruskal:** sort edges by weight, union endpoints only when they are in different components.
+
+### Interview follow-ups
+
+1. Why is `parent[a] == parent[b]` insufficient for connectivity?
+2. What exact repeated work does path compression remove?
+3. Why does union by size prevent long chains?
+4. Can DSU detect a cycle in a directed graph? Standard DSU is naturally suited to undirected connectivity; directed cycles usually need DFS state or topological methods.
+5. Why is the complexity amortized rather than worst-case constant per call?
+6. How would you maintain component count and maximum component size?
 
 [↑ Back to Index](#navigation-and-index)
 
