@@ -2639,93 +2639,82 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 <a id="ll-28-reverse-nodes-in-groups-of-k"></a>
 ## LL-28. Reverse Nodes in Groups of K
 
-[← LL-27](#ll-27-remove-duplicates-from-a-sorted-doubly-linked-list) · [Index](#navigation-and-index) · [LL-29 →](#ll-29-rotate-a-linked-list)
+### Requirement and examples
 
-### Detailed question understanding
+Reverse the **nodes** in each complete consecutive block of `k`. Preserve a final incomplete block. Values stay inside their original node objects; reconnect `next` links. Assume an acyclic singly linked list; reject `k <= 0`.
 
-**What is the problem/lesson asking?** Reverse Nodes in Groups of K. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+| List | k | Result |
+|---|---:|---|
+| `1 → 2 → 3 → 4 → 5` | 2 | `2 → 1 → 4 → 3 → 5` |
+| `1 → 2 → 3 → 4 → 5` | 3 | `3 → 2 → 1 → 4 → 5` |
+| `1 → 2 → … → 10` | 4 | `4 → 3 → 2 → 1 → 8 → 7 → 6 → 5 → 9 → 10` |
+| empty or singleton | 1 | unchanged |
 
-### Three requirement-clarifying examples
+Some platforms reverse the incomplete block too. That is a different contract; this code follows the canonical k-group statement.
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+### Baseline and optimized pointer invariant
 
-### Pattern recognition
+Collecting node references in an array makes reversal easy but costs `O(n)` extra space. Instead use a dummy head and three boundaries: `before` precedes the group, `last` is its kth node, and `after = last.next`. Locate `last` **before modifying links**; if fewer than k nodes remain, stop.
 
-**Primary pattern:** Pointer reversal
+Reverse until `curr == after`, initializing `prev = after` so the old first node already connects to the suffix. Once reversal finishes, connect `before.next` to `last`; the old first node becomes `before` for the next group. The processed prefix consists of complete reversed blocks and is connected to the untouched suffix. Temporary reversal may detach nodes from the original head, but `curr` and saved `next` keep all remaining nodes reachable by local references.
 
-> **KEY INTUITION —** Save next before overwriting cur.next; then flip and advance.
+### Dry run: ten nodes, k=4
 
-### Brute-force / straightforward baseline
+For the first group: `before=dummy`, `last=4`, `after=5`, `prev=5`, `curr=1`.
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+| Step | Saved next | Link written | prev / curr afterwards |
+|---:|---:|---|---|
+| 1 | 2 | `1.next=5` | 1 / 2 |
+| 2 | 3 | `2.next=1` | 2 / 3 |
+| 3 | 4 | `3.next=2` | 3 / 4 |
+| 4 | 5 | `4.next=3` | 4 / 5 |
 
-### Optimized reasoning
+Now `dummy.next=4` and `before=1`. Find four nodes after 1: `5,6,7,8`. Reverse them with `after=9`; reconnect `1.next=8`, then `before=5`. Only `9,10` remain, so the completeness scan returns null and leaves both unchanged.
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
-
-### Detailed dry run
-
-Draw node objects and arrows. Before every pointer write, record the suffix/reference that would be lost if you had not saved it.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
+### Complete Java implementation
 
 ```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+public final class ReverseGroups {
+    public static final class Node {
+        public final int value;
+        public Node next;
+        public Node(int value) { this.value = value; }
+    }
+    public static Node reverseKGroup(Node head, int k) {
+        if (k <= 0) throw new IllegalArgumentException("k must be positive");
+        if (head == null || k == 1) return head;
+        Node dummy = new Node(0);
+        dummy.next = head;
+        Node before = dummy;
+        while (true) {
+            Node last = before;
+            for (int i = 0; i < k && last != null; i++) last = last.next;
+            if (last == null) return dummy.next;
+            Node after = last.next;
+            Node oldFirst = before.next;
+            Node prev = after, curr = oldFirst;
+            while (curr != after) {
+                Node next = curr.next; // save before overwriting
+                curr.next = prev;
+                prev = curr;
+                curr = next;
+            }
+            before.next = last;
+            before = oldFirst;
+        }
+    }
+}
 ```
 
-### Key line to highlight
+### Correctness and operation count
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+Each inner iteration reverses exactly one original group edge while retaining the next unreversed node. After k iterations, `prev=last` and the group's old head points to `after`. Splicing restores the outer invariant. A failed completeness check writes nothing, which proves the suffix rule. Each node participates in at most a group scan and a reversal, with one final suffix scan: `O(n)` time and `O(1)` auxiliary space.
 
-### Correctness checklist
+### Mistakes, boundaries, and follow-ups
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+Saving `next` after overwriting `curr.next` loses the remaining list. Moving `before` to the new head skips the wrong number of nodes; move it to the **old** head, now the tail. Check null input, k=1, k greater than length, exact multiples, duplicates, and identity preservation. Memoization has no overlapping subproblems here. Follow-ups: reverse every alternate group, reverse only `[left,right]`, and reverse incomplete groups under a changed contract. Memory cue: **prove k exist, save after, reverse, splice, move to old head**.
 
-### Boundary conditions
-
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
-
-### Complexity — derive it instead of memorizing it
-
-**O(n) time; O(1) iterative auxiliary space.**
-
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
-
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
-
-> **MEMORY TRICK —** SAVE → FLIP → ADVANCE.
-
-### Interview follow-ups and variations
-
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+Source: [canonical problem and remainder semantics](https://leetcode.com/problems/reverse-nodes-in-k-group/). Pointer proof and ten-node dry run are added explanations.
 
 [↑ Back to Index](#navigation-and-index)
 
