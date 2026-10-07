@@ -3047,99 +3047,209 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Dijkstra — Priority Queue. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+**Problem.** Given a weighted directed or undirected graph, a source `s`, and **non-negative edge weights**, compute the minimum total weight from `s` to every vertex. A vertex that cannot be reached keeps an infinity sentinel (or is converted to `-1` if the platform requires it).
 
-### Three requirement-clarifying examples
+Before coding, write:
 
-| # | Input / setup | Output / observation | Why it matters |
+```text
+NODE      = graph vertex
+EDGE      = allowed move between vertices
+COST      = non-negative edge weight
+STATE     = (best-known distance, vertex)
+GOAL      = minimum source-to-vertex total cost
+```
+
+**Verified source note.** Take U Forward's current Dijkstra lesson states the same non-negative-weight requirement and uses a min-heap; its optimized version also skips outdated heap entries. CP-Algorithms likewise defines Dijkstra for non-negative edge weights. Extra proofs, dry runs, and Java engineering notes below are added study material.
+
+### Four requirement-clarifying examples
+
+| # | Graph / source | Result | What it teaches |
 |---:|---|---|---|
-| 1 | `0→1(4),0→2(1),2→1(2)` | `dist(1)=3` | later relaxation improves |
-| 2 | `0-1(5),1-2(2)` | `[0,5,7]` | weighted chain |
-| 3 | `unreachable node` | `INF` | disconnected |
+| 1 | `0-1(4), 0-2(1), 2-1(2)`, source 0 | `[0,3,1]` | first discovery is not necessarily final; 1 improves from 4 to 3 |
+| 2 | `0-1(2), 1-2(3)` plus isolated 3 | `[0,2,5,INF]` | unreachable vertices remain unreachable |
+| 3 | parallel choices `0-1(10), 0-2(2), 2-1(2)` | `dist[1]=4` | relaxation replaces a worse tentative route |
+| 4 | `0→1(5), 0→2(2), 2→1(-4)` | **do not use Dijkstra** | negative edges break the greedy finalization argument |
+
+### Visual model
+
+```text
+          4
+      0 ------> 1
+       \        ^
+      1 \       | 2
+         v      |
+          2 ----+
+
+Initial: dist = [0, INF, INF], pq = [(0,0)]
+From 0 : dist = [0, 4, 1],   pq = [(1,2),(4,1)]
+From 2 : dist = [0, 3, 1],   pq = [(3,1),(4,1)]
+From 1 : settle distance 3
+Later  : (4,1) is stale → skip
+```
 
 ### Pattern recognition
 
-**Primary pattern:** Best-first shortest path
+Think **Dijkstra** when all of these are true:
 
-> **KEY INTUITION —** With non-negative/monotone path costs, always expand the smallest tentative state first.
+- the question asks for minimum/shortest accumulated cost;
+- edge costs are non-negative;
+- the graph is not a special easier case such as unit weight (BFS) or a DAG (topological relaxation);
+- one source or a small number of sources are involved.
 
-### Brute-force / straightforward baseline
+Do **not** reflexively use Dijkstra:
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+| Situation | Better first thought |
+|---|---|
+| every edge has cost 1 | BFS |
+| costs are only 0 or 1 | 0-1 BFS |
+| DAG, even with negative edges | topological-order relaxation |
+| arbitrary negative edges | Bellman-Ford |
+| all-pairs shortest path, small dense graph | Floyd-Warshall |
 
-### Optimized reasoning
+> **KEY INTUITION — CHEAPEST FRONTIER FIRST.**  
+> The priority queue does not mean “this vertex is permanently finished when first inserted.” It means “among all currently known routes, inspect the cheapest route next.”
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+### Baseline: repeated minimum scan
+
+The textbook baseline keeps `dist[]` and repeatedly scans all unprocessed vertices to find the minimum tentative distance.
+
+- minimum selection: `O(V)` each time;
+- repeated up to `V` times;
+- edge relaxation: `O(E)`.
+
+For a dense graph this `O(V² + E)` approach can be reasonable, but on sparse graphs it repeatedly rescans vertices just to answer: **which tentative distance is smallest?**
+
+The heap removes that repeated minimum scan.
+
+### Optimized invariant
+
+`dist[v]` = smallest source-to-`v` distance discovered so far.
+
+Every heap entry `(d,v)` represents a discovered route of length `d`. Because Java's `PriorityQueue` has no decrease-key operation, a better route inserts a **new** pair. The old pair remains in the heap.
+
+Therefore this line matters:
+
+```java
+if (cur.d() != dist[cur.u()]) continue;
+```
+
+It rejects an outdated route. Without it, correctness can still survive with non-negative weights if relaxations are guarded, but the same adjacency list can be scanned unnecessarily many times.
 
 ### Detailed dry run
 
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
+Graph:
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+```text
+0 --4--> 1 --1--> 3 --3--> 4
+ \       ^
+  1      |2
+   v     |
+    2 -- + 
+    \5------>3
+```
 
-### Java implementation / template
+Edges: `0→1(4), 0→2(1), 2→1(2), 1→3(1), 2→3(5), 3→4(3)`.
+
+| Step | pop | important relaxations | dist after step | heap after pushes |
+|---:|---|---|---|---|
+| 0 | — | initialize source | `[0,∞,∞,∞,∞]` | `(0,0)` |
+| 1 | `(0,0)` | 1←4, 2←1 | `[0,4,1,∞,∞]` | `(1,2),(4,1)` |
+| 2 | `(1,2)` | 1 improves 4→3; 3←6 | `[0,3,1,6,∞]` | `(3,1),(4,1),(6,3)` |
+| 3 | `(3,1)` | 3 improves 6→4 | `[0,3,1,4,∞]` | `(4,1),(4,3),(6,3)` |
+| 4 | `(4,1)` | stale: 4 != dist[1]=3 | unchanged | skip |
+| 5 | `(4,3)` | 4←7 | `[0,3,1,4,7]` | includes `(7,4)` |
+| 6 | `(6,3)` | stale: 6 != dist[3]=4 | unchanged | skip |
+| 7 | `(7,4)` | none | final `[0,3,1,4,7]` | empty |
+
+The important observation is that **heap entries are routes, not unique vertices**.
+
+### Java implementation
 
 ```java
-record State(long d,int u) {}
-static long[] dijkstra(List<List<long[]>> g,int s){
-    long INF=Long.MAX_VALUE/4;
-    long[] dist=new long[g.size()]; Arrays.fill(dist,INF); dist[s]=0;
-    PriorityQueue<State> pq=new PriorityQueue<>(Comparator.comparingLong(State::d));
-    pq.offer(new State(0,s));
-    while(!pq.isEmpty()){
-        State cur=pq.poll();
-        if(cur.d()!=dist[cur.u()]) continue; // stale entry
-        for(long[] e:g.get(cur.u())){
-            int v=(int)e[0]; long nd=cur.d()+e[1];
-            if(nd<dist[v]){ dist[v]=nd; pq.offer(new State(nd,v)); }
+import java.util.*;
+
+final class DijkstraGuide {
+    record Edge(int to, long weight) {}
+    record State(long distance, int node) {}
+
+    static long[] shortestPaths(List<List<Edge>> graph, int source) {
+        int n = graph.size();
+        long INF = Long.MAX_VALUE / 4;
+
+        long[] dist = new long[n];
+        Arrays.fill(dist, INF);
+        dist[source] = 0L;
+
+        PriorityQueue<State> pq =
+                new PriorityQueue<>(Comparator.comparingLong(State::distance));
+        pq.offer(new State(0L, source));
+
+        while (!pq.isEmpty()) {
+            State cur = pq.poll();
+
+            // Java PriorityQueue has no decrease-key: discard the old route.
+            if (cur.distance() != dist[cur.node()]) {
+                continue;
+            }
+
+            for (Edge edge : graph.get(cur.node())) {
+                // With INF chosen safely below Long.MAX_VALUE and cur reachable,
+                // this addition has headroom for normal interview constraints.
+                long candidate = cur.distance() + edge.weight();
+
+                if (candidate < dist[edge.to()]) {
+                    dist[edge.to()] = candidate;
+                    pq.offer(new State(candidate, edge.to()));
+                }
+            }
         }
+        return dist;
     }
-    return dist;
 }
 ```
 
-### Key line to highlight
+### Why Dijkstra is correct
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+**Invariant.** When a non-stale pair `(d,u)` is the minimum heap entry, `d = dist[u]` is the true shortest distance to `u`.
 
-### Correctness checklist
+Suppose there were a shorter undiscovered path to `u`. Walk along that path from the source and find the first vertex `y` not yet reached with its final shortest distance; let `x` be its predecessor. The prefix to `x` has already been available for relaxation. Because the edge `x→y` is non-negative, the candidate for `y` cannot exceed the total hypothetical shorter path to `u`. That candidate would therefore have priority no worse than `u`, contradicting that `u` was the smallest valid heap state. The argument fails with negative edges because a later edge could reduce the path below a vertex already chosen greedily.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+### Complexity — derive it
 
-### Boundary conditions
+Using adjacency lists and lazy heap updates:
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+- every adjacency entry is examined when its source is processed from a valid state;
+- every successful relaxation can push one heap entry;
+- there are at most `O(E)` successful edge relaxations/pushes;
+- each heap push/pop costs `O(log E)`, commonly written `O(log V)` for standard simple-graph bounds.
 
-### Complexity — derive it instead of memorizing it
+So the usual bound is **`O((V+E) log V)`**, often simplified to **`O(E log V)`** for a connected graph. Storage is **`O(V+E)`** for graph, distance array, and heap entries.
 
-**Heap Dijkstra typically O((V+E) log V), plus O(V+E) graph storage.**
+### Boundary conditions and common mistakes
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+- **Negative edge:** switch algorithms; Dijkstra's proof no longer applies.
+- **Disconnected vertex:** leave as INF, then translate to `-1` only if required by the problem.
+- **Large path sums:** use `long`, not `int`.
+- **Stale heap entries:** skip them before scanning neighbors.
+- **Undirected graph:** add both directions; directed graph: add only the stated direction.
+- **Multiple equal shortest paths:** distance alone is unchanged; if the question asks for counts, maintain `ways[]`.
+- **Path reconstruction:** maintain `parent[v]=u` on a strict improvement.
+- **Early exit:** safe when the target is popped as the smallest **non-stale** state under Dijkstra's assumptions.
 
 ### Memoization / repeated-work note
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+This is not recursive memoization, but `dist[]` is reusable solved-state knowledge: a relaxation is accepted only if it improves the best known state. The stale-entry check prevents obsolete routes from repeating adjacency work. For repeated shortest-path queries from the **same source**, cache the computed `dist[]`; for many different sources, reconsider whether an all-pairs strategy or preprocessing fits the constraints.
 
-> **MEMORY TRICK —** DIJKSTRA = BEST TENTATIVE STATE FIRST.
+> **MEMORY TRICK —** **POP CHEAPEST → SKIP STALE → RELAX NEIGHBORS.**
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. Return the actual path: add a parent array and reverse the parent chain.
+2. Count shortest paths: keep `ways[v]`; replace on shorter distance, add on equal distance.
+3. Minimum-effort / minimax path: change the path-combine operation from sum to `max`.
+4. Multi-source Dijkstra: seed every source with distance 0.
+5. Why ordinary FIFO queue is insufficient: weighted discoveries are not ordered by total cost.
+6. Compare with BFS, 0-1 BFS, DAG relaxation, Bellman-Ford, and Floyd-Warshall.
 
 [↑ Back to Index](#navigation-and-index)
 
