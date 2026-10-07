@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bellman-Ford Deep Dive</title>
+<style>body{font-family:system-ui,sans-serif;line-height:1.65;max-width:980px;margin:auto;padding:20px}nav{position:sticky;top:0;background:Canvas;padding:10px;border-bottom:1px solid GrayText}a{margin-right:12px}pre{overflow:auto;padding:14px;background:#111827;color:#e5edf8;border-radius:10px}table{border-collapse:collapse;width:100%;min-width:650px}th,td{padding:8px;border-bottom:1px solid #999;text-align:left}.table{overflow:auto}blockquote{border-left:4px solid #5577dd;padding:10px}@media(max-width:700px){body{padding:10px}h1{font-size:1.8rem}}</style></head>
+<body><nav><a href="../markdown/bellman-ford-deep-dive.md">Markdown</a><a href="#examples">Examples</a><a href="#dry">Dry run</a><a href="#java">Java</a><a href="#proof">Correctness</a><a href="#complexity">Complexity</a></nav>
+<h1>Bellman-Ford: Negative Edges, Relaxation & Negative Cycles</h1>
+<blockquote><b>Memory trick:</b> Relax every edge V-1 times; one more improvement means a reachable negative cycle.</blockquote>
+<p><b>Source boundary:</b> Topic placement follows the Striver/Take U Forward graph sequence. Proof expansions, examples, Java engineering notes and memory aids are additional study material, verified against Take U Forward and CP-Algorithms. This standalone page is mobile-friendly and browser-searchable.</p>
+<h2>Problem and pattern</h2><p>Compute single-source shortest distances in a weighted directed graph even when edges may be negative. A reachable negative cycle makes finite shortest paths undefined for affected vertices.</p>
+<p>Choose Bellman-Ford for <b>single-source shortest path plus negative edges</b> or reachable-negative-cycle detection. Prefer Dijkstra for nonnegative weights, topological relaxation for DAGs, and Floyd-Warshall for many all-pairs workloads.</p>
+<h2 id="examples">Clarifying examples</h2><div class="table"><table><tr><th>Case</th><th>Edges</th><th>Result</th><th>Lesson</th></tr><tr><td>Negative edge</td><td>0→1(4), 0→2(5), 1→2(-2)</td><td>[0,4,2]</td><td>negative edge is valid</td></tr><tr><td>Reachable cycle</td><td>0→1(1),1→2(-1),2→1(-1)</td><td>negative cycle</td><td>cost can decrease forever</td></tr><tr><td>Unreachable cycle</td><td>0→1(2), 2↔3 cycle</td><td>[0,2,∞,∞]</td><td>guard INF</td></tr><tr><td>Single vertex</td><td>none</td><td>[0]</td><td>zero passes</td></tr></table></div>
+<h2>Invariant and relaxation</h2><p><code>dist[v]</code> is the best source-to-v cost discovered so far. After pass i, shortest paths requiring at most i edges have been propagated.</p>
+<pre>if dist[u] != INF and dist[u] + w &lt; dist[v]:
+    dist[v] = dist[u] + w</pre>
+<h2 id="dry">Dry run</h2><pre>0 --4--> 1 --(-2)--> 2 --3--> 3
+ \----------------5-----> 2
+
+edge order: (2,3), (1,2), (0,2), (0,1)
+initial: [0,∞,∞,∞]
+pass 1: [0,4,5,∞]
+pass 2: [0,4,2,8]
+pass 3: [0,4,2,5]</pre>
+<p>Information is guaranteed to cross one more edge of a shortest path per full phase.</p>
+<h2 id="java">Java implementation</h2>
+<pre>record Edge(int from, int to, long weight) {}
+
+long[] d = new long[n];
+Arrays.fill(d, INF);
+d[source] = 0;
+
+for (int pass = 1; pass &lt;= n - 1; pass++) {
+    boolean changed = false;
+    for (Edge e : edges) {
+        if (d[e.from()] == INF) continue;
+        long candidate = d[e.from()] + e.weight();
+        if (candidate &lt; d[e.to()]) {
+            d[e.to()] = candidate;
+            changed = true;
+        }
+    }
+    if (!changed) break;
+}
+
+boolean negativeCycle = false;
+for (Edge e : edges) {
+    if (d[e.from()] != INF &amp;&amp;
+        d[e.from()] + e.weight() &lt; d[e.to()]) {
+        negativeCycle = true;
+        break;
+    }
+}</pre>
+<h2 id="proof">Correctness</h2><p><b>Initialization:</b> source is zero; all others are unknown. <b>Maintenance:</b> after pass i-1, shortest paths of at most i-1 edges are represented; scanning the final edge of an i-edge path propagates its value. <b>Termination:</b> a finite simple shortest path has at most V-1 edges. A reachable improvement afterward signals a reachable negative cycle.</p>
+<h2 id="complexity">Complexity</h2><p>At most V-1 passes times E edge scans gives <b>O(VE)</b> time and <b>O(V)</b> extra distance storage. Early stopping helps favorable inputs but not the worst-case bound.</p>
+<h2>Boundary conditions</h2><ul><li>V=1 needs zero passes.</li><li>Unreachable vertices stay INF.</li><li>Unreachable negative cycles do not affect source-specific detection.</li><li>A reachable negative self-loop is a negative cycle.</li><li>Parallel edges are naturally handled.</li><li>Use long when int can overflow.</li></ul>
+<h2>Repeated work and memoization</h2><p>This is not memoized recursion. The distance array is compressed reusable state: it avoids path enumeration and stores the best known summary for each vertex.</p>
+<h2>Common mistakes</h2><ol><li>Using Dijkstra with negative edges.</li><li>Omitting the INF guard.</li><li>Running too few passes.</li><li>Confusing reachable and unreachable negative cycles.</li><li>Ignoring overflow.</li></ol>
+<h2>Comparison map</h2><pre>equal weights -> BFS
+0/1 weights -> 0-1 BFS
+DAG -> topological relaxation
+nonnegative -> Dijkstra
+negative edges -> Bellman-Ford
+all pairs -> Floyd-Warshall</pre>
+<h2>Variations</h2><p>Practice path reconstruction, extracting the actual negative cycle, marking vertices with effectively negative-infinity distance, K-stop relaxation, and explaining why SPFA still has O(VE) worst-case behavior.</p>
+<p><a href="#">Back to top</a></p></body></html>
