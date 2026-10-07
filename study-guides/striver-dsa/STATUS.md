@@ -16,7 +16,7 @@
 | Bellman–Ford — negative edges/cycles | ✅ | ✅ | Dedicated deep-dive pair added under canonical Graph guide folders |
 | G-46 Disjoint Set Union | ✅ | ✅ | Deepened with path compression, union-by-size, dry run, proof, amortized complexity, and variations |
 
-Next Graph priorities: deepen G-55 Bridges / Critical Connections and G-56 Articulation Points, then continue targeted per-card enrichment across the promoted guides.
+Next Graph priority: synchronize the new G-55/G-56 low-link sections into canonical responsive HTML, then continue targeted per-card enrichment across the promoted guides.
 
 ## Version policy
 
