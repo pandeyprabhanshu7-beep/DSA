@@ -20,10 +20,10 @@
 | G-56 Articulation Points | ✅ | ✅ | Canonical HTML synchronized with root and non-root rules |
 | S26 Sliding Window Maximum | ✅ | ✅ | Complete Java, deque proof, detailed trace and boundaries |
 | LL-28 Reverse Nodes in Groups of K | ✅ | ✅ | Complete Java, ten-node trace, identity and remainder semantics |
-| BT-16 Maximum Path Sum | ✅ | ✅ | Complete Java, gain/candidate distinction and all-negative handling |
+| BT-13 Maximum Depth / Height | ✅ | ✅ | Four examples, Java DFS/BFS and path-enumeration baseline, postorder proof, Mermaid diagram; 1,500 randomized trees + 10,000-node skew BFS validated |\n| BT-16 Maximum Path Sum | ✅ | ✅ | Complete Java, gain/candidate distinction and all-negative handling |
 | H-10 Subarray Sum Equals K | ✅ | ✅ | Complete Java, prefix-frequency proof and overflow handling |
 
-## Completion audit — 2026-10-07
+## Completion audit — 2026-10-08
 
 The first table means files exist in both formats; it does **not** mean every card has a complete deep dive. An audit of the current canonical Markdown found these explicit Java placeholders still remaining after this pass:
 
@@ -36,7 +36,7 @@ The first table means files exist in both formats; it does **not** mean every ca
 | HashMap & Hashing | 27 |
 | **Total** | **183** |
 
-All six HTML reading editions embed the exact current paired Markdown. Remaining work: replace the 183 placeholders with problem-specific implementations, precise examples, actual dry runs and correctness arguments. Generic template prose remains in many cards and needs review too. The four newly enriched Java implementations compile with the Java 17 compiler module and pass 1,000 seeded randomized cases per algorithm against independent brute-force/reference checks, including list node identity checks and extreme long targets. HTML/Markdown payload equality is verified; browser rendering was not visually tested in this pass.
+All six HTML reading editions embed the exact current paired Markdown. BT-13 was enriched and synchronized on 2026-10-08; its pre-existing card already had a non-placeholder height method, so the **183** explicit placeholder count is unchanged. S4 Queue Using Two Stacks still has a placeholder because its write was blocked; do not mark it complete. Remaining work: replace the 183 placeholders with problem-specific implementations, precise examples, actual dry runs and correctness arguments. Generic template prose remains in many cards and needs review too. The four newly enriched Java implementations compile with the Java 17 compiler module and pass 1,000 seeded randomized cases per algorithm against independent brute-force/reference checks, including list node identity checks and extreme long targets. HTML/Markdown payload equality is verified; browser rendering was not visually tested in this pass.
 
 ## Version policy
 
