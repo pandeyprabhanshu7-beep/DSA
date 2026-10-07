@@ -5512,190 +5512,334 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 ---
 
 <a id="g-55-bridges-critical-connections-tarjan-low-link"></a>
-## G-55. Bridges / Critical Connections — Tarjan Low-Link
+## G-55. Bridges / Critical Connections — Low-Link DFS
 
 [← G-54](#g-54-kosaraju-strongly-connected-components) · [Index](#navigation-and-index) · [G-56 →](#g-56-articulation-points)
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Bridges / Critical Connections — Tarjan Low-Link. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given an **undirected graph**, return every edge whose removal increases the number of connected components. Such an edge is a **bridge** (critical connection).
 
-### Three requirement-clarifying examples
+Do not confuse this with: shortest path, MST edges, or articulation points. A bridge is about **edge failure**.
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `triangle + tail` | `tail edge only` | cycle edges have alternatives |
-| 2 | `0-1-2-3` | `all three edges` | chain |
-| 3 | `triangle` | `none` | alternate routes |
+```text
+tin[u] = DFS discovery time of u
+low[u] = earliest discovery time reachable from u's DFS subtree
+         using tree edges downward plus at most a back edge upward
+```
 
-### Pattern recognition
+**Verified source note.** CP-Algorithms' bridge criterion is `low[child] > tin[parent]` and its current implementation explicitly warns about parallel edges: skip the exact parent **edge**, not every edge to the parent vertex. Extra examples, Java implementation, proof, and memory devices below are study-guide additions.
 
-**Primary pattern:** Low-link DFS
+### Four clarifying examples
 
-> **KEY INTUITION —** tin is entry time; low summarizes the earliest ancestor reachable from the subtree without relying only on the parent tree edge.
+| Graph | Bridges | Why |
+|---|---|---|
+| `0-1-2-0` | none | every edge lies on a cycle |
+| `0-1-2-3` | all 3 | each is the only connection across a cut |
+| triangle `0,1,2` plus `1-3` | `1-3` | subtree at 3 cannot escape upward |
+| two parallel edges `0==1` | none | deleting one still leaves the other |
 
-### Brute-force / straightforward baseline
+### Visual intuition
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+```text
+      0
+     / \
+    1---2
+    |
+    3---4
+        |
+        5
 
-### Optimized reasoning
+cycle 0-1-2: no bridge
+edge 1-3: bridge
+edge 3-4: bridge
+edge 4-5: bridge
+```
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+> **KEY INTUITION — A CHILD SUBTREE MUST HAVE AN ESCAPE ROUTE.**  
+> After DFS returns from child `v` to parent `u`, if `low[v] <= tin[u]`, the subtree can reach `u` or an ancestor without depending solely on tree edge `u-v`. If `low[v] > tin[u]`, it cannot; `u-v` is a bridge.
+
+### Brute force and repeated work
+
+For every edge, remove it and run DFS/BFS to recount connectivity. With `E` candidates, each traversal costs `O(V+E)`, giving `O(E(V+E))`. The repeated work is rediscovering the same subtree connectivity after every hypothetical deletion.
+
+Low-link DFS summarizes that escape information once per subtree.
+
+### Invariant and the strict inequality
+
+After DFS completely processes subtree `v`, `low[v]` is the minimum `tin` reachable from that subtree without using the exact parent tree edge as the upward escape.
+
+```java
+if (low[v] > tin[u]) {
+    // (u,v) is a bridge
+}
+```
+
+Why **`>`**, not `>=`? If `low[v] == tin[u]`, the subtree has another edge/path back to `u`; removing the DFS tree edge does not disconnect it.
 
 ### Detailed dry run
 
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
+Use edges `0-1, 1-2, 2-0, 1-3, 3-4, 4-5, 5-3`.
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+| Return | tin | low before return | Update / conclusion |
+|---|---|---|---|
+| 2 → 1 | `tin[2]=2` | back edge 2→0 makes `low[2]=0` | `0 > tin[1]=1` false |
+| 5 → 4 | `tin[5]=5` | edge 5→3 makes `low[5]=3` | `3 > tin[4]=4` false |
+| 4 → 3 | `tin[4]=4` | `low[4]=3` | `3 > tin[3]=3` false |
+| 3 → 1 | `tin[3]=3` | `low[3]=3` | `3 > tin[1]=1` true → **1-3 bridge** |
+| 1 → 0 | — | cycle gives `low[1]=0` | not a bridge |
 
-### Java implementation / template
+The triangle at 3-4-5 provides an alternate route inside that subtree, but it provides no route back above node 3. Therefore the single attachment `1-3` remains critical.
+
+### Java — edge IDs make parallel edges safe
 
 ```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+import java.util.*;
+
+final class Bridges {
+    record Edge(int to, int id) {}
+    record Pair(int u, int v) {}
+
+    private int timer;
+    private int[] tin, low;
+    private List<List<Edge>> graph;
+    private final List<Pair> bridges = new ArrayList<>();
+
+    List<Pair> findBridges(int n, int[][] edges) {
+        graph = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) graph.add(new ArrayList<>());
+
+        for (int id = 0; id < edges.length; id++) {
+            int u = edges[id][0], v = edges[id][1];
+            graph.get(u).add(new Edge(v, id));
+            graph.get(v).add(new Edge(u, id));
+        }
+
+        tin = new int[n];
+        low = new int[n];
+        Arrays.fill(tin, -1);
+
+        for (int u = 0; u < n; u++) {
+            if (tin[u] == -1) dfs(u, -1);
+        }
+        return bridges;
+    }
+
+    private void dfs(int u, int parentEdgeId) {
+        tin[u] = low[u] = timer++;
+
+        for (Edge e : graph.get(u)) {
+            if (e.id() == parentEdgeId) continue; // skip only entering edge
+
+            int v = e.to();
+            if (tin[v] == -1) {
+                dfs(v, e.id());
+                low[u] = Math.min(low[u], low[v]);
+
+                if (low[v] > tin[u]) {
+                    bridges.add(new Pair(u, v));
+                }
+            } else {
+                low[u] = Math.min(low[u], tin[v]); // back/parallel edge
+            }
+        }
+    }
+}
 ```
 
-### Key line to highlight
+### Correctness
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+For DFS tree edge `u-v`, every route from `v`'s subtree to vertices discovered before `u` must be represented by a back edge summarized in `low[v]`. If `low[v] <= tin[u]`, an alternate route reaches `u` or above, so removing `u-v` does not separate the subtree. If `low[v] > tin[u]`, no such route exists; the tree edge is the subtree's only connection upward and is therefore a bridge.
 
-### Correctness checklist
+### Complexity, boundaries, and reuse
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+Each vertex is discovered once and every undirected edge appears twice in adjacency lists and is inspected a constant number of times: **O(V+E)** time. Arrays + recursion use `O(V)` auxiliary state, excluding the adjacency list and output.
 
-### Boundary conditions
+Boundary cases: disconnected graph (start DFS from every unvisited vertex), self-loop (never a bridge), parallel edges (edge IDs matter), isolated vertex (no bridge), deep chain (all edges are bridges; recursion depth may matter).
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+Memoization: there are no overlapping recursive subproblems. `tin[]` prevents re-exploration and `low[]` is the reusable summary returned by a subtree.
 
-### Complexity — derive it instead of memorizing it
+> **MEMORY TRICK — BRIDGE = CHILD CANNOT REACH PARENT OR ABOVE: `low[child] > tin[parent]`.**
 
-**O(V+E) time; O(V) state plus adjacency.**
+### Variations
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
-
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
-
-> **MEMORY TRICK —** LOW TELLS WHETHER THE SUBTREE CAN ESCAPE UPWARD.
-
-### Interview follow-ups and variations
-
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+Critical Connections, 2-edge-connected components, bridge tree/compression, strong orientation, and online bridge maintenance. Static interview problems normally use this one DFS; edge-addition streams require a more advanced dynamic method.
 
 [↑ Back to Index](#navigation-and-index)
 
 ---
 
 <a id="g-56-articulation-points"></a>
-## G-56. Articulation Points
+## G-56. Articulation Points / Cut Vertices
 
 [← G-55](#g-55-bridges-critical-connections-tarjan-low-link) · [Index](#navigation-and-index)
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Articulation Points. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given an undirected graph, return every **vertex** whose removal together with its incident edges increases the number of connected components. Take U Forward's current problem explicitly allows an initially disconnected graph; the algorithm must therefore launch DFS from every undiscovered vertex.
 
-### Three requirement-clarifying examples
+**Bridge vs articulation point**
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `0-1-2` | `[1]` | middle cut |
-| 2 | `triangle` | `none` | alternate route |
-| 3 | `star` | `center` | removal separates leaves |
+```text
+bridge: remove an EDGE
+articulation point: remove a VERTEX
+```
 
-### Pattern recognition
+### Four examples
 
-**Primary pattern:** Low-link DFS
+| Graph | Articulation points | Lesson |
+|---|---|---|
+| `0-1-2` | `[1]` | middle vertex separates endpoints |
+| triangle | none | every remaining pair still has a path |
+| star centered at 0 | `[0]` | DFS-root special rule |
+| triangle plus tail `1-3-4` | `[1,3]` | non-root low-link rule |
 
-> **KEY INTUITION —** tin is entry time; low summarizes the earliest ancestor reachable from the subtree without relying only on the parent tree edge.
+### Pattern recognition and key intuition
 
-### Brute-force / straightforward baseline
+Think articulation point when the story asks for a **single machine/router/city/person whose failure separates other vertices**.
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+For a non-root DFS vertex `u`, child subtree `v` becomes separated after deleting `u` exactly when:
 
-### Optimized reasoning
+```text
+low[v] >= tin[u]
+```
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+Notice the difference:
+
+```text
+BRIDGE:       low[v] >  tin[u]
+ARTICULATION: low[v] >= tin[u]   (non-root u)
+ROOT:         DFS child count > 1
+```
+
+Why `>=` here? If `low[v] == tin[u]`, the child's alternate route returns only to `u`. Deleting **u itself** destroys that route too.
+
+> **MEMORY TRICK — EDGE uses >; VERTEX uses >=; ROOT COUNTS CHILDREN.**
+
+### Brute force
+
+For every candidate vertex, ignore it and run a new traversal to count components. That repeats nearly the entire graph `V` times: `O(V(V+E))`. Low-link DFS instead determines whether each child subtree can bypass its parent during one traversal.
 
 ### Detailed dry run
 
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
+Graph: triangle `0-1-2-0`, tail `1-3-4`, and cycle `3-5-6-3`.
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+Assume DFS discovers 0,1,2, then returns to 1 and explores 3.
 
-### Java implementation / template
+| Return | low condition | Consequence |
+|---|---|---|
+| 2 → 1 | `low[2]=0 < tin[1]` | child 2 can escape above 1; no cut evidence |
+| 4 → 3 | `low[4]=tin[4] >= tin[3]` | removing 3 isolates 4 → mark 3 |
+| cycle child under 3 → 3 | low can return to 3 | equality still marks non-root 3 because deleting 3 removes that return |
+| 3 → 1 | `low[3] >= tin[1]` | removing 1 separates tail/cycle region → mark 1 |
+
+The DFS root is handled separately. A root with one DFS child is **not** an articulation point merely because `low[child] >= tin[root]`; after deleting the root that one subtree remains a single connected piece. Root needs more than one DFS child.
+
+### Java — robust parent-edge handling
 
 ```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+import java.util.*;
+
+final class ArticulationPoints {
+    record Edge(int to, int id) {}
+
+    private List<List<Edge>> graph;
+    private int[] tin, low;
+    private boolean[] cut;
+    private int timer;
+
+    List<Integer> find(int n, int[][] edges) {
+        graph = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) graph.add(new ArrayList<>());
+
+        for (int id = 0; id < edges.length; id++) {
+            int u = edges[id][0], v = edges[id][1];
+            graph.get(u).add(new Edge(v, id));
+            graph.get(v).add(new Edge(u, id));
+        }
+
+        tin = new int[n];
+        low = new int[n];
+        cut = new boolean[n];
+        Arrays.fill(tin, -1);
+
+        for (int u = 0; u < n; u++) {
+            if (tin[u] == -1) dfs(u, -1, true);
+        }
+
+        List<Integer> answer = new ArrayList<>();
+        for (int u = 0; u < n; u++) if (cut[u]) answer.add(u);
+        return answer;
+    }
+
+    private void dfs(int u, int parentEdgeId, boolean isRoot) {
+        tin[u] = low[u] = timer++;
+        int childCount = 0;
+
+        for (Edge e : graph.get(u)) {
+            if (e.id() == parentEdgeId) continue;
+
+            int v = e.to();
+            if (tin[v] == -1) {
+                childCount++;
+                dfs(v, e.id(), false);
+                low[u] = Math.min(low[u], low[v]);
+
+                if (!isRoot && low[v] >= tin[u]) {
+                    cut[u] = true;
+                }
+            } else {
+                low[u] = Math.min(low[u], tin[v]);
+            }
+        }
+
+        if (isRoot && childCount > 1) {
+            cut[u] = true;
+        }
+    }
+}
 ```
 
-### Key line to highlight
+### Correctness reasoning
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+For non-root `u`, consider a DFS child `v`. If `low[v] < tin[u]`, some edge from `v`'s subtree reaches a strict ancestor of `u`; after deleting `u`, that subtree still has an escape route to the earlier graph. If `low[v] >= tin[u]`, no strict ancestor is reachable without passing through `u`, so deleting `u` separates that child subtree.
 
-### Correctness checklist
+The root has no ancestor. Its independently discovered DFS child subtrees have no route between them except through the root; therefore the root is a cut vertex iff it has more than one DFS-tree child.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+### Complexity and boundary conditions
 
-### Boundary conditions
+One DFS: **O(V+E)** time, `O(V)` discovery/low/marker state plus recursion, excluding adjacency/output.
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+Important cases:
+- initially disconnected graph → DFS every component;
+- one vertex → not a cut vertex;
+- two vertices joined by one edge → neither endpoint is a cut vertex;
+- chain → every internal vertex is a cut vertex;
+- cycle → none;
+- parallel edges/self-loops → edge IDs avoid incorrectly skipping all parent connections;
+- mark with a boolean because several children can prove the same vertex is a cut point;
+- deep graphs can overflow Java recursion stack in production-scale inputs; iterative low-link DFS is possible but more intricate.
 
-### Complexity — derive it instead of memorizing it
+Memoization: `low[]` is a postorder summary, not classical DP memoization; every DFS subtree is solved once.
 
-**O(V+E) time; O(V) state plus adjacency.**
+### Bridge/articulation comparison card
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+| Question | Bridge | Articulation |
+|---|---|---|
+| remove | edge `u-v` | vertex `u` |
+| child test | `low[v] > tin[u]` | `low[v] >= tin[u]` |
+| root special case | no | yes: >1 DFS child |
+| typical output | edge pairs | vertex IDs |
+| static complexity | `O(V+E)` | `O(V+E)` |
 
-### Memoization / repeated-work note
+### Related variations and follow-ups
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
-
-> **MEMORY TRICK —** LOW TELLS WHETHER THE SUBTREE CAN ESCAPE UPWARD.
-
-### Interview follow-ups and variations
-
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+- Why can a leaf be an endpoint of a bridge but not normally an articulation point?
+- Are both endpoints of every bridge articulation points? No: a bridge incident to a leaf is the standard counterexample.
+- Find biconnected components / block-cut tree.
+- Find bridges and articulation points in one DFS.
+- How do parallel edges change parent handling?
+- How would requirements change if edges are added online?
 
 [↑ Back to Index](#navigation-and-index)
 
