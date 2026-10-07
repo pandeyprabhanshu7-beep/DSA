@@ -2450,93 +2450,74 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 <a id="s26-sliding-window-maximum"></a>
 ## S26. Sliding Window Maximum
 
-[← S25](#s25-maximal-rectangle) · [Index](#navigation-and-index) · [S27 →](#s27-stock-span)
+### Requirement and examples
 
-### Detailed question understanding
+Given an integer array and a valid window length `k`, return one maximum for each contiguous window, ordered by its starting index. Windows overlap; elements are not removed from the input. This method rejects null arrays and `k < 1` or `k > n`.
 
-**What is the problem/lesson asking?** Sliding Window Maximum. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+| Input | k | Result | Reason |
+|---|---:|---|---|
+| `[1,3,-1,-3,5,3,6,7]` | 3 | `[3,3,5,5,6,7]` | Six overlapping windows |
+| `[2,2,2]` | 2 | `[2,2]` | Equal maxima are valid |
+| `[4,3,2,1]` | 2 | `[4,3,2]` | Old maxima expire |
+| `[-4,-2,-5]` | 1 | `[-4,-2,-5]` | Each element is its own window |
 
-### Three requirement-clarifying examples
+### Brute force and the work to reuse
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+Scanning every window costs `O((n-k+1)k)`. Adjacent windows share `k-1` values. Store only candidates that can still become a maximum. A later value at least as large as an earlier candidate dominates it: it is better or equal and expires later.
 
-### Pattern recognition
+### Invariant, dominance proof, and key lines
 
-**Primary pattern:** Monotonic deque
+The deque stores **indices**, increasing from front to back; their values strictly decrease. Every index belongs to the current window. Any discarded live index has a later, at-least-as-large candidate, so it cannot change the maximum. Thus the front is the answer. First expire indices `<= i-k`, then remove dominated values from the back, then append `i`.
 
-> **KEY INTUITION —** Front is the answer now; back contains only candidates that can still win in a future window.
-
-### Brute-force / straightforward baseline
-
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
-
-### Optimized reasoning
-
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+`a[dq.peekLast()] <= a[i]` retains the newer equal value. Using `<` is also correct but keeps equal candidates. Storing just values makes expiry ambiguous when duplicates occur.
 
 ### Detailed dry run
 
-Write index/value, stack/queue/deque before, all pops/removals, insertion, and answer after each iteration.
+For `[1,3,-1,-3,5,3,6,7]`, `k=3`, entries below are `index:value` after insertion.
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+| i | Expired / dominated | Deque | Answer emitted |
+|---:|---|---|---:|
+| 0 | none | `[0:1]` | — |
+| 1 | dominate `0:1` | `[1:3]` | — |
+| 2 | none | `[1:3,2:-1]` | 3 |
+| 3 | none | `[1:3,2:-1,3:-3]` | 3 |
+| 4 | expire `1:3`; dominate `3:-3,2:-1` | `[4:5]` | 5 |
+| 5 | none | `[4:5,5:3]` | 5 |
+| 6 | dominate `5:3,4:5` | `[6:6]` | 6 |
+| 7 | dominate `6:6` | `[7:7]` | 7 |
 
-### Java implementation / template
+### Complete Java implementation
 
 ```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+import java.util.ArrayDeque;
+import java.util.Deque;
+
+public final class WindowMaximum {
+    public static int[] maxSlidingWindow(int[] a, int k) {
+        if (a == null || k < 1 || k > a.length)
+            throw new IllegalArgumentException("Require 1 <= k <= length");
+        int[] result = new int[a.length - k + 1];
+        Deque<Integer> dq = new ArrayDeque<>();
+        for (int i = 0; i < a.length; i++) {
+            while (!dq.isEmpty() && dq.peekFirst() <= i - k)
+                dq.removeFirst();
+            while (!dq.isEmpty() && a[dq.peekLast()] <= a[i])
+                dq.removeLast();
+            dq.addLast(i);
+            if (i >= k - 1) result[i - k + 1] = a[dq.peekFirst()];
+        }
+        return result;
+    }
+}
 ```
 
-### Key line to highlight
+### Complexity, boundaries, and interview variations
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+Each index enters once and leaves at most once, so the nested `while` loops total `O(n)` deque operations. Java deque endpoint operations are amortized constant time. Auxiliary space is `O(k)`; the result uses `O(n-k+1)` additional space. No memoization table is needed: the deque retains exactly the reusable candidates.
 
-### Correctness checklist
+Test increasing/decreasing data, equal values, negative values, `k=1`, and `k=n`. Do not emit answers before the first complete window. A lazy-deletion heap is an alternative, but stale entries can accumulate to `O(n)` storage and give `O(n log n)` time; claiming `O(k)` needs explicit deletion or compaction. Follow-ups: window minimum, bounded-range windows using two deques, and online streams. Memory cue: **expire front, dominate back, read front**.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
-
-### Boundary conditions
-
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
-
-### Complexity — derive it instead of memorizing it
-
-**O(n), because each index enters/leaves once; O(k) deque.**
-
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
-
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
-
-> **MEMORY TRICK —** FRONT WINS NOW; BACK PREPARES THE FUTURE.
-
-### Interview follow-ups and variations
-
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+Sources: [canonical problem](https://leetcode.com/problems/sliding-window-maximum/), [Oracle ArrayDeque](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ArrayDeque.html). Dry run and proof are added study explanations.
 
 [↑ Back to Index](#navigation-and-index)
 
