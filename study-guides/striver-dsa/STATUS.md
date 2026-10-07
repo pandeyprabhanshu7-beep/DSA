@@ -16,7 +16,27 @@
 | Bellman–Ford — negative edges/cycles | ✅ | ✅ | Dedicated deep-dive pair added under canonical Graph guide folders |
 | G-46 Disjoint Set Union | ✅ | ✅ | Deepened with path compression, union-by-size, dry run, proof, amortized complexity, and variations |
 
-Next Graph priority: synchronize the new G-55/G-56 low-link sections into canonical responsive HTML, then continue targeted per-card enrichment across the promoted guides.
+| G-55 Bridges / Critical Connections | ✅ | ✅ | Canonical HTML synchronized with edge-ID-aware low-link deep dive |
+| G-56 Articulation Points | ✅ | ✅ | Canonical HTML synchronized with root and non-root rules |
+| S26 Sliding Window Maximum | ✅ | ✅ | Complete Java, deque proof, detailed trace and boundaries |
+| LL-28 Reverse Nodes in Groups of K | ✅ | ✅ | Complete Java, ten-node trace, identity and remainder semantics |
+| BT-16 Maximum Path Sum | ✅ | ✅ | Complete Java, gain/candidate distinction and all-negative handling |
+| H-10 Subarray Sum Equals K | ✅ | ✅ | Complete Java, prefix-frequency proof and overflow handling |
+
+## Completion audit — 2026-10-07
+
+The first table means files exist in both formats; it does **not** mean every card has a complete deep dive. An audit of the current canonical Markdown found these explicit Java placeholders still remaining after this pass:
+
+| Guide | Cards with placeholder Java |
+|---|---:|
+| Graph | 51 |
+| Stack & Queue | 27 |
+| Linked List | 27 |
+| Trees & BST | 51 |
+| HashMap & Hashing | 27 |
+| **Total** | **183** |
+
+All six HTML reading editions embed the exact current paired Markdown. Remaining work: replace the 183 placeholders with problem-specific implementations, precise examples, actual dry runs and correctness arguments. Generic template prose remains in many cards and needs review too. The four newly enriched Java implementations compile with the Java 17 compiler module and pass 1,000 seeded randomized cases per algorithm against independent brute-force/reference checks, including list node identity checks and extreme long targets. HTML/Markdown payload equality is verified; browser rendering was not visually tested in this pass.
 
 ## Version policy
 
