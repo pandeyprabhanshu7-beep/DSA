@@ -1512,93 +1512,79 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 <a id="bt-16-maximum-path-sum-in-a-binary-tree"></a>
 ## BT-16. Maximum Path Sum in a Binary Tree
 
-[← BT-15](#bt-15-diameter-of-a-binary-tree) · [Index](#navigation-and-index) · [BT-17 →](#bt-17-check-if-two-binary-trees-are-identical)
+### Requirement and clarifying examples
 
-### Detailed question understanding
+A path is a nonempty sequence of adjacent tree nodes with no repeated node. It may start and end anywhere and need not pass through the root. Return the greatest sum of node values on such a path. This implementation returns `long` and rejects an empty tree.
 
-**What is the problem/lesson asking?** Maximum Path Sum in a Binary Tree. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+| Tree, in level order | Result | Winning path |
+|---|---:|---|
+| `[1,2,3]` | 6 | `2 → 1 → 3` |
+| `[-10,9,20,null,null,15,7]` | 42 | `15 → 20 → 7` |
+| `[-3]` | -3 | singleton node |
+| `[-2,-1,-3]` | -1 | best single node |
 
-### Three requirement-clarifying examples
+The two nulls in the second row mean that node 9 has no children; 15 and 7 are children of 20.
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `[-10,9,20,null,null,15,7]` | `42` | 15→20→7 |
-| 2 | `single -3` | `-3` | all negative |
-| 3 | `1 with children2,3` | `6` | cross root |
+### Baseline and the two different answers at a node
 
-### Pattern recognition
+Enumerating paths from each possible start revisits subtrees and can take `O(n²)`. A postorder traversal computes reusable child summaries once.
 
-**Primary pattern:** Return vs score
+`gain(node)` is the best sum of a **nonempty downward path beginning at node**. The parent may extend only one branch, since a simple path cannot fork. Thus return `node.value + max(0,leftGain,rightGain)`. Separately, a complete candidate whose highest node is `node` can use both children: `node.value + max(0,leftGain) + max(0,rightGain)`. Update the global best with that complete candidate, but never return it to the parent.
 
-> **KEY INTUITION —** The parent may extend only one branch; the current node can score left + node + right. Negative gains should not be forced into a path.
-
-### Brute-force / straightforward baseline
-
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
-
-### Optimized reasoning
-
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
-
-### Detailed dry run
-
-Annotate recursive return values or the BFS queue after each level. Separate information returned upward from answers scored locally.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```mermaid
+flowchart TD
+    A["-10"] --> B["9"]
+    A --> C["20"]
+    C --> D["15"]
+    C --> E["7"]
 ```
 
-### Key line to highlight
+### Postorder dry run
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+For the pictured tree, initialize best to `Long.MIN_VALUE`.
 
-### Correctness checklist
+| Node | Clamped left / right | Complete candidate | Returned gain | Best so far |
+|---:|---|---:|---:|---:|
+| 9 | 0 / 0 | 9 | 9 | 9 |
+| 15 | 0 / 0 | 15 | 15 | 15 |
+| 7 | 0 / 0 | 7 | 7 | 15 |
+| 20 | 15 / 7 | 42 | 35 | 42 |
+| -10 | 9 / 35 | 34 | 25 | 42 |
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+Returning 42 from node 20 would let its parent combine a forked structure, not a legal path. For an all-negative tree, clamping child gains does not remove the current node; the best remains the largest negative value rather than zero.
 
-### Boundary conditions
+### Complete Java implementation
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+```java
+public final class MaximumTreePath {
+    public static final class Node {
+        public final int value;
+        public Node left, right;
+        public Node(int value) { this.value = value; }
+    }
+    public static long maxPathSum(Node root) {
+        if (root == null) throw new IllegalArgumentException("Nonempty tree required");
+        long[] best = {Long.MIN_VALUE}; // fresh for every call
+        gain(root, best);
+        return best[0];
+    }
+    private static long gain(Node node, long[] best) {
+        if (node == null) return 0;
+        long left = Math.max(0L, gain(node.left, best));
+        long right = Math.max(0L, gain(node.right, best));
+        best[0] = Math.max(best[0], (long) node.value + left + right);
+        return (long) node.value + Math.max(left, right);
+    }
+}
+```
 
-### Complexity — derive it instead of memorizing it
+### Correctness, complexity, and follow-ups
 
-**O(n); O(h).**
+Inductively each child returns its best extendable downward path. Choosing the larger nonnegative child produces the best extendable path for the parent. Every simple path has one highest node, where it consists of at most a left branch and a right branch. That node's complete candidate is at least as good as the path, and itself describes a valid path, so the maximum of candidates is optimal.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+Each node is visited once: `O(n)` time and `O(h)` call-stack space, worst-case `O(n)` on a chain. Recursion can overflow the Java stack for a sufficiently deep tree; an explicit postorder stack is the follow-up. Sums use long; their total must still fit long. A true tree has no shared subtrees, so caching by node would add space without eliminating repeated work. Avoid a persistent static best across calls. To reconstruct the path, retain which child supplied each gain and the node with the winning complete candidate. Variants: root-to-leaf sum, diameter (count edges), and maximum path constrained to end at two leaves. These have different endpoint rules.
 
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
-
-> **MEMORY TRICK —** RETURN ONE BRANCH; SCORE TWO.
-
-### Interview follow-ups and variations
-
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+Source: [canonical path definition](https://leetcode.com/problems/binary-tree-maximum-path-sum/). Recurrence proof and dry run are added explanations.
 
 [↑ Back to Index](#navigation-and-index)
 
