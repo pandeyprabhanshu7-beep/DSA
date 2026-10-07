@@ -1231,91 +1231,147 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 
 [← BT-12](#bt-12-preorder-inorder-postorder-in-one-iterative-traversal) · [Index](#navigation-and-index) · [BT-14 →](#bt-14-check-if-a-binary-tree-is-height-balanced)
 
-### Detailed question understanding
+### Requirement — precisely what must be returned?
 
-**What is the problem/lesson asking?** Maximum Depth / Height of a Binary Tree. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given a reference to the **root of a binary tree**, return the **number of nodes** on the longest root-to-leaf path (LeetCode 104). A leaf has no children. The empty tree has depth **0**, and a single node has depth **1**. Node values, negative values, duplicates, and BST ordering do **not** affect depth; only the child pointers matter.
 
-### Three requirement-clarifying examples
+**Terminology trap:** In some textbooks *height in edges* means longest path edge count: a one-node tree has edge-height 0, and an empty tree may have edge-height −1. Here the required output is **node count**, not edge count. Confirm the convention before answering a differently worded interview problem.
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+**Recognition trigger:** “deepest level”, “longest root-to-leaf path”, “tree height” → tree DFS returning a subtree summary, or BFS counting levels. Do **not** add both subtree depths: a path chooses only **one** branch at each node.
 
-### Pattern recognition
+### Four concrete request/response examples
 
-**Primary pattern:** Recursion contract
+| # | Level-order input (null = absent child) | Expected depth | Reason |
+|---:|---|---:|---|
+| 1 | [] | **0** | No nodes, no path. |
+| 2 | [42] | **1** | Root is also the leaf. |
+| 3 | [3,9,20,null,null,15,7] | **3** | Path 3→20→15 or 3→20→7 has three nodes. |
+| 4 | [1,null,2,null,3,null,4] | **4** | A right-skewed chain has four levels; values are irrelevant. |
 
-> **KEY INTUITION —** Before coding, state exactly what dfs(node) returns upward or what context is passed downward.
+For a complete tree with seven nodes, depth is 3, not 7; for a chain with seven nodes, depth is 7. This distinguishes **depth** from **node count**.
 
-### Brute-force / straightforward baseline
+### Visual — child summaries combine at their parent
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+~~~mermaid
+flowchart TD
+  A["3 | return 3"] --> B["9 | return 1"]
+  A --> C["20 | return 2"]
+  C --> D["15 | return 1"]
+  C --> E["7 | return 1"]
+  B -. "missing children return 0" .-> Z["null: 0"]
+~~~
 
-### Optimized reasoning
+**Read bottom-up:** both 15 and 7 return 1; 20 returns 1 + max(1,1) = 2; 9 returns 1; root 3 returns 1 + max(1,2) = **3**. This is **postorder reasoning** even though no node values are printed.
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+### Straightforward baseline — explicitly enumerate full paths
 
-### Detailed dry run
+A literal translation of “find the longest root-to-leaf path” is to **copy and extend the current path** at every node, then inspect path length at leaves. It works but copies up to h entries at each of n nodes: **O(nh) time**, and O(nh) total transient allocation over the run (with O(h²) possible live path-copy storage on a chain); h is tree height in nodes. In a skewed tree, n = h, so this is **O(n²) time**. A simple backtracking implementation without copies would already be O(n); the expensive part here is repeated path copying, not the requirement to visit leaves.
 
-Annotate recursive return values or the BFS queue after each level. Separate information returned upward from answers scored locally.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-static int height(TreeNode node){
-    if(node==null) return 0;
-    return 1 + Math.max(height(node.left),height(node.right));
+~~~java
+import java.util.*;
+class DepthBaseline {
+    static final class TreeNode {
+        int val; TreeNode left, right;
+        TreeNode(int val) { this.val = val; }
+    }
+    static int enumerate(TreeNode root) {
+        return visit(root, new ArrayList<>());
+    }
+    private static int visit(TreeNode node, List<Integer> path) {
+        if (node == null) return 0;
+        List<Integer> copy = new ArrayList<>(path); // repeated O(depth) copy
+        copy.add(node.val);
+        if (node.left == null && node.right == null) return copy.size();
+        return Math.max(visit(node.left, copy), visit(node.right, copy));
+    }
 }
-```
+~~~
 
-### Key line to highlight
+### Optimized DFS — one scalar returned from each subtree
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+**Recursion contract:** depth(node) returns the maximum **number of nodes** in any downward path beginning at node and ending at a leaf; depth(null) = 0. A parent needs only its children's depths, not their complete paths. **Key line:** return 1 + max(left, right). There is no shared mutable global maximum.
 
-### Correctness checklist
+~~~java
+class Solution {
+    static final class TreeNode {
+        int val; TreeNode left, right;
+        TreeNode(int val) { this.val = val; }
+    }
+    static int maxDepth(TreeNode root) {
+        if (root == null) return 0;              // empty subtree contributes 0
+        int left = maxDepth(root.left);           // postorder: obtain child facts
+        int right = maxDepth(root.right);
+        return 1 + Math.max(left, right);         // one node + ONE longer branch
+    }
+}
+~~~
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+**Why correct (structural induction):** For a null subtree, no nodes exist, so 0 is correct. Suppose recursive calls correctly return depths for both children. Every root-to-leaf path from a non-null node must go through **exactly one** child after visiting the current node. Its maximum length is therefore 1 + max(left depth, right depth). The formula returns that maximum. Induction over subtree size proves the root result.
 
-### Boundary conditions
+### Detailed DFS dry run — [3,9,20,null,null,15,7]
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+| Return order | Call / subtree | Left depth | Right depth | Returned | Why |
+|---:|---|---:|---:|---:|---|
+| 1 | 9 | 0 | 0 | 1 | Leaf: only itself. |
+| 2 | 15 | 0 | 0 | 1 | Leaf. |
+| 3 | 7 | 0 | 0 | 1 | Leaf. |
+| 4 | 20 | 1 | 1 | 2 | Choose one child; add 20. |
+| 5 | 3 | 1 | 2 | **3** | Longer path runs through 20. |
 
-### Complexity — derive it instead of memorizing it
+Call order differs from **return** order: recurse into children first, then combine. If you write 1 + left + right, the example incorrectly returns 5 (the number of nodes), exposing the bug.
 
-**Full traversal O(n); recursion O(h), BFS frontier O(w).**
+### Alternative optimized BFS — count queue levels
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+BFS is often preferable if the input may be a **very deep skewed tree**, because recursion can overflow the Java call stack. Each outer loop iteration consumes exactly one depth level; capture the current queue size before enqueuing children.
 
-### Memoization / repeated-work note
+~~~java
+import java.util.*;
+class DepthBfs {
+    static final class TreeNode {
+        int val; TreeNode left, right;
+        TreeNode(int val) { this.val = val; }
+    }
+    static int maxDepth(TreeNode root) {
+        if (root == null) return 0;
+        Deque<TreeNode> q = new ArrayDeque<>();
+        q.offer(root);
+        int levels = 0;
+        while (!q.isEmpty()) {
+            int nodesThisLevel = q.size();        // freeze level boundary
+            for (int i = 0; i < nodesThisLevel; i++) {
+                TreeNode node = q.remove();
+                if (node.left != null) q.offer(node.left);
+                if (node.right != null) q.offer(node.right);
+            }
+            levels++;
+        }
+        return levels;
+    }
+}
+~~~
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+**BFS trace:** queue [3] → process level 1, queue [9,20] → process level 2, queue [15,7] → process level 3, queue [] → answer **3**. The loop invariant is that the queue holds exactly the unprocessed nodes of the current level when its size is captured.
 
-> **MEMORY TRICK —** WHAT DOES THIS CALL PROMISE ITS PARENT?
+### Complexity derivation, repeated work and boundaries
 
-### Interview follow-ups and variations
+- **Optimized DFS:** Each of n nodes is entered once, does two child calls and constant arithmetic → **O(n) time**. The deepest active call chain is h → **O(h) stack space** (balanced h = O(log n); skewed h = n). A null root is O(1).
+- **Optimized BFS:** Each node is enqueued once and dequeued once → **O(n) time**. Queue stores at most w nodes, the maximum level width → **O(w) auxiliary space**; on a perfect tree w ≈ n/2, while on a chain w = 1.
+- **Baseline with path copies:** each visit copies up to h entries → **O(nh) time**; copies allocate repeatedly. The optimized return value eliminates this repeated work. **Memoization is not needed**: a genuine tree has no shared subtree reachable by multiple parent paths, and each recursive subtree is solved exactly once. Repeated *external queries* on a static tree could justify cached heights, but changing a subtree invalidates ancestor caches.
+- **Boundary checks:** null root → 0; leaf → 1; only-left or only-right child → correct path; all-negative node values → unchanged; duplicates → unchanged; 10,000-node chain → consider BFS/explicit stack to avoid stack overflow. A cyclic or shared-child graph is **not** a tree and violates this contract.
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+> **Memory trick:** **ONE node + ONE longer child**. **Postorder = children report, parent decides.** The BFS alternative is **one completed queue layer = one depth**.
 
-[↑ Back to Index](#navigation-and-index)
+### Related variations / interview follow-ups
+
+1. **Minimum depth:** stop at a true leaf; if only one child exists, do **not** take min(0, otherDepth).
+2. **Balanced tree:** return both height and validity in one postorder; naïvely calling height separately at every node can repeat subtree scans.
+3. **Diameter:** at each node consider leftDepth + rightDepth (an edge-count candidate), while returning 1 + max(left,right) upward. Different answer vs return contracts!
+4. **Maximum path sum:** combine both child gains to score a path through the node, but return only one branch to its parent.
+5. **Iterative DFS:** carry (node, depth) pairs on a stack to avoid recursion while preserving O(n) time.
+
+**Attribution boundaries:** The problem definition and examples follow [LeetCode 104](https://leetcode.com/problems/maximum-depth-of-binary-tree/); [Take U Forward L14](https://www.youtube.com/watch?v=eD3tmO66aBA) provides the course lesson. The path-copy baseline, induction, trace, Mermaid drawing, memory tricks, and Java 17 teaching implementations above are original study-guide explanations, not quotations or claimed video transcripts.
+
+[↑ Back to Index](#navigation-and-index) · [↑ Top](#striver-take-u-forward-trees-bst-deep-study-guide) · [← BT-12](#bt-12-preorder-inorder-postorder-in-one-iterative-traversal) · [BT-14 →](#bt-14-check-if-a-binary-tree-is-height-balanced)
 
 ---
 
