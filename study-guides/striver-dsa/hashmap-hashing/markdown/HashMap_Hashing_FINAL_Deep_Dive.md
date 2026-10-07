@@ -923,98 +923,76 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 <a id="h-10-subarray-sum-equals-k"></a>
 ## H-10. Subarray Sum Equals K
 
-[← H-9](#h-9-longest-consecutive-sequence) · [Index](#navigation-and-index) · [H-11 →](#h-11-longest-subarray-with-sum-zero)
+### Requirement and examples
 
-### Detailed question understanding
+Count all **nonempty contiguous** subarrays whose sum equals k. Count different start/end positions separately, even when they contain equal values. Integers may be positive, zero, or negative. Return a long count; null input is rejected and an empty array returns zero.
 
-**What is the problem/lesson asking?** Subarray Sum Equals K. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+| Array | k | Count | Valid ranges, using zero-based inclusive indices |
+|---|---:|---:|---|
+| `[1,1,1]` | 2 | 2 | `[0,1]`, `[1,2]` |
+| `[1,-1,0]` | 0 | 3 | `[0,1]`, `[0,2]`, `[2,2]` |
+| `[0,0,0]` | 0 | 6 | Every nonempty subarray |
+| `[3,-2,5]` | 3 | 2 | `[0,0]`, `[1,2]` |
 
-### Three requirement-clarifying examples
+### Derive the lookup instead of memorizing it
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `[1,1,1], k=2` | `2` | prefix frequencies |
-| 2 | `[1,-1,0], k=0` | `3` | negative values |
-| 3 | `[3], k=3` | `1` | starts at index0 |
+Let `P[j]` be the sum of the first j elements, including `P[0]=0`. The range from i through j-1 sums to `P[j]-P[i]`. To obtain k, earlier prefixes must equal `P[j]-k`.
 
-### Pattern recognition
+A running-sum brute force checks all start/end pairs in `O(n²)`. Prefix sums alone make each range query constant time but still leave quadratically many pairs. A frequency map counts matching earlier prefixes in one lookup. A set loses multiplicity; a map storing only the latest index answers a different question. Ordinary sliding windows cannot safely shrink by comparing sums when negative values are allowed.
 
-**Primary pattern:** Prefix-state hashing
+### Invariant and dry run
 
-> **KEY INTUITION —** Translate the subarray relation into the earlier prefix state required. Count problems store frequency; longest problems store earliest index.
+Immediately before querying prefix `P[j]`, the map contains frequencies of **only** `P[0]` through `P[j-1]`. Seed `{0:1}` for ranges starting at index zero. Query first and insert the current prefix second; reversing this order counts an empty range when k=0.
 
-### Brute-force / straightforward baseline
+For `[1,-1,0]`, k=0:
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+| Element / j | P[j] | Needed prefix | Prior frequency | Total | Map after insertion |
+|---|---:|---:|---:|---:|---|
+| before input | 0 | — | — | 0 | `{0:1}` |
+| 1 / 1 | 1 | 1 | 0 | 0 | `{0:1,1:1}` |
+| -1 / 2 | 0 | 0 | 1 | 1 | `{0:2,1:1}` |
+| 0 / 3 | 0 | 0 | 2 | 3 | `{0:3,1:1}` |
 
-### Optimized reasoning
+At j=3, the two matching earlier zeros mean starts at indices 0 and 2. The latest zero must not count itself.
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
-
-### Detailed dry run
-
-Show the derived lookup key, map before lookup, hit/miss, map after update, and answer after every step.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
+### Complete Java implementation
 
 ```java
-static long countSubarrays(int[] a,long k){
-    Map<Long,Integer> freq=new HashMap<>();
-    freq.put(0L,1);
-    long prefix=0, ans=0;
-    for(int x:a){
-        prefix+=x;
-        ans+=freq.getOrDefault(prefix-k,0);
-        freq.merge(prefix,1,Integer::sum);
+import java.util.HashMap;
+import java.util.Map;
+
+public final class SubarrayCounter {
+    public static long countSum(int[] a, long k) {
+        if (a == null) throw new IllegalArgumentException("Array required");
+        Map<Long, Long> frequency = new HashMap<>();
+        frequency.put(0L, 1L);
+        long prefix = 0, result = 0;
+        for (int value : a) {
+            prefix += value;
+            // Prefix sums of a Java int[] fit long. Protect subtraction
+            // when callers supply an extreme long target.
+            boolean underflow = k > 0 && prefix < Long.MIN_VALUE + k;
+            boolean overflow = k < 0 && prefix > Long.MAX_VALUE + k;
+            if (!underflow && !overflow)
+                result += frequency.getOrDefault(prefix - k, 0L);
+            frequency.merge(prefix, 1L, Long::sum);
+        }
+        return result;
     }
-    return ans;
 }
 ```
 
-### Key line to highlight
+### Correctness and complexity
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+Each earlier matching prefix gives exactly one valid start position for the current end. Conversely every valid range satisfies the prefix equation. Query-before-insert excludes empty ranges, and each range is counted once at its end. The frequency map is the reused history; recursive memoization is unnecessary.
 
-### Correctness checklist
+Expected `O(n)` time under well-distributed hashes and `O(n)` map space; HashMap lookup is not an unconditional worst-case O(1) guarantee. Prefixes and counts use long: all-zero length n produces `n(n+1)/2`, which can exceed int. For a Java int[] even the largest possible total sum and range count fit long; an arbitrary long k requires guarding subtraction as above.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+### Common mistakes and interview variations
 
-### Boundary conditions
+Do not omit `{0:1}`, replace frequencies with booleans, insert before querying, or use an ordinary positive-only sliding window. Test empty input, all zeros, repeated prefixes, negative k, large int elements, and extreme long targets. For **longest** sum-k range, store each prefix's earliest index. For count of XOR-k ranges, replace subtraction by XOR. For sums divisible by m, count equal normalized remainders with m>0. Memory cue: **count previous prefix minus target, then record current prefix**.
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
-
-### Complexity — derive it instead of memorizing it
-
-**Expected O(n) time; O(n) map.**
-
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
-
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
-
-> **MEMORY TRICK —** COUNT NEEDS HOW MANY; LONGEST NEEDS HOW EARLY.
-
-### Interview follow-ups and variations
-
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+Sources: [canonical problem](https://leetcode.com/problems/subarray-sum-equals-k/), [Oracle HashMap](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/HashMap.html). Algebra, extra cases, and overflow policy are added explanations.
 
 [↑ Back to Index](#navigation-and-index)
 
