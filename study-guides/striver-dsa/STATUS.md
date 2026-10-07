@@ -12,10 +12,11 @@
 
 | Topic/card | Deep Markdown | Matching HTML | Status |
 |---|---:|---:|---|
-| G-32 Dijkstra — Priority Queue | ✅ | ⏳ | Markdown enriched; main HTML still needs G-32 synchronization |
+| G-32 Dijkstra — Priority Queue | ✅ | ✅ | Enriched Markdown synchronized into canonical responsive Graph HTML |
 | Bellman–Ford — negative edges/cycles | ✅ | ✅ | Dedicated deep-dive pair added under canonical Graph guide folders |
+| G-46 Disjoint Set Union | ✅ | ✅ | Deepened with path compression, union-by-size, dry run, proof, amortized complexity, and variations |
 
-Next Graph priorities: synchronize the enriched G-32 Dijkstra section into the main responsive HTML, then deepen DSU / bridges / articulation points.
+Next Graph priorities: deepen G-55 Bridges / Critical Connections and G-56 Articulation Points, then continue targeted per-card enrichment across the promoted guides.
 
 ## Version policy
 
@@ -33,5 +34,5 @@ These repository editions preserve the latest retained topic structure and study
 - [x] question indexes
 - [x] pattern / memory / complexity notes
 - [x] responsive graphics
-- [ ] synchronize G-32 Dijkstra changes into main Graph HTML
+- [x] synchronize G-32 Dijkstra changes into main Graph HTML
 - [ ] ongoing deeper research and per-card expansion
