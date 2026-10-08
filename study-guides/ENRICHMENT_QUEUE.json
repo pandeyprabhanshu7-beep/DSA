@@ -498,8 +498,8 @@
       ],
       "last_processed_at": "2026-10-08T07:37:33-04:00",
       "processed_sections": [
-        "RAG minimal implementation \u2014 authorization-aware orchestration, four examples, dry run, citation invariant and Java pipeline",
-        "CAG cache identity and invalidation \u2014 four decisions, packet trace, collision-safe cache key and Java validation"
+        "RAG minimal implementation — authorization-aware orchestration, four examples, dry run, citation invariant and Java pipeline",
+        "CAG cache identity and invalidation — four decisions, packet trace, collision-safe cache key and Java validation"
       ],
       "source_revision": {
         "baseline_commit": "ccc47c26457024fe90b05c69584ba581f3cf8b5a",
@@ -542,8 +542,8 @@
       ],
       "last_processed_at": "2026-10-08T06:37:18-04:00",
       "processed_sections": [
-        "Requirements before architecture \u2014 capacity estimation contract, four examples, storage dry run, invariants and Java estimator",
-        "Caching as latency and load control \u2014 cache correctness invariants, stale-resurrection trace, version fencing and Java cache-aside example"
+        "Requirements before architecture — capacity estimation contract, four examples, storage dry run, invariants and Java estimator",
+        "Caching as latency and load control — cache correctness invariants, stale-resurrection trace, version fencing and Java cache-aside example"
       ],
       "source_revision": {
         "baseline_commit": "3c13297cf830c9c423723752e0ef7107ea2d933e",
@@ -596,8 +596,8 @@
       ],
       "last_processed_at": "2026-10-08T08:33:40-04:00",
       "processed_sections": [
-        "Claim-bound release authorization \u2014 four decisions, OIDC-to-STS trace, exact-claim invariant and Java policy model",
-        "Rollback and concurrent releases \u2014 four races, compare-and-set trace, immutable release record and Java concurrency model"
+        "Claim-bound release authorization — four decisions, OIDC-to-STS trace, exact-claim invariant and Java policy model",
+        "Rollback and concurrent releases — four races, compare-and-set trace, immutable release record and Java concurrency model"
       ],
       "source_revision": {
         "baseline_commit": "a2990d507473430a8b46563b8f6c6c0dcd4864c8",
@@ -665,8 +665,8 @@
       "source_names": [],
       "last_processed_at": "2026-10-08T05:28:42-04:00",
       "processed_sections": [
-        "Routing, ISPs, Autonomous Systems, BGP, Peering & Transit \u2014 BGP selection and route propagation",
-        "Ingress, Egress, Firewalls, WAF, Proxies, DMZ & Stateful vs Stateless Filtering \u2014 connection state and symmetric return paths"
+        "Routing, ISPs, Autonomous Systems, BGP, Peering & Transit — BGP selection and route propagation",
+        "Ingress, Egress, Firewalls, WAF, Proxies, DMZ & Stateful vs Stateless Filtering — connection state and symmetric return paths"
       ],
       "source_revision": {
         "baseline_commit": "95a9b9d3c7567cc01345661aa79de2fc0f7b6b77",
@@ -763,7 +763,7 @@
   "scheduler": {
     "active_task_id": "6ac700d5c14c81918cca8786785f2a5e",
     "cadence": "hourly",
-    "sections_per_run": "1\u20132",
+    "sections_per_run": "1–2",
     "single_writer": true
   },
   "local_folder_intake": {
@@ -810,6 +810,9 @@
       "Advanced trees section 10: Fenwick tree"
     ],
     "estimated_next_tokens": 12000,
-    "estimate_method": "Conservative heuristic: bounded source/research about 3500 tokens, teaching/code/HTML about 6000, verification/checkpoint reserve about 2500; not account-quota telemetry."
+    "estimate_method": "Conservative heuristic: bounded source/research about 3500 tokens, teaching/code/HTML about 6000, verification/checkpoint reserve about 2500; not account-quota telemetry.",
+    "last_successful_commit": "2a54688a9367a4110b80d20b469986214fe6c2a0",
+    "last_processed_at": "2026-10-08",
+    "next_batch_decision": "First bounded batch completed and pushed; stop this run at checkpoint. Continue section 9 on a later hourly run after rechecking exposed runtime limits."
   }
 }
