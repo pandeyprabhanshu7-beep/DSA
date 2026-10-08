@@ -12,47 +12,68 @@
 
 | Topic/card | Deep Markdown | Matching HTML | Status |
 |---|---:|---:|---|
-| G-32 Dijkstra — Priority Queue | ✅ | ✅ | Enriched Markdown synchronized into canonical responsive Graph HTML |
-| Bellman–Ford — negative edges/cycles | ✅ | ✅ | Dedicated deep-dive pair added under canonical Graph guide folders |
-| G-46 Disjoint Set Union | ✅ | ✅ | Deepened with path compression, union-by-size, dry run, proof, amortized complexity, and variations |
-
-| G-55 Bridges / Critical Connections | ✅ | ✅ | Canonical HTML synchronized with edge-ID-aware low-link deep dive |
-| G-56 Articulation Points | ✅ | ✅ | Canonical HTML synchronized with root and non-root rules |
+| S4 Queue Using Two Stacks | ✅ | ✅ | Full lazy-transfer solution, four examples, detailed state trace, Java, proof, amortized analysis, boundaries and memory trick |
 | S26 Sliding Window Maximum | ✅ | ✅ | Complete Java, deque proof, detailed trace and boundaries |
+| G-32 Dijkstra — Priority Queue | ✅ | ✅ | Enriched Markdown synchronized into canonical responsive Graph HTML |
+| Bellman–Ford — negative edges/cycles | ✅ | ✅ | Dedicated deep-dive pair under canonical Graph folders |
+| G-46 Disjoint Set Union | ✅ | ✅ | Path compression, union-by-size, dry run, proof, amortized complexity and variations |
+| G-55 Bridges / Critical Connections | ✅ | ✅ | Edge-ID-aware low-link deep dive |
+| G-56 Articulation Points | ✅ | ✅ | Root/non-root rules and low-link reasoning |
 | LL-28 Reverse Nodes in Groups of K | ✅ | ✅ | Complete Java, ten-node trace, identity and remainder semantics |
-| BT-13 Maximum Depth / Height | ✅ | ✅ | Four examples, Java DFS/BFS and path-enumeration baseline, postorder proof, Mermaid diagram; 1,500 randomized trees + 10,000-node skew BFS validated |\n| BT-16 Maximum Path Sum | ✅ | ✅ | Complete Java, gain/candidate distinction and all-negative handling |
-| H-10 Subarray Sum Equals K | ✅ | ✅ | Complete Java, prefix-frequency proof and overflow handling |
+| BT-13 Maximum Depth / Height | ✅ | ✅ | DFS/BFS baselines, postorder proof and deep examples |
+| BT-16 Maximum Path Sum | ✅ | ✅ | Gain/candidate distinction and all-negative handling |
+| H-10 Subarray Sum Equals K | ✅ | ✅ | Prefix-frequency proof, Java and overflow handling |
+| H-16 Minimum Window Substring | ✅ | ✅ | Four examples, brute force, frequency-window invariant, detailed ADOBECODEBANC trace, Java, proof and O(m+n) derivation |
 
-## Completion audit — 2026-10-08
+## Completion audit — 2026-10-07 ET
 
-The first table means files exist in both formats; it does **not** mean every card has a complete deep dive. An audit of the current canonical Markdown found these explicit Java placeholders still remaining after this pass:
+The five canonical Markdown guides and their five responsive HTML reading editions exist in the repository.
+
+Current explicit Java placeholder count:
 
 | Guide | Cards with placeholder Java |
 |---|---:|
 | Graph | 51 |
-| Stack & Queue | 27 |
+| Stack & Queue | 26 |
 | Linked List | 27 |
 | Trees & BST | 51 |
-| HashMap & Hashing | 27 |
-| **Total** | **183** |
+| HashMap & Hashing | 26 |
+| **Total** | **181** |
 
-All six HTML reading editions embed the exact current paired Markdown. BT-13 was enriched and synchronized on 2026-10-08; its pre-existing card already had a non-placeholder height method, so the **183** explicit placeholder count is unchanged. S4 Queue Using Two Stacks still has a placeholder because its write was blocked; do not mark it complete. Remaining work: replace the 183 placeholders with problem-specific implementations, precise examples, actual dry runs and correctness arguments. Generic template prose remains in many cards and needs review too. The four newly enriched Java implementations compile with the Java 17 compiler module and pass 1,000 seeded randomized cases per algorithm against independent brute-force/reference checks, including list node identity checks and extreme long targets. HTML/Markdown payload equality is verified; browser rendering was not visually tested in this pass.
+This pass removed two placeholders:
+- S4 Queue Using Two Stacks
+- H-16 Minimum Window Substring
+
+All five canonical responsive HTML files have been resynchronized so their embedded Markdown payload now exactly matches the paired canonical Markdown file.
+
+Remaining work:
+1. Replace the **181** remaining Java placeholders with problem-specific code.
+2. Replace generic examples with concrete 3–4 example sets.
+3. Expand hard-card dry runs into explicit state tables.
+4. Add correctness proofs and boundary-condition reasoning card by card.
+5. Add/refresh focused visuals where they materially improve understanding.
+6. Keep Markdown and HTML synchronized after every content change.
 
 ## Version policy
 
-Only one canonical repository copy is kept for a topic. Enrichment updates canonical paths instead of creating names such as V2, V3, FINAL-2 or ULTIMATE-NEW. Focused deep-dive modules are allowed when they add substantial subtopic material and are maintained as one Markdown/HTML pair rather than historical duplicates.
+Only one canonical repository copy is kept for each main topic. Enrichment updates canonical paths instead of creating names such as V2, V3, FINAL-2 or ULTIMATE-NEW.
+
+Focused deep-dive modules are allowed only when they add substantial subtopic material and are maintained as one Markdown/HTML pair rather than historical duplicates.
 
 ## Provenance
 
-These repository editions preserve the latest retained topic structure and study methodology from the ChatGPT project. Some older generated attachment download handles expired before GitHub promotion, so the repository editions are regenerated from the retained canonical structure and project requirements rather than being represented as byte-for-byte copies of inaccessible attachments.
+These repository editions preserve the latest retained topic structure and study methodology from the ChatGPT project. Some older generated attachment download handles expired before GitHub promotion, so repository editions are maintained from the canonical repository content and current project requirements rather than represented as byte-for-byte copies of inaccessible attachments.
 
 ## Enrichment checklist
 
 - [x] meaningful topic directories
-- [x] Markdown + mobile HTML pair
+- [x] canonical latest-only version policy
+- [x] Markdown + mobile HTML pair for all five guides
 - [x] same-file navigation
 - [x] question indexes
-- [x] pattern / memory / complexity notes
 - [x] responsive graphics
-- [x] synchronize G-32 Dijkstra changes into main Graph HTML
-- [ ] ongoing deeper research and per-card expansion
+- [x] HTML payload synchronized with Markdown for all five guides
+- [x] S4 Queue Using Two Stacks deepened
+- [x] H-16 Minimum Window Substring deepened
+- [ ] replace remaining 181 Java placeholders
+- [ ] ongoing research-driven dry-run / example / boundary expansion
