@@ -609,7 +609,7 @@
         "canonical_blob_before": "76cf0c7b83059816691f2be2f4e67c153d248f30",
         "canonical_sha256_after": "511e778077cbe27bc5f1bc806be7c68951571673c5d69f2c82cd458b97018323"
       },
-      "last_successful_commit": "e81c2b418390c1e85f7cb352c226df8ef40f855b",
+      "last_successful_commit": "6c7a7aae9905a22ceb661acfbbe8549a4acfc0a8",
       "validation": "build_networking.py regenerated both affected chapter pairs and combined HTML; local links, fragments, assets, JSON, SVG XML, generated-section coverage and idempotence passed; live DSA placeholder audit 174; browser visual QA pending",
       "next_action": "No forced AWS continuation. Scheduler should attempt the accessible unpromoted system-design fundamentals source next; return to networking through fair domain rotation.",
       "priority": 17
