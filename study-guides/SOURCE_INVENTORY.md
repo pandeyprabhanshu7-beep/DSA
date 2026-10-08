@@ -11,7 +11,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | dsa-hashing | DSA | PROMOTED | `study-guides/striver-dsa/hashmap-hashing/` | Repository source or earlier analysis; locate as needed |
 | dsa-arrays | DSA | DISCOVERED | `study-guides/striver-dsa/arrays/` | DSA_Arrays_FAANG_Mermaid_Question_Workbook.md<br>DSA_Arrays_FAANG_Question_Workbook_Expanded.docx |
 | advanced-trees | DSA | DISCOVERED | `study-guides/advanced-trees/` | Advanced_Trees_FAANG_Mermaid_Study_Guide.md<br>Tree_Advanced_FAANG_Study_Guide.docx<br>advanced_trees_interview_guide.md |
-| ai-foundations-rag-cag | AI | DISCOVERED | `study-guides/ai/foundations-rag-cag/` | AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md<br>AI_RAG_CAG_Deep_Learning_Developer_Guide.docx |
+| ai-foundations-rag-cag | AI | PROMOTED | `study-guides/ai/foundations-rag-cag/` | AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md<br>AI_RAG_CAG_Deep_Learning_Developer_Guide.docx |
 | ai-platform | AI | DISCOVERED | `study-guides/ai/platform/` | ai_cicd_spring_python_guides_complete.zip<br>ai_platform_master_guide.html<br>ai_platform_engineering_complete_bundle.zip<br>ai_platform_engineering_illustrated.html |
 | system-design-fundamentals | System design/data | PROMOTED | `study-guides/system-design/fundamentals/` | system_design_fundamentals_deep_research.md<br>system_design_fundamentals.md |
 | system-design-blueprints | System design/data | DISCOVERED | `study-guides/system-design/blueprints/` | top_5_system_design_interview_blueprints.md |
@@ -50,7 +50,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | Take_U_Forward_Tree_Verified_Problem_Guide_v3.md | 2026-09-08T04:49:59.825371Z | DISCOVERED |
 | Take_U_Forward_Graph_Complete_Deep_Guide_v2.md | 2026-09-08T01:35:54.662720Z | DISCOVERED |
 | Take_U_Forward_Stack_Queue_Complete_Deep_Guide_v2.md | 2026-09-08T01:35:54.662145Z | DISCOVERED |
-| AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md | 2026-09-08T00:10:00.856206Z | DISCOVERED |
+| AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md | 2026-09-08T00:10:00.856206Z | PROMOTED — canonical AI foundations/RAG/CAG base |
 | DSA_Graph_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.813753Z | DISCOVERED |
 | Advanced_Trees_FAANG_Mermaid_Study_Guide.md | 2026-09-08T00:10:00.813395Z | DISCOVERED |
 | Angular_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.775386Z | DISCOVERED |
@@ -65,7 +65,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | Take_U_Forward_Stack_Queue_Java_Deep_Workbook.docx | 2026-09-07T17:07:54.535717Z | DISCOVERED |
 | Stack_Queue_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T05:33:07.971008Z | DISCOVERED |
 | DSA_Arrays_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T01:55:56.718502Z | DISCOVERED |
-| AI_RAG_CAG_Deep_Learning_Developer_Guide.docx | 2026-09-02T04:40:53.490553Z | DISCOVERED |
+| AI_RAG_CAG_Deep_Learning_Developer_Guide.docx | 2026-09-02T04:40:53.490553Z | READY — compared; two useful original figures retained |
 | Angular_Interview_Workbook.docx | 2026-08-31T14:40:43.673563Z | DISCOVERED |
 | JavaScript_HTML_CSS_Interview_Workbook.docx | 2026-08-31T14:40:39.905787Z | DISCOVERED |
 | DSA_Graph_FAANG_Question_Workbook.docx | 2026-08-30T07:02:49.102302Z | DISCOVERED |
@@ -77,6 +77,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 
 - Existing DSA and AWS sources remain canonical. Historical attachments provide improvements, not replacement editions.
 - System-design fundamentals now has one canonical [Markdown/HTML guide](system-design/); the 1,785-line deep-research source won the content comparison, while the shorter source's distinct case studies remain queued under blueprints.
+- AI foundations, RAG and CAG now has one canonical [Markdown/HTML guide](ai/); the broader Mermaid source won the content comparison, while two useful original workbook figures were retained without duplicating its redundant flow diagrams.
 - Graph/tree/stack editions and matching DOCX documents are grouped into one destination; latest coverage must be chosen after reading.
 - The AI/CI-CD/Spring-Python ZIP may contain Markdown and assets for three separate topics; inspect archive contents before deciding.
 - The AI-platform illustrated edition may hold useful material missing from a later master guide. Compare content; merge the best coverage in place.
