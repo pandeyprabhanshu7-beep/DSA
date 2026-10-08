@@ -83,7 +83,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 - The AI/CI-CD/Spring-Python ZIP may contain Markdown and assets for three separate topics; inspect archive contents before deciding.
 - The AI-platform illustrated edition may hold useful material missing from a later master guide. Compare content; merge the best coverage in place.
 - Database internals, caching and Java connectivity are a distinct source, and arrays, advanced trees and frontend guides are newly enrolled topics.
-- The uploaded advanced-trees guide is processed in bounded sections under [local project notes](local-project-notes/); Fenwick, lazy segment tree, trie, heap, B+ tree and B-tree are promoted, while section 4 Red-Black Tree is the exact continuation and must be compared with canonical Trees/BST coverage.
+- The uploaded advanced-trees guide is processed in bounded sections under [local project notes](local-project-notes/); Fenwick, lazy segment tree, trie, heap, B+ tree, B-tree and Red-Black Tree are promoted, while section 3 AVL Tree is the exact continuation and must be compared with canonical Trees/BST coverage.
 - AI projects keep their code in existing repositories. Enroll technical explanations, setup, architecture and lessons here.
 - Missing AWS master-guide, cloud-comparison and Java/security source bytes remain NEEDS_SOURCE. Known topics are queued without pretending they were imported.
 - No personal resumes or unrelated private documents are enrolled. Source identifiers are retrieval references, not credentials.

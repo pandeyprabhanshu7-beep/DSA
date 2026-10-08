@@ -1,0 +1,416 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="source-sha256" content="7b9304c9a284bdcb572edf7e63efef302a7e45e305ffa8e3ddae8ee69604ae89"><title>Red-Black Tree: Color, Rotate, Preserve Black Height</title><style>body{font:17px/1.7 system-ui;color:#172033;background:#f4f7fb;margin:0}main{max-width:1040px;margin:auto;padding:24px}article{background:white;padding:28px;border-radius:16px}a{color:#1261a0}h1,h2,h3{line-height:1.25}img{max-width:100%;height:auto}pre{background:#101c30;color:#eef4ff;padding:18px;overflow:auto;border-radius:10px}table{display:block;overflow:auto;border-collapse:collapse}th,td{border:1px solid #d3dce9;padding:10px;text-align:left}details{background:#eaf2fa;padding:12px}.toc ul{max-height:280px;overflow:auto}input{padding:10px;width:min(100%,420px)}@media(max-width:600px){main{padding:8px}article{padding:16px;font-size:16px}}</style></head><body><main><article><input id="filter" aria-label="Filter section links" placeholder="Filter section links"><details open class="toc"><summary>Sections</summary><div class="toc">
+<ul>
+<li><a href="#red-black-tree-color-rotate-preserve-black-height">Red-Black Tree: Color, Rotate, Preserve Black Height</a><ul>
+<li><a href="#1-simple-definition-and-exact-contract">1. Simple definition and exact contract</a><ul>
+<li><a href="#four-concrete-examples">Four concrete examples</a></li>
+</ul>
+</li>
+<li><a href="#2-invariants-ordinary-red-black-plus-left-leaning">2. Invariants: ordinary red-black plus left leaning</a></li>
+<li><a href="#3-why-the-height-is-logarithmic">3. Why the height is logarithmic</a></li>
+<li><a href="#4-insertion-repair-while-recursion-unwinds">4. Insertion: repair while recursion unwinds</a><ul>
+<li><a href="#dry-run-102030152551">Dry run: 10,20,30,15,25,5,1</a></li>
+</ul>
+</li>
+<li><a href="#5-deletion-never-descend-into-a-2-node">5. Deletion: never descend into a 2-node</a><ul>
+<li><a href="#state-trace-move-a-red-link-left">State trace: move a red link left</a></li>
+<li><a href="#internal-key-deletion-trace">Internal-key deletion trace</a></li>
+</ul>
+</li>
+<li><a href="#6-complete-java-17-implementation">6. Complete Java 17 implementation</a></li>
+<li><a href="#7-correctness-arguments">7. Correctness arguments</a></li>
+<li><a href="#8-complexity-including-output-cost">8. Complexity, including output cost</a></li>
+<li><a href="#9-boundaries-and-common-errors">9. Boundaries and common errors</a></li>
+<li><a href="#10-choosing-among-ordered-structures">10. Choosing among ordered structures</a></li>
+<li><a href="#11-interview-variations">11. Interview variations</a></li>
+<li><a href="#12-sources-and-provenance">12. Sources and provenance</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="red-black-tree-color-rotate-preserve-black-height">Red-Black Tree: Color, Rotate, Preserve Black Height</h1>
+<p><a href="../README.html">Local study intake</a> · <a href="java/RedBlackIntSet.java">Java implementation</a> · <a href="java/RedBlackIntSetCheck.java">Validation harness</a> · <a href="b-tree-insertion-deletion.html">B-tree comparison</a></p>
+<p>This module enriches section 4 of the uploaded <code>Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>. The source introduces red-black invariants, the 2–3-tree intuition and left-leaning insertion/deletion. Its Java cannot compile because the <code>Node</code> constructor is accidentally inside a comment, and its public removal wrapper can start deletion for an absent key. The version here corrects both problems, supplies a complete Java 17 set, verifies the stronger left-leaning invariants, and adds deletion mechanics, traces, proofs, boundaries and randomized tests.</p>
+<p>The canonical Trees/BST guide had no red-black-tree section, so this is a focused advanced-tree unit rather than a duplicate textbook.</p>
+<h2 id="1-simple-definition-and-exact-contract">1. Simple definition and exact contract</h2>
+<p>A <strong>red-black tree</strong> is a binary search tree whose links carry a red/black bit. Color rules prevent any root-to-leaf path from becoming more than twice as long as another. Search remains ordinary BST search; insertion and deletion repair colors and links locally.</p>
+<p>This module uses the <strong>left-leaning red-black (LLRB)</strong> representation of a 2–3 tree:</p>
+<ul>
+<li>red means “glued to the parent as one conceptual 3-node”;</li>
+<li>a red link must lean left;</li>
+<li>two red children, right-red links and consecutive left-red links are temporary states repaired during an update;</li>
+<li>keys are distinct, so <code>add</code> and <code>remove</code> return whether the set changed;</li>
+<li><code>toList()</code> constructs ascending output;</li>
+<li><code>validate()</code> checks ordering, root color, link orientation, red adjacency, equal black height and size.</li>
+</ul>
+<p>This is an in-memory teaching structure. It is not synchronized and does not provide iterators, comparators, persistence or lock-free reads.</p>
+<h3 id="four-concrete-examples">Four concrete examples</h3>
+<table>
+<thead>
+<tr>
+<th>Start</th>
+<th>Operation</th>
+<th>Expected result</th>
+<th>Lesson</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>empty</td>
+<td>add <code>10,20,30</code></td>
+<td>in order <code>[10,20,30]</code>; root 20 is black</td>
+<td>rotations and a color flip avoid a chain</td>
+</tr>
+<tr>
+<td><code>{1,5,10,15,20,25,30}</code></td>
+<td>add <code>15</code></td>
+<td><code>false</code>; size stays 7</td>
+<td>set semantics reject duplicates</td>
+</tr>
+<tr>
+<td>same set</td>
+<td>remove <code>10</code></td>
+<td><code>true</code>; sorted result <code>[1,5,15,20,25,30]</code></td>
+<td>internal deletion substitutes a successor</td>
+</tr>
+<tr>
+<td><code>{MIN_VALUE,0,MAX_VALUE}</code></td>
+<td>remove <code>0</code></td>
+<td><code>[MIN_VALUE,MAX_VALUE]</code></td>
+<td>comparisons do not subtract and overflow</td>
+</tr>
+</tbody>
+</table>
+<p>Removing a missing key returns <code>false</code> without changing structure. An empty tree has height 0 and an empty output list.</p>
+<h2 id="2-invariants-ordinary-red-black-plus-left-leaning">2. Invariants: ordinary red-black plus left leaning</h2>
+<table>
+<thead>
+<tr>
+<th>Invariant</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BST order</td>
+<td>every left key is smaller; every right key is larger</td>
+</tr>
+<tr>
+<td>black root</td>
+<td>the externally visible root is normalized to black</td>
+</tr>
+<tr>
+<td>black nulls</td>
+<td>every missing child is a conceptual black NIL leaf</td>
+</tr>
+<tr>
+<td>no red-red</td>
+<td>a red node cannot have a red child</td>
+</tr>
+<tr>
+<td>equal black height</td>
+<td>paths from one node to descendant NIL leaves contain the same black count</td>
+</tr>
+<tr>
+<td>left leaning</td>
+<td>no red right child; this canonicalizes the encoded 2–3 tree</td>
+</tr>
+</tbody>
+</table>
+<p>The first five are classical red-black properties. Left leaning is an additional representation choice, not a universal red-black-tree rule. Java's <code>TreeMap</code>, for example, uses a conventional parent-linked red-black tree rather than this recursive LLRB API.</p>
+<p><img alt="Red-black insertion and deletion repair states" src="assets/red-black-tree-repair.svg" /></p>
+<h2 id="3-why-the-height-is-logarithmic">3. Why the height is logarithmic</h2>
+<p>Let <code>bh(x)</code> be the number of black nodes on any path from node <code>x</code> down to a NIL leaf. Equal black height makes this well-defined.</p>
+<ol>
+<li>No red node can have a red child, so at least half the nodes on a longest root-to-leaf path are black.</li>
+<li>A subtree with black height <code>b</code> contains at least <code>2^b - 1</code> internal nodes: both children have black height at least <code>b-1</code>.</li>
+<li>Therefore <code>b &lt;= log2(n+1)</code>.</li>
+<li>The ordinary height <code>h</code> is at most <code>2b</code>, so <code>h &lt;= 2 log2(n+1)</code>.</li>
+</ol>
+<p>That bound is looser than AVL's, but it is still worst-case logarithmic. The <a href="https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/TreeMap.java">OpenJDK <code>TreeMap</code> source</a> documents guaranteed logarithmic <code>get</code>, <code>put</code>, <code>containsKey</code> and <code>remove</code> for its red-black implementation.</p>
+<h2 id="4-insertion-repair-while-recursion-unwinds">4. Insertion: repair while recursion unwinds</h2>
+<p>Insert a new key as a red leaf. Red preserves the path's black count, but it may create a right-leaning or consecutive red link. Apply these rules in order:</p>
+<pre><code class="language-java">if (isRed(node.right) &amp;&amp; !isRed(node.left)) node = rotateLeft(node);
+if (isRed(node.left) &amp;&amp; isRed(node.left.left)) node = rotateRight(node);
+if (isRed(node.left) &amp;&amp; isRed(node.right)) flipColors(node);
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Observed local state</th>
+<th>Repair</th>
+<th>Interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>right child red, left child black</td>
+<td>rotate left</td>
+<td>orient the 3-node's red link left</td>
+</tr>
+<tr>
+<td>left child and left grandchild red</td>
+<td>rotate right</td>
+<td>break a consecutive red chain</td>
+</tr>
+<tr>
+<td>both children red</td>
+<td>flip three colors</td>
+<td>split a temporary 4-node and pass red upward</td>
+</tr>
+</tbody>
+</table>
+<p>Rotations preserve in-order key order. The promoted node inherits the old subtree-root color, while the demoted node becomes red; therefore the subtree's black contribution to every external path is unchanged.</p>
+<h3 id="dry-run-102030152551">Dry run: <code>10,20,30,15,25,5,1</code></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Insert</th>
+<th>Raw/local condition</th>
+<th>Repair</th>
+<th>Stable in-order state</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">10</td>
+<td>new red root</td>
+<td>force root black</td>
+<td><code>10B</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">20</td>
+<td>red right child of 10</td>
+<td>rotate left</td>
+<td><code>20B</code> with <code>10R</code> left</td>
+</tr>
+<tr>
+<td style="text-align: right;">30</td>
+<td>both children of 20 red</td>
+<td>flip colors; root black</td>
+<td><code>10B,20B,30B</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">15</td>
+<td>red right child below 10</td>
+<td>rotate left at 10</td>
+<td>root 20; left subtree rooted at 15 with 10 red</td>
+</tr>
+<tr>
+<td style="text-align: right;">25</td>
+<td>red left child of 30</td>
+<td>no repair needed</td>
+<td>red link already leans left</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td>creates two red children below 15</td>
+<td>flip there</td>
+<td>black height stays equal</td>
+</tr>
+<tr>
+<td style="text-align: right;">1</td>
+<td>red left-left chain</td>
+<td>rotate right, then color flip</td>
+<td>all invariants restored</td>
+</tr>
+</tbody>
+</table>
+<p>The final shape is not part of the public contract—several valid balanced shapes can represent the same set. Sorted order and invariants are the contract.</p>
+<h2 id="5-deletion-never-descend-into-a-2-node">5. Deletion: never descend into a 2-node</h2>
+<p>Deleting a black node directly could reduce black height on only one path. LLRB deletion avoids that problem top-down:</p>
+<blockquote>
+<p>Before descending into a child that is a 2-node (a black node with no red child available on the descent side), move a red link into that child.</p>
+</blockquote>
+<p><code>moveRedLeft</code> flips colors. If the right sibling has an inner red child, a right rotation at the sibling followed by a left rotation at the parent transfers that red link across. <code>moveRedRight</code> is the mirror needed while descending right.</p>
+<pre><code class="language-java">private static Node moveRedLeft(Node node) {
+    flipColors(node);
+    if (isRed(node.right.left)) {
+        node.right = rotateRight(node.right);
+        node = rotateLeft(node);
+        flipColors(node);
+    }
+    return node;
+}
+</code></pre>
+<p>The implementation checks membership before changing the root color. This extra <code>O(log n)</code> search makes missing-key removal a strict no-op and keeps the recursive delete precondition simple.</p>
+<h3 id="state-trace-move-a-red-link-left">State trace: move a red link left</h3>
+<p>Consider conceptual 2–3 nodes represented by black <code>20</code>, black left child <code>10</code>, and black right child <code>30</code> with red left child <code>25</code>. We must delete somewhere below 10.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Step</th>
+<th>Relevant colors/shape</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td><code>20B</code>, <code>10B</code>, <code>30B &lt;- 25R</code></td>
+<td>left child has no red capacity</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>flip around 20</td>
+<td>temporarily make 10 and 30 red; parent becomes red</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>rotate right at 30</td>
+<td>expose 25 as sibling boundary</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>rotate left at 20</td>
+<td>move boundary/red capacity toward left path</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td>flip new local root</td>
+<td>restore a legal encoding before descent</td>
+</tr>
+</tbody>
+</table>
+<p>After recursive deletion, <code>balance</code> applies the same rotation/color-normalization rules used after insertion.</p>
+<h3 id="internal-key-deletion-trace">Internal-key deletion trace</h3>
+<p>For set <code>{1,5,10,15,20,25,30}</code>, remove 10:</p>
+<ol>
+<li>Top-down color moves ensure the chosen path is not a fragile 2-node.</li>
+<li>When deletion reaches key 10 with a right subtree, find its successor 15.</li>
+<li>Replace the stored key 10 with 15.</li>
+<li>Delete the minimum key from that right subtree.</li>
+<li>Balance while returning, then force the root black.</li>
+</ol>
+<p>The logical result is <code>[1,5,15,20,25,30]</code>; exactly one set key disappeared even though its value was relocated first.</p>
+<h2 id="6-complete-java-17-implementation">6. Complete Java 17 implementation</h2>
+<p>The runnable <a href="java/RedBlackIntSet.java">RedBlackIntSet.java</a> contains search, insertion, top-down deletion, sorted traversal, height and validation. The companion <a href="java/RedBlackIntSetCheck.java">RedBlackIntSetCheck.java</a> is an independent oracle harness.</p>
+<p>Key public wrapper:</p>
+<pre><code class="language-java">public boolean remove(int key) {
+    if (!contains(key)) return false;
+    if (!isRed(root.left) &amp;&amp; !isRed(root.right)) root.color = RED;
+    root = delete(root, key);
+    size--;
+    if (root != null) root.color = BLACK;
+    return true;
+}
+</code></pre>
+<p>Why may the root temporarily turn red? If both children are black 2-nodes, making the root red lets the top-down color-move machinery treat both sides uniformly. The public boundary always restores black afterward.</p>
+<p><code>validate()</code> checks the <strong>stronger LLRB contract</strong>. A conventional red-black tree may legally have a red right link, but this implementation may not.</p>
+<h2 id="7-correctness-arguments">7. Correctness arguments</h2>
+<p><strong>Search.</strong> BST order identifies at most one child that can contain the key. Each comparison descends one level, so search finds exactly stored keys and terminates.</p>
+<p><strong>Rotation.</strong> A rotation changes only parent/child relationships among three ordered regions. Their in-order sequence is unchanged. Copying the former root color to the promoted node and coloring the demoted node red preserves the number of black nodes from the local root to every boundary path.</p>
+<p><strong>Color flip.</strong> Flipping a parent and both children converts one binary encoding of a 2–3-tree split/merge to another. All downward paths cross the parent and exactly one child, so each path's black count changes equally.</p>
+<p><strong>Insertion.</strong> A new red leaf does not change black height. The three repairs eliminate right-red links, consecutive red links and temporary two-red-child states without changing BST order or black height. Forcing the root black establishes every invariant.</p>
+<p><strong>Deletion.</strong> Before recursion enters a 2-node, <code>moveRedLeft</code> or <code>moveRedRight</code> transfers red capacity onto that path without changing order or relative black height. The target can then be removed without creating a persistent black deficit. Successor substitution preserves order and <code>deleteMinimum</code> removes the old copy. <code>balance</code> restores LLRB orientation on return; the root normalization completes the invariants.</p>
+<p><strong>Traversal.</strong> In-order recursion emits all left keys, the node, then all right keys. By BST order, induction over subtree height proves <code>toList()</code> emits every key exactly once in ascending order.</p>
+<h2 id="8-complexity-including-output-cost">8. Complexity, including output cost</h2>
+<p>With <code>n</code> stored keys and height <code>h &lt;= 2 log2(n+1)</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th style="text-align: right;">Time</th>
+<th style="text-align: right;">Auxiliary/output space</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>contains</code></td>
+<td style="text-align: right;"><code>O(log n)</code></td>
+<td style="text-align: right;"><code>O(1)</code> iterative</td>
+</tr>
+<tr>
+<td><code>add</code></td>
+<td style="text-align: right;"><code>O(log n)</code></td>
+<td style="text-align: right;"><code>O(log n)</code> recursion</td>
+</tr>
+<tr>
+<td><code>remove</code></td>
+<td style="text-align: right;"><code>O(log n)</code> including precheck</td>
+<td style="text-align: right;"><code>O(log n)</code> recursion</td>
+</tr>
+<tr>
+<td><code>toList</code></td>
+<td style="text-align: right;"><code>O(n)</code></td>
+<td style="text-align: right;"><code>O(n)</code> output plus <code>O(log n)</code> call stack</td>
+</tr>
+<tr>
+<td><code>validate</code></td>
+<td style="text-align: right;"><code>O(n)</code></td>
+<td style="text-align: right;"><code>O(log n)</code> call stack</td>
+</tr>
+<tr>
+<td>structure itself</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;"><code>O(n)</code> nodes and one color bit/boolean per node</td>
+</tr>
+</tbody>
+</table>
+<p>Output construction cannot be called <code>O(1)</code>: returning <code>n</code> boxed <code>Integer</code> values costs <code>O(n)</code> result space. Java object/layout overhead is implementation-dependent and much larger than the abstract one-bit color model.</p>
+<h2 id="9-boundaries-and-common-errors">9. Boundaries and common errors</h2>
+<ul>
+<li>Treat <code>null</code> as black. <code>isRed(null)</code> must be false.</li>
+<li>Guard missing-key deletion. Standard top-down helpers assume a target path exists.</li>
+<li>Do not reorder the three insertion repairs; each establishes the precondition for the next.</li>
+<li>A rotation must transfer the old root's color and color the demoted node red.</li>
+<li>A color flip requires both real children in these helpers; call sites establish that precondition.</li>
+<li>Do not use <code>keyA - keyB</code> as a comparison; extreme <code>int</code> values can overflow.</li>
+<li>Do not claim every red-black tree is left leaning. That restriction belongs to this variant.</li>
+<li>Do not expose mutable nodes unless callers are prevented from breaking color/order invariants.</li>
+<li>This class is not thread-safe. Concurrent updates require external synchronization or a different structure.</li>
+</ul>
+<h2 id="10-choosing-among-ordered-structures">10. Choosing among ordered structures</h2>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Good baseline</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>immutable values, prefix/range sums</td>
+<td>prefix array / Fenwick tree</td>
+<td>exploits numeric index domain</td>
+</tr>
+<tr>
+<td>ordered in-memory map/set</td>
+<td>red-black tree / <code>TreeMap</code> / <code>TreeSet</code></td>
+<td>worst-case logarithmic updates and ordered navigation</td>
+</tr>
+<tr>
+<td>slightly tighter lookup height</td>
+<td>AVL tree</td>
+<td>stricter height balance, sometimes more update repair</td>
+</tr>
+<tr>
+<td>page-oriented high fan-out index</td>
+<td>B-tree/B+ tree</td>
+<td>reduces page transitions; B+ leaves support scans</td>
+</tr>
+<tr>
+<td>average constant-time membership, no order</td>
+<td>hash table</td>
+<td>ordering/navigation not required</td>
+</tr>
+</tbody>
+</table>
+<p>Oracle's <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/TreeMap.html">Java 17 API</a> describes <code>TreeMap</code> as a red-black-tree <code>NavigableMap</code>; <code>TreeSet</code> is backed by a <code>TreeMap</code>. The <a href="https://docs.kernel.org/core-api/rbtree.html">Linux kernel rbtree documentation</a> emphasizes sortable key/value workloads and embeds tree nodes inside user structures to reduce indirection and improve locality. Those are production examples, not evidence that this exact LLRB implementation is used there.</p>
+<h2 id="11-interview-variations">11. Interview variations</h2>
+<ol>
+<li>Prove the <code>2 log2(n+1)</code> height bound from black height.</li>
+<li>Implement insertion only, then explain why deletion is harder.</li>
+<li>Compare classical parent-pointer fix-up with recursive LLRB repair.</li>
+<li>Add <code>floor</code>, <code>ceiling</code>, predecessor, successor or rank/select using subtree sizes.</li>
+<li>Convert the set to a generic comparator-based map and define duplicate-key replacement.</li>
+<li>Explain why B/B+ trees usually win for storage pages while red-black trees fit in-memory ordered containers.</li>
+</ol>
+<h2 id="12-sources-and-provenance">12. Sources and provenance</h2>
+<ul>
+<li>Candidate source actually read: <code>untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>, section 4, lines 449–635; archive SHA-256 and source SHA-256 are recorded in the intake manifest.</li>
+<li>Primary runtime reference: <a href="https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/TreeMap.java">OpenJDK <code>TreeMap.java</code></a>.</li>
+<li>Primary API reference: <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/TreeMap.html">Java SE 17 <code>TreeMap</code></a>.</li>
+<li>Primary systems reference: <a href="https://docs.kernel.org/core-api/rbtree.html">Linux kernel red-black tree documentation</a>.</li>
+</ul>
+<p>The contract tables, traces, proof decomposition, corrected code, SVG and tests are original teaching additions. The module does not claim byte-for-byte equivalence with OpenJDK or Linux implementations.</p></article></main><script>document.querySelector("#filter").oninput=e=>{let q=e.target.value.toLowerCase();document.querySelectorAll(".toc li").forEach(li=>li.hidden=!li.textContent.toLowerCase().includes(q))}</script></body></html>

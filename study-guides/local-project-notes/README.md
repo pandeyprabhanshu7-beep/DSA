@@ -28,6 +28,10 @@ This separate folder receives selected, enriched technical material from the upl
 - [B-Tree Insertion and Deletion — HTML](advanced-trees/b-tree-insertion-deletion.html)
 - [Mutable integer B-tree set](advanced-trees/java/BTreeIntSet.java)
 - [B-tree validation harness](advanced-trees/java/BTreeIntSetCheck.java)
+- [Red-Black Tree Insertion and Deletion — Markdown](advanced-trees/red-black-tree-insertion-deletion.md)
+- [Red-Black Tree Insertion and Deletion — HTML](advanced-trees/red-black-tree-insertion-deletion.html)
+- [Left-leaning red-black integer set](advanced-trees/java/RedBlackIntSet.java)
+- [Red-black tree validation harness](advanced-trees/java/RedBlackIntSetCheck.java)
 
 ## Intake state
 
@@ -37,10 +41,10 @@ See [intake manifest](INTAKE_MANIFEST.json) for source hashes, statuses and exac
 
 ## Continue next
 
-Read advanced-trees section 4: Red-Black Tree, then compare it with canonical Trees/BST coverage before deciding whether a focused module adds distinct value. Estimated next-batch budget: approximately 15,000 tokens. The estimate uses the section's 7,803 characters / 4 (about 1,951 source tokens because a tokenizer is unavailable), plus heuristic reserves of 2,500 for comparison/research, 8,000 for teaching/code/diagram/HTML, and 2,500 for validation/checkpoint work, rounded conservatively. It is not account-quota telemetry. Stop at a durable checkpoint if resources are insufficient; later hourly runs retry.
+Read advanced-trees section 3: AVL Tree, then compare it with canonical Trees/BST coverage before deciding whether a focused module adds distinct value. Estimated next-batch budget: approximately 15,000 tokens. The estimate uses the section's 6,703 characters / 4 (about 1,676 source tokens because a tokenizer is unavailable), plus heuristic reserves of 2,500 for comparison/research, 8,000 for teaching/code/diagram/HTML, and 2,500 for validation/checkpoint work, rounded conservatively. It is not account-quota telemetry. Stop at a durable checkpoint if resources are insufficient; later hourly runs retry.
 
 ## Maintain readers
 
 Run `python build_readers.py` (requires Python `markdown`) after editing local Markdown. Source Markdown is canonical; HTML is generated from it. Keep topic Java and diagram changes in the same validated commit.
 
-Validation: the Java 17 compiler module ran all topic harnesses. The Fenwick harness passed 100,000 randomized point updates and 200,000 oracle queries; the lazy segment tree harness passed 100,000 randomized range updates and 200,000 oracle queries; the trie harness passed 50,000 randomized insert attempts, 100,000 exact/prefix queries and 10,000 autocomplete comparisons; the heap harness passed 100,000 mixed operations and 10,000 heapify-and-drain comparisons; the B+ tree read model passed 100,000 random point lookups and 50,000 random bounded range comparisons; the B-tree set passed 1,000 shuffled insert/delete permutations and 200,000 random mixed operations across minimum degrees 2–9. Deterministic/boundary cases, generated Markdown/HTML payload hashes, local links/anchors and SVG XML were checked. Browser visual QA remains pending.
+Validation: the Java 17 compiler module ran all topic harnesses. The Fenwick harness passed 100,000 randomized point updates and 200,000 oracle queries; the lazy segment tree harness passed 100,000 randomized range updates and 200,000 oracle queries; the trie harness passed 50,000 randomized insert attempts, 100,000 exact/prefix queries and 10,000 autocomplete comparisons; the heap harness passed 100,000 mixed operations and 10,000 heapify-and-drain comparisons; the B+ tree read model passed 100,000 random point lookups and 50,000 random bounded range comparisons; the B-tree set passed 1,000 shuffled insert/delete permutations and 200,000 random mixed operations across minimum degrees 2–9; the red-black set passed deterministic/boundary cases, 1,000 shuffled insert/delete permutations and 200,000 seeded mixed operations against `TreeSet`, with repeated structural validation. Generated Markdown/HTML payload hashes, local links/anchors and SVG XML were checked. Browser visual QA remains pending.

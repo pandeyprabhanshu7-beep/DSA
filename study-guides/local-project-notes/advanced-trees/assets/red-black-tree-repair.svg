@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="600" viewBox="0 0 1040 600" role="img" aria-labelledby="title desc">
+  <title id="title">Red-black tree insertion and deletion repairs</title>
+  <desc id="desc">Three panels show left rotation for a right red link, a color flip for two red children, and moving a red link left before deletion.</desc>
+  <style>
+    .panel{fill:#f8fafc;stroke:#94a3b8;stroke-width:2}.edge{stroke:#475569;stroke-width:3}.rededge{stroke:#dc2626;stroke-width:6}.node{stroke:#0f172a;stroke-width:2}.black{fill:#1e293b}.red{fill:#dc2626}.label{font:700 20px system-ui;fill:#0f172a}.small{font:16px system-ui;fill:#334155}.key{font:700 16px system-ui;fill:white;text-anchor:middle;dominant-baseline:central}.arrow{font:700 28px system-ui;fill:#2563eb}
+  </style>
+  <rect class="panel" x="20" y="20" width="320" height="560" rx="16"/><rect class="panel" x="360" y="20" width="320" height="560" rx="16"/><rect class="panel" x="700" y="20" width="320" height="560" rx="16"/>
+  <text class="label" x="40" y="55">1. Orient red left</text><text class="small" x="40" y="82">Right-red link → rotate left</text>
+  <line class="rededge" x1="120" y1="155" x2="225" y2="220"/><circle class="node black" cx="120" cy="145" r="30"/><text class="key" x="120" y="145">10</text><circle class="node red" cx="230" cy="225" r="30"/><text class="key" x="230" y="225">20</text>
+  <text class="arrow" x="155" y="315">↓</text>
+  <line class="rededge" x1="155" y1="420" x2="90" y2="485"/><circle class="node black" cx="155" cy="410" r="30"/><text class="key" x="155" y="410">20</text><circle class="node red" cx="85" cy="490" r="30"/><text class="key" x="85" y="490">10</text>
+  <text class="label" x="380" y="55">2. Split temporary 4-node</text><text class="small" x="380" y="82">Two red children → flip colors</text>
+  <line class="rededge" x1="520" y1="155" x2="450" y2="235"/><line class="rededge" x1="520" y1="155" x2="590" y2="235"/><circle class="node black" cx="520" cy="145" r="30"/><text class="key" x="520" y="145">20</text><circle class="node red" cx="445" cy="240" r="30"/><text class="key" x="445" y="240">10</text><circle class="node red" cx="595" cy="240" r="30"/><text class="key" x="595" y="240">30</text>
+  <text class="arrow" x="505" y="335">↓</text>
+  <line class="edge" x1="520" y1="420" x2="450" y2="500"/><line class="edge" x1="520" y1="420" x2="590" y2="500"/><circle class="node red" cx="520" cy="410" r="30"/><text class="key" x="520" y="410">20</text><circle class="node black" cx="445" cy="505" r="30"/><text class="key" x="445" y="505">10</text><circle class="node black" cx="595" cy="505" r="30"/><text class="key" x="595" y="505">30</text>
+  <text class="label" x="720" y="55">3. Prepare deletion path</text><text class="small" x="720" y="82">Move red capacity toward left child</text>
+  <line class="edge" x1="850" y1="155" x2="770" y2="235"/><line class="edge" x1="850" y1="155" x2="930" y2="235"/><line class="rededge" x1="930" y1="255" x2="885" y2="330"/><circle class="node black" cx="850" cy="145" r="30"/><text class="key" x="850" y="145">20</text><circle class="node black" cx="765" cy="240" r="30"/><text class="key" x="765" y="240">10</text><circle class="node black" cx="935" cy="240" r="30"/><text class="key" x="935" y="240">30</text><circle class="node red" cx="880" cy="335" r="30"/><text class="key" x="880" y="335">25</text>
+  <path d="M860 405 C800 430 790 475 760 510" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrowhead)"/><text class="small" x="825" y="455">flip + rotate</text><text class="small" x="725" y="545">safe left descent</text>
+  <defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker></defs>
+</svg>
