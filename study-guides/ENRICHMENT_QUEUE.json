@@ -1,0 +1,695 @@
+{
+  "schema_version": 1,
+  "repository": "pandeyprabhanshu7-beep/DSA",
+  "branch": "main",
+  "inventory_date": "2026-10-08",
+  "source_status_definition": "Metadata discovered; content must be read and compared before selection or promotion.",
+  "sources": [
+    {
+      "name": "spring-boot-ai-labs.zip",
+      "library_file_id": "libfile_734212c696048191bbaf8a79cab41e1f",
+      "file_id": "file_000000005580820c820ebb576b427912",
+      "version_id": null,
+      "modified_at": "2026-10-07T16:41:39.053086Z",
+      "size_bytes": 342166,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "MASTER_PROMPT.md",
+      "library_file_id": "libfile_0fa4ccc7063c8191bc5a5fd90ae3582d",
+      "file_id": "file_00000000a39881fda017bf1689c3e669",
+      "version_id": null,
+      "modified_at": "2026-10-06T19:51:18.409209Z",
+      "size_bytes": 4169,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "spring-boot-ai-journey.zip",
+      "library_file_id": "libfile_8cfcc564ad0c819183a578cd10509934",
+      "file_id": "file_00000000712081fd9f89123b55d725d5",
+      "version_id": null,
+      "modified_at": "2026-10-06T19:51:18.370213Z",
+      "size_bytes": 38825,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "cicd_aws_azure_teamcity_jenkins_guide.html",
+      "library_file_id": "libfile_0bfe6eef3e148191b043eec8eb84f5e0",
+      "file_id": "file_00000000d9ec81f5a5fd8e435e94385a",
+      "version_id": null,
+      "modified_at": "2026-09-17T05:55:55.269830Z",
+      "size_bytes": 194744,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "ai_cicd_spring_python_guides_complete.zip",
+      "library_file_id": "libfile_d6a32648e8408191845065f5dc21ed2a",
+      "file_id": "file_0000000094548230b875e10e7acf8d33",
+      "version_id": null,
+      "modified_at": "2026-09-17T05:55:54.714170Z",
+      "size_bytes": 2535466,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "ai_platform_master_guide.html",
+      "library_file_id": "libfile_1c4d3d95d7408191ba154228767f0886",
+      "file_id": "file_00000000493c81f783ae7443074f1c91",
+      "version_id": null,
+      "modified_at": "2026-09-17T05:55:54.695794Z",
+      "size_bytes": 150746,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "spring_ai_python_api_interview_guide.html",
+      "library_file_id": "libfile_a6efee022fb881919d2e8ff61bd758ed",
+      "file_id": "file_000000005fa081f5ac57ceb7dd5324c4",
+      "version_id": null,
+      "modified_at": "2026-09-17T05:55:54.480720Z",
+      "size_bytes": 149762,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "ai_platform_engineering_complete_bundle.zip",
+      "library_file_id": "libfile_3e3141a85f2c8191bbd4995b39f85066",
+      "file_id": "file_00000000d230820ebe7c187a9cffcf21",
+      "version_id": null,
+      "modified_at": "2026-09-16T16:22:16.910779Z",
+      "size_bytes": 1596169,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "ai_platform_engineering_illustrated.html",
+      "library_file_id": "libfile_99c8821b24b88191b1d24665a24acfad",
+      "file_id": "file_000000009a7081f5bb31033f2be2484d",
+      "version_id": null,
+      "modified_at": "2026-09-16T16:22:16.059506Z",
+      "size_bytes": 272443,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "database_internals_caching_java_master_guide.md",
+      "library_file_id": "libfile_969515775294819195d90fe08e46b7be",
+      "file_id": "file_00000000dadc81f59cf6b82ca990a48a",
+      "version_id": "1",
+      "modified_at": "2026-09-16T05:20:18.877277Z",
+      "size_bytes": 155023,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "top_5_system_design_interview_blueprints.md",
+      "library_file_id": "libfile_787d49a6b3d08191a05765c530f781b3",
+      "file_id": "file_00000000214481fdb368917e2f9d55f1",
+      "version_id": "1",
+      "modified_at": "2026-09-11T21:27:10.870584Z",
+      "size_bytes": 37445,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "system_design_fundamentals_deep_research.md",
+      "library_file_id": "libfile_ec928991597c81918057029c614c3486",
+      "file_id": "file_000000007d5481fd816be2dd2ef5da51",
+      "version_id": "1",
+      "modified_at": "2026-09-11T21:27:08.096531Z",
+      "size_bytes": 81333,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "system_design_fundamentals.md",
+      "library_file_id": "libfile_1d9714ddf5288191bdb7ca1fb783b711",
+      "file_id": "file_00000000228081f590936520c8ebe405",
+      "version_id": null,
+      "modified_at": "2026-09-11T04:57:16.259594Z",
+      "size_bytes": 35980,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "ai_jobs_elimination_deep_research_2026.md",
+      "library_file_id": "libfile_ec5bdd926d1881918e6f8523ea1ab36a",
+      "file_id": "file_000000007bb881f5beb88da5cea75ef0",
+      "version_id": null,
+      "modified_at": "2026-09-10T23:06:32.260101Z",
+      "size_bytes": 18294,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "Take_U_Forward_Graph_Verified_Problem_Guide_v3.md",
+      "library_file_id": "libfile_4ce4c60ac9c881918a412133400539be",
+      "file_id": "file_0000000019ac81fd96289a9f6f15bb12",
+      "version_id": null,
+      "modified_at": "2026-09-08T04:49:59.864498Z",
+      "size_bytes": 166312,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "Take_U_Forward_Tree_Verified_Problem_Guide_v3.md",
+      "library_file_id": "libfile_710786f044c88191b10937e0c3f9b4c1",
+      "file_id": "file_00000000865481fdafa293d649da9958",
+      "version_id": null,
+      "modified_at": "2026-09-08T04:49:59.825371Z",
+      "size_bytes": 155878,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "Take_U_Forward_Graph_Complete_Deep_Guide_v2.md",
+      "library_file_id": "libfile_8eb432a6e0008191b9222953b9ec1a5f",
+      "file_id": "file_00000000945081f58d1f65e4492cb8df",
+      "version_id": null,
+      "modified_at": "2026-09-08T01:35:54.662720Z",
+      "size_bytes": 227185,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "Take_U_Forward_Stack_Queue_Complete_Deep_Guide_v2.md",
+      "library_file_id": "libfile_16ad88e84e2081919e0cc506b8d627f4",
+      "file_id": "file_00000000d81481f588d5d3715087ebbc",
+      "version_id": null,
+      "modified_at": "2026-09-08T01:35:54.662145Z",
+      "size_bytes": 130924,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md",
+      "library_file_id": "libfile_d2bbf045b6308191b0701c7c0218f7d6",
+      "file_id": "file_00000000506c81fd8a7b984ca6543ca9",
+      "version_id": null,
+      "modified_at": "2026-09-08T00:10:00.856206Z",
+      "size_bytes": 108786,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "DSA_Graph_FAANG_Mermaid_Question_Workbook.md",
+      "library_file_id": "libfile_30d913255c648191bf1de9db08bcabcb",
+      "file_id": "file_000000007ec081fd87880f0b8862f723",
+      "version_id": null,
+      "modified_at": "2026-09-08T00:10:00.813753Z",
+      "size_bytes": 165553,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "Advanced_Trees_FAANG_Mermaid_Study_Guide.md",
+      "library_file_id": "libfile_7346abf23a3c81918843c9a9f5b5d80f",
+      "file_id": "file_000000004d3081fd9e4ce3b364d10d49",
+      "version_id": null,
+      "modified_at": "2026-09-08T00:10:00.813395Z",
+      "size_bytes": 68775,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "Angular_Interview_Mermaid_Workbook.md",
+      "library_file_id": "libfile_e52bad99cac481918d9c28585ea36f29",
+      "file_id": "file_00000000170881fd95b4a53cdd3577fc",
+      "version_id": null,
+      "modified_at": "2026-09-08T00:10:00.775386Z",
+      "size_bytes": 74372,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
+      "library_file_id": "libfile_696bb068db6881919b0fee0851af090d",
+      "file_id": "file_0000000066fc81fd9be3099ce8b6415e",
+      "version_id": null,
+      "modified_at": "2026-09-08T00:10:00.753196Z",
+      "size_bytes": 77677,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "DSA_Tree_FAANG_Mermaid_Question_Workbook.md",
+      "library_file_id": "libfile_d7a11710c7288191927291f34dc25100",
+      "file_id": "file_00000000684881fd92dcf66f231eb4e6",
+      "version_id": null,
+      "modified_at": "2026-09-08T00:10:00.743385Z",
+      "size_bytes": 95619,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "DSA_Arrays_FAANG_Mermaid_Question_Workbook.md",
+      "library_file_id": "libfile_ec0215b953208191b254acfc4fc39f1a",
+      "file_id": "file_00000000a05881fdb093fccba59318e6",
+      "version_id": null,
+      "modified_at": "2026-09-08T00:10:00.740223Z",
+      "size_bytes": 229697,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
+      "library_file_id": "libfile_1d9474e104dc819182bcdbbcf8e2b65c",
+      "file_id": "file_00000000db1c81f587ad58682e274a42",
+      "version_id": null,
+      "modified_at": "2026-09-07T23:36:35.951649Z",
+      "size_bytes": 164760,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "Take_U_Forward_Stack_Queue_Mermaid_Guide.md",
+      "library_file_id": "libfile_0885fec94298819185d4babd349c1406",
+      "file_id": "file_00000000ed5881fa9c237f54d2fdfd39",
+      "version_id": null,
+      "modified_at": "2026-09-07T18:00:03.911417Z",
+      "size_bytes": 114043,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "GITHUB_PUSH_COMMANDS.md",
+      "library_file_id": "libfile_9d70807bd9188191b015e888b50641b4",
+      "file_id": "file_000000008e2081f8b6f7742040e0d534",
+      "version_id": null,
+      "modified_at": "2026-09-07T17:39:56.663357Z",
+      "size_bytes": 1308,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "README.md",
+      "library_file_id": "libfile_c7aa4a8c95588191aa0d17fc2f048b3f",
+      "file_id": "file_00000000dbb881f8b4aa8f49e4835c72",
+      "version_id": null,
+      "modified_at": "2026-09-07T17:39:53.017314Z",
+      "size_bytes": 13638,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "enterprise-rag-assistant.zip",
+      "library_file_id": "libfile_8ba97c9518648191a830b57357ba2f72",
+      "file_id": "file_000000008cdc81f8aff735e285fe9d88",
+      "version_id": null,
+      "modified_at": "2026-09-07T17:39:49.442548Z",
+      "size_bytes": 57149,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "Take_U_Forward_Stack_Queue_Java_Deep_Workbook.docx",
+      "library_file_id": "libfile_72f8eeccb7988191bd872e312d0e8e75",
+      "file_id": "file_00000000daf881fa97d7bce9689b3bb9",
+      "version_id": null,
+      "modified_at": "2026-09-07T17:07:54.535717Z",
+      "size_bytes": 610203,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "Stack_Queue_FAANG_Question_Workbook_Expanded.docx",
+      "library_file_id": "libfile_149c2602d7348191b9791100b6535788",
+      "file_id": "file_000000009f2081fdab7df77b18dac3bd",
+      "version_id": "1",
+      "modified_at": "2026-09-03T05:33:07.971008Z",
+      "size_bytes": 93706,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "DSA_Arrays_FAANG_Question_Workbook_Expanded.docx",
+      "library_file_id": "libfile_7956d8107f2081919f2bf02bb4e620ec",
+      "file_id": "file_00000000672882118a9ca69f00c30be7",
+      "version_id": "1",
+      "modified_at": "2026-09-03T01:55:56.718502Z",
+      "size_bytes": 125274,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "AI_RAG_CAG_Deep_Learning_Developer_Guide.docx",
+      "library_file_id": "libfile_2acdb587e9248191a4799afbe48fbd38",
+      "file_id": "file_00000000e81881fa9c71b228203d1c9a",
+      "version_id": null,
+      "modified_at": "2026-09-02T04:40:53.490553Z",
+      "size_bytes": 762657,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "Angular_Interview_Workbook.docx",
+      "library_file_id": "libfile_fecd0e9156b08191871bad3382b7de35",
+      "file_id": "file_000000002de88211a76925b978b3406a",
+      "version_id": null,
+      "modified_at": "2026-08-31T14:40:43.673563Z",
+      "size_bytes": 62355,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "JavaScript_HTML_CSS_Interview_Workbook.docx",
+      "library_file_id": "libfile_e62cdc76b294819197e853d677b66158",
+      "file_id": "file_0000000037888211b9c20e5f69be6b09",
+      "version_id": null,
+      "modified_at": "2026-08-31T14:40:39.905787Z",
+      "size_bytes": 64737,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "DSA_Graph_FAANG_Question_Workbook.docx",
+      "library_file_id": "libfile_b031e4b2edac819182a5a14f1420fb93",
+      "file_id": "file_0000000012b081f7ac1c87aeafade0ff",
+      "version_id": null,
+      "modified_at": "2026-08-30T07:02:49.102302Z",
+      "size_bytes": 79012,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "DSA_Tree_FAANG_Question_Workbook.docx",
+      "library_file_id": "libfile_ef5ff717aebc8191a054f7c8cf3f6e72",
+      "file_id": "file_00000000afd081f7b9e6661011d4d546",
+      "version_id": null,
+      "modified_at": "2026-08-30T07:02:48.410227Z",
+      "size_bytes": 74266,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "Tree_Advanced_FAANG_Study_Guide.docx",
+      "library_file_id": "libfile_b71f27c80d4c81918c672303add6bfb5",
+      "file_id": "file_00000000b2ec820894a863ce6d23cb44",
+      "version_id": null,
+      "modified_at": "2026-08-30T05:23:39.553805Z",
+      "size_bytes": 227748,
+      "status": "DISCOVERED"
+    },
+    {
+      "name": "advanced_trees_interview_guide.md",
+      "library_file_id": "libfile_051d3307bbb48191aad1ce21744b78cb",
+      "file_id": "file_0000000006148211920e27c9db67321b",
+      "version_id": null,
+      "modified_at": "2026-08-19T04:44:00.028771Z",
+      "size_bytes": 30094,
+      "status": "DISCOVERED"
+    }
+  ],
+  "topics": [
+    {
+      "id": "dsa-graphs",
+      "domain": "DSA",
+      "canonical_target": "study-guides/striver-dsa/graph-dsa/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [
+        "Take_U_Forward_Graph_Verified_Problem_Guide_v3.md",
+        "Take_U_Forward_Graph_Complete_Deep_Guide_v2.md",
+        "DSA_Graph_FAANG_Mermaid_Question_Workbook.md",
+        "Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
+        "DSA_Graph_FAANG_Question_Workbook.docx"
+      ],
+      "last_processed_at": "2026-10-08",
+      "next_action": "Read latest canonical source and status; reconcile earlier source improvements in place.",
+      "priority": 1
+    },
+    {
+      "id": "dsa-trees",
+      "domain": "DSA",
+      "canonical_target": "study-guides/striver-dsa/trees-bst/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [
+        "Take_U_Forward_Tree_Verified_Problem_Guide_v3.md",
+        "DSA_Tree_FAANG_Mermaid_Question_Workbook.md",
+        "DSA_Tree_FAANG_Question_Workbook.docx"
+      ],
+      "last_processed_at": "2026-10-08",
+      "next_action": "Read latest canonical source and status; reconcile earlier source improvements in place.",
+      "priority": 2
+    },
+    {
+      "id": "dsa-stack-queue",
+      "domain": "DSA",
+      "canonical_target": "study-guides/striver-dsa/stack-queue/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [
+        "Take_U_Forward_Stack_Queue_Complete_Deep_Guide_v2.md",
+        "Take_U_Forward_Stack_Queue_Mermaid_Guide.md",
+        "Take_U_Forward_Stack_Queue_Java_Deep_Workbook.docx",
+        "Stack_Queue_FAANG_Question_Workbook_Expanded.docx"
+      ],
+      "last_processed_at": "2026-10-08",
+      "next_action": "Read latest canonical source and status; reconcile earlier source improvements in place.",
+      "priority": 3
+    },
+    {
+      "id": "dsa-linked-list",
+      "domain": "DSA",
+      "canonical_target": "study-guides/striver-dsa/linked-list/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [],
+      "last_processed_at": "2026-10-08",
+      "next_action": "Read latest canonical source and status; reconcile earlier source improvements in place.",
+      "priority": 4
+    },
+    {
+      "id": "dsa-hashing",
+      "domain": "DSA",
+      "canonical_target": "study-guides/striver-dsa/hashmap-hashing/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [],
+      "last_processed_at": "2026-10-08",
+      "next_action": "Read latest canonical source and status; reconcile earlier source improvements in place.",
+      "priority": 5
+    },
+    {
+      "id": "dsa-arrays",
+      "domain": "DSA",
+      "canonical_target": "study-guides/striver-dsa/arrays/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "DSA_Arrays_FAANG_Mermaid_Question_Workbook.md",
+        "DSA_Arrays_FAANG_Question_Workbook_Expanded.docx"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 6
+    },
+    {
+      "id": "advanced-trees",
+      "domain": "DSA",
+      "canonical_target": "study-guides/advanced-trees/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "Advanced_Trees_FAANG_Mermaid_Study_Guide.md",
+        "Tree_Advanced_FAANG_Study_Guide.docx",
+        "advanced_trees_interview_guide.md"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 7
+    },
+    {
+      "id": "ai-foundations-rag-cag",
+      "domain": "AI",
+      "canonical_target": "study-guides/ai/foundations-rag-cag/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md",
+        "AI_RAG_CAG_Deep_Learning_Developer_Guide.docx"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 8
+    },
+    {
+      "id": "ai-platform",
+      "domain": "AI",
+      "canonical_target": "study-guides/ai/platform/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "ai_cicd_spring_python_guides_complete.zip",
+        "ai_platform_master_guide.html",
+        "ai_platform_engineering_complete_bundle.zip",
+        "ai_platform_engineering_illustrated.html"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 9
+    },
+    {
+      "id": "system-design-fundamentals",
+      "domain": "System design/data",
+      "canonical_target": "study-guides/system-design/fundamentals/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "system_design_fundamentals_deep_research.md",
+        "system_design_fundamentals.md"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 10
+    },
+    {
+      "id": "system-design-blueprints",
+      "domain": "System design/data",
+      "canonical_target": "study-guides/system-design/blueprints/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "top_5_system_design_interview_blueprints.md"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 11
+    },
+    {
+      "id": "database-caching-java",
+      "domain": "System design/data",
+      "canonical_target": "study-guides/databases/caching-java/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "database_internals_caching_java_master_guide.md"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 12
+    },
+    {
+      "id": "cicd-cloud-kubernetes",
+      "domain": "DevOps/backend",
+      "canonical_target": "study-guides/devops/cicd/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "cicd_aws_azure_teamcity_jenkins_guide.html",
+        "ai_cicd_spring_python_guides_complete.zip"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 13
+    },
+    {
+      "id": "spring-ai-python-api",
+      "domain": "DevOps/backend",
+      "canonical_target": "study-guides/backend/spring-ai-python/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "ai_cicd_spring_python_guides_complete.zip",
+        "spring_ai_python_api_interview_guide.html"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 14
+    },
+    {
+      "id": "angular",
+      "domain": "Frontend",
+      "canonical_target": "study-guides/frontend/angular/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "Angular_Interview_Mermaid_Workbook.md",
+        "Angular_Interview_Workbook.docx"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 15
+    },
+    {
+      "id": "javascript-html-css",
+      "domain": "Frontend",
+      "canonical_target": "study-guides/frontend/javascript-html-css/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
+        "JavaScript_HTML_CSS_Interview_Workbook.docx"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 16
+    },
+    {
+      "id": "aws-networking",
+      "domain": "AWS/cloud",
+      "canonical_target": "study-guides/aws/networking/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [],
+      "last_processed_at": "2026-10-08",
+      "next_action": "Read latest canonical source and status; reconcile earlier source improvements in place.",
+      "priority": 17
+    },
+    {
+      "id": "aws-master-course",
+      "domain": "AWS/cloud",
+      "canonical_target": "study-guides/aws/",
+      "target_exists": false,
+      "status": "NEEDS_SOURCE",
+      "source_names": [],
+      "last_processed_at": null,
+      "next_action": "Locate actual earlier source or analysis; record unresolved access instead of fabricating it.",
+      "priority": 18
+    },
+    {
+      "id": "cloud-comparisons",
+      "domain": "AWS/cloud",
+      "canonical_target": "study-guides/cloud/comparisons/",
+      "target_exists": false,
+      "status": "NEEDS_SOURCE",
+      "source_names": [],
+      "last_processed_at": null,
+      "next_action": "Locate actual earlier source or analysis; record unresolved access instead of fabricating it.",
+      "priority": 19
+    },
+    {
+      "id": "java-security-protocols",
+      "domain": "DevOps/backend",
+      "canonical_target": "study-guides/backend/java-security-protocols/",
+      "target_exists": false,
+      "status": "NEEDS_SOURCE",
+      "source_names": [],
+      "last_processed_at": null,
+      "next_action": "Locate actual earlier source or analysis; record unresolved access instead of fabricating it.",
+      "priority": 20
+    },
+    {
+      "id": "ai-project-docs",
+      "domain": "AI",
+      "canonical_target": "study-guides/ai/projects/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "spring-boot-ai-labs.zip",
+        "spring-boot-ai-journey.zip",
+        "GITHUB_PUSH_COMMANDS.md",
+        "README.md",
+        "enterprise-rag-assistant.zip"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 21,
+      "external_repositories": [
+        "pandeyprabhanshu7-beep/spring-boot-ai-journey",
+        "pandeyprabhanshu7-beep/spring-boot-ai-labs"
+      ],
+      "constraint": "Keep source code in its existing project repository; enrich learning documentation here without copying complete code repositories or regressing to older ZIP snapshots."
+    },
+    {
+      "id": "ai-employment-impact",
+      "domain": "AI",
+      "canonical_target": "study-guides/ai/employment-impact/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "ai_jobs_elimination_deep_research_2026.md"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 22
+    },
+    {
+      "id": "technical-study-workflows",
+      "domain": "Learning workflows",
+      "canonical_target": "study-guides/study-workflows/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "MASTER_PROMPT.md"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 23
+    }
+  ],
+  "scheduler": {
+    "active_task_id": "6ac700d5c14c81918cca8786785f2a5e",
+    "cadence": "hourly",
+    "sections_per_run": "1–2",
+    "single_writer": true
+  }
+}
+

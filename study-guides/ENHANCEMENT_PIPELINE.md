@@ -1,10 +1,10 @@
 # Continuous Computer Science Guide Enrichment
 
-Last inventory: 2026-10-07 (America/New_York).
+Last inventory: 2026-10-08 (America/New_York).
 
 ## Canonical target
 Repository: `pandeyprabhanshu7-beep/DSA`, branch `main`.
-Start each run by rereading `study-guides/striver-dsa/README.md` and `STATUS.md`. Existing canonical Markdown and matching HTML are the destination. Never upload an older chat attachment over a richer, newer GitHub edition merely because of file modification time.
+Start each run by rereading this file, `ENRICHMENT_QUEUE.json`, `SOURCE_INVENTORY.md`, and applicable topic README/STATUS files, including `striver-dsa/` and `aws/`. Existing canonical Markdown and matching HTML are the destination. Never upload an older chat attachment over a richer, newer GitHub edition merely because of file modification time.
 
 ## Verified canonical DSA folders
 - `study-guides/striver-dsa/graph-dsa/`
@@ -53,3 +53,29 @@ The names above record historical work, **not** evidence these source files are 
 
 ## Initial repository audit
 The canonical status inspected on 2026-10-07 identifies 181 Java-placeholder cards: Graph 51, Trees & BST 51, Linked List 27, Stack & Queue 26, and HashMap & Hashing 26. These are baseline counts, not live running totals; reread STATUS before each run.
+
+
+## Expanded queue — authoritative scheduling rules
+
+`ENRICHMENT_QUEUE.json` records all discovered technical sources and one target per conceptual topic. `SOURCE_INVENTORY.md` is the human-readable index. Discovered means metadata was retrieved, not that file content has been read, imported or validated. Refresh each selected source before using it. Select the latest substantive source by coverage and correctness after reading; modification dates and V2/V3 names alone are insufficient. Existing richer repository content wins over older source attachments.
+
+### Scope
+
+Include DSA (arrays, linked lists, stack/queue, graphs, ordinary and advanced trees, hashing), Java/backend, JavaScript/HTML/CSS, Angular, system design and case studies, database internals/caching/JDBC, AI/ML/deep learning/tokens/transformers/embeddings/RAG/CAG/agents, AI platforms, Spring AI/Python APIs, CI/CD/Jenkins/TeamCity/Kubernetes, AWS/networking/Azure/GCP comparisons, security/protocol explanations, AI-project documentation, AI employment-impact analysis and reusable technical-study prompts. Earlier DOCX/HTML/ZIP sources can supply missing Markdown. Personal resumes, immigration documents, car/finance, health and social material are outside this technical pipeline.
+
+### Intake and fair selection
+
+1. Resume one unfinished section first; persist its exact next action in the queue and topic STATUS. Limit continuation to useful coherent work; do not indefinitely starve other domains because a huge guide remains IN_PROGRESS.
+2. Otherwise choose the least-recently-processed eligible topic by round-robin domain (DSA, AWS/cloud, AI, system design/data, DevOps/backend, frontend). Choose 1–2 sections per run; these are deep sections, not merely 1–2 sentence edits.
+3. Before choosing more DSA placeholders, attempt an accessible not-yet-promoted source from another domain. Prioritize system-design fundamentals, database/caching, AI/RAG/CAG, arrays and the AI/CI-CD/Spring-Python bundle for first intake.
+4. Inspect archives safely (reject traversal paths; do not execute bundled code). Select source Markdown and required assets, compare revisions, and preserve provenance. Extract earlier analyses into a canonical guide only when the actual analysis is retrievable; never invent missing prior text.
+5. Source states: DISCOVERED -> READING -> READY -> IN_PROGRESS -> VALIDATED -> PROMOTED. NEEDS_SOURCE means prior requested topic is known but source bytes have not been found. BLOCKED records a concrete failure, not a permanent exclusion. Promotion is not completion of deep enrichment.
+6. New topics receive canonical `guide.md` / `guide.html` (or the established repo naming), local assets and index links. Existing topics receive in-place improvements. Keep generated chapter views derived from a declared source; for networking run `aws/build_networking.py`.
+7. Recount current placeholders instead of reusing historical totals. As of the verified 2026-10-08 promotion, the literal-marker audit is 174, not the earlier 181/173 baselines.
+8. Read current main immediately before promotion. Publish all source, HTML, assets, index and status changes in a coherent commit with an expected-head guard; if main advanced, reconcile the new changes and validate again. Do not force-push or reset another run's work.
+9. After successful promotion, store source revision/hash, target path, last_processed_at, completed section, next_section and commit. Keep the active scheduler prompt aligned with this queue.
+10. Refresh the technical inventory periodically and enroll newly discovered relevant files/analyses automatically. Do not claim access to every chat or file; label unlocated sources accurately.
+
+## Scheduler ownership
+
+Use the existing active hourly enrichment task as the single writer. The older paused DSA+AWS task remains paused to prevent overlapping writers. The active task now covers this entire queue, including AWS; legacy outstanding branch information is superseded by the latest main branch. The eight pending Stack/Queue enrichments and AWS diagram/navigation repairs were promoted in commits `298c4bbe` and `d3da872`.
