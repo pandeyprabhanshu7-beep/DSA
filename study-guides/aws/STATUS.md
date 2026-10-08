@@ -1,6 +1,6 @@
 # AWS Study Guide Enrichment Status
 
-Last enrichment: 2026-10-08 04:33 ET
+Last enrichment: 2026-10-08 05:28 ET
 
 ## DONE
 
@@ -9,13 +9,15 @@ Last enrichment: 2026-10-08 04:33 ET
 - [x] Establish AWS repository structure and scheduler continuation rules
 - [x] Repair the networking diagrams, navigation and generated chapter readers
 - [x] Deepen Path MTU Discovery and IPv6/AWS egress with packet traces and primary references
+- [x] Deepen BGP selection/propagation and stateful-firewall return-path reasoning
 
-## IN_PROGRESS
+## CURRENT STATE
 
-- [ ] Broader factual review of the networking bootcamp.
+- [x] Priority factual review of the networking bootcamp is complete for this rotation.
   - Diagram and navigation repair is complete.
   - MTU/PMTUD and IPv6 egress sections are complete for this pass.
-  - Next coherent section: BGP best-path policy, route propagation and failure examples, followed by firewall/ephemeral-port packet traces.
+  - BGP best-path policy/propagation and firewall/ephemeral-port return-path sections are complete for this pass.
+  - No forced networking continuation remains; return through fair domain rotation for later chapter review.
 
 ## TODO — highest priority
 
@@ -48,4 +50,13 @@ If a scheduled run stops because of model/tool/output limits, leave the exact fi
 - Primary references: AWS VPC PMTUD/NACL guidance, AWS egress-only Internet Gateway documentation, RFC 8200 and RFC 8201.
 - Validation: the authoritative combined Markdown was rebuilt through `build_networking.py`; affected chapter Markdown/HTML and combined HTML were regenerated; local links, fragments, assets, JSON, SVG XML and generator idempotence passed. Browser visual QA remains pending.
 
-IN_PROGRESS next: enrich BGP best-path policy/route propagation and stateful-firewall return-path examples, then resume master-guide and component-module promotion. The whole AWS course is not complete.
+## BGP and stateful-firewall enrichment — 2026-10-08
+
+- Expanded BGP into learned, eligible, selected, installed and advertised states; documented NEXT_HOP, LOCAL_PREF, AS_PATH, MED and communities without treating a vendor tie-break list as protocol law.
+- Added a three-candidate policy example, seven-step withdrawal/failover trace, common customer/peer/transit export model, four counterexamples, route-filtering controls and RPKI scope.
+- Expanded stateful filtering with a six-step TCP state trace, initiator-dependent NACL rule tables, ephemeral-port range guidance, centralized Transit Gateway inspection trace, NAT observation points, four failure examples and a stateful invariant.
+- Corrected a previously joined pair of BGP misconception bullets.
+- Primary references: RFC 4271, RFC 7454, AWS Security Group connection tracking, custom NACL guidance, Network Firewall symmetric-routing guidance and Transit Gateway appliance mode.
+- Validation: `build_networking.py` regenerated the two affected chapter pairs and combined HTML; generated Markdown/HTML section coverage, local links/fragments/assets, JSON, SVG XML and generator idempotence passed. Live DSA placeholder audit remains 174. Browser visual QA remains pending.
+
+NEXT ROTATION: attempt the accessible unpromoted system-design fundamentals source. Return to AWS networking later through fair rotation; the AWS master course remains `NEEDS_SOURCE`, and the whole technical library is not complete.

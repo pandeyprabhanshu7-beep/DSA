@@ -597,21 +597,21 @@
       "domain": "AWS/cloud",
       "canonical_target": "study-guides/aws/networking/",
       "target_exists": true,
-      "status": "IN_PROGRESS",
+      "status": "PROMOTED",
       "source_names": [],
-      "last_processed_at": "2026-10-08T04:33:20-04:00",
+      "last_processed_at": "2026-10-08T05:28:42-04:00",
       "processed_sections": [
-        "Layers, Frames, Packets, Ports & Encapsulation — MTU, fragmentation and PMTUD",
-        "IP Addressing, Subnetting, NAT, PAT, CGNAT & IPv6 — IPv6 concepts and AWS egress"
+        "Routing, ISPs, Autonomous Systems, BGP, Peering & Transit — BGP selection and route propagation",
+        "Ingress, Egress, Firewalls, WAF, Proxies, DMZ & Stateful vs Stateless Filtering — connection state and symmetric return paths"
       ],
       "source_revision": {
-        "baseline_commit": "44a6df8415e55c4455e0dfa143bc432f3d83c71b",
-        "canonical_blob_before": "f149f2d07e6e128cf29cd7ec4c3fcc539198f221",
-        "canonical_sha256_after": "aac2971daba0b578eff89409e2b04cee7a3c14fd909bfe5944cd9773a0a3e124"
+        "baseline_commit": "95a9b9d3c7567cc01345661aa79de2fc0f7b6b77",
+        "canonical_blob_before": "76cf0c7b83059816691f2be2f4e67c153d248f30",
+        "canonical_sha256_after": "511e778077cbe27bc5f1bc806be7c68951571673c5d69f2c82cd458b97018323"
       },
       "last_successful_commit": "e81c2b418390c1e85f7cb352c226df8ef40f855b",
-      "validation": "build_networking.py regenerated the affected readers; local links, fragments, assets, JSON, SVG XML, generated-section coverage and idempotence passed; browser visual QA pending",
-      "next_action": "Resume the networking factual review with BGP best-path policy, route propagation and failure examples; then deepen stateful-firewall return-path and ephemeral-port traces.",
+      "validation": "build_networking.py regenerated both affected chapter pairs and combined HTML; local links, fragments, assets, JSON, SVG XML, generated-section coverage and idempotence passed; live DSA placeholder audit 174; browser visual QA pending",
+      "next_action": "No forced AWS continuation. Scheduler should attempt the accessible unpromoted system-design fundamentals source next; return to networking through fair domain rotation.",
       "priority": 17
     },
     {

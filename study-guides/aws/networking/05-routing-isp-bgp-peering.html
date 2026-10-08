@@ -16,10 +16,18 @@
 <li><a href="#4-why-you-do-not-put-the-whole-internet-into-a-home-router-manually">4. Why you do not put “the whole Internet” into a home router manually</a></li>
 <li><a href="#5-autonomous-systems-the-internet-as-organizations">5. Autonomous Systems: the Internet as organizations</a></li>
 <li><a href="#6-bgp-what-it-really-does">6. BGP: what it really does</a><ul>
+<li><a href="#the-five-route-states-to-keep-separate">The five route states to keep separate</a></li>
+<li><a href="#path-attributes-what-question-does-each-answer">Path attributes — what question does each answer?</a></li>
 <li><a href="#do-not-memorize-this-wrong-sentence">Do not memorize this wrong sentence</a></li>
 </ul>
 </li>
-<li><a href="#7-bgp-simplified-example">7. BGP simplified example</a></li>
+<li><a href="#7-bgp-simplified-example">7. BGP simplified example</a><ul>
+<li><a href="#step-by-step-decision-and-propagation-trace">Step-by-step decision and propagation trace</a></li>
+<li><a href="#export-policy-route-propagation-is-not-automatic-flooding">Export policy — route propagation is not automatic flooding</a></li>
+<li><a href="#four-examples-that-reveal-the-real-pattern">Four examples that reveal the real pattern</a></li>
+<li><a href="#route-filtering-safety-controls">Route-filtering safety controls</a></li>
+</ul>
+</li>
 <li><a href="#8-peering-vs-transit">8. Peering vs transit</a><ul>
 <li><a href="#peering">Peering</a></li>
 <li><a href="#transit">Transit</a></li>
@@ -115,8 +123,81 @@ Destination AS: “this prefix is mine -&gt; deliver internally”
 <pre><code class="language-text">Internet = one company/router hierarchy
 </code></pre>
 <h2 id="6-bgp-what-it-really-does">6. BGP: what it really does</h2>
-<p>Border Gateway Protocol exchanges reachability information for IP prefixes between routing domains and applies policy to choose/advertise paths.</p>
-<p>Cloudflare's BGP learning material describes the Internet as many autonomous systems exchanging routes, and correctly notes that route choice can include business/policy considerations rather than merely geographic distance.</p>
+<p>Border Gateway Protocol exchanges <strong>routes to IP prefixes</strong> plus path attributes. A BGP speaker applies local import policy, chooses a preferred route for each prefix, may install that result into forwarding state, and applies export policy before advertising anything onward.</p>
+<h3 id="the-five-route-states-to-keep-separate">The five route states to keep separate</h3>
+<pre><code class="language-text">peer advertisement
+      |
+      v
+learned route (Adj-RIB-In)
+      |
+      +-- import filter / attribute policy --&gt; rejected or eligible
+                                              |
+                                              v
+                                      best-path decision
+                                              |
+                         +--------------------+-------------------+
+                         v                                        v
+                 Loc-RIB / local route                    export policy
+                         |                                        |
+                         v                                        v
+                 forwarding table                         Adj-RIB-Out / peer
+</code></pre>
+<p>The exact internal data structures vary, but the distinction is essential:</p>
+<ul>
+<li><strong>learned</strong> does not mean accepted;</li>
+<li><strong>accepted</strong> does not mean selected;</li>
+<li><strong>selected</strong> does not guarantee forwarding if the next hop is unresolved or another routing source wins;</li>
+<li><strong>installed</strong> does not mean advertised to every peer;</li>
+<li><strong>advertised</strong> is controlled independently by export policy.</li>
+</ul>
+<p>RFC 4271 describes the BGP decision process conceptually and explicitly permits implementations to realize it differently while preserving externally visible behavior. Therefore, do not memorize one vendor's tie-break list as a universal protocol law.</p>
+<h3 id="path-attributes-what-question-does-each-answer">Path attributes — what question does each answer?</h3>
+<table>
+<thead>
+<tr>
+<th>Attribute/concept</th>
+<th>Simplified question</th>
+<th>Important caution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NEXT_HOP</code></td>
+<td>Where must the router send traffic to use this route?</td>
+<td>It must be reachable; BGP does not create the underlying path by itself</td>
+</tr>
+<tr>
+<td><code>LOCAL_PREF</code></td>
+<td>Which exit does <strong>my AS</strong> prefer?</td>
+<td>Higher is normally preferred; it is propagated inside the AS, not to external peers</td>
+</tr>
+<tr>
+<td><code>AS_PATH</code></td>
+<td>Which ASes has the advertisement traversed?</td>
+<td>Supports loop detection; shorter often wins only after stronger local policy</td>
+</tr>
+<tr>
+<td><code>MED</code></td>
+<td>Which entry point does a neighbor suggest?</td>
+<td>Lower is commonly preferred; comparison scope and behavior are implementation/policy sensitive</td>
+</tr>
+<tr>
+<td><code>ORIGIN</code></td>
+<td>How was the route originally introduced to BGP?</td>
+<td>A late discriminator, not proof that the prefix is legitimate</td>
+</tr>
+<tr>
+<td>Community</td>
+<td>Which policy tag travels with the route?</td>
+<td>Meaning depends on the operator or documented well-known community</td>
+</tr>
+</tbody>
+</table>
+<p>Two decisions that engineers frequently mix up:</p>
+<ul>
+<li><strong>Outbound traffic engineering:</strong> your <code>LOCAL_PREF</code> and import policy decide how your AS exits.</li>
+<li><strong>Inbound traffic engineering:</strong> advertisements, more-specific prefixes, MED, AS-path prepending and provider communities can influence how other ASes enter, but the remote operator retains final policy control.</li>
+</ul>
 <h3 id="do-not-memorize-this-wrong-sentence">Do not memorize this wrong sentence</h3>
 <blockquote>
 <p>“BGP chooses the shortest path.”</p>
@@ -126,17 +207,133 @@ Destination AS: “this prefix is mine -&gt; deliver internally”
 <p><strong>BGP chooses a best path according to attributes and operator policy. AS-path length can matter, but it is not the only consideration.</strong></p>
 </blockquote>
 <h2 id="7-bgp-simplified-example">7. BGP simplified example</h2>
-<p>Suppose AS65010 owns:</p>
-<pre><code class="language-text">198.51.100.0/24
-</code></pre>
-<p>It advertises that prefix to two upstream networks:</p>
-<pre><code class="language-text">           ISP A (AS65001)
-          /
-AS65010 --
-          \
-           ISP B (AS65002)
-</code></pre>
-<p>Other networks learn one or more possible AS paths. Their policies determine which path becomes preferred for forwarding toward that prefix.</p>
+<p>Suppose AS65010 learns the same destination prefix, <code>203.0.113.0/24</code>, through three neighbors. Its import policy expresses a common business preference: customer route, then peer, then paid transit.</p>
+<table>
+<thead>
+<tr>
+<th>Candidate</th>
+<th>Learned from</th>
+<th style="text-align: right;">LOCAL_PREF</th>
+<th>AS_PATH</th>
+<th>Eligible?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td>customer AS65110</td>
+<td style="text-align: right;">200</td>
+<td><code>65110 64496 64497</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td>B</td>
+<td>peer AS65200</td>
+<td style="text-align: right;">150</td>
+<td><code>65200 64497</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td>C</td>
+<td>transit AS65300</td>
+<td style="text-align: right;">100</td>
+<td><code>65300 64497</code></td>
+<td>yes</td>
+</tr>
+</tbody>
+</table>
+<p>Path A has a longer AS path, yet the local policy gives it the highest preference. AS65010 therefore selects A. The invariant is:</p>
+<blockquote>
+<p>For one destination prefix, select among eligible routes using local policy first; only use later attributes when earlier policy does not decide the result.</p>
+</blockquote>
+<p>This is why “BGP chooses the shortest AS path” is an unsafe interview answer.</p>
+<h3 id="step-by-step-decision-and-propagation-trace">Step-by-step decision and propagation trace</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Step</th>
+<th>Control-plane event</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>Three UPDATE messages announce <code>203.0.113.0/24</code></td>
+<td>Three learned candidates exist</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>Import filters validate prefix/peer policy; next hops are checked</td>
+<td>All three remain eligible</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>Policy assigns LOCAL_PREF 200/150/100</td>
+<td>Candidate A becomes preferred</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>Candidate A enters the local routing view; forwarding resolves its next hop</td>
+<td>Data packets for the <code>/24</code> leave toward AS65110</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td>Export policy evaluates the selected route per neighbor</td>
+<td>Some neighbors receive A; others may receive no route or an aggregate</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>AS65110 withdraws A after a failure</td>
+<td>A is removed; the decision process runs again</td>
+</tr>
+<tr>
+<td style="text-align: right;">7</td>
+<td>Candidate B now has the highest remaining LOCAL_PREF</td>
+<td>Forwarding changes to AS65200 and permitted advertisements are updated</td>
+</tr>
+</tbody>
+</table>
+<p>Convergence is not instantaneous. Detection, withdrawal delivery, best-path recomputation, forwarding-table programming and downstream propagation all take time. Packet loss or a temporary path change can occur between steps 6 and 7.</p>
+<h3 id="export-policy-route-propagation-is-not-automatic-flooding">Export policy — route propagation is not automatic flooding</h3>
+<p>A common commercial pattern is:</p>
+<table>
+<thead>
+<tr>
+<th>Route learned from</th>
+<th style="text-align: right;">Commonly exported to customers</th>
+<th style="text-align: right;">Commonly exported to peers/transit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>customer</td>
+<td style="text-align: right;">yes</td>
+<td style="text-align: right;">yes</td>
+</tr>
+<tr>
+<td>peer</td>
+<td style="text-align: right;">yes</td>
+<td style="text-align: right;">no</td>
+</tr>
+<tr>
+<td>transit provider</td>
+<td style="text-align: right;">yes</td>
+<td style="text-align: right;">no</td>
+</tr>
+</tbody>
+</table>
+<p>This simplified “valley-free” pattern prevents one AS from accidentally providing free transit between two peers/providers. It is a common policy, not a BGP protocol guarantee. Contracts, communities, route servers and operator design can produce different behavior.</p>
+<h3 id="four-examples-that-reveal-the-real-pattern">Four examples that reveal the real pattern</h3>
+<ol>
+<li><strong>Policy beats length:</strong> the customer path above wins despite a longer AS path because LOCAL_PREF is higher.</li>
+<li><strong>Loop prevention:</strong> AS65010 rejects a route whose AS_PATH already contains <code>65010</code>; accepting it could reintroduce the route into its own loop.</li>
+<li><strong>Withdrawal failover:</strong> when A is withdrawn, B becomes best; the data plane changes only after control-plane processing and next-hop resolution.</li>
+<li><strong>More-specific route:</strong> <code>203.0.113.0/25</code> and <code>203.0.113.0/24</code> are different prefixes. Forwarding uses longest-prefix match, so the <code>/25</code> wins for its addresses even if the <code>/24</code> has a “better” BGP path. Best-path comparison occurs among routes for the same prefix.</li>
+</ol>
+<h3 id="route-filtering-safety-controls">Route-filtering safety controls</h3>
+<p>Import policy should validate what a neighbor is expected to announce. Export policy should ensure you advertise only authorized prefixes and intended transit reachability. Useful controls include prefix filters, maximum-prefix limits, AS-path filters, community policy and RPKI Route Origin Validation where deployed. RPKI origin validation helps answer whether an origin AS is authorized for a prefix; it does not validate every AS in the complete path or replace ordinary policy.</p>
+<p><strong>Common mistakes:</strong> accepting a full table from a customer that should send one prefix; treating a BGP session being <code>Established</code> as proof that useful routes are accepted; advertising an aggregate without reachable component routes; expecting AS-path prepending to override every remote policy; changing import policy without checking the return path and firewall state.</p>
 <h2 id="8-peering-vs-transit">8. Peering vs transit</h2>
 <h3 id="peering">Peering</h3>
 <p>Networks exchange traffic directly, typically for their own/customer routes according to policy/agreement.</p>
@@ -283,13 +480,16 @@ LAN/DMZ -- Firewall pair
 <h2 id="23-common-wrong-mental-models">23. Common wrong mental models</h2>
 <ul>
 <li>“Default route means Internet.” It means <strong>catch-all next hop</strong>; that next hop could be a firewall, VPN, TGW, or blackhole.</li>
-<li>“BGP knows application ports.” Normal IP route selection is prefix/policy based, not HTTP endpoint based.- “More hops always means slower.” Physical distance, congestion, link capacity, queuing, and processing matter too.</li>
+<li>“BGP knows application ports.” Normal IP route selection is prefix/policy based, not HTTP endpoint based.</li>
+<li>“More hops always means slower.” Physical distance, congestion, link capacity, queuing, and processing matter too.</li>
 <li>“Traceroute shows the exact packet path.” It is a diagnostic approximation.</li>
 <li>“Two links means HA.” Routing/failover/state/capacity design decides HA.</li>
 </ul>
 <h2 id="24-best-internetaws-examples">24. Best Internet/AWS examples</h2>
 <ul>
 <li>Cloudflare BGP explanation: https://www.cloudflare.com/learning/security/glossary/what-is-bgp/</li>
+<li>RFC 4271, BGP-4 and conceptual decision process: https://www.rfc-editor.org/rfc/rfc4271</li>
+<li>RFC 7454 / BCP 194, BGP operations and security: https://www.rfc-editor.org/rfc/rfc7454</li>
 <li>AWS VPC route priority / longest-prefix match: https://docs.aws.amazon.com/vpc/latest/userguide/route-tables-priority.html</li>
 <li>AWS Transit Gateway: https://docs.aws.amazon.com/vpc/latest/tgw/what-is-transit-gateway.html</li>
 <li>AWS VPN routing: https://docs.aws.amazon.com/vpn/latest/s2svpn/VPNRoutingTypes.html</li>

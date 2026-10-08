@@ -8,10 +8,14 @@
 </ul>
 </li>
 <li><a href="#4-stateful-filtering">4. Stateful filtering</a><ul>
+<li><a href="#packet-by-packet-state-trace">Packet-by-packet state trace</a></li>
 <li><a href="#aws-analogy_1">AWS analogy</a></li>
 </ul>
 </li>
-<li><a href="#5-the-ephemeral-port-trap">5. The ephemeral-port trap</a></li>
+<li><a href="#5-the-ephemeral-port-trap">5. The ephemeral-port trap</a><ul>
+<li><a href="#nacl-rule-direction-depends-on-who-initiated">NACL rule direction depends on who initiated</a></li>
+</ul>
+</li>
 <li><a href="#6-layer-34-network-firewall-vs-layer-7-waf">6. Layer 3/4 network firewall vs Layer 7 WAF</a><ul>
 <li><a href="#network-firewall">Network firewall</a></li>
 <li><a href="#web-application-firewall-waf">Web Application Firewall (WAF)</a></li>
@@ -30,7 +34,12 @@
 <li><a href="#ips">IPS</a></li>
 </ul>
 </li>
-<li><a href="#16-why-symmetric-routing-matters-to-stateful-firewalls">16. Why symmetric routing matters to stateful firewalls</a></li>
+<li><a href="#16-why-symmetric-routing-matters-to-stateful-firewalls">16. Why symmetric routing matters to stateful firewalls</a><ul>
+<li><a href="#centralized-inspection-dry-run">Centralized inspection dry run</a></li>
+<li><a href="#nat-changes-what-the-firewall-sees">NAT changes what the firewall sees</a></li>
+<li><a href="#four-failure-examples">Four failure examples</a></li>
+</ul>
+</li>
 <li><a href="#17-firewall-rule-examples-good-vs-bad">17. Firewall rule examples: good vs bad</a><ul>
 <li><a href="#too-broad">Too broad</a></li>
 <li><a href="#better-intent">Better intent</a></li>
@@ -86,11 +95,59 @@ DB response -&gt; app subnet = egress from DB subnet
 <h3 id="aws-analogy">AWS analogy</h3>
 <p>Network ACLs are stateless. AWS documentation specifically warns that return traffic must satisfy NACL rules independently.</p>
 <h2 id="4-stateful-filtering">4. Stateful filtering</h2>
-<p>A stateful firewall tracks connection/flow state.</p>
+<p>A stateful firewall tracks a flow, commonly using the protocol and 5-tuple plus protocol-specific state and timeouts:</p>
+<pre><code class="language-text">protocol = TCP
+source   = 10.0.1.25:51514
+target   = 10.0.2.40:443
+state    = SYN_SENT -&gt; ESTABLISHED -&gt; CLOSING
+</code></pre>
 <p>If policy allows:</p>
 <pre><code class="language-text">client -&gt; server TCP 443
 </code></pre>
 <p>return packets that belong to that established allowed flow can normally pass without an independent broad inbound/outbound rule for the reverse ephemeral port.</p>
+<h3 id="packet-by-packet-state-trace">Packet-by-packet state trace</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Step</th>
+<th>Packet</th>
+<th>Stateful decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>client <code>51514 -&gt; 443</code>, SYN</td>
+<td>Match new-flow policy; create provisional state</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>server <code>443 -&gt; 51514</code>, SYN-ACK</td>
+<td>Reverse 5-tuple matches the tracked flow; allow</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>client ACK</td>
+<td>Mark connection established</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>encrypted application data in either direction</td>
+<td>Allow while packets match valid state/policy</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td>FIN/ACK exchange or RST</td>
+<td>Move toward closed state</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>Idle timeout expires</td>
+<td>Delete state; a late packet may require a new allowed flow</td>
+</tr>
+</tbody>
+</table>
+<p>Stateful does <strong>not</strong> mean “allow forever.” Implementations enforce TCP-state rules, idle timeouts, capacity limits and product-specific behavior. UDP has no handshake, so state is inferred from recent matching datagrams and shorter timeouts are common.</p>
 <h3 id="aws-analogy_1">AWS analogy</h3>
 <p>Security Groups are stateful. Response traffic for an allowed flow is recognized as part of the stateful model.</p>
 <h2 id="5-the-ephemeral-port-trap">5. The ephemeral-port trap</h2>
@@ -101,6 +158,52 @@ DB response -&gt; app subnet = egress from DB subnet
 <pre><code class="language-text">server:443 -&gt; client:51514
 </code></pre>
 <p>A stateless ACL must permit the relevant reverse-direction ephemeral-port traffic. This is one reason NACL rules are easier to misconfigure than Security Groups for ordinary application flows.</p>
+<h3 id="nacl-rule-direction-depends-on-who-initiated">NACL rule direction depends on who initiated</h3>
+<p>For an instance acting as an HTTPS <strong>client</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Subnet-boundary direction</th>
+<th style="text-align: right;">Destination port</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>outbound</td>
+<td style="text-align: right;">443</td>
+<td>initial request to server</td>
+</tr>
+<tr>
+<td>inbound</td>
+<td style="text-align: right;">client's ephemeral range</td>
+<td>server response to the chosen source port</td>
+</tr>
+</tbody>
+</table>
+<p>For an instance acting as an HTTPS <strong>server</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Subnet-boundary direction</th>
+<th style="text-align: right;">Destination port</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>inbound</td>
+<td style="text-align: right;">443</td>
+<td>initial client request</td>
+</tr>
+<tr>
+<td>outbound</td>
+<td style="text-align: right;">remote client's ephemeral range</td>
+<td>response to client source port</td>
+</tr>
+</tbody>
+</table>
+<p>Do not blindly copy one range. Ephemeral ranges vary by operating system and client population. AWS examples commonly use ranges such as <code>32768-65535</code>, while heterogeneous internet clients can require a broader <code>1024-65535</code> policy. Use the narrowest range that matches the actual endpoints and architecture.</p>
 <h2 id="6-layer-34-network-firewall-vs-layer-7-waf">6. Layer 3/4 network firewall vs Layer 7 WAF</h2>
 <h3 id="network-firewall">Network firewall</h3>
 <p>Common decision inputs:</p>
@@ -272,8 +375,65 @@ workload -&gt; shared service
 <pre><code class="language-text">request -&gt; firewall A -&gt; server
 response -&gt; different path bypassing firewall A
 </code></pre>
-<p>The return path can look unrelated/invalid to stateful inspection systems or bypass intended policy entirely.</p>
+<p>The return path can look unrelated/invalid to stateful inspection systems or bypass intended policy entirely. A firewall that sees only the SYN-ACK has no state proving that it allowed the initiating SYN.</p>
 <p>AWS Network Firewall documentation calls out symmetric routing requirements, particularly in centralized Transit Gateway inspection designs.</p>
+<h3 id="centralized-inspection-dry-run">Centralized inspection dry run</h3>
+<p>Assume Spoke A calls Spoke B through a Transit Gateway and an inspection VPC:</p>
+<pre><code class="language-text">Spoke A
+  -&gt; Transit Gateway
+  -&gt; inspection attachment / firewall endpoint
+  -&gt; Transit Gateway
+  -&gt; Spoke B
+</code></pre>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Step</th>
+<th>Expected path/state</th>
+<th>Failure if asymmetric</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>SYN from A is routed through firewall endpoint X</td>
+<td>X creates flow state</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>SYN reaches B</td>
+<td>B replies to A's ephemeral port</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>Return route sends SYN-ACK back through endpoint X</td>
+<td>X matches reverse tuple and allows it</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>TGW returns traffic to A</td>
+<td>TCP handshake completes</td>
+</tr>
+</tbody>
+</table>
+<p>If the return uses endpoint Y or bypasses inspection, Y has no matching state and may drop the SYN-ACK; bypass also defeats the intended inspection policy. Transit Gateway appliance mode is designed to keep a flow on the same appliance network interface for its lifetime in supported centralized designs. Appliance mode does not repair incorrect route tables: forward and return routes must still intentionally traverse the inspection attachment.</p>
+<h3 id="nat-changes-what-the-firewall-sees">NAT changes what the firewall sees</h3>
+<p>The observation point matters:</p>
+<pre><code class="language-text">before source NAT: 10.0.1.25:51514 -&gt; 198.51.100.20:443
+after source NAT:  203.0.113.10:62001 -&gt; 198.51.100.20:443
+</code></pre>
+<p>A rule or log on the pre-NAT side may reference the private tuple; a post-NAT device may see the translated tuple. During troubleshooting, draw the tuple at <strong>each boundary</strong> instead of searching every log for one unchanged address.</p>
+<h3 id="four-failure-examples">Four failure examples</h3>
+<ol>
+<li>The Security Group permits outbound 443, but the custom NACL blocks inbound replies to the client ephemeral port.</li>
+<li>The forward flow crosses Network Firewall endpoint X; the return crosses Y because appliance mode/routing is wrong, so stateful inspection drops it.</li>
+<li>A NAT mapping expires during a long idle period; a later packet no longer maps to the private client.</li>
+<li>Policy allows <code>ALB-SG -&gt; APP-SG:8080</code>, but testing directly from an admin host fails because that source relationship is intentionally absent.</li>
+</ol>
+<blockquote>
+<p><strong>Stateful invariant:</strong> every packet accepted as part of an existing flow must match live state created by an allowed initiating direction, and both directions must traverse the state owner for as long as that state is required.</p>
+</blockquote>
+<p><strong>Common mistakes:</strong> opening server port 443 in both directions instead of following the reverse ephemeral destination; confusing Security Group state with NACL statelessness; assuming one successful packet proves route symmetry; ignoring state expiry; reading post-NAT logs as if they contain the original tuple; enabling a firewall without routing traffic through it.</p>
 <h2 id="17-firewall-rule-examples-good-vs-bad">17. Firewall rule examples: good vs bad</h2>
 <h3 id="too-broad">Too broad</h3>
 <pre><code class="language-text">ALLOW TCP 0-65535 FROM 0.0.0.0/0 TO app-network
@@ -381,9 +541,13 @@ APP-SG -&gt; DB-SG TCP 5432
 <h2 id="26-best-references">26. Best references</h2>
 <ul>
 <li>Cloudflare firewall overview: https://www.cloudflare.com/learning/security/what-is-a-firewall/</li>
+<li>AWS Security Group connection tracking: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-connection-tracking.html</li>
+<li>AWS custom NACLs and ephemeral ports: https://docs.aws.amazon.com/vpc/latest/userguide/custom-network-acl.html</li>
 <li>AWS SG/NACL flow-log example: https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-records-examples.html</li>
 <li>AWS Network Firewall how it works: https://docs.aws.amazon.com/network-firewall/latest/developerguide/how-it-works.html</li>
 <li>AWS Network Firewall rule engines: https://docs.aws.amazon.com/network-firewall/latest/developerguide/firewall-rules-engines.html</li>
+<li>AWS Network Firewall symmetric-routing troubleshooting: https://docs.aws.amazon.com/network-firewall/latest/developerguide/troubleshooting-general-issues.html</li>
+<li>AWS Transit Gateway appliance mode: https://docs.aws.amazon.com/vpc/latest/tgw/tgw-vpc-attachments.html#appliance-mode</li>
 <li>AWS perimeter-zone migration architecture: https://docs.aws.amazon.com/prescriptive-guidance/latest/migration-perimeter-zone-apps-network-firewall/architecture.html</li>
 </ul>
 <h2 id="27-memory-trick">27. Memory trick</h2>

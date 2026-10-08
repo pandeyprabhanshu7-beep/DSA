@@ -1929,9 +1929,54 @@ Internet = one company/router hierarchy
 
 ## 6. BGP: what it really does
 
-Border Gateway Protocol exchanges reachability information for IP prefixes between routing domains and applies policy to choose/advertise paths.
+Border Gateway Protocol exchanges **routes to IP prefixes** plus path attributes. A BGP speaker applies local import policy, chooses a preferred route for each prefix, may install that result into forwarding state, and applies export policy before advertising anything onward.
 
-Cloudflare's BGP learning material describes the Internet as many autonomous systems exchanging routes, and correctly notes that route choice can include business/policy considerations rather than merely geographic distance.
+### The five route states to keep separate
+
+```text
+peer advertisement
+      |
+      v
+learned route (Adj-RIB-In)
+      |
+      +-- import filter / attribute policy --> rejected or eligible
+                                              |
+                                              v
+                                      best-path decision
+                                              |
+                         +--------------------+-------------------+
+                         v                                        v
+                 Loc-RIB / local route                    export policy
+                         |                                        |
+                         v                                        v
+                 forwarding table                         Adj-RIB-Out / peer
+```
+
+The exact internal data structures vary, but the distinction is essential:
+
+- **learned** does not mean accepted;
+- **accepted** does not mean selected;
+- **selected** does not guarantee forwarding if the next hop is unresolved or another routing source wins;
+- **installed** does not mean advertised to every peer;
+- **advertised** is controlled independently by export policy.
+
+RFC 4271 describes the BGP decision process conceptually and explicitly permits implementations to realize it differently while preserving externally visible behavior. Therefore, do not memorize one vendor's tie-break list as a universal protocol law.
+
+### Path attributes — what question does each answer?
+
+| Attribute/concept | Simplified question | Important caution |
+|---|---|---|
+| `NEXT_HOP` | Where must the router send traffic to use this route? | It must be reachable; BGP does not create the underlying path by itself |
+| `LOCAL_PREF` | Which exit does **my AS** prefer? | Higher is normally preferred; it is propagated inside the AS, not to external peers |
+| `AS_PATH` | Which ASes has the advertisement traversed? | Supports loop detection; shorter often wins only after stronger local policy |
+| `MED` | Which entry point does a neighbor suggest? | Lower is commonly preferred; comparison scope and behavior are implementation/policy sensitive |
+| `ORIGIN` | How was the route originally introduced to BGP? | A late discriminator, not proof that the prefix is legitimate |
+| Community | Which policy tag travels with the route? | Meaning depends on the operator or documented well-known community |
+
+Two decisions that engineers frequently mix up:
+
+- **Outbound traffic engineering:** your `LOCAL_PREF` and import policy decide how your AS exits.
+- **Inbound traffic engineering:** advertisements, more-specific prefixes, MED, AS-path prepending and provider communities can influence how other ASes enter, but the remote operator retains final policy control.
 
 ### Do not memorize this wrong sentence
 
@@ -1943,23 +1988,58 @@ Better:
 
 ## 7. BGP simplified example
 
-Suppose AS65010 owns:
+Suppose AS65010 learns the same destination prefix, `203.0.113.0/24`, through three neighbors. Its import policy expresses a common business preference: customer route, then peer, then paid transit.
 
-```text
-198.51.100.0/24
-```
+| Candidate | Learned from | LOCAL_PREF | AS_PATH | Eligible? |
+|---|---|---:|---|---|
+| A | customer AS65110 | 200 | `65110 64496 64497` | yes |
+| B | peer AS65200 | 150 | `65200 64497` | yes |
+| C | transit AS65300 | 100 | `65300 64497` | yes |
 
-It advertises that prefix to two upstream networks:
+Path A has a longer AS path, yet the local policy gives it the highest preference. AS65010 therefore selects A. The invariant is:
 
-```text
-           ISP A (AS65001)
-          /
-AS65010 --
-          \
-           ISP B (AS65002)
-```
+> For one destination prefix, select among eligible routes using local policy first; only use later attributes when earlier policy does not decide the result.
 
-Other networks learn one or more possible AS paths. Their policies determine which path becomes preferred for forwarding toward that prefix.
+This is why “BGP chooses the shortest AS path” is an unsafe interview answer.
+
+### Step-by-step decision and propagation trace
+
+| Step | Control-plane event | Result |
+|---:|---|---|
+| 1 | Three UPDATE messages announce `203.0.113.0/24` | Three learned candidates exist |
+| 2 | Import filters validate prefix/peer policy; next hops are checked | All three remain eligible |
+| 3 | Policy assigns LOCAL_PREF 200/150/100 | Candidate A becomes preferred |
+| 4 | Candidate A enters the local routing view; forwarding resolves its next hop | Data packets for the `/24` leave toward AS65110 |
+| 5 | Export policy evaluates the selected route per neighbor | Some neighbors receive A; others may receive no route or an aggregate |
+| 6 | AS65110 withdraws A after a failure | A is removed; the decision process runs again |
+| 7 | Candidate B now has the highest remaining LOCAL_PREF | Forwarding changes to AS65200 and permitted advertisements are updated |
+
+Convergence is not instantaneous. Detection, withdrawal delivery, best-path recomputation, forwarding-table programming and downstream propagation all take time. Packet loss or a temporary path change can occur between steps 6 and 7.
+
+### Export policy — route propagation is not automatic flooding
+
+A common commercial pattern is:
+
+| Route learned from | Commonly exported to customers | Commonly exported to peers/transit |
+|---|---:|---:|
+| customer | yes | yes |
+| peer | yes | no |
+| transit provider | yes | no |
+
+This simplified “valley-free” pattern prevents one AS from accidentally providing free transit between two peers/providers. It is a common policy, not a BGP protocol guarantee. Contracts, communities, route servers and operator design can produce different behavior.
+
+### Four examples that reveal the real pattern
+
+1. **Policy beats length:** the customer path above wins despite a longer AS path because LOCAL_PREF is higher.
+2. **Loop prevention:** AS65010 rejects a route whose AS_PATH already contains `65010`; accepting it could reintroduce the route into its own loop.
+3. **Withdrawal failover:** when A is withdrawn, B becomes best; the data plane changes only after control-plane processing and next-hop resolution.
+4. **More-specific route:** `203.0.113.0/25` and `203.0.113.0/24` are different prefixes. Forwarding uses longest-prefix match, so the `/25` wins for its addresses even if the `/24` has a “better” BGP path. Best-path comparison occurs among routes for the same prefix.
+
+### Route-filtering safety controls
+
+Import policy should validate what a neighbor is expected to announce. Export policy should ensure you advertise only authorized prefixes and intended transit reachability. Useful controls include prefix filters, maximum-prefix limits, AS-path filters, community policy and RPKI Route Origin Validation where deployed. RPKI origin validation helps answer whether an origin AS is authorized for a prefix; it does not validate every AS in the complete path or replace ordinary policy.
+
+**Common mistakes:** accepting a full table from a customer that should send one prefix; treating a BGP session being `Established` as proof that useful routes are accepted; advertising an aggregate without reachable component routes; expecting AS-path prepending to override every remote policy; changing import policy without checking the return path and firewall state.
 
 ## 8. Peering vs transit
 
@@ -2188,13 +2268,16 @@ Always choose the most specific matching prefix first.
 ## 23. Common wrong mental models
 
 - “Default route means Internet.” It means **catch-all next hop**; that next hop could be a firewall, VPN, TGW, or blackhole.
-- “BGP knows application ports.” Normal IP route selection is prefix/policy based, not HTTP endpoint based.- “More hops always means slower.” Physical distance, congestion, link capacity, queuing, and processing matter too.
+- “BGP knows application ports.” Normal IP route selection is prefix/policy based, not HTTP endpoint based.
+- “More hops always means slower.” Physical distance, congestion, link capacity, queuing, and processing matter too.
 - “Traceroute shows the exact packet path.” It is a diagnostic approximation.
 - “Two links means HA.” Routing/failover/state/capacity design decides HA.
 
 ## 24. Best Internet/AWS examples
 
 - Cloudflare BGP explanation: https://www.cloudflare.com/learning/security/glossary/what-is-bgp/
+- RFC 4271, BGP-4 and conceptual decision process: https://www.rfc-editor.org/rfc/rfc4271
+- RFC 7454 / BCP 194, BGP operations and security: https://www.rfc-editor.org/rfc/rfc7454
 - AWS VPC route priority / longest-prefix match: https://docs.aws.amazon.com/vpc/latest/userguide/route-tables-priority.html
 - AWS Transit Gateway: https://docs.aws.amazon.com/vpc/latest/tgw/what-is-transit-gateway.html
 - AWS VPN routing: https://docs.aws.amazon.com/vpn/latest/s2svpn/VPNRoutingTypes.html
@@ -2705,7 +2788,14 @@ Network ACLs are stateless. AWS documentation specifically warns that return tra
 
 ## 4. Stateful filtering
 
-A stateful firewall tracks connection/flow state.
+A stateful firewall tracks a flow, commonly using the protocol and 5-tuple plus protocol-specific state and timeouts:
+
+```text
+protocol = TCP
+source   = 10.0.1.25:51514
+target   = 10.0.2.40:443
+state    = SYN_SENT -> ESTABLISHED -> CLOSING
+```
 
 If policy allows:
 
@@ -2714,6 +2804,19 @@ client -> server TCP 443
 ```
 
 return packets that belong to that established allowed flow can normally pass without an independent broad inbound/outbound rule for the reverse ephemeral port.
+
+### Packet-by-packet state trace
+
+| Step | Packet | Stateful decision |
+|---:|---|---|
+| 1 | client `51514 -> 443`, SYN | Match new-flow policy; create provisional state |
+| 2 | server `443 -> 51514`, SYN-ACK | Reverse 5-tuple matches the tracked flow; allow |
+| 3 | client ACK | Mark connection established |
+| 4 | encrypted application data in either direction | Allow while packets match valid state/policy |
+| 5 | FIN/ACK exchange or RST | Move toward closed state |
+| 6 | Idle timeout expires | Delete state; a late packet may require a new allowed flow |
+
+Stateful does **not** mean “allow forever.” Implementations enforce TCP-state rules, idle timeouts, capacity limits and product-specific behavior. UDP has no handshake, so state is inferred from recent matching datagrams and shorter timeouts are common.
 
 ### AWS analogy
 Security Groups are stateful. Response traffic for an allowed flow is recognized as part of the stateful model.
@@ -2733,6 +2836,24 @@ server:443 -> client:51514
 ```
 
 A stateless ACL must permit the relevant reverse-direction ephemeral-port traffic. This is one reason NACL rules are easier to misconfigure than Security Groups for ordinary application flows.
+
+### NACL rule direction depends on who initiated
+
+For an instance acting as an HTTPS **client**:
+
+| Subnet-boundary direction | Destination port | Purpose |
+|---|---:|---|
+| outbound | 443 | initial request to server |
+| inbound | client's ephemeral range | server response to the chosen source port |
+
+For an instance acting as an HTTPS **server**:
+
+| Subnet-boundary direction | Destination port | Purpose |
+|---|---:|---|
+| inbound | 443 | initial client request |
+| outbound | remote client's ephemeral range | response to client source port |
+
+Do not blindly copy one range. Ephemeral ranges vary by operating system and client population. AWS examples commonly use ranges such as `32768-65535`, while heterogeneous internet clients can require a broader `1024-65535` policy. Use the narrowest range that matches the actual endpoints and architecture.
 
 ## 6. Layer 3/4 network firewall vs Layer 7 WAF
 
@@ -2924,9 +3045,52 @@ request -> firewall A -> server
 response -> different path bypassing firewall A
 ```
 
-The return path can look unrelated/invalid to stateful inspection systems or bypass intended policy entirely.
+The return path can look unrelated/invalid to stateful inspection systems or bypass intended policy entirely. A firewall that sees only the SYN-ACK has no state proving that it allowed the initiating SYN.
 
 AWS Network Firewall documentation calls out symmetric routing requirements, particularly in centralized Transit Gateway inspection designs.
+
+### Centralized inspection dry run
+
+Assume Spoke A calls Spoke B through a Transit Gateway and an inspection VPC:
+
+```text
+Spoke A
+  -> Transit Gateway
+  -> inspection attachment / firewall endpoint
+  -> Transit Gateway
+  -> Spoke B
+```
+
+| Step | Expected path/state | Failure if asymmetric |
+|---:|---|---|
+| 1 | SYN from A is routed through firewall endpoint X | X creates flow state |
+| 2 | SYN reaches B | B replies to A's ephemeral port |
+| 3 | Return route sends SYN-ACK back through endpoint X | X matches reverse tuple and allows it |
+| 4 | TGW returns traffic to A | TCP handshake completes |
+
+If the return uses endpoint Y or bypasses inspection, Y has no matching state and may drop the SYN-ACK; bypass also defeats the intended inspection policy. Transit Gateway appliance mode is designed to keep a flow on the same appliance network interface for its lifetime in supported centralized designs. Appliance mode does not repair incorrect route tables: forward and return routes must still intentionally traverse the inspection attachment.
+
+### NAT changes what the firewall sees
+
+The observation point matters:
+
+```text
+before source NAT: 10.0.1.25:51514 -> 198.51.100.20:443
+after source NAT:  203.0.113.10:62001 -> 198.51.100.20:443
+```
+
+A rule or log on the pre-NAT side may reference the private tuple; a post-NAT device may see the translated tuple. During troubleshooting, draw the tuple at **each boundary** instead of searching every log for one unchanged address.
+
+### Four failure examples
+
+1. The Security Group permits outbound 443, but the custom NACL blocks inbound replies to the client ephemeral port.
+2. The forward flow crosses Network Firewall endpoint X; the return crosses Y because appliance mode/routing is wrong, so stateful inspection drops it.
+3. A NAT mapping expires during a long idle period; a later packet no longer maps to the private client.
+4. Policy allows `ALB-SG -> APP-SG:8080`, but testing directly from an admin host fails because that source relationship is intentionally absent.
+
+> **Stateful invariant:** every packet accepted as part of an existing flow must match live state created by an allowed initiating direction, and both directions must traverse the state owner for as long as that state is required.
+
+**Common mistakes:** opening server port 443 in both directions instead of following the reverse ephemeral destination; confusing Security Group state with NACL statelessness; assuming one successful packet proves route symmetry; ignoring state expiry; reading post-NAT logs as if they contain the original tuple; enabling a firewall without routing traffic through it.
 
 ## 17. Firewall rule examples: good vs bad
 
@@ -3074,9 +3238,13 @@ VPC Flow Logs can record `ACCEPT` or `REJECT` metadata, but they are not full pa
 ## 26. Best references
 
 - Cloudflare firewall overview: https://www.cloudflare.com/learning/security/what-is-a-firewall/
+- AWS Security Group connection tracking: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-connection-tracking.html
+- AWS custom NACLs and ephemeral ports: https://docs.aws.amazon.com/vpc/latest/userguide/custom-network-acl.html
 - AWS SG/NACL flow-log example: https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-records-examples.html
 - AWS Network Firewall how it works: https://docs.aws.amazon.com/network-firewall/latest/developerguide/how-it-works.html
 - AWS Network Firewall rule engines: https://docs.aws.amazon.com/network-firewall/latest/developerguide/firewall-rules-engines.html
+- AWS Network Firewall symmetric-routing troubleshooting: https://docs.aws.amazon.com/network-firewall/latest/developerguide/troubleshooting-general-issues.html
+- AWS Transit Gateway appliance mode: https://docs.aws.amazon.com/vpc/latest/tgw/tgw-vpc-attachments.html#appliance-mode
 - AWS perimeter-zone migration architecture: https://docs.aws.amazon.com/prescriptive-guidance/latest/migration-perimeter-zone-apps-network-firewall/architecture.html
 
 ## 27. Memory trick

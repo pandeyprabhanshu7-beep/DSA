@@ -61,7 +61,14 @@ Network ACLs are stateless. AWS documentation specifically warns that return tra
 
 ## 4. Stateful filtering
 
-A stateful firewall tracks connection/flow state.
+A stateful firewall tracks a flow, commonly using the protocol and 5-tuple plus protocol-specific state and timeouts:
+
+```text
+protocol = TCP
+source   = 10.0.1.25:51514
+target   = 10.0.2.40:443
+state    = SYN_SENT -> ESTABLISHED -> CLOSING
+```
 
 If policy allows:
 
@@ -70,6 +77,19 @@ client -> server TCP 443
 ```
 
 return packets that belong to that established allowed flow can normally pass without an independent broad inbound/outbound rule for the reverse ephemeral port.
+
+### Packet-by-packet state trace
+
+| Step | Packet | Stateful decision |
+|---:|---|---|
+| 1 | client `51514 -> 443`, SYN | Match new-flow policy; create provisional state |
+| 2 | server `443 -> 51514`, SYN-ACK | Reverse 5-tuple matches the tracked flow; allow |
+| 3 | client ACK | Mark connection established |
+| 4 | encrypted application data in either direction | Allow while packets match valid state/policy |
+| 5 | FIN/ACK exchange or RST | Move toward closed state |
+| 6 | Idle timeout expires | Delete state; a late packet may require a new allowed flow |
+
+Stateful does **not** mean “allow forever.” Implementations enforce TCP-state rules, idle timeouts, capacity limits and product-specific behavior. UDP has no handshake, so state is inferred from recent matching datagrams and shorter timeouts are common.
 
 ### AWS analogy
 Security Groups are stateful. Response traffic for an allowed flow is recognized as part of the stateful model.
@@ -89,6 +109,24 @@ server:443 -> client:51514
 ```
 
 A stateless ACL must permit the relevant reverse-direction ephemeral-port traffic. This is one reason NACL rules are easier to misconfigure than Security Groups for ordinary application flows.
+
+### NACL rule direction depends on who initiated
+
+For an instance acting as an HTTPS **client**:
+
+| Subnet-boundary direction | Destination port | Purpose |
+|---|---:|---|
+| outbound | 443 | initial request to server |
+| inbound | client's ephemeral range | server response to the chosen source port |
+
+For an instance acting as an HTTPS **server**:
+
+| Subnet-boundary direction | Destination port | Purpose |
+|---|---:|---|
+| inbound | 443 | initial client request |
+| outbound | remote client's ephemeral range | response to client source port |
+
+Do not blindly copy one range. Ephemeral ranges vary by operating system and client population. AWS examples commonly use ranges such as `32768-65535`, while heterogeneous internet clients can require a broader `1024-65535` policy. Use the narrowest range that matches the actual endpoints and architecture.
 
 ## 6. Layer 3/4 network firewall vs Layer 7 WAF
 
@@ -280,9 +318,52 @@ request -> firewall A -> server
 response -> different path bypassing firewall A
 ```
 
-The return path can look unrelated/invalid to stateful inspection systems or bypass intended policy entirely.
+The return path can look unrelated/invalid to stateful inspection systems or bypass intended policy entirely. A firewall that sees only the SYN-ACK has no state proving that it allowed the initiating SYN.
 
 AWS Network Firewall documentation calls out symmetric routing requirements, particularly in centralized Transit Gateway inspection designs.
+
+### Centralized inspection dry run
+
+Assume Spoke A calls Spoke B through a Transit Gateway and an inspection VPC:
+
+```text
+Spoke A
+  -> Transit Gateway
+  -> inspection attachment / firewall endpoint
+  -> Transit Gateway
+  -> Spoke B
+```
+
+| Step | Expected path/state | Failure if asymmetric |
+|---:|---|---|
+| 1 | SYN from A is routed through firewall endpoint X | X creates flow state |
+| 2 | SYN reaches B | B replies to A's ephemeral port |
+| 3 | Return route sends SYN-ACK back through endpoint X | X matches reverse tuple and allows it |
+| 4 | TGW returns traffic to A | TCP handshake completes |
+
+If the return uses endpoint Y or bypasses inspection, Y has no matching state and may drop the SYN-ACK; bypass also defeats the intended inspection policy. Transit Gateway appliance mode is designed to keep a flow on the same appliance network interface for its lifetime in supported centralized designs. Appliance mode does not repair incorrect route tables: forward and return routes must still intentionally traverse the inspection attachment.
+
+### NAT changes what the firewall sees
+
+The observation point matters:
+
+```text
+before source NAT: 10.0.1.25:51514 -> 198.51.100.20:443
+after source NAT:  203.0.113.10:62001 -> 198.51.100.20:443
+```
+
+A rule or log on the pre-NAT side may reference the private tuple; a post-NAT device may see the translated tuple. During troubleshooting, draw the tuple at **each boundary** instead of searching every log for one unchanged address.
+
+### Four failure examples
+
+1. The Security Group permits outbound 443, but the custom NACL blocks inbound replies to the client ephemeral port.
+2. The forward flow crosses Network Firewall endpoint X; the return crosses Y because appliance mode/routing is wrong, so stateful inspection drops it.
+3. A NAT mapping expires during a long idle period; a later packet no longer maps to the private client.
+4. Policy allows `ALB-SG -> APP-SG:8080`, but testing directly from an admin host fails because that source relationship is intentionally absent.
+
+> **Stateful invariant:** every packet accepted as part of an existing flow must match live state created by an allowed initiating direction, and both directions must traverse the state owner for as long as that state is required.
+
+**Common mistakes:** opening server port 443 in both directions instead of following the reverse ephemeral destination; confusing Security Group state with NACL statelessness; assuming one successful packet proves route symmetry; ignoring state expiry; reading post-NAT logs as if they contain the original tuple; enabling a firewall without routing traffic through it.
 
 ## 17. Firewall rule examples: good vs bad
 
@@ -430,9 +511,13 @@ VPC Flow Logs can record `ACCEPT` or `REJECT` metadata, but they are not full pa
 ## 26. Best references
 
 - Cloudflare firewall overview: https://www.cloudflare.com/learning/security/what-is-a-firewall/
+- AWS Security Group connection tracking: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-connection-tracking.html
+- AWS custom NACLs and ephemeral ports: https://docs.aws.amazon.com/vpc/latest/userguide/custom-network-acl.html
 - AWS SG/NACL flow-log example: https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-records-examples.html
 - AWS Network Firewall how it works: https://docs.aws.amazon.com/network-firewall/latest/developerguide/how-it-works.html
 - AWS Network Firewall rule engines: https://docs.aws.amazon.com/network-firewall/latest/developerguide/firewall-rules-engines.html
+- AWS Network Firewall symmetric-routing troubleshooting: https://docs.aws.amazon.com/network-firewall/latest/developerguide/troubleshooting-general-issues.html
+- AWS Transit Gateway appliance mode: https://docs.aws.amazon.com/vpc/latest/tgw/tgw-vpc-attachments.html#appliance-mode
 - AWS perimeter-zone migration architecture: https://docs.aws.amazon.com/prescriptive-guidance/latest/migration-perimeter-zone-apps-network-firewall/architecture.html
 
 ## 27. Memory trick
