@@ -1,0 +1,510 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Networking Cheat Sheet, Memory Map &amp; Interview Questions</title><link rel="stylesheet" href="assets/site.css"></head><body><div class="layout"><aside><h2>Networking bootcamp</h2><input id="navSearch" aria-label="Filter chapter titles" placeholder="Filter chapters"><nav><a href="../index.html">AWS course home</a><a href="index.html">Chapter index</a><a href="00-networking-roadmap.html">Networking Bootcamp — Start Here</a><a href="01-layers-frames-packets-ports.html">Layers, Frames, Packets, Ports &amp; Encapsulation</a><a href="02-home-wifi-to-internet.html">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</a><a href="03-mobile-data-to-internet.html">Phone on Mobile Data → the Internet: 4G/5G Mental Model</a><a href="04-ip-subnetting-nat-cgnat.html">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</a><a href="05-routing-isp-bgp-peering.html">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a><a href="06-dns-tcp-tls-http.html">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</a><a href="07-ingress-egress-firewalls-dmz.html">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</a><a href="08-legacy-datacenter-networking.html">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</a><a href="09-aws-internet-vpc-packet-flow.html">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</a><a href="10-network-troubleshooting-labs.html">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</a><a href="11-networking-cheatsheet.html">Networking Cheat Sheet, Memory Map &amp; Interview Questions</a></nav></aside><main><div class="pager"><a href="10-network-troubleshooting-labs.html">← Previous chapter</a><a href="index.html">Chapter index</a></div><article><details class="toc"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#networking-cheat-sheet-memory-map-interview-questions">Networking Cheat Sheet, Memory Map &amp; Interview Questions</a><ul>
+<li><a href="#1-one-page-mental-map">1. One-page mental map</a></li>
+<li><a href="#2-fast-definitions">2. Fast definitions</a></li>
+<li><a href="#3-home-internet-flow">3. Home Internet flow</a></li>
+<li><a href="#4-mobile-internet-flow">4. Mobile Internet flow</a></li>
+<li><a href="#5-legacy-data-center-ingress">5. Legacy data-center ingress</a></li>
+<li><a href="#6-aws-web-ingress">6. AWS web ingress</a></li>
+<li><a href="#7-aws-private-ipv4-egress">7. AWS private IPv4 egress</a></li>
+<li><a href="#8-common-port-memory-learn-context-not-just-numbers">8. Common port memory (learn context, not just numbers)</a></li>
+<li><a href="#9-security-group-vs-nacl">9. Security Group vs NACL</a></li>
+<li><a href="#10-router-vs-nat-vs-firewall-vs-proxy">10. Router vs NAT vs firewall vs proxy</a></li>
+<li><a href="#11-troubleshooting-order">11. Troubleshooting order</a></li>
+<li><a href="#12-symptom-clue">12. Symptom → clue</a></li>
+<li><a href="#13-cidr-shortcuts">13. CIDR shortcuts</a></li>
+<li><a href="#14-rfc1918-and-cgnat-ranges">14. RFC1918 and CGNAT ranges</a></li>
+<li><a href="#15-interview-questions-with-model-answer-direction">15. Interview questions with model-answer direction</a><ul>
+<li><a href="#q1-what-happens-when-you-type-a-url-in-a-browser">Q1. What happens when you type a URL in a browser?</a></li>
+<li><a href="#q2-why-does-the-laptop-need-a-default-gateway">Q2. Why does the laptop need a default gateway?</a></li>
+<li><a href="#q3-why-doesnt-the-laptop-use-the-remote-server-mac-address">Q3. Why doesn't the laptop use the remote server MAC address?</a></li>
+<li><a href="#q4-what-makes-an-aws-subnet-public">Q4. What makes an AWS subnet public?</a></li>
+<li><a href="#q5-why-can-an-ec2-instance-with-a-public-ipv4-show-only-a-private-ip-in-linux">Q5. Why can an EC2 instance with a public IPv4 show only a private IP in Linux?</a></li>
+<li><a href="#q6-security-group-vs-nacl">Q6. Security Group vs NACL?</a></li>
+<li><a href="#q7-nat-gateway-vs-internet-gateway">Q7. NAT Gateway vs Internet Gateway?</a></li>
+<li><a href="#q8-why-do-private-subnets-need-nat-for-ipv4-internet-egress">Q8. Why do private subnets need NAT for IPv4 Internet egress?</a></li>
+<li><a href="#q9-why-doesnt-ipv6-require-the-same-nat-pattern">Q9. Why doesn't IPv6 require the same NAT pattern?</a></li>
+<li><a href="#q10-what-is-longest-prefix-match">Q10. What is longest-prefix match?</a></li>
+<li><a href="#q11-what-is-bgp">Q11. What is BGP?</a></li>
+<li><a href="#q12-peering-vs-transit">Q12. Peering vs transit?</a></li>
+<li><a href="#q13-stateful-vs-stateless-firewall">Q13. Stateful vs stateless firewall?</a></li>
+<li><a href="#q14-what-is-ingress-vs-egress">Q14. What is ingress vs egress?</a></li>
+<li><a href="#q15-waf-vs-network-firewall">Q15. WAF vs network firewall?</a></li>
+<li><a href="#q16-what-does-dns-do">Q16. What does DNS do?</a></li>
+<li><a href="#q17-why-can-dns-work-while-the-website-fails">Q17. Why can DNS work while the website fails?</a></li>
+<li><a href="#q18-why-can-ping-fail-but-https-work">Q18. Why can ping fail but HTTPS work?</a></li>
+<li><a href="#q19-why-does-a-firewall-need-return-path-symmetry">Q19. Why does a firewall need return-path symmetry?</a></li>
+<li><a href="#q20-what-is-vpc-flow-logs-limitation">Q20. What is VPC Flow Logs' limitation?</a></li>
+</ul>
+</li>
+<li><a href="#16-scenario-questions">16. Scenario questions</a><ul>
+<li><a href="#scenario-a">Scenario A</a></li>
+<li><a href="#scenario-b">Scenario B</a></li>
+<li><a href="#scenario-c">Scenario C</a></li>
+<li><a href="#scenario-d">Scenario D</a></li>
+<li><a href="#scenario-e">Scenario E</a></li>
+</ul>
+</li>
+<li><a href="#17-final-memory-map">17. Final memory map</a></li>
+<li><a href="#18-best-source-trail">18. Best source trail</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="networking-cheat-sheet-memory-map-interview-questions">Networking Cheat Sheet, Memory Map &amp; Interview Questions</h1>
+<p><a href="10-network-troubleshooting-labs.html">← Troubleshooting labs</a> · <a href="../index.html">Bootcamp home</a></p>
+<h2 id="1-one-page-mental-map">1. One-page mental map</h2>
+<pre><code class="language-text">NAME
+DNS
+  ↓
+ADDRESS
+IP + subnet/prefix
+  ↓
+LOCAL DELIVERY
+MAC / Wi-Fi / Ethernet / ARP or IPv6 ND
+  ↓
+NEXT HOP
+routing table / default gateway / longest prefix
+  ↓
+NETWORK-TO-NETWORK
+ISP / AS / BGP / peering / transit
+  ↓
+BOUNDARY
+NAT / firewall / proxy / load balancer
+  ↓
+TRANSPORT
+TCP or QUIC/UDP, ports
+  ↓
+SECURITY
+TLS
+  ↓
+APPLICATION
+HTTP/API/database protocol
+</code></pre>
+<h2 id="2-fast-definitions">2. Fast definitions</h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Remember this</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IP</td>
+<td>Layer-3 addressing/routed delivery</td>
+</tr>
+<tr>
+<td>subnet/prefix</td>
+<td>block of IP addresses sharing leading prefix bits</td>
+</tr>
+<tr>
+<td>MAC</td>
+<td>local-link interface identifier used for frame delivery</td>
+</tr>
+<tr>
+<td>ARP</td>
+<td>IPv4 local neighbor IP→MAC resolution</td>
+</tr>
+<tr>
+<td>default gateway</td>
+<td>next hop for destinations without a more specific local route</td>
+</tr>
+<tr>
+<td>route table</td>
+<td>destination prefix → next hop/interface</td>
+</tr>
+<tr>
+<td>longest prefix</td>
+<td>most specific matching route wins</td>
+</tr>
+<tr>
+<td>NAT</td>
+<td>rewrite address information</td>
+</tr>
+<tr>
+<td>PAT/NAPT</td>
+<td>translate ports too, allowing address sharing</td>
+</tr>
+<tr>
+<td>CGNAT</td>
+<td>provider-scale NAT; shared <code>100.64.0.0/10</code> often used internally</td>
+</tr>
+<tr>
+<td>ASN</td>
+<td>autonomous-system number used in interdomain routing context</td>
+</tr>
+<tr>
+<td>BGP</td>
+<td>policy-driven route exchange between routing domains</td>
+</tr>
+<tr>
+<td>peering</td>
+<td>networks exchange traffic/routes directly under agreement</td>
+</tr>
+<tr>
+<td>transit</td>
+<td>upstream provides broader Internet reachability</td>
+</tr>
+<tr>
+<td>DNS</td>
+<td>names → records such as A/AAAA</td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>reliable ordered byte stream with connection state</td>
+</tr>
+<tr>
+<td>UDP</td>
+<td>datagram transport without TCP's connection/reliability semantics</td>
+</tr>
+<tr>
+<td>TLS</td>
+<td>cryptographic authentication/confidentiality/integrity layer</td>
+</tr>
+<tr>
+<td>WAF</td>
+<td>HTTP-aware Layer-7 request filtering</td>
+</tr>
+<tr>
+<td>stateful firewall</td>
+<td>remembers permitted flow state</td>
+</tr>
+<tr>
+<td>stateless ACL</td>
+<td>each packet/direction must independently match rules</td>
+</tr>
+<tr>
+<td>ingress</td>
+<td>traffic entering a stated boundary</td>
+</tr>
+<tr>
+<td>egress</td>
+<td>traffic leaving a stated boundary</td>
+</tr>
+<tr>
+<td>north–south</td>
+<td>across environment/perimeter boundary</td>
+</tr>
+<tr>
+<td>east–west</td>
+<td>between internal workloads/segments</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-home-internet-flow">3. Home Internet flow</h2>
+<pre><code class="language-text">Browser
+ -&gt; DNS
+ -&gt; laptop routing table
+ -&gt; Wi-Fi frame to default gateway
+ -&gt; home NAT/firewall
+ -&gt; modem/ONT/access network
+ -&gt; ISP
+ -&gt; peering/transit/IXP
+ -&gt; destination AS/CDN
+ -&gt; TLS endpoint
+ -&gt; web app
+</code></pre>
+<h2 id="4-mobile-internet-flow">4. Mobile Internet flow</h2>
+<pre><code class="language-text">Phone/UE
+ -&gt; 4G/5G RAN
+ -&gt; mobile transport
+ -&gt; packet core / UPF-style user plane
+ -&gt; carrier policy/NAT/Internet edge
+ -&gt; peering/transit
+ -&gt; destination
+</code></pre>
+<h2 id="5-legacy-data-center-ingress">5. Legacy data-center ingress</h2>
+<pre><code class="language-text">Internet
+ -&gt; ISP/BGP edge router
+ -&gt; HA firewall/NAT
+ -&gt; DMZ WAF/reverse proxy
+ -&gt; load balancer
+ -&gt; internal firewall
+ -&gt; app VLAN
+ -&gt; DB firewall
+ -&gt; DB VLAN
+</code></pre>
+<h2 id="6-aws-web-ingress">6. AWS web ingress</h2>
+<pre><code class="language-text">Route 53
+ -&gt; CloudFront/WAF (optional)
+ -&gt; ALB public endpoint
+ -&gt; ALB-SG
+ -&gt; APP-SG/private app
+ -&gt; DB-SG/private DB
+</code></pre>
+<h2 id="7-aws-private-ipv4-egress">7. AWS private IPv4 egress</h2>
+<pre><code class="language-text">private EC2/task
+ -&gt; private route table 0.0.0.0/0
+ -&gt; NAT Gateway
+ -&gt; public subnet route
+ -&gt; Internet Gateway
+ -&gt; Internet/vendor
+</code></pre>
+<h2 id="8-common-port-memory-learn-context-not-just-numbers">8. Common port memory (learn context, not just numbers)</h2>
+<table>
+<thead>
+<tr>
+<th>Protocol/service</th>
+<th style="text-align: right;">Common port</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HTTP</td>
+<td style="text-align: right;">TCP 80</td>
+</tr>
+<tr>
+<td>HTTPS</td>
+<td style="text-align: right;">TCP 443; HTTP/3 commonly QUIC/UDP 443</td>
+</tr>
+<tr>
+<td>SSH</td>
+<td style="text-align: right;">TCP 22</td>
+</tr>
+<tr>
+<td>DNS</td>
+<td style="text-align: right;">UDP/TCP 53; encrypted DNS uses other transports/ports such as HTTPS 443</td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td style="text-align: right;">TCP 5432</td>
+</tr>
+<tr>
+<td>MySQL</td>
+<td style="text-align: right;">TCP 3306</td>
+</tr>
+<tr>
+<td>Redis</td>
+<td style="text-align: right;">commonly TCP 6379</td>
+</tr>
+<tr>
+<td>SMTP</td>
+<td style="text-align: right;">TCP 25/587/465 depending usage</td>
+</tr>
+</tbody>
+</table>
+<p>A port number is convention, not proof. Applications can listen elsewhere.</p>
+<h2 id="9-security-group-vs-nacl">9. Security Group vs NACL</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>SG</th>
+<th>NACL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>scope</td>
+<td>resource/ENI-associated</td>
+<td>subnet boundary</td>
+</tr>
+<tr>
+<td>state</td>
+<td>stateful</td>
+<td>stateless</td>
+</tr>
+<tr>
+<td>actions</td>
+<td>allow rules</td>
+<td>allow + deny</td>
+</tr>
+<tr>
+<td>return flow</td>
+<td>recognized automatically</td>
+<td>must match reverse rules</td>
+</tr>
+<tr>
+<td>common role</td>
+<td>primary workload policy</td>
+<td>coarse subnet guardrail</td>
+</tr>
+</tbody>
+</table>
+<h2 id="10-router-vs-nat-vs-firewall-vs-proxy">10. Router vs NAT vs firewall vs proxy</h2>
+<pre><code class="language-text">Router   -&gt; WHERE next?
+NAT      -&gt; WHAT address/port changes?
+Firewall -&gt; MAY this traffic pass?
+Proxy    -&gt; I terminate/make request on behalf of another side.
+LB       -&gt; WHICH backend handles it?
+DNS      -&gt; WHAT address/record belongs to this name?
+</code></pre>
+<h2 id="11-troubleshooting-order">11. Troubleshooting order</h2>
+<pre><code class="language-text">DNS
+ ↓
+IP/interface
+ ↓
+route/default gateway
+ ↓
+NAT/edge path
+ ↓
+firewall/security policy
+ ↓
+TCP/QUIC transport
+ ↓
+TLS
+ ↓
+HTTP/application
+ ↓
+downstream dependency
+</code></pre>
+<h2 id="12-symptom-clue">12. Symptom → clue</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Strong clue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NXDOMAIN</td>
+<td>DNS/name issue</td>
+</tr>
+<tr>
+<td>connection timeout</td>
+<td>route/drop/destination/return path possible</td>
+</tr>
+<tr>
+<td>connection refused</td>
+<td>reached something that actively rejected/no listener</td>
+</tr>
+<tr>
+<td>TLS hostname error</td>
+<td>network path reached TLS stage; name/cert mismatch</td>
+</tr>
+<tr>
+<td>HTTP 403</td>
+<td>an HTTP component denied request; not raw IP routing failure</td>
+</tr>
+<tr>
+<td>ALB 503</td>
+<td>frontend can be reachable while targets unavailable/unhealthy</td>
+</tr>
+<tr>
+<td>DB auth error</td>
+<td>network path to DB is likely much further along than a timeout</td>
+</tr>
+<tr>
+<td>works <code>-4</code>, fails <code>-6</code></td>
+<td>IPv6 path/config issue</td>
+</tr>
+</tbody>
+</table>
+<h2 id="13-cidr-shortcuts">13. CIDR shortcuts</h2>
+<pre><code class="language-text">/24 = 256
+/25 = 128
+/26 = 64
+/27 = 32
+/28 = 16
+/29 = 8
+/30 = 4
+/31 = 2
+/32 = 1
+</code></pre>
+<p>Each additional prefix bit halves the block.</p>
+<h2 id="14-rfc1918-and-cgnat-ranges">14. RFC1918 and CGNAT ranges</h2>
+<pre><code class="language-text">Private IPv4:
+10.0.0.0/8
+172.16.0.0/12
+192.168.0.0/16
+
+Carrier shared space:
+100.64.0.0/10
+</code></pre>
+<h2 id="15-interview-questions-with-model-answer-direction">15. Interview questions with model-answer direction</h2>
+<h3 id="q1-what-happens-when-you-type-a-url-in-a-browser">Q1. What happens when you type a URL in a browser?</h3>
+<p>Strong answer order:</p>
+<pre><code class="language-text">parse URL -&gt; DNS/cache -&gt; route/default gateway -&gt; ARP/ND local next hop
+-&gt; Internet routing/NAT -&gt; TCP or QUIC -&gt; TLS -&gt; HTTP
+-&gt; CDN/LB/app -&gt; dependent requests -&gt; response rendering
+</code></pre>
+<p>Mention caching and that exact details differ for HTTP/3/CDNs.</p>
+<h3 id="q2-why-does-the-laptop-need-a-default-gateway">Q2. Why does the laptop need a default gateway?</h3>
+<p>For destinations not on a directly connected subnet, it needs a local next hop/router that can forward toward other networks.</p>
+<h3 id="q3-why-doesnt-the-laptop-use-the-remote-server-mac-address">Q3. Why doesn't the laptop use the remote server MAC address?</h3>
+<p>MAC/link addresses are local-link scoped. The laptop frames the packet to its local next hop. Routers re-encapsulate on each link.</p>
+<h3 id="q4-what-makes-an-aws-subnet-public">Q4. What makes an AWS subnet public?</h3>
+<p>Its route table provides Internet Gateway routing; direct IPv4 reachability also requires suitable public addressing and security/listener conditions.</p>
+<h3 id="q5-why-can-an-ec2-instance-with-a-public-ipv4-show-only-a-private-ip-in-linux">Q5. Why can an EC2 instance with a public IPv4 show only a private IP in Linux?</h3>
+<p>AWS maps the public IPv4 to the primary private IPv4 through VPC Internet Gateway NAT behavior; the public address is not configured as a normal guest NIC address.</p>
+<h3 id="q6-security-group-vs-nacl">Q6. Security Group vs NACL?</h3>
+<p>SG is stateful and workload/ENI-oriented with allow rules; NACL is stateless, subnet-oriented, supports allow/deny, and requires explicit reverse-direction permission.</p>
+<h3 id="q7-nat-gateway-vs-internet-gateway">Q7. NAT Gateway vs Internet Gateway?</h3>
+<p>IGW provides the VPC Internet-routing edge and public IPv4 mapping behavior for publicly addressed resources. NAT Gateway is used so private IPv4 resources can initiate outbound connections using translated public egress without being directly publicly addressed.</p>
+<h3 id="q8-why-do-private-subnets-need-nat-for-ipv4-internet-egress">Q8. Why do private subnets need NAT for IPv4 Internet egress?</h3>
+<p>RFC1918/private addresses are not globally routable on the Internet. NAT supplies a routable translated source and return mapping.</p>
+<h3 id="q9-why-doesnt-ipv6-require-the-same-nat-pattern">Q9. Why doesn't IPv6 require the same NAT pattern?</h3>
+<p>IPv6 has abundant globally unique addressing; security is enforced with routing/firewalls. AWS provides an egress-only IGW for outbound-only IPv6 behavior.</p>
+<h3 id="q10-what-is-longest-prefix-match">Q10. What is longest-prefix match?</h3>
+<p>Among matching destination routes, the most specific prefix is preferred, e.g. <code>/24</code> over <code>/16</code> over <code>/0</code>, subject to platform-specific tie/priority rules.</p>
+<h3 id="q11-what-is-bgp">Q11. What is BGP?</h3>
+<p>A policy-driven interdomain routing protocol used to exchange IP-prefix reachability between autonomous systems and select/advertise paths using attributes/policy.</p>
+<h3 id="q12-peering-vs-transit">Q12. Peering vs transit?</h3>
+<p>Peering directly exchanges selected routes/traffic between networks; transit provides broader reachability through an upstream provider.</p>
+<h3 id="q13-stateful-vs-stateless-firewall">Q13. Stateful vs stateless firewall?</h3>
+<p>Stateful filtering tracks flow context and recognizes return traffic; stateless filtering evaluates each packet/direction independently.</p>
+<h3 id="q14-what-is-ingress-vs-egress">Q14. What is ingress vs egress?</h3>
+<p>Relative to a named boundary: entering it is ingress, leaving it is egress.</p>
+<h3 id="q15-waf-vs-network-firewall">Q15. WAF vs network firewall?</h3>
+<p>WAF understands HTTP-layer request properties; a network firewall primarily enforces/inspects network/transport flows and may include deeper IPS/domain capabilities depending product.</p>
+<h3 id="q16-what-does-dns-do">Q16. What does DNS do?</h3>
+<p>Maps names to resource records. It does not itself forward the application's packets to the destination.</p>
+<h3 id="q17-why-can-dns-work-while-the-website-fails">Q17. Why can DNS work while the website fails?</h3>
+<p>DNS only solved name→record. Routing, firewall, transport, TLS, load balancer, or app can still fail.</p>
+<h3 id="q18-why-can-ping-fail-but-https-work">Q18. Why can ping fail but HTTPS work?</h3>
+<p>ICMP Echo may be filtered while TCP/443 is permitted; ping is not a universal application-health test.</p>
+<h3 id="q19-why-does-a-firewall-need-return-path-symmetry">Q19. Why does a firewall need return-path symmetry?</h3>
+<p>Stateful inspection needs to correlate both directions of a flow; asymmetric paths can bypass or confuse stateful enforcement.</p>
+<h3 id="q20-what-is-vpc-flow-logs-limitation">Q20. What is VPC Flow Logs' limitation?</h3>
+<p>They provide flow metadata and accept/reject-style evidence, not full packet payload or application behavior.</p>
+<h2 id="16-scenario-questions">16. Scenario questions</h2>
+<h3 id="scenario-a">Scenario A</h3>
+<p>Private EC2 cannot reach vendor API.</p>
+<p>Answer framework:</p>
+<pre><code class="language-text">DNS -&gt; private route -&gt; NAT -&gt; public route/IGW -&gt; SG/NACL
+-&gt; Network Firewall if present -&gt; vendor allowlist -&gt; TLS/HTTP
+</code></pre>
+<h3 id="scenario-b">Scenario B</h3>
+<p>ALB works, app returns 503.</p>
+<p>Check target group health, backend SG relationship, app port/listener, health path, target capacity/app dependencies.</p>
+<h3 id="scenario-c">Scenario C</h3>
+<p>On-prem can ping EC2 IP but cannot use <code>db.aws.corp</code>.</p>
+<p>Likely DNS integration problem: Resolver endpoints/rules/private hosted zone path, not necessarily VPN/DX routing.</p>
+<h3 id="scenario-d">Scenario D</h3>
+<p>Vendor sees unexpected source IP after migration.</p>
+<p>Cloud workload is probably egressing through a new NAT/Internet path. Stabilize/communicate the correct egress IP and verify architecture.</p>
+<h3 id="scenario-e">Scenario E</h3>
+<p>HTTPS works from one subnet but not another.</p>
+<p>Compare route-table association, NACL, SG source, NAT/endpoint path, DNS, firewall inspection, IPv4/IPv6.</p>
+<h2 id="17-final-memory-map">17. Final memory map</h2>
+<pre><code class="language-text">                    NETWORKING
+                        |
+        +---------------+----------------+
+        |               |                |
+      Naming          Routing          Policy
+       DNS         IP / prefixes    SG/NACL/FW/WAF
+        |               |                |
+        +---------&gt; Transport &lt;-----------+
+                    TCP/UDP/QUIC
+                        |
+                       TLS
+                        |
+                   Application
+                  HTTP/API/DB
+</code></pre>
+<h2 id="18-best-source-trail">18. Best source trail</h2>
+<ul>
+<li>Cloudflare Internet basics: https://www.cloudflare.com/learning/network-layer/how-does-the-internet-work/</li>
+<li>Cloudflare BGP: https://www.cloudflare.com/learning/security/glossary/what-is-bgp/</li>
+<li>Cloudflare DNS: https://www.cloudflare.com/learning/dns/what-is-dns/</li>
+<li>Cloudflare TLS: https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/</li>
+<li>AWS Internet Gateway: https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html</li>
+<li>AWS NAT: https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat.html</li>
+<li>AWS route priority: https://docs.aws.amazon.com/vpc/latest/userguide/route-tables-priority.html</li>
+<li>AWS Flow Logs: https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html</li>
+</ul>
+<hr />
+<p><a href="10-network-troubleshooting-labs.html">← Previous</a> · <a href="index.html">Chapter index</a></p></article><div class="pager"><a href="10-network-troubleshooting-labs.html">← Previous chapter</a><a href="index.html">Chapter index</a></div></main></div><script src="assets/site.js"></script></body></html>

@@ -1,0 +1,341 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Phone on Mobile Data → the Internet: 4G/5G Mental Model</title><link rel="stylesheet" href="assets/site.css"></head><body><div class="layout"><aside><h2>Networking bootcamp</h2><input id="navSearch" aria-label="Filter chapter titles" placeholder="Filter chapters"><nav><a href="../index.html">AWS course home</a><a href="index.html">Chapter index</a><a href="00-networking-roadmap.html">Networking Bootcamp — Start Here</a><a href="01-layers-frames-packets-ports.html">Layers, Frames, Packets, Ports &amp; Encapsulation</a><a href="02-home-wifi-to-internet.html">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</a><a href="03-mobile-data-to-internet.html">Phone on Mobile Data → the Internet: 4G/5G Mental Model</a><a href="04-ip-subnetting-nat-cgnat.html">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</a><a href="05-routing-isp-bgp-peering.html">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a><a href="06-dns-tcp-tls-http.html">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</a><a href="07-ingress-egress-firewalls-dmz.html">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</a><a href="08-legacy-datacenter-networking.html">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</a><a href="09-aws-internet-vpc-packet-flow.html">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</a><a href="10-network-troubleshooting-labs.html">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</a><a href="11-networking-cheatsheet.html">Networking Cheat Sheet, Memory Map &amp; Interview Questions</a></nav></aside><main><div class="pager"><a href="02-home-wifi-to-internet.html">← Previous chapter</a><a href="04-ip-subnetting-nat-cgnat.html">Next chapter →</a></div><article><details class="toc"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#phone-on-mobile-data-the-internet-4g5g-mental-model">Phone on Mobile Data → the Internet: 4G/5G Mental Model</a><ul>
+<li><a href="#1-why-mobile-data-deserves-its-own-flow">1. Why mobile data deserves its own flow</a></li>
+<li><a href="#2-two-planes-control-plane-vs-user-plane">2. Two planes: control plane vs user plane</a><ul>
+<li><a href="#control-plane">Control plane</a></li>
+<li><a href="#user-plane">User plane</a></li>
+</ul>
+</li>
+<li><a href="#3-terms-you-should-recognize">3. Terms you should recognize</a></li>
+<li><a href="#4-step-1-the-phone-attachesregisters-with-the-mobile-network">4. Step 1 — the phone attaches/registers with the mobile network</a></li>
+<li><a href="#5-step-2-the-phone-gets-ip-connectivity">5. Step 2 — the phone gets IP connectivity</a></li>
+<li><a href="#6-step-3-radio-traffic-reaches-the-base-station">6. Step 3 — radio traffic reaches the base station</a></li>
+<li><a href="#7-step-4-transportbackhaul-moves-traffic-into-the-packet-core">7. Step 4 — transport/backhaul moves traffic into the packet core</a></li>
+<li><a href="#8-step-5-packet-core-forwards-toward-the-data-network">8. Step 5 — packet core forwards toward the Data Network</a></li>
+<li><a href="#9-why-carriers-use-multiple-upfs-local-breakout">9. Why carriers use multiple UPFs / local breakout</a></li>
+<li><a href="#10-what-happens-when-you-visit-a-website-on-mobile-data">10. What happens when you visit a website on mobile data</a></li>
+<li><a href="#11-mobile-data-vs-wifi-side-by-side">11. Mobile data vs Wi‑Fi: side-by-side</a></li>
+<li><a href="#12-why-your-public-ip-changes-when-switching-wifi-cellular">12. Why your public IP changes when switching Wi‑Fi ↔ cellular</a></li>
+<li><a href="#13-tetheringhotspot-another-nat-boundary-can-appear">13. Tethering/hotspot: another NAT boundary can appear</a></li>
+<li><a href="#14-enterprise-private-mobile-networking">14. Enterprise private mobile networking</a></li>
+<li><a href="#15-troubleshooting-mobile-data-by-layer">15. Troubleshooting mobile data by layer</a><ul>
+<li><a href="#no-cellular-service">No cellular service</a></li>
+<li><a href="#signal-exists-but-no-data">Signal exists but no data</a></li>
+<li><a href="#some-apps-fail-but-others-work">Some apps fail but others work</a></li>
+<li><a href="#works-on-wifi-fails-on-mobile">Works on Wi‑Fi, fails on mobile</a></li>
+<li><a href="#works-on-mobile-fails-on-wifi">Works on mobile, fails on Wi‑Fi</a></li>
+</ul>
+</li>
+<li><a href="#16-aws-connection-mobile-client-hitting-an-aws-app">16. AWS connection: mobile client hitting an AWS app</a></li>
+<li><a href="#17-security-implication-source-ip-may-represent-a-shared-carrier-egress">17. Security implication: source IP may represent a shared carrier egress</a></li>
+<li><a href="#18-real-world-mental-exercise">18. Real-world mental exercise</a></li>
+<li><a href="#19-internetreference-trail">19. Internet/reference trail</a></li>
+<li><a href="#20-what-to-remember">20. What to remember</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="phone-on-mobile-data-the-internet-4g5g-mental-model">Phone on Mobile Data → the Internet: 4G/5G Mental Model</h1>
+<p><img alt="Mobile data path" src="assets/diagrams/networking/03-mobile-data.svg" /></p>
+<h2 id="1-why-mobile-data-deserves-its-own-flow">1. Why mobile data deserves its own flow</h2>
+<p>When your phone leaves Wi‑Fi and uses cellular data, the application still speaks IP to remote services, but the <strong>access network and subscriber/session machinery are different</strong>.</p>
+<p>A useful simplified path is:</p>
+<pre><code class="language-text">App on phone
+  ↓
+IP stack on phone
+  ↓
+4G/5G radio access
+  ↓
+cell site / base station
+  ↓
+mobile transport/backhaul
+  ↓
+mobile packet core
+  ↓
+operator policy + address translation / Internet edge
+  ↓
+peering/transit
+  ↓
+website/cloud/CDN
+</code></pre>
+<p>This is deliberately simplified. Mobile cores contain many control-plane functions, policy/QoS functions, subscriber databases, and user-plane anchors.</p>
+<h2 id="2-two-planes-control-plane-vs-user-plane">2. Two planes: control plane vs user plane</h2>
+<p>This distinction is the key to understanding cellular networks.</p>
+<h3 id="control-plane">Control plane</h3>
+<p>Handles things such as:</p>
+<ul>
+<li>authentication/subscriber identity,</li>
+<li>mobility and registration,</li>
+<li>session establishment,</li>
+<li>policy/QoS decisions,</li>
+<li>selecting user-plane functions,</li>
+<li>signaling during handover.</li>
+</ul>
+<h3 id="user-plane">User plane</h3>
+<p>Carries the actual application packets after connectivity is established.</p>
+<pre><code class="language-text">Control plane: “Who is this subscriber and how should the session work?”
+User plane:    “Carry these IP packets to/from the data network.”
+</code></pre>
+<p>In 5G terminology, the <strong>UPF (User Plane Function)</strong> is a major user-plane component that forwards UE traffic between the radio access side and Data Networks such as the Internet. GSMA descriptions of 5G connectivity model a PDU session as the connectivity abstraction between applications on the UE and a Data Network.</p>
+<h2 id="3-terms-you-should-recognize">3. Terms you should recognize</h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning at beginner level</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UE</td>
+<td>User Equipment: phone/modem/device</td>
+</tr>
+<tr>
+<td>RAN</td>
+<td>Radio Access Network</td>
+</tr>
+<tr>
+<td>eNodeB</td>
+<td>4G/LTE base station term</td>
+</tr>
+<tr>
+<td>gNB</td>
+<td>5G NR base station term</td>
+</tr>
+<tr>
+<td>EPC</td>
+<td>4G Evolved Packet Core</td>
+</tr>
+<tr>
+<td>5GC</td>
+<td>5G Core</td>
+</tr>
+<tr>
+<td>UPF</td>
+<td>5G user-plane forwarding/anchor function</td>
+</tr>
+<tr>
+<td>PGW</td>
+<td>4G packet data network gateway function</td>
+</tr>
+<tr>
+<td>APN</td>
+<td>4G-style access point/profile concept for data services</td>
+</tr>
+<tr>
+<td>DNN</td>
+<td>5G Data Network Name; selects/identifies data-network connectivity context</td>
+</tr>
+<tr>
+<td>PDU session</td>
+<td>5G connectivity session between UE and a data network</td>
+</tr>
+</tbody>
+</table>
+<p>You do not need to memorize every 3GPP interface to understand AWS networking. Learn the packet path and plane separation first.</p>
+<h2 id="4-step-1-the-phone-attachesregisters-with-the-mobile-network">4. Step 1 — the phone attaches/registers with the mobile network</h2>
+<p>Unlike home Wi‑Fi, cellular access is tightly integrated with operator subscriber identity and mobility.</p>
+<p>Conceptually:</p>
+<ol>
+<li>Phone discovers suitable radio service.</li>
+<li>SIM/eSIM-based subscriber credentials participate in authentication.</li>
+<li>Network establishes control-plane context.</li>
+<li>The device requests packet-data connectivity.</li>
+<li>Policy/session functions select how user traffic should be carried.</li>
+<li>A user-plane path is established toward a Data Network such as the Internet.</li>
+</ol>
+<p>The exact procedures differ by generation and deployment mode. The learning objective is not protocol-message memorization; it is to understand that <strong>IP packets ride on top of a managed mobile session</strong>.</p>
+<h2 id="5-step-2-the-phone-gets-ip-connectivity">5. Step 2 — the phone gets IP connectivity</h2>
+<p>The carrier provides addressing/session information. Depending on the network and device, the phone may receive IPv4, IPv6, or dual-stack connectivity.</p>
+<p>For IPv4, carriers commonly use address sharing/NAT because public IPv4 space is scarce. The address shown inside the phone may not be the public address seen by an Internet website.</p>
+<p>Possible simplified path:</p>
+<pre><code class="language-text">Phone IP
+  ↓
+mobile core user-plane tunnel
+  ↓
+carrier NAT/CGNAT
+  ↓
+public Internet address
+</code></pre>
+<p>IPv6 changes the addressing model because globally unique IPv6 addresses do not require IPv4-style NAT merely to conserve addresses, although firewall/policy controls are still needed.</p>
+<h2 id="6-step-3-radio-traffic-reaches-the-base-station">6. Step 3 — radio traffic reaches the base station</h2>
+<p>Your IP packet is carried over radio protocols to the serving cell/base station. Radio conditions affect:</p>
+<ul>
+<li>latency,</li>
+<li>retransmissions,</li>
+<li>throughput,</li>
+<li>handover behavior,</li>
+<li>packet loss/jitter under congestion,</li>
+<li>power usage.</li>
+</ul>
+<p>A full cellular stack is far more complex than “Wi‑Fi but farther.” Spectrum scheduling, mobility, QoS, and operator core behavior all participate.</p>
+<h2 id="7-step-4-transportbackhaul-moves-traffic-into-the-packet-core">7. Step 4 — transport/backhaul moves traffic into the packet core</h2>
+<p>Cell sites connect into provider transport networks using fiber, microwave, Ethernet/IP/MPLS, segment routing, or other carrier technologies. The provider must carry both control signaling and user traffic reliably across its network.</p>
+<p>This middle network is largely invisible to the app. Your phone does not have a routing table entry for every cell-site/core router.</p>
+<h2 id="8-step-5-packet-core-forwards-toward-the-data-network">8. Step 5 — packet core forwards toward the Data Network</h2>
+<p>In 5G, user traffic is carried through the user-plane architecture to a UPF. A UPF can be placed centrally or closer to the edge depending on latency/service design.</p>
+<p>Conceptual user-plane flow:</p>
+<pre><code class="language-text">UE
+ -&gt; gNB
+ -&gt; user-plane tunnel
+ -&gt; UPF
+ -&gt; Data Network (Internet/private enterprise network/edge application)
+</code></pre>
+<p>GSMA material describes the UPF as forwarding UE traffic between access networks such as 5G gNBs and Data Networks, with QoS enforcement under session-control policy.</p>
+<h2 id="9-why-carriers-use-multiple-upfs-local-breakout">9. Why carriers use multiple UPFs / local breakout</h2>
+<p>If every packet from every city had to travel to one distant national gateway before reaching a nearby app, latency and transport cost could be poor.</p>
+<p>A provider can place user-plane functions closer to users or selected services:</p>
+<pre><code class="language-text">Phone in Atlanta
+ -&gt; local/regional UPF
+ -&gt; nearby CDN/edge service
+</code></pre>
+<p>instead of:</p>
+<pre><code class="language-text">Phone in Atlanta
+ -&gt; distant national core anchor
+ -&gt; back across network
+ -&gt; nearby destination
+</code></pre>
+<p>This is one reason mobile/edge architectures discuss local breakout.</p>
+<h2 id="10-what-happens-when-you-visit-a-website-on-mobile-data">10. What happens when you visit a website on mobile data</h2>
+<p>After the cellular session exists, application-layer behavior resembles other IP access methods:</p>
+<pre><code class="language-text">1. DNS lookup
+2. destination IP selected
+3. route/user-plane forwarding toward Internet
+4. TCP handshake or QUIC setup
+5. TLS handshake
+6. HTTP request
+7. response/data packets return through carrier path
+</code></pre>
+<p>The access network changed, but DNS/IP/transport/TLS/HTTP concepts remain reusable.</p>
+<h2 id="11-mobile-data-vs-wifi-side-by-side">11. Mobile data vs Wi‑Fi: side-by-side</h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Home Wi‑Fi</th>
+<th>Mobile data</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>First wireless hop</td>
+<td>Wi‑Fi AP</td>
+<td>cellular base station</td>
+</tr>
+<tr>
+<td>Subscriber/auth model</td>
+<td>local WLAN password/enterprise auth</td>
+<td>SIM/eSIM + operator authentication</td>
+</tr>
+<tr>
+<td>Gateway to wider network</td>
+<td>home router/CPE</td>
+<td>carrier packet core/user plane</td>
+</tr>
+<tr>
+<td>Common IPv4 translation</td>
+<td>home NAT, possibly ISP CGNAT</td>
+<td>carrier CGNAT/NAT common</td>
+</tr>
+<tr>
+<td>Mobility</td>
+<td>usually reconnect/roam among WLAN APs</td>
+<td>core/RAN designed for wide-area mobility/handover</td>
+</tr>
+<tr>
+<td>Policy/QoS</td>
+<td>home/enterprise WLAN policies</td>
+<td>carrier subscriber/session/QoS policies</td>
+</tr>
+<tr>
+<td>Internet routing</td>
+<td>ISP after CPE</td>
+<td>mobile operator Internet edge/peering</td>
+</tr>
+</tbody>
+</table>
+<h2 id="12-why-your-public-ip-changes-when-switching-wifi-cellular">12. Why your public IP changes when switching Wi‑Fi ↔ cellular</h2>
+<p>You changed access networks and therefore the Internet egress path.</p>
+<pre><code class="language-text">Wi-Fi:
+phone -&gt; home NAT -&gt; home ISP -&gt; Internet
+
+Mobile:
+phone -&gt; carrier RAN/core -&gt; carrier Internet edge -&gt; Internet
+</code></pre>
+<p>The source public address seen by a website can change. Existing TCP sessions may break because the endpoint path/address changed unless a higher-level protocol/system supports mobility/resumption.</p>
+<h2 id="13-tetheringhotspot-another-nat-boundary-can-appear">13. Tethering/hotspot: another NAT boundary can appear</h2>
+<p>When a phone shares mobile data as a hotspot, the phone may act like a small router for connected devices:</p>
+<pre><code class="language-text">Laptop private hotspot IP
+ -&gt; phone hotspot NAT/routing
+ -&gt; mobile session
+ -&gt; carrier NAT (possible)
+ -&gt; Internet
+</code></pre>
+<p>This can create multiple address-translation layers, similar to home NAT + CGNAT.</p>
+<h2 id="14-enterprise-private-mobile-networking">14. Enterprise private mobile networking</h2>
+<p>Mobile networks can connect devices to private enterprise networks rather than the public Internet. With appropriate carrier/private-5G design, the Data Network can be an enterprise environment or edge workload.</p>
+<p>That means “mobile data” does not necessarily equal “public Internet.” The packet core can steer traffic according to the service/session design.</p>
+<h2 id="15-troubleshooting-mobile-data-by-layer">15. Troubleshooting mobile data by layer</h2>
+<h3 id="no-cellular-service">No cellular service</h3>
+<p>Check radio coverage, SIM/eSIM state, airplane mode, network registration.</p>
+<h3 id="signal-exists-but-no-data">Signal exists but no data</h3>
+<p>Session/APN/DNN/subscriber provisioning, carrier outage, device IP configuration, policy.</p>
+<h3 id="some-apps-fail-but-others-work">Some apps fail but others work</h3>
+<p>DNS, IPv4/IPv6 behavior, MTU, app endpoint, carrier filtering, TLS/certificate, service-specific issue.</p>
+<h3 id="works-on-wifi-fails-on-mobile">Works on Wi‑Fi, fails on mobile</h3>
+<p>Compare:</p>
+<ul>
+<li>resolved DNS answers,</li>
+<li>IPv4 vs IPv6 path,</li>
+<li>source address/geolocation restrictions,</li>
+<li>CGNAT/port behavior,</li>
+<li>MTU/path behavior,</li>
+<li>application WAF/rate-limiting policy.</li>
+</ul>
+<h3 id="works-on-mobile-fails-on-wifi">Works on mobile, fails on Wi‑Fi</h3>
+<p>Home DNS/router/ISP/firewall is more suspect than the destination application.</p>
+<h2 id="16-aws-connection-mobile-client-hitting-an-aws-app">16. AWS connection: mobile client hitting an AWS app</h2>
+<p>A common path can be:</p>
+<pre><code class="language-text">Phone app
+ -&gt; carrier RAN + packet core
+ -&gt; carrier Internet edge
+ -&gt; Internet/peering
+ -&gt; Route 53-resolved endpoint
+ -&gt; CloudFront / API Gateway / ALB
+ -&gt; private application resources
+</code></pre>
+<p>The AWS VPC does not care that the first hop was 5G. By the time traffic arrives at the public AWS endpoint, it is IP traffic with source/destination addressing and transport/application protocol state.</p>
+<h2 id="17-security-implication-source-ip-may-represent-a-shared-carrier-egress">17. Security implication: source IP may represent a shared carrier egress</h2>
+<p>With carrier NAT, many subscribers can share public IPv4 addresses over time or concurrently through port translation. Therefore:</p>
+<ul>
+<li>source IP is not a strong user identity,</li>
+<li>IP allowlists for consumer/mobile users can be brittle,</li>
+<li>rate limiting solely by source IP can unfairly group users,</li>
+<li>audit systems should use authenticated application identities in addition to network metadata.</li>
+</ul>
+<h2 id="18-real-world-mental-exercise">18. Real-world mental exercise</h2>
+<p>Open a public “what is my IP” site on Wi‑Fi, note the address, then disable Wi‑Fi and repeat on cellular. Do not treat the result as sensitive credentials, but notice how the visible Internet egress identity changes.</p>
+<p>Then test:</p>
+<pre><code class="language-text">DNS resolver behavior
+IPv4 address
+IPv6 availability
+latency to same site
+</code></pre>
+<p>The goal is not benchmarking; it is observing that the <strong>same phone/app can traverse two very different access networks</strong>.</p>
+<h2 id="19-internetreference-trail">19. Internet/reference trail</h2>
+<ul>
+<li>GSMA cellular ecosystem material describing 5G connectivity and UPF forwarding: https://www.gsma.com/solutions-and-impact/technologies/internet-of-things/wp-content/uploads/2023/02/ACJA_4_UAS_Cellular_Ecosystem_Whitepaper.pdf</li>
+<li>3GPP specifications portal: https://portal.3gpp.org/</li>
+<li>Ericsson overview of packet core/user plane: https://www.ericsson.com/en/portfolio/cloud-software-and-services/cloud-core/packet-core/cloud-packet-core/packet-core-gateway</li>
+<li>RFC 6598 CGNAT shared space: https://www.rfc-editor.org/rfc/rfc6598</li>
+</ul>
+<h2 id="20-what-to-remember">20. What to remember</h2>
+<blockquote>
+<p><strong>Cellular changes the access and session machinery, not the fundamental need for DNS, IP routing, transport, security, and application protocols.</strong></p>
+</blockquote>
+<p>Memory path:</p>
+<pre><code class="language-text">UE -&gt; RAN -&gt; mobile transport -&gt; packet core/UPF -&gt; carrier edge/NAT -&gt; Internet -&gt; service
+</code></pre>
+<hr />
+<p><a href="02-home-wifi-to-internet.html">← Previous</a> · <a href="index.html">Chapter index</a> · <a href="04-ip-subnetting-nat-cgnat.html">Next →</a></p></article><div class="pager"><a href="02-home-wifi-to-internet.html">← Previous chapter</a><a href="04-ip-subnetting-nat-cgnat.html">Next chapter →</a></div></main></div><script src="assets/site.js"></script></body></html>

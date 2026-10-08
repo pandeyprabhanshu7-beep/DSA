@@ -1,0 +1,476 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</title><link rel="stylesheet" href="assets/site.css"></head><body><div class="layout"><aside><h2>Networking bootcamp</h2><input id="navSearch" aria-label="Filter chapter titles" placeholder="Filter chapters"><nav><a href="../index.html">AWS course home</a><a href="index.html">Chapter index</a><a href="00-networking-roadmap.html">Networking Bootcamp — Start Here</a><a href="01-layers-frames-packets-ports.html">Layers, Frames, Packets, Ports &amp; Encapsulation</a><a href="02-home-wifi-to-internet.html">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</a><a href="03-mobile-data-to-internet.html">Phone on Mobile Data → the Internet: 4G/5G Mental Model</a><a href="04-ip-subnetting-nat-cgnat.html">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</a><a href="05-routing-isp-bgp-peering.html">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a><a href="06-dns-tcp-tls-http.html">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</a><a href="07-ingress-egress-firewalls-dmz.html">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</a><a href="08-legacy-datacenter-networking.html">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</a><a href="09-aws-internet-vpc-packet-flow.html">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</a><a href="10-network-troubleshooting-labs.html">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</a><a href="11-networking-cheatsheet.html">Networking Cheat Sheet, Memory Map &amp; Interview Questions</a></nav></aside><main><div class="pager"><a href="08-legacy-datacenter-networking.html">← Previous chapter</a><a href="10-network-troubleshooting-labs.html">Next chapter →</a></div><article><details class="toc"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#aws-internet-vpc-packet-flow-from-browser-to-private-application-and-back">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</a><ul>
+<li><a href="#1-the-aws-networking-idea-that-removes-most-confusion">1. The AWS networking idea that removes most confusion</a></li>
+<li><a href="#2-core-objects-and-their-responsibilities">2. Core objects and their responsibilities</a></li>
+<li><a href="#3-what-makes-an-aws-subnet-public">3. What makes an AWS subnet “public”?</a><ul>
+<li><a href="#a-route-to-igw-is-necessary-not-sufficient">A route to IGW is necessary, not sufficient</a></li>
+</ul>
+</li>
+<li><a href="#4-ec2-public-ipv4-what-the-guest-actually-sees">4. EC2 public IPv4: what the guest actually sees</a></li>
+<li><a href="#5-direct-public-ec2-ingress-flow">5. Direct public EC2 ingress flow</a></li>
+<li><a href="#6-recommended-multi-tier-public-web-flow">6. Recommended multi-tier public web flow</a></li>
+<li><a href="#7-step-by-step-ingress-dry-run">7. Step-by-step ingress dry run</a><ul>
+<li><a href="#step-a-dns">Step A — DNS</a></li>
+<li><a href="#step-b-internet-reaches-aws-edgepublic-endpoint">Step B — Internet reaches AWS edge/public endpoint</a></li>
+<li><a href="#step-c-optional-cloudfrontwaf">Step C — optional CloudFront/WAF</a></li>
+<li><a href="#step-d-alb-public-listener">Step D — ALB public listener</a></li>
+<li><a href="#step-e-target-selection">Step E — target selection</a></li>
+<li><a href="#step-f-app-sg">Step F — app SG</a></li>
+<li><a href="#step-g-app-to-database">Step G — app to database</a></li>
+</ul>
+</li>
+<li><a href="#8-why-the-app-subnet-can-be-private-yet-alb-can-reach-it">8. Why the app subnet can be private yet ALB can reach it</a></li>
+<li><a href="#9-private-ipv4-egress-through-nat-gateway">9. Private IPv4 egress through NAT Gateway</a></li>
+<li><a href="#10-nat-gateway-is-az-scoped-architecture-wise">10. NAT Gateway is AZ-scoped architecture-wise</a></li>
+<li><a href="#11-vpc-endpoints-avoid-the-natinternet-style-path-for-supported-aws-services">11. VPC endpoints: avoid the NAT/Internet-style path for supported AWS services</a><ul>
+<li><a href="#interface-endpoints-privatelink">Interface endpoints / PrivateLink</a></li>
+</ul>
+</li>
+<li><a href="#12-ipv6-internet-access">12. IPv6 Internet access</a></li>
+<li><a href="#13-security-groups-think-relationships-not-perimeter-only">13. Security Groups: think relationships, not perimeter only</a></li>
+<li><a href="#14-nacls-subnet-guardrail-and-the-return-traffic-problem">14. NACLs: subnet guardrail and the return-traffic problem</a></li>
+<li><a href="#15-route-tables-and-security-groups-solve-different-questions">15. Route tables and Security Groups solve different questions</a></li>
+<li><a href="#16-nacl-and-sg-evaluation-mental-path">16. NACL and SG evaluation mental path</a></li>
+<li><a href="#17-aws-network-firewall-insertion">17. AWS Network Firewall insertion</a></li>
+<li><a href="#18-gateway-load-balancer-gwlb">18. Gateway Load Balancer (GWLB)</a></li>
+<li><a href="#19-transit-gateway-packet-flow">19. Transit Gateway packet flow</a></li>
+<li><a href="#20-vpc-peering">20. VPC Peering</a></li>
+<li><a href="#21-hybrid-on-prem-to-aws-through-vpndirect-connect">21. Hybrid on-prem to AWS through VPN/Direct Connect</a></li>
+<li><a href="#22-route-53-resolver-hybrid-dns">22. Route 53 Resolver hybrid DNS</a></li>
+<li><a href="#23-vpc-flow-logs">23. VPC Flow Logs</a></li>
+<li><a href="#24-reachability-analyzer">24. Reachability Analyzer</a></li>
+<li><a href="#25-flow-logs-reachability-analyzer-app-logs-layered-evidence">25. Flow Logs + Reachability Analyzer + app logs = layered evidence</a></li>
+<li><a href="#26-scenario-private-ec2-cannot-download-patches">26. Scenario: private EC2 cannot download patches</a></li>
+<li><a href="#27-scenario-alb-is-reachable-but-targets-unhealthy">27. Scenario: ALB is reachable but targets unhealthy</a></li>
+<li><a href="#28-scenario-ec2-has-public-ip-but-internet-cannot-connect">28. Scenario: EC2 has public IP but Internet cannot connect</a></li>
+<li><a href="#29-scenario-private-app-can-call-most-sites-but-one-vendor-fails">29. Scenario: private app can call most sites but one vendor fails</a></li>
+<li><a href="#30-legacy-aws-packet-path-mapping">30. Legacy → AWS packet-path mapping</a></li>
+<li><a href="#31-best-official-sources">31. Best official sources</a></li>
+<li><a href="#32-what-you-must-remember">32. What you must remember</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="aws-internet-vpc-packet-flow-from-browser-to-private-application-and-back">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</h1>
+<p><img alt="AWS ingress request path" src="assets/diagrams/networking/09-aws-ingress.svg" /></p>
+<p><img alt="AWS private-subnet egress path" src="assets/diagrams/networking/10-aws-egress.svg" /></p>
+<h2 id="1-the-aws-networking-idea-that-removes-most-confusion">1. The AWS networking idea that removes most confusion</h2>
+<p>Do not ask only:</p>
+<blockquote>
+<p>“Is the subnet public?”</p>
+</blockquote>
+<p>Ask this complete set:</p>
+<pre><code class="language-text">What IP does the resource have?
+Which route table applies?
+What target does the best route select?
+What translation occurs, if any?
+Which stateful/stateless policies apply?
+What is the return path?
+What endpoint is actually listening?
+</code></pre>
+<p>A VPC is software-defined networking, but packet reachability still depends on those ordinary networking questions.</p>
+<h2 id="2-core-objects-and-their-responsibilities">2. Core objects and their responsibilities</h2>
+<table>
+<thead>
+<tr>
+<th>AWS object</th>
+<th>Mental model</th>
+<th>It does NOT automatically do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VPC</td>
+<td>regional private routing/addressing boundary</td>
+<td>make resources public</td>
+</tr>
+<tr>
+<td>Subnet</td>
+<td>AZ-scoped IP allocation/routing association</td>
+<td>become public because named “public”</td>
+</tr>
+<tr>
+<td>ENI</td>
+<td>virtual network interface with IP/security associations</td>
+<td>guarantee route to Internet</td>
+</tr>
+<tr>
+<td>Route table</td>
+<td>destination prefix → target decision</td>
+<td>grant firewall permission</td>
+</tr>
+<tr>
+<td>Internet Gateway</td>
+<td>VPC Internet-routing edge; public IPv4 mapping behavior</td>
+<td>assign app auth or open ports</td>
+</tr>
+<tr>
+<td>NAT Gateway</td>
+<td>source translation for initiated private IPv4 egress</td>
+<td>accept unsolicited inbound sessions to private instances</td>
+</tr>
+<tr>
+<td>Security Group</td>
+<td>stateful allow policy on supported resource interfaces</td>
+<td>explicit deny rules like NACL</td>
+</tr>
+<tr>
+<td>Network ACL</td>
+<td>stateless subnet-level allow/deny rules</td>
+<td>remember connection return state</td>
+</tr>
+<tr>
+<td>VPC endpoint</td>
+<td>private connectivity to supported service</td>
+<td>make every Internet service private</td>
+</tr>
+<tr>
+<td>Transit Gateway</td>
+<td>regional transit routing hub</td>
+<td>inspect traffic by itself</td>
+</tr>
+<tr>
+<td>Network Firewall</td>
+<td>managed traffic inspection via routed endpoints</td>
+<td>inspect traffic not routed through it</td>
+</tr>
+<tr>
+<td>Route 53/VPC Resolver</td>
+<td>DNS/name resolution</td>
+<td>create IP reachability by itself</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-what-makes-an-aws-subnet-public">3. What makes an AWS subnet “public”?</h2>
+<p>AWS documentation describes a subnet whose associated route table has a route to an Internet Gateway as a public subnet.</p>
+<p>Typical IPv4 public route table:</p>
+<pre><code class="language-text">10.0.0.0/16  -&gt; local
+0.0.0.0/0    -&gt; igw-1234
+</code></pre>
+<p>But an EC2 instance also needs suitable public addressing and security rules to be directly reachable from the Internet over IPv4.</p>
+<h3 id="a-route-to-igw-is-necessary-not-sufficient">A route to IGW is necessary, not sufficient</h3>
+<p>Bad mental model:</p>
+<pre><code class="language-text">public subnet -&gt; every instance exposed
+</code></pre>
+<p>Better:</p>
+<pre><code class="language-text">subnet route can reach IGW
++ resource has public IPv4/EIP if direct IPv4 Internet identity required
++ SG/NACL allow desired traffic
++ service listens
++ return route/state works
+</code></pre>
+<h2 id="4-ec2-public-ipv4-what-the-guest-actually-sees">4. EC2 public IPv4: what the guest actually sees</h2>
+<p>AWS documents an important detail: an EC2 public IPv4 is mapped to the primary private IPv4 through NAT. The guest OS normally sees its private IPv4 on the network interface, not the public IPv4 as another ordinary local NIC address.</p>
+<p>Example:</p>
+<pre><code class="language-text">EC2 guest sees:       10.0.1.25
+AWS console shows:    public 203.0.113.25 (example)
+Internet client uses: 203.0.113.25
+IGW mapping delivers: private 10.0.1.25 inside VPC
+</code></pre>
+<p>This is why a process can listen on <code>0.0.0.0:443</code>/private interface and receive traffic sent to the associated public address through the VPC Internet path.</p>
+<h2 id="5-direct-public-ec2-ingress-flow">5. Direct public EC2 ingress flow</h2>
+<p>Simplified example:</p>
+<pre><code class="language-text">Internet client
+ -&gt; Internet routing/AWS edge
+ -&gt; Internet Gateway
+ -&gt; public IPv4 mapping to instance private IPv4
+ -&gt; subnet/NACL boundary
+ -&gt; ENI/Security Group
+ -&gt; EC2 operating system
+ -&gt; host firewall
+ -&gt; application listener
+</code></pre>
+<p>Return traffic must pass the reverse policy/path.</p>
+<p>This pattern is valid for selected use cases but is usually not the preferred architecture for a scalable public web application; load balancers/CDNs provide better abstraction and operational controls.</p>
+<h2 id="6-recommended-multi-tier-public-web-flow">6. Recommended multi-tier public web flow</h2>
+<pre><code class="language-text">Browser
+  ↓
+Route 53 DNS
+  ↓
+CloudFront (optional CDN/edge)
+  ↓
+AWS WAF (often associated at edge/ALB/API surface)
+  ↓
+Application Load Balancer in public subnets
+  ↓
+APP security group relationship
+  ↓
+EC2/ECS/EKS targets in private app subnets
+  ↓
+DB security group relationship
+  ↓
+RDS/Aurora in isolated/private DB subnets
+</code></pre>
+<p>The app instances do not need public IPv4 addresses merely because end users on the Internet use the application.</p>
+<h2 id="7-step-by-step-ingress-dry-run">7. Step-by-step ingress dry run</h2>
+<p>Assume:</p>
+<pre><code class="language-text">VPC              10.0.0.0/16
+Public subnet A  10.0.1.0/24
+Public subnet B  10.0.2.0/24
+App subnet A     10.0.11.0/24
+App subnet B     10.0.12.0/24
+DB subnet A      10.0.21.0/24
+DB subnet B      10.0.22.0/24
+</code></pre>
+<p>Security intent:</p>
+<pre><code class="language-text">Internet -&gt; ALB-SG TCP 443
+ALB-SG   -&gt; APP-SG TCP 8080
+APP-SG   -&gt; DB-SG  TCP 5432
+</code></pre>
+<h3 id="step-a-dns">Step A — DNS</h3>
+<p><code>app.example.com</code> resolves to CloudFront/ALB-related endpoint information according to design.</p>
+<h3 id="step-b-internet-reaches-aws-edgepublic-endpoint">Step B — Internet reaches AWS edge/public endpoint</h3>
+<p>The user's ISP and Internet routing deliver traffic toward the AWS-advertised prefix/edge.</p>
+<h3 id="step-c-optional-cloudfrontwaf">Step C — optional CloudFront/WAF</h3>
+<p>CloudFront may terminate client TLS/cache/forward to origin. WAF evaluates HTTP requests where associated.</p>
+<h3 id="step-d-alb-public-listener">Step D — ALB public listener</h3>
+<p>ALB listener accepts HTTPS 443. <code>ALB-SG</code> permits client ingress.</p>
+<h3 id="step-e-target-selection">Step E — target selection</h3>
+<p>ALB chooses a healthy target from its target group, then initiates/uses backend connectivity to the private app IP/port.</p>
+<h3 id="step-f-app-sg">Step F — app SG</h3>
+<p><code>APP-SG</code> permits TCP 8080 <strong>from ALB-SG</strong>, not from the whole Internet.</p>
+<h3 id="step-g-app-to-database">Step G — app to database</h3>
+<p>Application opens a separate DB connection to port 5432. <code>DB-SG</code> permits source <code>APP-SG</code>.</p>
+<p>This is three separate transport/security relationships, not one giant browser-to-database connection.</p>
+<h2 id="8-why-the-app-subnet-can-be-private-yet-alb-can-reach-it">8. Why the app subnet can be private yet ALB can reach it</h2>
+<p>Private does not mean “isolated from the VPC.”</p>
+<p>The VPC local route provides connectivity among subnets in the VPC, subject to security policies and routing nuances.</p>
+<pre><code class="language-text">10.0.0.0/16 -&gt; local
+</code></pre>
+<p>Therefore public ALB subnets can route to private app subnets without giving app instances public Internet addresses.</p>
+<h2 id="9-private-ipv4-egress-through-nat-gateway">9. Private IPv4 egress through NAT Gateway</h2>
+<p>App <code>10.0.11.25</code> needs <code>https://api.vendor.example</code>.</p>
+<p>Private route table:</p>
+<pre><code class="language-text">10.0.0.0/16 -&gt; local
+0.0.0.0/0   -&gt; nat-gw-a
+</code></pre>
+<p>NAT Gateway lives in a public subnet with Internet route/EIP context.</p>
+<p>Flow:</p>
+<pre><code class="language-text">10.0.11.25:51514
+ -&gt; private route table
+ -&gt; NAT Gateway
+ -&gt; source translated to NAT EIP/port
+ -&gt; public subnet route/IGW
+ -&gt; Internet
+ -&gt; vendor:443
+</code></pre>
+<p>AWS docs state that the NAT device replaces the source IPv4 address and maps responses back while not accepting unsolicited Internet connections to the private resources.</p>
+<h2 id="10-nat-gateway-is-az-scoped-architecture-wise">10. NAT Gateway is AZ-scoped architecture-wise</h2>
+<p>For resilient multi-AZ designs, a common pattern is one NAT Gateway per AZ with private subnets routing to the NAT in the same AZ.</p>
+<p>Why?</p>
+<ul>
+<li>avoid one-AZ dependency for all egress,</li>
+<li>reduce unnecessary cross-AZ traffic patterns/cost,</li>
+<li>keep failure domains aligned.</li>
+</ul>
+<p>One NAT for the whole VPC may be cheaper for small/noncritical environments but carries different resilience/cost trade-offs.</p>
+<h2 id="11-vpc-endpoints-avoid-the-natinternet-style-path-for-supported-aws-services">11. VPC endpoints: avoid the NAT/Internet-style path for supported AWS services</h2>
+<p>For supported services, endpoints can provide private connectivity.</p>
+<p>Example S3 gateway endpoint concept:</p>
+<pre><code class="language-text">private EC2 -&gt; route/prefix-list endpoint -&gt; S3
+</code></pre>
+<p>instead of:</p>
+<pre><code class="language-text">private EC2 -&gt; NAT GW -&gt; IGW/public service endpoint path
+</code></pre>
+<p>Benefits can include lower NAT dependence, tighter policy, and reduced exposure/cost depending on service/traffic pattern.</p>
+<h3 id="interface-endpoints-privatelink">Interface endpoints / PrivateLink</h3>
+<p>Interface endpoints create private ENIs/endpoints in your VPC for supported services/private services. Private DNS can make the standard service name resolve to the private endpoint addresses in appropriate configurations.</p>
+<h2 id="12-ipv6-internet-access">12. IPv6 Internet access</h2>
+<p>AWS IPv6 addresses are globally unique. For public IPv6 Internet access, routes can point <code>::/0</code> to an Internet Gateway when inbound/outbound reachability is desired and policy permits.</p>
+<p>For private-subnet-style outbound-only IPv6:</p>
+<pre><code class="language-text">::/0 -&gt; egress-only Internet Gateway
+</code></pre>
+<p>AWS describes the egress-only IGW as stateful: it permits outbound IPv6 communication and return traffic while preventing Internet hosts from initiating connections to those instances.</p>
+<h2 id="13-security-groups-think-relationships-not-perimeter-only">13. Security Groups: think relationships, not perimeter only</h2>
+<p>Good three-tier policy:</p>
+<pre><code class="language-text">ALB-SG inbound 443 from Internet/client ranges
+APP-SG inbound 8080 from ALB-SG
+DB-SG  inbound 5432 from APP-SG
+</code></pre>
+<p>This is micro-segmentation at the workload interface level.</p>
+<p>Security Groups are stateful; response traffic for allowed flows is automatically recognized by the stateful model.</p>
+<h2 id="14-nacls-subnet-guardrail-and-the-return-traffic-problem">14. NACLs: subnet guardrail and the return-traffic problem</h2>
+<p>NACLs are stateless and evaluated separately for inbound/outbound packets.</p>
+<p>If you allow:</p>
+<pre><code class="language-text">inbound TCP 443
+</code></pre>
+<p>but deny relevant reverse ephemeral traffic, sessions fail.</p>
+<p>AWS's own Flow Logs examples use ping/security-rule scenarios to demonstrate SG statefulness vs NACL statelessness.</p>
+<h2 id="15-route-tables-and-security-groups-solve-different-questions">15. Route tables and Security Groups solve different questions</h2>
+<pre><code class="language-text">Route table: WHERE should packet go?
+Security Group: MAY this flow pass this interface/resource boundary?
+</code></pre>
+<p>A perfect route plus blocked SG = no application connection.</p>
+<p>An open SG plus missing route = no application connection.</p>
+<p>Never troubleshoot them as one concept.</p>
+<h2 id="16-nacl-and-sg-evaluation-mental-path">16. NACL and SG evaluation mental path</h2>
+<p>A simplified inbound path can include both subnet-level NACL and ENI-associated Security Group behavior. Exact distributed implementation should not be imagined as literal hardware boxes in a fixed rack order, but operationally both policy layers must permit the flow according to their semantics.</p>
+<h2 id="17-aws-network-firewall-insertion">17. AWS Network Firewall insertion</h2>
+<p>Network Firewall creates endpoints in dedicated subnets/AZs. To inspect traffic, route tables must steer flows through those endpoints.</p>
+<p>Possible centralized egress path:</p>
+<pre><code class="language-text">Spoke VPC
+ -&gt; Transit Gateway
+ -&gt; Inspection VPC
+ -&gt; Network Firewall endpoint
+ -&gt; NAT/egress path
+ -&gt; Internet
+</code></pre>
+<p>Stateful inspection requires carefully designed symmetric paths. AWS documentation explicitly warns about routing symmetry in centralized inspection designs.</p>
+<h2 id="18-gateway-load-balancer-gwlb">18. Gateway Load Balancer (GWLB)</h2>
+<p>GWLB enables scalable insertion of compatible virtual network appliances from vendors or your own appliance fleet. Think of it as a service-insertion/load-distribution primitive for Layer-3 virtual appliances, not as a web ALB replacement.</p>
+<p>Legacy mapping:</p>
+<pre><code class="language-text">physical firewall appliance cluster
+ -&gt; virtual appliance fleet behind GWLB
+</code></pre>
+<h2 id="19-transit-gateway-packet-flow">19. Transit Gateway packet flow</h2>
+<p>Spoke A needs Spoke B:</p>
+<pre><code class="language-text">VPC A subnet route: 10.2.0.0/16 -&gt; TGW
+TGW route table:    10.2.0.0/16 -&gt; VPC B attachment
+VPC B subnet route: return path -&gt; TGW
+</code></pre>
+<p>There are <strong>two route-table systems</strong> to reason about:</p>
+<ul>
+<li>VPC subnet route tables,</li>
+<li>Transit Gateway route tables.</li>
+</ul>
+<p>Missing either direction can break connectivity.</p>
+<h2 id="20-vpc-peering">20. VPC Peering</h2>
+<p>Peering gives private routed connectivity between VPCs, subject to route/security configuration. It is not transitive: if A peers with B and B peers with C, A does not automatically route through B to C via those peerings.</p>
+<p>This limitation is one reason Transit Gateway becomes attractive at larger scale.</p>
+<h2 id="21-hybrid-on-prem-to-aws-through-vpndirect-connect">21. Hybrid on-prem to AWS through VPN/Direct Connect</h2>
+<p>Conceptual path:</p>
+<pre><code class="language-text">On-prem app
+ -&gt; enterprise router/firewall
+ -&gt; VPN or Direct Connect
+ -&gt; VGW/TGW/DXGW design
+ -&gt; VPC route
+ -&gt; EC2/private load balancer
+</code></pre>
+<p>You need:</p>
+<ul>
+<li>non-overlapping/managed address space,</li>
+<li>routes advertised/propagated correctly,</li>
+<li>Security Groups/NACLs/firewalls,</li>
+<li>DNS resolution across environments,</li>
+<li>return routing,</li>
+<li>MTU considerations,</li>
+<li>redundancy.</li>
+</ul>
+<h2 id="22-route-53-resolver-hybrid-dns">22. Route 53 Resolver hybrid DNS</h2>
+<p>Network connectivity does not automatically solve private names.</p>
+<p>Example:</p>
+<pre><code class="language-text">EC2 can ping 10.50.1.10 on-prem
+but cannot resolve db.corp.example
+</code></pre>
+<p>Add/verify Resolver outbound endpoints/rules toward on-prem DNS, plus inbound endpoints if on-prem clients must resolve AWS private hosted-zone names.</p>
+<h2 id="23-vpc-flow-logs">23. VPC Flow Logs</h2>
+<p>Flow Logs capture metadata about IP flows for ENIs/subnets/VPCs depending configuration. Fields can include source/destination, ports, protocol, bytes/packets, interface and action such as <code>ACCEPT</code>/<code>REJECT</code>.</p>
+<p>They answer:</p>
+<pre><code class="language-text">Did network policy accept/reject this flow metadata?
+Did traffic reach this ENI/subnet observation point?
+</code></pre>
+<p>They do not show:</p>
+<pre><code class="language-text">HTTP request body
+SQL statement
+full packet payload
+application exception
+</code></pre>
+<h2 id="24-reachability-analyzer">24. Reachability Analyzer</h2>
+<p>Reachability Analyzer performs static configuration analysis; it does not send test packets. It can identify a reachable configuration path or blocking component among supported AWS networking resources.</p>
+<p>Use it before randomly editing route tables/SGs.</p>
+<h2 id="25-flow-logs-reachability-analyzer-app-logs-layered-evidence">25. Flow Logs + Reachability Analyzer + app logs = layered evidence</h2>
+<p>A strong incident workflow:</p>
+<pre><code class="language-text">Reachability Analyzer: should config permit a path?
+VPC Flow Logs: what flows were accepted/rejected/observed?
+ALB/Network Firewall/WAF logs: what did intermediate services do?
+OS tcpdump/socket tools: did packets reach host/process?
+App logs/traces: what did the application do?
+</code></pre>
+<p>No single tool replaces all layers.</p>
+<h2 id="26-scenario-private-ec2-cannot-download-patches">26. Scenario: private EC2 cannot download patches</h2>
+<p>Check:</p>
+<pre><code class="language-text">1 DNS resolves?
+2 private subnet route 0.0.0.0/0 -&gt; NAT?
+3 NAT exists/available in proper public subnet/AZ design?
+4 NAT subnet route 0.0.0.0/0 -&gt; IGW?
+5 NAT has required public connectivity/EIP context?
+6 SG egress permits?
+7 NACL allows both directions/ephemeral ports?
+8 destination/IPv4 path available?
+</code></pre>
+<p>If calling S3, ask whether an S3 endpoint should replace NAT for that traffic.</p>
+<h2 id="27-scenario-alb-is-reachable-but-targets-unhealthy">27. Scenario: ALB is reachable but targets unhealthy</h2>
+<p>This proves the client-to-ALB path is at least partly working. Check the separate backend boundary:</p>
+<pre><code class="language-text">ALB target group port/protocol
+ALB-SG -&gt; APP-SG
+NACLs
+app process listening on expected IP/port
+health-check path/status
+application startup/dependency failures
+</code></pre>
+<h2 id="28-scenario-ec2-has-public-ip-but-internet-cannot-connect">28. Scenario: EC2 has public IP but Internet cannot connect</h2>
+<p>Possible causes:</p>
+<ul>
+<li>subnet route table lacks <code>0.0.0.0/0 -&gt; IGW</code>,</li>
+<li>IGW not attached,</li>
+<li>SG inbound does not allow port/source,</li>
+<li>NACL blocks,</li>
+<li>host firewall blocks,</li>
+<li>service not listening,</li>
+<li>wrong public IP/DNS,</li>
+<li>IPv6 vs IPv4 mismatch,</li>
+<li>routing through an inspection architecture incorrectly.</li>
+</ul>
+<p>Public IP alone is not enough.</p>
+<h2 id="29-scenario-private-app-can-call-most-sites-but-one-vendor-fails">29. Scenario: private app can call most sites but one vendor fails</h2>
+<p>Possible non-AWS-network causes:</p>
+<ul>
+<li>vendor allowlist missing NAT Gateway EIP,</li>
+<li>TLS SNI/certificate/protocol mismatch,</li>
+<li>vendor geo/ASN/security policy,</li>
+<li>DNS answer differs,</li>
+<li>rate limit,</li>
+<li>MTU/path issue,</li>
+<li>vendor outage.</li>
+</ul>
+<p>First record the NAT egress public IP and exact <code>curl -v</code>/TLS symptom.</p>
+<h2 id="30-legacy-aws-packet-path-mapping">30. Legacy → AWS packet-path mapping</h2>
+<pre><code class="language-text">Legacy:
+server NIC -&gt; VLAN -&gt; core route -&gt; firewall/NAT -&gt; edge router -&gt; ISP
+
+AWS private egress:
+ENI -&gt; subnet route table -&gt; NAT Gateway -&gt; IGW -&gt; Internet/AWS edge
+</code></pre>
+<pre><code class="language-text">Legacy ingress:
+ISP -&gt; edge router -&gt; firewall -&gt; DMZ WAF/LB -&gt; app VLAN
+
+AWS ingress:
+Internet/AWS edge -&gt; CloudFront/WAF -&gt; ALB -&gt; SG -&gt; private app
+</code></pre>
+<h2 id="31-best-official-sources">31. Best official sources</h2>
+<ul>
+<li>Internet Gateway: https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html</li>
+<li>NAT Gateway scenarios: https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-scenarios.html</li>
+<li>VPC NAT devices: https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat.html</li>
+<li>Route priority: https://docs.aws.amazon.com/vpc/latest/userguide/route-tables-priority.html</li>
+<li>VPC Resolver: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resolver.html</li>
+<li>Egress-only IGW: https://docs.aws.amazon.com/vpc/latest/userguide/egress-only-internet-gateway.html</li>
+<li>VPC Flow Logs: https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html</li>
+<li>Reachability Analyzer: https://docs.aws.amazon.com/vpc/latest/reachability/what-is-reachability-analyzer.html</li>
+<li>Network Firewall architectures: https://docs.aws.amazon.com/network-firewall/latest/developerguide/architectures.html</li>
+</ul>
+<h2 id="32-what-you-must-remember">32. What you must remember</h2>
+<pre><code class="language-text">Public subnet = route-table property/path, not a name.
+Public IPv4 alone ≠ reachable.
+Route ≠ permission.
+SG stateful; NACL stateless.
+Private app can receive traffic from public ALB without public IP.
+Private IPv4 Internet egress commonly uses NAT Gateway.
+IPv6 outbound-only can use egress-only IGW.
+Endpoints can avoid NAT for supported AWS-service traffic.
+Network Firewall only inspects traffic routed through it.
+Flow Logs show flow metadata, not application payload.
+</code></pre>
+<hr />
+<p><a href="08-legacy-datacenter-networking.html">← Previous</a> · <a href="index.html">Chapter index</a> · <a href="10-network-troubleshooting-labs.html">Next →</a></p></article><div class="pager"><a href="08-legacy-datacenter-networking.html">← Previous chapter</a><a href="10-network-troubleshooting-labs.html">Next chapter →</a></div></main></div><script src="assets/site.js"></script></body></html>

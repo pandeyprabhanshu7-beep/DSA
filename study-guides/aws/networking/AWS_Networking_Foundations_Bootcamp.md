@@ -4,9 +4,9 @@
 
 ## Navigation
 
-- [Course home](index.md)
-- [Separate networking lecture index](md/networking/index.md)
-- [AWS VPC module](md/modules/vpc-networking.md)
+- [Course home](../index.md)
+- [Separate networking lecture index](../index.md)
+- [AWS VPC module](09-aws-internet-vpc-packet-flow.md)
 
 ---
 
@@ -42,17 +42,17 @@ If you debug in that order, you avoid the common mistake of changing firewall ru
 
 | Order | Lecture | Why it comes here |
 |---:|---|---|
-| 1 | [Layers, Frames, Packets, Ports & Encapsulation](md/networking/01-layers-frames-packets-ports.md) | Learn the vocabulary that all later diagrams use. |
-| 2 | [Your PC on Wi‑Fi → the Internet](md/networking/02-home-wifi-to-internet.md) | Builds the complete path from a familiar device. |
-| 3 | [Phone on Mobile Data → the Internet](md/networking/03-mobile-data-to-internet.md) | Shows why cellular access differs from Wi‑Fi while IP remains the common layer. |
-| 4 | [IP Addressing, Subnetting, NAT & CGNAT](md/networking/04-ip-subnetting-nat-cgnat.md) | Explains private/public addresses and why NAT exists. |
-| 5 | [Routing, ISPs, Autonomous Systems, BGP, Peering & Transit](md/networking/05-routing-isp-bgp-peering.md) | Explains how packets cross independent networks. |
-| 6 | [DNS → TCP/QUIC → TLS → HTTP](md/networking/06-dns-tcp-tls-http.md) | Reconstructs a browser request in time order. |
-| 7 | [Ingress, Egress, Firewalls, WAF, Proxies & DMZs](md/networking/07-ingress-egress-firewalls-dmz.md) | Explains security controls at different layers. |
-| 8 | [Legacy/In-house Data Center Network Flow](md/networking/08-legacy-datacenter-networking.md) | Gives the exact mental bridge to enterprise networking. |
-| 9 | [AWS Internet & VPC Packet Flow](md/networking/09-aws-internet-vpc-packet-flow.md) | Maps every legacy component to AWS. |
-| 10 | [Network Troubleshooting Labs](md/networking/10-network-troubleshooting-labs.md) | Teaches how to prove which layer is broken. |
-| 11 | [Networking Cheat Sheet & Interview Questions](md/networking/11-networking-cheatsheet.md) | Revision and recall. |
+| 1 | [Layers, Frames, Packets, Ports & Encapsulation](01-layers-frames-packets-ports.md) | Learn the vocabulary that all later diagrams use. |
+| 2 | [Your PC on Wi‑Fi → the Internet](02-home-wifi-to-internet.md) | Builds the complete path from a familiar device. |
+| 3 | [Phone on Mobile Data → the Internet](03-mobile-data-to-internet.md) | Shows why cellular access differs from Wi‑Fi while IP remains the common layer. |
+| 4 | [IP Addressing, Subnetting, NAT & CGNAT](04-ip-subnetting-nat-cgnat.md) | Explains private/public addresses and why NAT exists. |
+| 5 | [Routing, ISPs, Autonomous Systems, BGP, Peering & Transit](05-routing-isp-bgp-peering.md) | Explains how packets cross independent networks. |
+| 6 | [DNS → TCP/QUIC → TLS → HTTP](06-dns-tcp-tls-http.md) | Reconstructs a browser request in time order. |
+| 7 | [Ingress, Egress, Firewalls, WAF, Proxies & DMZs](07-ingress-egress-firewalls-dmz.md) | Explains security controls at different layers. |
+| 8 | [Legacy/In-house Data Center Network Flow](08-legacy-datacenter-networking.md) | Gives the exact mental bridge to enterprise networking. |
+| 9 | [AWS Internet & VPC Packet Flow](09-aws-internet-vpc-packet-flow.md) | Maps every legacy component to AWS. |
+| 10 | [Network Troubleshooting Labs](10-network-troubleshooting-labs.md) | Teaches how to prove which layer is broken. |
+| 11 | [Networking Cheat Sheet & Interview Questions](11-networking-cheatsheet.md) | Revision and recall. |
 
 ## One diagram to remember before anything else
 
@@ -169,7 +169,7 @@ You are ready for the next lecture if you can explain, without AWS terminology:
 4. Why a private IPv4 address can access the Internet through NAT.
 5. Why a return packet may take a different physical/router path on the Internet.
 
-[Next → Layers, Frames, Packets, Ports & Encapsulation](md/networking/01-layers-frames-packets-ports.md)
+[Next → Layers, Frames, Packets, Ports & Encapsulation](01-layers-frames-packets-ports.md)
 
 ---
 
@@ -1644,6 +1644,35 @@ IPv6 outbound-only in AWS -> egress-only IGW
 
 
 ---
+
+
+## Worked packet trace: home PAT, CGNAT and return traffic
+
+This is a simplified **IPv4/TCP teaching example**, not a capture from a real ISP. Addresses 198.51.100.0/24 and 203.0.113.0/24 are documentation ranges. 100.64.0.0/10 is shared address space for carrier NAT; it is distinct from RFC 1918 private space. Port mappings below are illustrative and implementation-dependent.
+
+A laptop opens HTTPS to `203.0.113.80:443`. It uses `192.168.1.20:51514`. Its home router has ISP-facing address `100.64.1.2`. The carrier translates that shared address to `198.51.100.10`.
+
+| Observation point | TCP source | TCP destination | What changed? |
+|---|---|---|---|
+| Laptop to home router | 192.168.1.20:51514 | 203.0.113.80:443 | Original tuple |
+| Home router to ISP | 100.64.1.2:62001 | 203.0.113.80:443 | Home PAT translates source address/port |
+| Carrier to Internet | 198.51.100.10:40020 | 203.0.113.80:443 | CGNAT translates source again |
+| Server response toward carrier | 203.0.113.80:443 | 198.51.100.10:40020 | Source/destination swap for response |
+| Carrier response toward home | 203.0.113.80:443 | 100.64.1.2:62001 | Carrier reverses its destination mapping |
+| Home response toward laptop | 203.0.113.80:443 | 192.168.1.20:51514 | Home reverses its destination mapping |
+
+The home router retains a mapping for the laptop flow; the carrier retains a second mapping for the router flow. Translation rewrites relevant IP/transport checksums. Link-layer headers are rebuilt at router hops, while TCP sequence numbers belong to the same end-to-end connection in this basic NAT example. A reverse proxy differs: it terminates one transport connection and opens another.
+
+**Why an unsolicited inbound SYN usually fails:** it has no corresponding NAT mapping; forwarding a port on the home router alone does not create a carrier-side mapping. Mapping expiry can also explain why a long-idle connection stops receiving traffic. NAT translation is not a replacement for firewall policy or application authentication.
+
+### Map the idea into AWS without conflating the two designs
+
+For a standard public-NAT IPv4 Internet path, a private workload routes to a public NAT gateway; the NAT maps its source to the NAT gateway's private address, and the Internet gateway maps that address to the associated Elastic IP. The public subnet needs an Internet gateway route, and the workload subnet needs the NAT route. Return traffic follows the established translations. Security groups track allowed flows; NACLs are stateless and must permit both directions, including required return destination ports.
+
+**Check your understanding:** which source IP does the Internet server observe? In the home example: 198.51.100.10. In the AWS Internet-egress example: the NAT gateway's Elastic IP. Does either setup make the original private client directly reachable by unsolicited traffic? No.
+
+Sources: [RFC 6598 shared address space](https://www.rfc-editor.org/rfc/rfc6598), [RFC 5737 documentation addresses](https://www.rfc-editor.org/rfc/rfc5737), [AWS NAT gateway behavior](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html), [AWS security groups](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html), [AWS NACLs](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html).
+
 
 # Routing, ISPs, Autonomous Systems, BGP, Peering & Transit
 
@@ -4473,7 +4502,7 @@ Write the evidence for each letter. The first failed letter is where investigati
 
 
 
-[← Troubleshooting labs](md/networking/10-network-troubleshooting-labs.md) · [Bootcamp home](md/networking/index.md)
+[← Troubleshooting labs](10-network-troubleshooting-labs.md) · [Bootcamp home](../index.md)
 
 ## 1. One-page mental map
 

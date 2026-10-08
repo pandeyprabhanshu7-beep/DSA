@@ -1,0 +1,303 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</title><link rel="stylesheet" href="assets/site.css"></head><body><div class="layout"><aside><h2>Networking bootcamp</h2><input id="navSearch" aria-label="Filter chapter titles" placeholder="Filter chapters"><nav><a href="../index.html">AWS course home</a><a href="index.html">Chapter index</a><a href="00-networking-roadmap.html">Networking Bootcamp — Start Here</a><a href="01-layers-frames-packets-ports.html">Layers, Frames, Packets, Ports &amp; Encapsulation</a><a href="02-home-wifi-to-internet.html">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</a><a href="03-mobile-data-to-internet.html">Phone on Mobile Data → the Internet: 4G/5G Mental Model</a><a href="04-ip-subnetting-nat-cgnat.html">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</a><a href="05-routing-isp-bgp-peering.html">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a><a href="06-dns-tcp-tls-http.html">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</a><a href="07-ingress-egress-firewalls-dmz.html">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</a><a href="08-legacy-datacenter-networking.html">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</a><a href="09-aws-internet-vpc-packet-flow.html">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</a><a href="10-network-troubleshooting-labs.html">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</a><a href="11-networking-cheatsheet.html">Networking Cheat Sheet, Memory Map &amp; Interview Questions</a></nav></aside><main><div class="pager"><a href="04-ip-subnetting-nat-cgnat.html">← Previous chapter</a><a href="06-dns-tcp-tls-http.html">Next chapter →</a></div><article><details class="toc"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#routing-isps-autonomous-systems-bgp-peering-transit">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a><ul>
+<li><a href="#1-routing-in-one-sentence">1. Routing in one sentence</a></li>
+<li><a href="#2-the-routing-table-mental-model">2. The routing table mental model</a><ul>
+<li><a href="#longest-prefix-match">Longest prefix match</a></li>
+</ul>
+</li>
+<li><a href="#3-connected-static-default-and-dynamic-routes">3. Connected, static, default and dynamic routes</a><ul>
+<li><a href="#connected-route">Connected route</a></li>
+<li><a href="#static-route">Static route</a></li>
+<li><a href="#default-route">Default route</a></li>
+<li><a href="#dynamic-route">Dynamic route</a></li>
+</ul>
+</li>
+<li><a href="#4-why-you-do-not-put-the-whole-internet-into-a-home-router-manually">4. Why you do not put “the whole Internet” into a home router manually</a></li>
+<li><a href="#5-autonomous-systems-the-internet-as-organizations">5. Autonomous Systems: the Internet as organizations</a></li>
+<li><a href="#6-bgp-what-it-really-does">6. BGP: what it really does</a><ul>
+<li><a href="#do-not-memorize-this-wrong-sentence">Do not memorize this wrong sentence</a></li>
+</ul>
+</li>
+<li><a href="#7-bgp-simplified-example">7. BGP simplified example</a></li>
+<li><a href="#8-peering-vs-transit">8. Peering vs transit</a><ul>
+<li><a href="#peering">Peering</a></li>
+<li><a href="#transit">Transit</a></li>
+<li><a href="#why-this-matters">Why this matters</a></li>
+</ul>
+</li>
+<li><a href="#9-internet-exchange-point-ixp">9. Internet Exchange Point (IXP)</a></li>
+<li><a href="#10-interior-vs-exterior-routing">10. Interior vs exterior routing</a></li>
+<li><a href="#11-the-data-plane-vs-routingcontrol-plane">11. The data plane vs routing/control plane</a><ul>
+<li><a href="#control-plane">Control plane</a></li>
+<li><a href="#data-plane">Data plane</a></li>
+</ul>
+</li>
+<li><a href="#12-asymmetric-routing">12. Asymmetric routing</a></li>
+<li><a href="#13-ecmp-and-multiple-next-hops">13. ECMP and multiple next hops</a></li>
+<li><a href="#14-route-convergence-and-failures">14. Route convergence and failures</a></li>
+<li><a href="#15-ttlhop-limit-and-traceroute">15. TTL/Hop Limit and traceroute</a></li>
+<li><a href="#16-route-summarization">16. Route summarization</a></li>
+<li><a href="#17-legacy-enterprise-internet-edge">17. Legacy enterprise Internet edge</a></li>
+<li><a href="#18-aws-route-table-mapping">18. AWS route table mapping</a><ul>
+<li><a href="#public-subnet">Public subnet</a></li>
+<li><a href="#private-app-subnet">Private app subnet</a></li>
+</ul>
+</li>
+<li><a href="#19-transit-gateway-as-a-cloud-routing-hub">19. Transit Gateway as a cloud routing hub</a></li>
+<li><a href="#20-direct-connect-and-vpn-routing">20. Direct Connect and VPN routing</a><ul>
+<li><a href="#site-to-site-vpn">Site-to-Site VPN</a></li>
+<li><a href="#direct-connect">Direct Connect</a></li>
+</ul>
+</li>
+<li><a href="#21-bgp-failureattack-concepts-you-should-recognize">21. BGP failure/attack concepts you should recognize</a></li>
+<li><a href="#22-dry-run-where-does-this-packet-go">22. Dry run — where does this packet go?</a></li>
+<li><a href="#23-common-wrong-mental-models">23. Common wrong mental models</a></li>
+<li><a href="#24-best-internetaws-examples">24. Best Internet/AWS examples</a></li>
+<li><a href="#25-memory-trick">25. Memory trick</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="routing-isps-autonomous-systems-bgp-peering-transit">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</h1>
+<p><img alt="Internet routing and BGP" src="assets/diagrams/networking/05-routing-bgp.svg" /></p>
+<h2 id="1-routing-in-one-sentence">1. Routing in one sentence</h2>
+<blockquote>
+<p><strong>Routing is the process of selecting a next hop/interface for a packet based primarily on its destination IP prefix and the routes known to the device.</strong></p>
+</blockquote>
+<p>A router usually does not know the complete future path of one packet. It knows its own routing table and forwards to a next hop. The next router repeats the process.</p>
+<h2 id="2-the-routing-table-mental-model">2. The routing table mental model</h2>
+<p>Example:</p>
+<pre><code class="language-text">Destination          Next hop / target
+10.0.0.0/8           internal-router
+172.16.50.0/24       vpn-tunnel
+198.51.100.0/24      peer-A
+0.0.0.0/0            isp-default
+</code></pre>
+<p>For destination <code>198.51.100.25</code>, the <code>/24</code> route is more specific than <code>0.0.0.0/0</code>, so it wins.</p>
+<h3 id="longest-prefix-match">Longest prefix match</h3>
+<p>This principle appears everywhere:</p>
+<ul>
+<li>host routing tables,</li>
+<li>enterprise routers,</li>
+<li>AWS VPC route tables,</li>
+<li>Transit Gateway route tables.</li>
+</ul>
+<p>AWS explicitly documents most-specific/longest-prefix matching as the normal route-selection behavior before additional route-priority rules.</p>
+<h2 id="3-connected-static-default-and-dynamic-routes">3. Connected, static, default and dynamic routes</h2>
+<h3 id="connected-route">Connected route</h3>
+<p>A network is directly attached to an interface.</p>
+<h3 id="static-route">Static route</h3>
+<p>An administrator explicitly configures destination -&gt; next hop.</p>
+<h3 id="default-route">Default route</h3>
+<p>Catch-all route such as:</p>
+<pre><code class="language-text">0.0.0.0/0 -&gt; ISP
+::/0      -&gt; IPv6 upstream
+</code></pre>
+<h3 id="dynamic-route">Dynamic route</h3>
+<p>A routing protocol learns reachability from other routers and installs/selects routes according to protocol rules/policy.</p>
+<p>Examples in enterprises include OSPF, IS-IS, BGP; exact usage varies.</p>
+<h2 id="4-why-you-do-not-put-the-whole-internet-into-a-home-router-manually">4. Why you do not put “the whole Internet” into a home router manually</h2>
+<p>A home router normally sends unknown destinations to its ISP via a default route. The ISP participates in much larger routing systems and knows many prefixes.</p>
+<pre><code class="language-text">Laptop: “not local -&gt; gateway”
+Home router: “not local -&gt; ISP”
+ISP edge/core: “this prefix -&gt; this backbone/peer/transit path”
+Destination AS: “this prefix is mine -&gt; deliver internally”
+</code></pre>
+<p>Each device only needs the level of routing knowledge appropriate to its role.</p>
+<h2 id="5-autonomous-systems-the-internet-as-organizations">5. Autonomous Systems: the Internet as organizations</h2>
+<p>An <strong>Autonomous System (AS)</strong> is a routing domain under common administrative control that presents routing policy to other networks. ISPs, cloud providers, CDNs, large enterprises, universities, and carriers can operate ASes.</p>
+<p>Each participating AS can use an Autonomous System Number (ASN) for external BGP routing.</p>
+<p>Think:</p>
+<pre><code class="language-text">Internet = many ASes + links + agreements + routing policy
+</code></pre>
+<p>not:</p>
+<pre><code class="language-text">Internet = one company/router hierarchy
+</code></pre>
+<h2 id="6-bgp-what-it-really-does">6. BGP: what it really does</h2>
+<p>Border Gateway Protocol exchanges reachability information for IP prefixes between routing domains and applies policy to choose/advertise paths.</p>
+<p>Cloudflare's BGP learning material describes the Internet as many autonomous systems exchanging routes, and correctly notes that route choice can include business/policy considerations rather than merely geographic distance.</p>
+<h3 id="do-not-memorize-this-wrong-sentence">Do not memorize this wrong sentence</h3>
+<blockquote>
+<p>“BGP chooses the shortest path.”</p>
+</blockquote>
+<p>Better:</p>
+<blockquote>
+<p><strong>BGP chooses a best path according to attributes and operator policy. AS-path length can matter, but it is not the only consideration.</strong></p>
+</blockquote>
+<h2 id="7-bgp-simplified-example">7. BGP simplified example</h2>
+<p>Suppose AS65010 owns:</p>
+<pre><code class="language-text">198.51.100.0/24
+</code></pre>
+<p>It advertises that prefix to two upstream networks:</p>
+<pre><code class="language-text">           ISP A (AS65001)
+          /
+AS65010 --
+          \
+           ISP B (AS65002)
+</code></pre>
+<p>Other networks learn one or more possible AS paths. Their policies determine which path becomes preferred for forwarding toward that prefix.</p>
+<h2 id="8-peering-vs-transit">8. Peering vs transit</h2>
+<h3 id="peering">Peering</h3>
+<p>Networks exchange traffic directly, typically for their own/customer routes according to policy/agreement.</p>
+<h3 id="transit">Transit</h3>
+<p>A customer network pays an upstream provider for broader/global Internet reachability.</p>
+<h3 id="why-this-matters">Why this matters</h3>
+<p>Two companies in the same city may send traffic through a distant path if they lack direct peering or policy selects another route. A CDN invests heavily in peering/edge presence to bring content closer in network terms.</p>
+<h2 id="9-internet-exchange-point-ixp">9. Internet Exchange Point (IXP)</h2>
+<p>An IXP is shared interconnection infrastructure where multiple networks can connect and exchange traffic. It reduces the need for a unique physical circuit between every pair of networks.</p>
+<p>Conceptually:</p>
+<pre><code class="language-text">ISP A ---+
+CDN   ---+--- IXP switching fabric
+Cloud ---+
+ISP B ---+
+</code></pre>
+<p>BGP sessions and policy determine what routes/traffic are exchanged.</p>
+<h2 id="10-interior-vs-exterior-routing">10. Interior vs exterior routing</h2>
+<p>A large ISP can use one set of protocols/technologies internally and BGP externally.</p>
+<pre><code class="language-text">inside AS:  IGP / MPLS / segment routing / iBGP design
+between AS: eBGP at boundaries
+</code></pre>
+<p>You do not need to master carrier architecture for AWS, but this prevents the misconception that every Internet router talks eBGP directly to every other router.</p>
+<h2 id="11-the-data-plane-vs-routingcontrol-plane">11. The data plane vs routing/control plane</h2>
+<h3 id="control-plane">Control plane</h3>
+<p>Learns/selects routes, runs routing protocols, builds forwarding state.</p>
+<h3 id="data-plane">Data plane</h3>
+<p>Forwards actual packets using that state.</p>
+<p>This is analogous to cloud control plane vs packet data path:</p>
+<pre><code class="language-text">AWS API: configure route table
+VPC data plane: forward packets according to route table
+</code></pre>
+<h2 id="12-asymmetric-routing">12. Asymmetric routing</h2>
+<p>The forward and return path may differ:</p>
+<pre><code class="language-text">Client -&gt; ISP A -&gt; Transit X -&gt; Server
+Server -&gt; Peer Y -&gt; ISP B -&gt; Client
+</code></pre>
+<p>The Internet does not promise symmetric hop-by-hop paths.</p>
+<p>Why it matters:</p>
+<ul>
+<li>stateful middleboxes often need both directions,</li>
+<li>on-prem firewalls can drop return traffic if it bypasses the expected appliance,</li>
+<li>AWS Network Firewall stateful inspection requires correct/symmetric routing through inspection endpoints for flows being inspected.</li>
+</ul>
+<h2 id="13-ecmp-and-multiple-next-hops">13. ECMP and multiple next hops</h2>
+<p>Networks can use multiple equal-cost paths to distribute traffic. Hashing may keep packets of a flow on a consistent path while different flows use different paths.</p>
+<p>Do not assume one traceroute run represents every flow or every moment.</p>
+<h2 id="14-route-convergence-and-failures">14. Route convergence and failures</h2>
+<p>If a link/router disappears, routing systems need time to detect the failure and select/propagate alternatives. During convergence, packets can be lost or paths can change.</p>
+<p>High availability therefore involves more than owning two circuits; you must design:</p>
+<ul>
+<li>route advertisement,</li>
+<li>failure detection,</li>
+<li>policy,</li>
+<li>stateful firewall symmetry,</li>
+<li>DNS/app failover behavior,</li>
+<li>capacity on surviving paths.</li>
+</ul>
+<h2 id="15-ttlhop-limit-and-traceroute">15. TTL/Hop Limit and traceroute</h2>
+<p>IPv4 TTL / IPv6 Hop Limit decreases as routers forward packets. <code>traceroute</code> exploits expiration behavior to infer hops by sending probes with increasing limits.</p>
+<p>But traceroute is not a perfect truth source:</p>
+<ul>
+<li>routers can filter diagnostic responses,</li>
+<li>MPLS/tunnels can hide details,</li>
+<li>asymmetric paths can differ,</li>
+<li>load balancing can show varying hops,</li>
+<li>asterisks do not necessarily mean forwarding is broken.</li>
+</ul>
+<h2 id="16-route-summarization">16. Route summarization</h2>
+<p>Instead of advertising hundreds of small prefixes individually, networks can aggregate contiguous ranges where design permits.</p>
+<p>Example:</p>
+<pre><code class="language-text">10.20.0.0/24
+10.20.1.0/24
+...
+10.20.255.0/24
+</code></pre>
+<p>can potentially be represented as:</p>
+<pre><code class="language-text">10.20.0.0/16
+</code></pre>
+<p>Summarization reduces routing-state complexity but can create blackholes if the summary is advertised where some subranges are not actually reachable.</p>
+<h2 id="17-legacy-enterprise-internet-edge">17. Legacy enterprise Internet edge</h2>
+<p>A serious enterprise might have:</p>
+<pre><code class="language-text">             ISP A
+               |
+          Edge Router A
+             /   \
+LAN/DMZ -- Firewall pair
+             \   /
+          Edge Router B
+               |
+             ISP B
+</code></pre>
+<p>BGP can advertise enterprise-owned public prefixes to multiple ISPs. Firewalls/NAT sit in or near the path. Redundancy protocols, routing policy, and failover behavior must all agree.</p>
+<p>For smaller companies, the provider may simply assign addresses/default routes without the enterprise running public BGP.</p>
+<h2 id="18-aws-route-table-mapping">18. AWS route table mapping</h2>
+<p>AWS VPC route table example:</p>
+<pre><code class="language-text">10.0.0.0/16    local
+10.50.0.0/16   tgw-1234
+0.0.0.0/0      nat-1234
+</code></pre>
+<p>For destination <code>10.50.2.8</code>, the <code>/16</code> Transit Gateway route is more specific than the default NAT route.</p>
+<h3 id="public-subnet">Public subnet</h3>
+<pre><code class="language-text">10.0.0.0/16    local
+0.0.0.0/0      igw-1234
+</code></pre>
+<h3 id="private-app-subnet">Private app subnet</h3>
+<pre><code class="language-text">10.0.0.0/16    local
+0.0.0.0/0      nat-az-a
+</code></pre>
+<p>The route table does not itself grant firewall permission; route and policy are separate questions.</p>
+<h2 id="19-transit-gateway-as-a-cloud-routing-hub">19. Transit Gateway as a cloud routing hub</h2>
+<p>When dozens/hundreds of VPCs and on-prem connections exist, full-mesh VPC peering becomes operationally difficult. Transit Gateway provides a regional transit hub with attachments and its own route tables/segmentation model.</p>
+<p>Legacy analogy:</p>
+<pre><code class="language-text">WAN/core router hub  &lt;-&gt; Transit Gateway
+</code></pre>
+<p>But remember it is a managed cloud service with AWS-specific attachment and routing semantics, not a virtual Cisco CLI box.</p>
+<h2 id="20-direct-connect-and-vpn-routing">20. Direct Connect and VPN routing</h2>
+<h3 id="site-to-site-vpn">Site-to-Site VPN</h3>
+<p>Encrypted IPsec tunnels over Internet connectivity. Routes can be static or dynamically exchanged with BGP depending on setup.</p>
+<h3 id="direct-connect">Direct Connect</h3>
+<p>Dedicated/private connectivity from your network through a Direct Connect location/provider arrangement into AWS connectivity constructs. BGP is used for route exchange on virtual interfaces.</p>
+<p>Common hybrid design uses Direct Connect as primary with VPN backup, but actual topology, failure domains, bandwidth, and route preference need explicit design/testing.</p>
+<h2 id="21-bgp-failureattack-concepts-you-should-recognize">21. BGP failure/attack concepts you should recognize</h2>
+<p>Because BGP is trust/policy-heavy, route leaks and hijacks can send traffic to unexpected networks. Operators mitigate with mechanisms such as route filtering, prefix limits, and RPKI-based Route Origin Validation where deployed.</p>
+<p>You do not need to become an Internet routing security specialist to understand the lesson:</p>
+<blockquote>
+<p><strong>DNS security and TLS are not substitutes for correct routing security, and routing security is not a substitute for end-to-end application authentication/encryption. They protect different layers.</strong></p>
+</blockquote>
+<h2 id="22-dry-run-where-does-this-packet-go">22. Dry run — where does this packet go?</h2>
+<p>Routes:</p>
+<pre><code class="language-text">0.0.0.0/0        -&gt; Internet
+10.0.0.0/8       -&gt; Corporate WAN
+10.20.0.0/16     -&gt; Site B
+10.20.30.0/24    -&gt; Inspection firewall
+10.20.30.50/32   -&gt; Emergency host route
+</code></pre>
+<p>Destinations:</p>
+<pre><code class="language-text">8.8.8.8       -&gt; /0 Internet
+10.99.1.2     -&gt; /8 Corporate WAN
+10.20.9.9     -&gt; /16 Site B
+10.20.30.88   -&gt; /24 Inspection firewall
+10.20.30.50   -&gt; /32 Emergency host route
+</code></pre>
+<p>Always choose the most specific matching prefix first.</p>
+<h2 id="23-common-wrong-mental-models">23. Common wrong mental models</h2>
+<ul>
+<li>“Default route means Internet.” It means <strong>catch-all next hop</strong>; that next hop could be a firewall, VPN, TGW, or blackhole.</li>
+<li>“BGP knows application ports.” Normal IP route selection is prefix/policy based, not HTTP endpoint based.- “More hops always means slower.” Physical distance, congestion, link capacity, queuing, and processing matter too.</li>
+<li>“Traceroute shows the exact packet path.” It is a diagnostic approximation.</li>
+<li>“Two links means HA.” Routing/failover/state/capacity design decides HA.</li>
+</ul>
+<h2 id="24-best-internetaws-examples">24. Best Internet/AWS examples</h2>
+<ul>
+<li>Cloudflare BGP explanation: https://www.cloudflare.com/learning/security/glossary/what-is-bgp/</li>
+<li>AWS VPC route priority / longest-prefix match: https://docs.aws.amazon.com/vpc/latest/userguide/route-tables-priority.html</li>
+<li>AWS Transit Gateway: https://docs.aws.amazon.com/vpc/latest/tgw/what-is-transit-gateway.html</li>
+<li>AWS VPN routing: https://docs.aws.amazon.com/vpn/latest/s2svpn/VPNRoutingTypes.html</li>
+<li>AWS Direct Connect: https://docs.aws.amazon.com/directconnect/latest/UserGuide/Welcome.html</li>
+</ul>
+<h2 id="25-memory-trick">25. Memory trick</h2>
+<blockquote>
+<p><strong>Prefix tells where; route tells next hop; BGP tells networks what prefixes are reachable under policy.</strong></p>
+</blockquote>
+<hr />
+<p><a href="04-ip-subnetting-nat-cgnat.html">← Previous</a> · <a href="index.html">Chapter index</a> · <a href="06-dns-tcp-tls-http.html">Next →</a></p></article><div class="pager"><a href="04-ip-subnetting-nat-cgnat.html">← Previous chapter</a><a href="06-dns-tcp-tls-http.html">Next chapter →</a></div></main></div><script src="assets/site.js"></script></body></html>

@@ -1,0 +1,394 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</title><link rel="stylesheet" href="assets/site.css"></head><body><div class="layout"><aside><h2>Networking bootcamp</h2><input id="navSearch" aria-label="Filter chapter titles" placeholder="Filter chapters"><nav><a href="../index.html">AWS course home</a><a href="index.html">Chapter index</a><a href="00-networking-roadmap.html">Networking Bootcamp — Start Here</a><a href="01-layers-frames-packets-ports.html">Layers, Frames, Packets, Ports &amp; Encapsulation</a><a href="02-home-wifi-to-internet.html">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</a><a href="03-mobile-data-to-internet.html">Phone on Mobile Data → the Internet: 4G/5G Mental Model</a><a href="04-ip-subnetting-nat-cgnat.html">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</a><a href="05-routing-isp-bgp-peering.html">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a><a href="06-dns-tcp-tls-http.html">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</a><a href="07-ingress-egress-firewalls-dmz.html">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</a><a href="08-legacy-datacenter-networking.html">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</a><a href="09-aws-internet-vpc-packet-flow.html">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</a><a href="10-network-troubleshooting-labs.html">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</a><a href="11-networking-cheatsheet.html">Networking Cheat Sheet, Memory Map &amp; Interview Questions</a></nav></aside><main><div class="pager"><a href="05-routing-isp-bgp-peering.html">← Previous chapter</a><a href="07-ingress-egress-firewalls-dmz.html">Next chapter →</a></div><article><details class="toc"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#dns-routing-tcpquic-tls-http-a-browser-request-in-time-order">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</a><ul>
+<li><a href="#1-the-mistake-this-lecture-fixes">1. The mistake this lecture fixes</a></li>
+<li><a href="#2-scenario">2. Scenario</a></li>
+<li><a href="#3-url-anatomy">3. URL anatomy</a></li>
+<li><a href="#4-dns-the-naming-layer">4. DNS: the naming layer</a></li>
+<li><a href="#5-caching-changes-what-you-observe">5. Caching changes what you observe</a><ul>
+<li><a href="#debugging-commands">Debugging commands</a></li>
+</ul>
+</li>
+<li><a href="#6-dns-can-return-different-answers-to-different-users">6. DNS can return different answers to different users</a></li>
+<li><a href="#7-aws-dns-mapping">7. AWS DNS mapping</a><ul>
+<li><a href="#route-53-authoritative-dns">Route 53 authoritative DNS</a></li>
+<li><a href="#vpc-resolver">VPC Resolver</a></li>
+<li><a href="#route-53-resolver-endpointsrules">Route 53 Resolver endpoints/rules</a></li>
+</ul>
+</li>
+<li><a href="#8-after-dns-choose-a-route-to-the-returned-ip">8. After DNS: choose a route to the returned IP</a></li>
+<li><a href="#9-tcp-handshake">9. TCP handshake</a><ul>
+<li><a href="#common-outcomes">Common outcomes</a><ul>
+<li><a href="#connection-timeout">Connection timeout</a></li>
+<li><a href="#connection-refused">Connection refused</a></li>
+<li><a href="#immediate-icmp-unreachable">Immediate ICMP unreachable</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#10-tcp-source-and-destination-ports">10. TCP source and destination ports</a></li>
+<li><a href="#11-tcp-reliability-at-beginner-level">11. TCP reliability at beginner level</a></li>
+<li><a href="#12-tls-identity-confidentiality-integrity">12. TLS: identity + confidentiality + integrity</a></li>
+<li><a href="#13-certificate-hostname-validation">13. Certificate hostname validation</a></li>
+<li><a href="#14-sni-one-ip-can-serve-many-tls-hostnames">14. SNI: one IP can serve many TLS hostnames</a></li>
+<li><a href="#15-http-finally-application-semantics">15. HTTP: finally, application semantics</a></li>
+<li><a href="#16-one-browser-page-creates-many-dependency-flows">16. One browser page creates many dependency flows</a></li>
+<li><a href="#17-http2-and-http3-mental-model">17. HTTP/2 and HTTP/3 mental model</a><ul>
+<li><a href="#http2">HTTP/2</a></li>
+<li><a href="#http3">HTTP/3</a></li>
+</ul>
+</li>
+<li><a href="#18-proxy-and-load-balancer-connection-boundaries">18. Proxy and load balancer connection boundaries</a></li>
+<li><a href="#19-tls-termination-patterns">19. TLS termination patterns</a><ul>
+<li><a href="#at-edgecdn">At edge/CDN</a></li>
+<li><a href="#at-alb">At ALB</a></li>
+<li><a href="#pass-through-to-server">Pass-through to server</a></li>
+</ul>
+</li>
+<li><a href="#20-dns-vs-load-balancing">20. DNS vs load balancing</a></li>
+<li><a href="#21-packet-walk-with-state-table">21. Packet walk with state table</a></li>
+<li><a href="#22-practical-debugging-commands">22. Practical debugging commands</a></li>
+<li><a href="#23-aws-example-browser-to-private-app-tier">23. AWS example: browser to private app tier</a></li>
+<li><a href="#24-best-references">24. Best references</a></li>
+<li><a href="#25-memory-trick">25. Memory trick</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="dns-routing-tcpquic-tls-http-a-browser-request-in-time-order">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</h1>
+<p><img alt="DNS TCP TLS HTTP flow" src="assets/diagrams/networking/06-dns-tcp-tls-http.svg" /></p>
+<h2 id="1-the-mistake-this-lecture-fixes">1. The mistake this lecture fixes</h2>
+<p>When someone says “the website is down,” at least five different systems may be failing:</p>
+<pre><code class="language-text">Name resolution
+IP routing
+transport connection
+TLS/security negotiation
+HTTP/application behavior
+</code></pre>
+<p>A good engineer identifies <strong>which stage failed</strong> before changing anything.</p>
+<h2 id="2-scenario">2. Scenario</h2>
+<p>You enter:</p>
+<pre><code class="language-text">https://api.example.com/orders?id=42
+</code></pre>
+<p>Assume DNS eventually returns:</p>
+<pre><code class="language-text">api.example.com -&gt; 198.51.100.20
+</code></pre>
+<p>We will trace the request from name to application response.</p>
+<h2 id="3-url-anatomy">3. URL anatomy</h2>
+<pre><code class="language-text">https://api.example.com:443/orders?id=42
+|       |                |   |
+scheme  hostname         port path/query
+</code></pre>
+<p>The port is often implicit:</p>
+<pre><code class="language-text">HTTP  -&gt; 80 by convention
+HTTPS -&gt; 443 by convention
+</code></pre>
+<p>The hostname participates in DNS and TLS/HTTP behavior. It is not interchangeable with the IP address.</p>
+<h2 id="4-dns-the-naming-layer">4. DNS: the naming layer</h2>
+<p>DNS translates names to records. For web access, A records can provide IPv4 addresses and AAAA records IPv6 addresses. CNAME and alias-style provider records can add indirection.</p>
+<p>A full uncached conceptual lookup:</p>
+<pre><code class="language-text">Browser/OS stub
+    |
+    v
+Recursive resolver
+    |
+    +--&gt; Root server: “who handles .com?”
+    |
+    +--&gt; .com TLD: “who is authoritative for example.com?”
+    |
+    +--&gt; authoritative nameserver: “what is api.example.com?”
+    |
+    v
+Answer cached and returned to client
+</code></pre>
+<p>Cloudflare's DNS tutorial uses this same resolver → root → TLD → authoritative mental model.</p>
+<h2 id="5-caching-changes-what-you-observe">5. Caching changes what you observe</h2>
+<p>The answer might already be cached in:</p>
+<ul>
+<li>browser/application cache,</li>
+<li>OS stub resolver/cache,</li>
+<li>local router/enterprise DNS,</li>
+<li>recursive resolver.</li>
+</ul>
+<p>Therefore, changing a DNS record does not guarantee every client sees the new value immediately. TTLs and negative caching matter.</p>
+<h3 id="debugging-commands">Debugging commands</h3>
+<pre><code class="language-bash">nslookup api.example.com
+dig api.example.com A
+dig api.example.com AAAA
+dig +trace example.com
+</code></pre>
+<p><code>+trace</code> is a useful learning tool but differs from a normal recursive lookup path.</p>
+<h2 id="6-dns-can-return-different-answers-to-different-users">6. DNS can return different answers to different users</h2>
+<p>Reasons include:</p>
+<ul>
+<li>CDN/geo/latency routing,</li>
+<li>weighted routing,</li>
+<li>health-based failover,</li>
+<li>split-horizon/private DNS,</li>
+<li>IPv4 vs IPv6,</li>
+<li>resolver geography,</li>
+<li>cached older answer.</li>
+</ul>
+<p>So “it resolves for me” does not prove another user's DNS path is identical.</p>
+<h2 id="7-aws-dns-mapping">7. AWS DNS mapping</h2>
+<h3 id="route-53-authoritative-dns">Route 53 authoritative DNS</h3>
+<p>Hosts public/private DNS zones and routing policies.</p>
+<h3 id="vpc-resolver">VPC Resolver</h3>
+<p>AWS provides a DNS resolver to VPC resources. Current AWS docs describe the VPC Resolver/AmazonProvidedDNS as integrated into each AZ and reachable via special addresses including the VPC base + 2 IPv4 address and link-local resolver addresses.</p>
+<h3 id="route-53-resolver-endpointsrules">Route 53 Resolver endpoints/rules</h3>
+<p>Used to integrate VPC DNS with on-premises DNS systems for hybrid resolution.</p>
+<p>A common hybrid failure:</p>
+<pre><code class="language-text">EC2 can route to on-prem network
+BUT
+internal.corp does not resolve
+</code></pre>
+<p>The route is fine; DNS forwarding/rules are wrong.</p>
+<h2 id="8-after-dns-choose-a-route-to-the-returned-ip">8. After DNS: choose a route to the returned IP</h2>
+<p>Suppose answer is <code>198.51.100.20</code>. The host routing table decides where the packet should go.</p>
+<p>Typical home host:</p>
+<pre><code class="language-text">192.168.1.0/24 -&gt; local
+0.0.0.0/0      -&gt; 192.168.1.1
+</code></pre>
+<p>The host does not ask DNS for a router. DNS answered the name question; the routing table answers the next-hop question.</p>
+<h2 id="9-tcp-handshake">9. TCP handshake</h2>
+<p>For classic HTTPS over TCP:</p>
+<pre><code class="language-text">Client                                  Server
+51514 -&gt; 443   SYN --------------------&gt;
+               &lt;---------------- SYN/ACK
+               ACK --------------------&gt;
+</code></pre>
+<p>After this, both endpoints have connection state.</p>
+<h3 id="common-outcomes">Common outcomes</h3>
+<h4 id="connection-timeout">Connection timeout</h4>
+<p>Possible causes:</p>
+<ul>
+<li>route missing/blackhole,</li>
+<li>firewall silently drops,</li>
+<li>destination down,</li>
+<li>load balancer has no reachable path,</li>
+<li>return route missing,</li>
+<li>severe network loss.</li>
+</ul>
+<h4 id="connection-refused">Connection refused</h4>
+<p>Often means the destination path is reachable and something actively rejected the connection—commonly no process is listening on that port or a device sent a reset.</p>
+<h4 id="immediate-icmp-unreachable">Immediate ICMP unreachable</h4>
+<p>A router/host is explicitly reporting a reachability problem.</p>
+<p>The exact interpretation depends on environment, but these symptoms are more informative than “network issue.”</p>
+<h2 id="10-tcp-source-and-destination-ports">10. TCP source and destination ports</h2>
+<pre><code class="language-text">client 192.168.1.25:51514
+server 198.51.100.20:443
+</code></pre>
+<p>The server does <strong>not</strong> respond to destination port 443 on the client. It responds to the client's ephemeral port:</p>
+<pre><code class="language-text">server 198.51.100.20:443
+ -&gt; client 192.168.1.25:51514
+</code></pre>
+<p>This is why a stateful firewall can allow an outbound connection and automatically allow its response without a blanket inbound rule for port 443 on the client.</p>
+<h2 id="11-tcp-reliability-at-beginner-level">11. TCP reliability at beginner level</h2>
+<p>TCP numbers bytes, acknowledges received data, retransmits missing data, and implements flow/congestion control. It makes a lossy packet network look like a reliable ordered byte stream to the application under normal conditions.</p>
+<p>But TCP cannot fix:</p>
+<ul>
+<li>a dead destination,</li>
+<li>permanent firewall blocks,</li>
+<li>application protocol bugs,</li>
+<li>excessive latency beyond application timeouts.</li>
+</ul>
+<h2 id="12-tls-identity-confidentiality-integrity">12. TLS: identity + confidentiality + integrity</h2>
+<p>After TCP is available, HTTPS performs TLS negotiation.</p>
+<p>Modern TLS conceptually accomplishes:</p>
+<ol>
+<li>agree on protocol/cryptographic parameters,</li>
+<li>authenticate the server using its certificate/private-key proof and trust chain,</li>
+<li>derive shared session keys,</li>
+<li>protect subsequent application data with symmetric cryptography.</li>
+</ol>
+<p>Cloudflare's TLS explanation notes that TLS handshakes authenticate, negotiate algorithms, and establish session keys; TLS 1.3 reduces handshake complexity compared with older versions.</p>
+<h2 id="13-certificate-hostname-validation">13. Certificate hostname validation</h2>
+<p>If you request:</p>
+<pre><code class="language-text">https://api.example.com
+</code></pre>
+<p>the certificate needs to be valid for that hostname according to certificate rules. Connecting directly to the raw IP can produce a certificate/name mismatch even when routing and TCP work.</p>
+<p>This is a frequent mistake when testing ALB/CloudFront/custom domains.</p>
+<h2 id="14-sni-one-ip-can-serve-many-tls-hostnames">14. SNI: one IP can serve many TLS hostnames</h2>
+<p>Server Name Indication lets a client indicate the intended hostname during TLS negotiation so a shared endpoint can select an appropriate certificate/configuration.</p>
+<p>This helps explain how CDNs/load balancers host many domains behind shared edge addresses.</p>
+<h2 id="15-http-finally-application-semantics">15. HTTP: finally, application semantics</h2>
+<p>After the secure channel exists:</p>
+<pre><code class="language-http">GET /orders?id=42 HTTP/1.1
+Host: api.example.com
+Authorization: Bearer ...
+</code></pre>
+<p>Possible responses:</p>
+<pre><code class="language-text">200 OK        application succeeded
+301/302       redirect
+400           malformed/client request issue
+401           authentication required/failed
+403           understood but not permitted/policy block
+404           route/resource not found
+429           rate limit/throttling
+500           application/server error
+502/503/504   proxy/upstream/unavailable/timeout patterns
+</code></pre>
+<p>Do not map every 5xx to “network.” A load balancer can have perfect network connectivity to the client and still return 503 because no targets are healthy.</p>
+<h2 id="16-one-browser-page-creates-many-dependency-flows">16. One browser page creates many dependency flows</h2>
+<p>HTML may reference:</p>
+<pre><code class="language-text">CSS from CDN A
+JavaScript from CDN B
+fonts from provider C
+images from object storage/CDN
+API calls to api.example.com
+analytics endpoint
+identity provider
+</code></pre>
+<p>Thus:</p>
+<pre><code class="language-text">“homepage HTML returned” != “page fully works”
+</code></pre>
+<p>Use browser developer tools/network waterfall to identify which dependent hostname/request failed.</p>
+<h2 id="17-http2-and-http3-mental-model">17. HTTP/2 and HTTP/3 mental model</h2>
+<h3 id="http2">HTTP/2</h3>
+<p>Typically runs over one TCP/TLS connection and multiplexes streams, reducing some connection overhead compared with older HTTP/1.1 usage patterns.</p>
+<h3 id="http3">HTTP/3</h3>
+<p>Runs over QUIC on UDP. QUIC integrates cryptographic/transport behavior and supports multiplexed streams without TCP's exact head-of-line behavior across all streams.</p>
+<p>For troubleshooting, remember that “HTTPS” traffic may not always be TCP/443; HTTP/3 commonly uses QUIC/UDP on port 443.</p>
+<h2 id="18-proxy-and-load-balancer-connection-boundaries">18. Proxy and load balancer connection boundaries</h2>
+<p>A reverse proxy/load balancer can terminate one client connection and create a different backend connection:</p>
+<pre><code class="language-text">Client --TLS/TCP--&gt; ALB --HTTP/TCP or HTTPS/TCP--&gt; app target
+</code></pre>
+<p>Therefore there can be two distinct failures:</p>
+<ul>
+<li>client ↔ load balancer,</li>
+<li>load balancer ↔ target.</li>
+</ul>
+<p>Logs/metrics and health checks help identify which boundary is broken.</p>
+<h2 id="19-tls-termination-patterns">19. TLS termination patterns</h2>
+<h3 id="at-edgecdn">At edge/CDN</h3>
+<pre><code class="language-text">Client TLS -&gt; CloudFront
+CloudFront -&gt; origin connection
+</code></pre>
+<h3 id="at-alb">At ALB</h3>
+<pre><code class="language-text">Client TLS -&gt; ALB :443
+ALB -&gt; app :8080 or :443
+</code></pre>
+<h3 id="pass-through-to-server">Pass-through to server</h3>
+<p>Layer-4 designs can forward encrypted traffic without terminating it at that intermediate layer.</p>
+<p>Each pattern changes:</p>
+<ul>
+<li>certificate ownership,</li>
+<li>visibility for WAF/L7 routing,</li>
+<li>client IP propagation method,</li>
+<li>backend encryption,</li>
+<li>troubleshooting evidence.</li>
+</ul>
+<h2 id="20-dns-vs-load-balancing">20. DNS vs load balancing</h2>
+<p>DNS can return endpoint addresses, but DNS itself does not continuously proxy the connection.</p>
+<p>Example:</p>
+<pre><code class="language-text">Route 53 -&gt; returns ALB name/address mapping
+Client -&gt; directly establishes connection to ALB endpoint
+</code></pre>
+<p>This is why DNS TTL and load-balancer health are different layers.</p>
+<h2 id="21-packet-walk-with-state-table">21. Packet walk with state table</h2>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Source → destination</th>
+<th>What was solved?</th>
+<th>Best evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DNS</td>
+<td>client → resolver</td>
+<td>hostname → record</td>
+<td><code>dig</code>, resolver logs</td>
+</tr>
+<tr>
+<td>route</td>
+<td>client/router</td>
+<td>next hop</td>
+<td>route table, traceroute</td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>client ephemeral → 443</td>
+<td>transport session</td>
+<td><code>nc</code>, SYN/SYN-ACK capture</td>
+</tr>
+<tr>
+<td>TLS</td>
+<td>client ↔ TLS endpoint</td>
+<td>encryption + server identity</td>
+<td><code>openssl s_client</code>, <code>curl -v</code></td>
+</tr>
+<tr>
+<td>HTTP</td>
+<td>browser → web endpoint</td>
+<td>app request</td>
+<td>access logs/status/body</td>
+</tr>
+<tr>
+<td>backend</td>
+<td>LB/proxy → target</td>
+<td>upstream request</td>
+<td>LB logs, target logs/metrics</td>
+</tr>
+</tbody>
+</table>
+<h2 id="22-practical-debugging-commands">22. Practical debugging commands</h2>
+<pre><code class="language-bash"># DNS
+dig api.example.com
+
+# Does TCP 443 open?
+nc -vz api.example.com 443
+
+# Observe TLS and HTTP
+curl -v https://api.example.com/
+
+# Inspect certificate/TLS
+openssl s_client -connect api.example.com:443 -servername api.example.com
+
+# Route/hops
+traceroute api.example.com
+# or Windows: tracert
+</code></pre>
+<p>Use these only against systems/networks where you are authorized to test.</p>
+<h2 id="23-aws-example-browser-to-private-app-tier">23. AWS example: browser to private app tier</h2>
+<pre><code class="language-text">Browser
+  ↓ DNS
+Route 53
+  ↓
+CloudFront/WAF (optional)
+  ↓ TLS/HTTP
+ALB :443
+  ↓ target selection
+App :8080 in private subnet
+  ↓
+RDS :5432
+</code></pre>
+<p>Debug each boundary independently:</p>
+<pre><code class="language-text">DNS correct?
+CloudFront origin healthy?
+ALB listener/certificate?
+ALB SG to app SG?
+target group health?
+app listening 8080?
+app SG to DB SG 5432?
+DB connection/auth?
+</code></pre>
+<h2 id="24-best-references">24. Best references</h2>
+<ul>
+<li>Cloudflare DNS: https://www.cloudflare.com/learning/dns/what-is-dns/</li>
+<li>Cloudflare recursive DNS: https://www.cloudflare.com/learning/dns/what-is-recursive-dns/</li>
+<li>Cloudflare TLS handshake: https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/</li>
+<li>AWS VPC Resolver: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resolver.html</li>
+<li>AWS Amazon DNS concepts: https://docs.aws.amazon.com/vpc/latest/userguide/AmazonDNS-concepts.html</li>
+</ul>
+<h2 id="25-memory-trick">25. Memory trick</h2>
+<blockquote>
+<p><strong>Resolve → Route → Connect → Encrypt → Request.</strong></p>
+</blockquote>
+<pre><code class="language-text">DNS -&gt; IP route -&gt; TCP/QUIC -&gt; TLS -&gt; HTTP
+</code></pre>
+<p>When debugging, identify the first arrow that fails.</p>
+<hr />
+<p><a href="05-routing-isp-bgp-peering.html">← Previous</a> · <a href="index.html">Chapter index</a> · <a href="07-ingress-egress-firewalls-dmz.html">Next →</a></p></article><div class="pager"><a href="05-routing-isp-bgp-peering.html">← Previous chapter</a><a href="07-ingress-egress-firewalls-dmz.html">Next chapter →</a></div></main></div><script src="assets/site.js"></script></body></html>

@@ -1,0 +1,398 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</title><link rel="stylesheet" href="assets/site.css"></head><body><div class="layout"><aside><h2>Networking bootcamp</h2><input id="navSearch" aria-label="Filter chapter titles" placeholder="Filter chapters"><nav><a href="../index.html">AWS course home</a><a href="index.html">Chapter index</a><a href="00-networking-roadmap.html">Networking Bootcamp — Start Here</a><a href="01-layers-frames-packets-ports.html">Layers, Frames, Packets, Ports &amp; Encapsulation</a><a href="02-home-wifi-to-internet.html">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</a><a href="03-mobile-data-to-internet.html">Phone on Mobile Data → the Internet: 4G/5G Mental Model</a><a href="04-ip-subnetting-nat-cgnat.html">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</a><a href="05-routing-isp-bgp-peering.html">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a><a href="06-dns-tcp-tls-http.html">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</a><a href="07-ingress-egress-firewalls-dmz.html">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</a><a href="08-legacy-datacenter-networking.html">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</a><a href="09-aws-internet-vpc-packet-flow.html">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</a><a href="10-network-troubleshooting-labs.html">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</a><a href="11-networking-cheatsheet.html">Networking Cheat Sheet, Memory Map &amp; Interview Questions</a></nav></aside><main><div class="pager"><a href="06-dns-tcp-tls-http.html">← Previous chapter</a><a href="08-legacy-datacenter-networking.html">Next chapter →</a></div><article><details class="toc"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#ingress-egress-firewalls-waf-proxies-dmz-stateful-vs-stateless-filtering">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</a><ul>
+<li><a href="#1-start-with-the-boundary">1. Start with the boundary</a></li>
+<li><a href="#2-a-firewall-is-a-policy-enforcement-point-not-one-specific-product">2. A firewall is a policy enforcement point, not one specific product</a></li>
+<li><a href="#3-stateless-filtering">3. Stateless filtering</a><ul>
+<li><a href="#aws-analogy">AWS analogy</a></li>
+</ul>
+</li>
+<li><a href="#4-stateful-filtering">4. Stateful filtering</a><ul>
+<li><a href="#aws-analogy_1">AWS analogy</a></li>
+</ul>
+</li>
+<li><a href="#5-the-ephemeral-port-trap">5. The ephemeral-port trap</a></li>
+<li><a href="#6-layer-34-network-firewall-vs-layer-7-waf">6. Layer 3/4 network firewall vs Layer 7 WAF</a><ul>
+<li><a href="#network-firewall">Network firewall</a></li>
+<li><a href="#web-application-firewall-waf">Web Application Firewall (WAF)</a></li>
+</ul>
+</li>
+<li><a href="#7-host-firewall-vs-network-firewall">7. Host firewall vs network firewall</a></li>
+<li><a href="#8-dmzperimeter-zone">8. DMZ/perimeter zone</a></li>
+<li><a href="#9-northsouth-inspection">9. North–south inspection</a></li>
+<li><a href="#10-eastwest-inspection">10. East–west inspection</a></li>
+<li><a href="#11-egress-security-is-as-important-as-ingress">11. Egress security is as important as ingress</a></li>
+<li><a href="#12-proxy-vs-firewall-vs-nat-vs-load-balancer">12. Proxy vs firewall vs NAT vs load balancer</a></li>
+<li><a href="#13-forward-proxy">13. Forward proxy</a></li>
+<li><a href="#14-reverse-proxy">14. Reverse proxy</a></li>
+<li><a href="#15-ids-vs-ips">15. IDS vs IPS</a><ul>
+<li><a href="#ids">IDS</a></li>
+<li><a href="#ips">IPS</a></li>
+</ul>
+</li>
+<li><a href="#16-why-symmetric-routing-matters-to-stateful-firewalls">16. Why symmetric routing matters to stateful firewalls</a></li>
+<li><a href="#17-firewall-rule-examples-good-vs-bad">17. Firewall rule examples: good vs bad</a><ul>
+<li><a href="#too-broad">Too broad</a></li>
+<li><a href="#better-intent">Better intent</a></li>
+</ul>
+</li>
+<li><a href="#18-security-group-referencing-in-aws">18. Security Group referencing in AWS</a></li>
+<li><a href="#19-nacl-use-case">19. NACL use case</a></li>
+<li><a href="#20-aws-network-firewall">20. AWS Network Firewall</a></li>
+<li><a href="#21-aws-waf">21. AWS WAF</a></li>
+<li><a href="#22-legacy-inbound-https-flow">22. Legacy inbound HTTPS flow</a></li>
+<li><a href="#23-legacy-outbound-api-flow">23. Legacy outbound API flow</a></li>
+<li><a href="#24-troubleshooting-a-timeout-across-firewalls">24. Troubleshooting a timeout across firewalls</a></li>
+<li><a href="#25-evidence-sources">25. Evidence sources</a></li>
+<li><a href="#26-best-references">26. Best references</a></li>
+<li><a href="#27-memory-trick">27. Memory trick</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="ingress-egress-firewalls-waf-proxies-dmz-stateful-vs-stateless-filtering">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</h1>
+<p><img alt="Firewall and DMZ flow" src="assets/diagrams/networking/07-firewalls.svg" /></p>
+<h2 id="1-start-with-the-boundary">1. Start with the boundary</h2>
+<p>“Ingress” and “egress” are relative terms.</p>
+<p>For an application VPC:</p>
+<pre><code class="language-text">Internet -&gt; VPC/application = ingress
+VPC/application -&gt; Internet = egress
+</code></pre>
+<p>For a database subnet:</p>
+<pre><code class="language-text">app subnet -&gt; DB subnet = ingress to DB subnet
+DB response -&gt; app subnet = egress from DB subnet
+</code></pre>
+<p>Always say <strong>ingress to what</strong> or <strong>egress from what</strong>.</p>
+<h2 id="2-a-firewall-is-a-policy-enforcement-point-not-one-specific-product">2. A firewall is a policy enforcement point, not one specific product</h2>
+<p>A network firewall monitors/controls traffic based on rules. Products differ in what context they inspect:</p>
+<ul>
+<li>packet header only,</li>
+<li>connection state,</li>
+<li>protocol/application metadata,</li>
+<li>TLS-decrypted content where configured,</li>
+<li>signatures/IPS rules,</li>
+<li>domain/URL/user identity integrations.</li>
+</ul>
+<p>Cloudflare's firewall primer correctly frames a firewall as controlling traffic between trust boundaries and emphasizes both inbound and outbound control.</p>
+<h2 id="3-stateless-filtering">3. Stateless filtering</h2>
+<p>A stateless rule evaluates packets independently.</p>
+<p>Example:</p>
+<pre><code class="language-text">allow inbound TCP dst port 443
+</code></pre>
+<p>That rule does not automatically imply:</p>
+<pre><code class="language-text">allow return packets to client ephemeral ports
+</code></pre>
+<p>unless separate rules cover them.</p>
+<h3 id="aws-analogy">AWS analogy</h3>
+<p>Network ACLs are stateless. AWS documentation specifically warns that return traffic must satisfy NACL rules independently.</p>
+<h2 id="4-stateful-filtering">4. Stateful filtering</h2>
+<p>A stateful firewall tracks connection/flow state.</p>
+<p>If policy allows:</p>
+<pre><code class="language-text">client -&gt; server TCP 443
+</code></pre>
+<p>return packets that belong to that established allowed flow can normally pass without an independent broad inbound/outbound rule for the reverse ephemeral port.</p>
+<h3 id="aws-analogy_1">AWS analogy</h3>
+<p>Security Groups are stateful. Response traffic for an allowed flow is recognized as part of the stateful model.</p>
+<h2 id="5-the-ephemeral-port-trap">5. The ephemeral-port trap</h2>
+<p>Client initiates:</p>
+<pre><code class="language-text">client:51514 -&gt; server:443
+</code></pre>
+<p>Server responds:</p>
+<pre><code class="language-text">server:443 -&gt; client:51514
+</code></pre>
+<p>A stateless ACL must permit the relevant reverse-direction ephemeral-port traffic. This is one reason NACL rules are easier to misconfigure than Security Groups for ordinary application flows.</p>
+<h2 id="6-layer-34-network-firewall-vs-layer-7-waf">6. Layer 3/4 network firewall vs Layer 7 WAF</h2>
+<h3 id="network-firewall">Network firewall</h3>
+<p>Common decision inputs:</p>
+<pre><code class="language-text">source/destination IP
+protocol
+source/destination port
+connection state
+IDS/IPS signatures/domain rules depending product
+</code></pre>
+<h3 id="web-application-firewall-waf">Web Application Firewall (WAF)</h3>
+<p>Understands HTTP/application-layer concepts such as:</p>
+<pre><code class="language-text">URI path
+headers
+query strings
+HTTP methods
+request body patterns
+SQLi/XSS signatures
+rate-based web rules
+</code></pre>
+<p>A WAF is not a replacement for subnet/port-level firewalling. A network firewall is not automatically aware that <code>/admin/deleteUser</code> is a dangerous HTTP request.</p>
+<h2 id="7-host-firewall-vs-network-firewall">7. Host firewall vs network firewall</h2>
+<p>A server can have local firewall rules:</p>
+<pre><code class="language-text">Linux nftables/iptables/firewalld
+Windows Defender Firewall
+</code></pre>
+<p>Even if every upstream firewall allows TCP 443, the host firewall can still block the connection.</p>
+<p>Troubleshooting therefore asks:</p>
+<pre><code class="language-text">perimeter policy?
+subnet policy?
+resource/ENI policy?
+host firewall?
+process listening?
+</code></pre>
+<h2 id="8-dmzperimeter-zone">8. DMZ/perimeter zone</h2>
+<p>Traditional enterprises often expose Internet-facing components in a separate perimeter network/DMZ rather than placing them directly inside trusted application/database networks.</p>
+<p>Classic pattern:</p>
+<pre><code class="language-text">Internet
+  ↓
+edge router
+  ↓
+external firewall
+  ↓
+DMZ: reverse proxy/WAF/load balancer
+  ↓
+internal firewall
+  ↓
+application network
+  ↓
+DB network
+</code></pre>
+<p>The DMZ limits how far an Internet-facing compromise can move without crossing additional policy boundaries.</p>
+<p>AWS Prescriptive Guidance still uses the perimeter-zone idea when explaining migrations to architectures with CloudFront/WAF, Network Firewall, ALB, and routed inspection.</p>
+<h2 id="9-northsouth-inspection">9. North–south inspection</h2>
+<p>North–south traffic crosses an environment/perimeter:</p>
+<pre><code class="language-text">Internet -&gt; workload
+workload -&gt; Internet
+on-prem -&gt; cloud
+cloud -&gt; on-prem
+</code></pre>
+<p>Controls may include:</p>
+<ul>
+<li>DDoS protection,</li>
+<li>edge WAF,</li>
+<li>network firewall/IPS,</li>
+<li>reverse proxy/load balancer,</li>
+<li>NAT,</li>
+<li>egress proxy/domain allowlists.</li>
+</ul>
+<h2 id="10-eastwest-inspection">10. East–west inspection</h2>
+<p>East–west traffic moves inside the environment:</p>
+<pre><code class="language-text">web -&gt; app
+app -&gt; DB
+VPC A -&gt; VPC B
+workload -&gt; shared service
+</code></pre>
+<p>Legacy networks often relied heavily on VLANs + internal firewalls. Cloud environments can combine Security Groups, network firewalls, Transit Gateway route segmentation, Kubernetes policies, service-mesh/mTLS, and identity-based application controls.</p>
+<h2 id="11-egress-security-is-as-important-as-ingress">11. Egress security is as important as ingress</h2>
+<p>If an attacker compromises an application, unrestricted egress can enable:</p>
+<ul>
+<li>command-and-control,</li>
+<li>data exfiltration,</li>
+<li>malware download,</li>
+<li>calls to unauthorized external services.</li>
+</ul>
+<p>Legacy enterprises frequently use outbound firewalls/proxies and domain/category filtering. AWS designs can use:</p>
+<ul>
+<li>restrictive Security Groups where practical,</li>
+<li>AWS Network Firewall domain/rule policies,</li>
+<li>centralized egress VPCs,</li>
+<li>NAT Gateway with fixed Elastic IPs for vendor allowlists,</li>
+<li>VPC endpoints to keep AWS-service traffic off NAT/Internet paths.</li>
+</ul>
+<h2 id="12-proxy-vs-firewall-vs-nat-vs-load-balancer">12. Proxy vs firewall vs NAT vs load balancer</h2>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Main job</th>
+<th>Does it usually create a new app/transport connection?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Router</td>
+<td>forward packets between networks</td>
+<td>no</td>
+</tr>
+<tr>
+<td>NAT</td>
+<td>translate address/port</td>
+<td>no app proxy required</td>
+</tr>
+<tr>
+<td>Stateful firewall</td>
+<td>permit/deny flows with state</td>
+<td>typically no app proxy required</td>
+</tr>
+<tr>
+<td>Forward proxy</td>
+<td>makes requests on behalf of clients</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Reverse proxy</td>
+<td>receives client requests for servers</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Load balancer</td>
+<td>distribute flows/requests</td>
+<td>depends on L4/L7 implementation; often distinct frontend/backend state</td>
+</tr>
+<tr>
+<td>WAF</td>
+<td>inspect HTTP requests</td>
+<td>usually attached/integrated at an L7 proxy/service</td>
+</tr>
+</tbody>
+</table>
+<p>These boxes can be combined in products, which is why enterprise diagrams sometimes show one appliance performing several roles.</p>
+<h2 id="13-forward-proxy">13. Forward proxy</h2>
+<p>Used by clients for outbound access:</p>
+<pre><code class="language-text">Employee browser -&gt; corporate proxy -&gt; Internet
+</code></pre>
+<p>Benefits can include:</p>
+<ul>
+<li>URL/domain policy,</li>
+<li>authentication/user attribution,</li>
+<li>malware scanning,</li>
+<li>logging,</li>
+<li>controlled egress addresses.</li>
+</ul>
+<h2 id="14-reverse-proxy">14. Reverse proxy</h2>
+<p>Used by servers/applications:</p>
+<pre><code class="language-text">Internet client -&gt; reverse proxy -&gt; backend server
+</code></pre>
+<p>The client thinks it is talking to the service endpoint. The reverse proxy can terminate TLS, route by hostname/path, enforce headers, cache, and shield origin topology.</p>
+<p>ALB and CloudFront can participate in reverse-proxy-like roles at different scopes.</p>
+<h2 id="15-ids-vs-ips">15. IDS vs IPS</h2>
+<h3 id="ids">IDS</h3>
+<p>Detects/alerts on suspicious traffic.</p>
+<h3 id="ips">IPS</h3>
+<p>Can actively block/drop traffic based on detection rules/policy.</p>
+<p>Modern managed firewalls can provide both inspection and prevention behavior.</p>
+<p>AWS Network Firewall includes stateless and stateful rule engines and supports Suricata-compatible stateful rules. Deployment design must route traffic through the firewall endpoints.</p>
+<h2 id="16-why-symmetric-routing-matters-to-stateful-firewalls">16. Why symmetric routing matters to stateful firewalls</h2>
+<p>Stateful inspection wants to observe both directions of the same flow.</p>
+<p>Bad topology:</p>
+<pre><code class="language-text">request -&gt; firewall A -&gt; server
+response -&gt; different path bypassing firewall A
+</code></pre>
+<p>The return path can look unrelated/invalid to stateful inspection systems or bypass intended policy entirely.</p>
+<p>AWS Network Firewall documentation calls out symmetric routing requirements, particularly in centralized Transit Gateway inspection designs.</p>
+<h2 id="17-firewall-rule-examples-good-vs-bad">17. Firewall rule examples: good vs bad</h2>
+<h3 id="too-broad">Too broad</h3>
+<pre><code class="language-text">ALLOW TCP 0-65535 FROM 0.0.0.0/0 TO app-network
+</code></pre>
+<h3 id="better-intent">Better intent</h3>
+<pre><code class="language-text">Internet -&gt; public reverse proxy/WAF :443
+reverse proxy -&gt; app tier :8080
+app tier -&gt; DB tier :5432
+app tier -&gt; approved egress proxy :443
+</code></pre>
+<p>The second design expresses the <strong>relationship between tiers</strong>, making lateral movement and accidental exposure harder.</p>
+<h2 id="18-security-group-referencing-in-aws">18. Security Group referencing in AWS</h2>
+<p>Instead of hardcoding transient instance IPs:</p>
+<pre><code class="language-text">ALB-SG -&gt; APP-SG TCP 8080
+APP-SG -&gt; DB-SG TCP 5432
+</code></pre>
+<p>This expresses architectural intent. Instances can scale/change IPs without rewriting network policy around each host.</p>
+<h2 id="19-nacl-use-case">19. NACL use case</h2>
+<p>NACLs can provide subnet-level coarse guardrails/explicit deny capability.</p>
+<p>They are not usually the best place to express every application relationship because:</p>
+<ul>
+<li>they are subnet-scoped,</li>
+<li>stateless,</li>
+<li>rule-number ordered,</li>
+<li>return ephemeral ports must be considered.</li>
+</ul>
+<p>Security Groups are normally the primary workload-level control in many VPC designs.</p>
+<h2 id="20-aws-network-firewall">20. AWS Network Firewall</h2>
+<p>Use when you need managed network inspection such as:</p>
+<ul>
+<li>centralized egress filtering,</li>
+<li>intrusion prevention,</li>
+<li>domain-based controls,</li>
+<li>stateless/stateful policy,</li>
+<li>inspection across VPC/on-prem paths.</li>
+</ul>
+<p>It is inserted through routing; creating a firewall without routing traffic through its endpoints does not inspect that traffic.</p>
+<h2 id="21-aws-waf">21. AWS WAF</h2>
+<p>Use at supported Layer-7 resources for HTTP/S protections such as:</p>
+<ul>
+<li>managed rule groups,</li>
+<li>IP/rate rules,</li>
+<li>SQL injection/XSS patterns,</li>
+<li>URI/header/query/body matching.</li>
+</ul>
+<p>It does not replace Security Groups for an EC2 database port or NACLs for subnet guardrails.</p>
+<h2 id="22-legacy-inbound-https-flow">22. Legacy inbound HTTPS flow</h2>
+<pre><code class="language-text">Public DNS
+ -&gt; enterprise public VIP
+ -&gt; border router
+ -&gt; perimeter firewall permits 443
+ -&gt; WAF/reverse proxy terminates TLS
+ -&gt; load balancer chooses backend
+ -&gt; internal firewall permits proxy/LB to app port
+ -&gt; app
+</code></pre>
+<p>Each arrow can have a distinct owner and log source.</p>
+<h2 id="23-legacy-outbound-api-flow">23. Legacy outbound API flow</h2>
+<pre><code class="language-text">App server
+ -&gt; internal route
+ -&gt; egress firewall/proxy
+ -&gt; source NAT to public IP
+ -&gt; ISP
+ -&gt; vendor API
+</code></pre>
+<p>If vendor requires IP allowlisting, the enterprise stabilizes one/few egress public addresses.</p>
+<p>AWS equivalent often becomes:</p>
+<pre><code class="language-text">private app -&gt; NAT Gateway EIP -&gt; IGW -&gt; vendor
+</code></pre>
+<p>possibly with Network Firewall/proxy inspection inserted.</p>
+<h2 id="24-troubleshooting-a-timeout-across-firewalls">24. Troubleshooting a timeout across firewalls</h2>
+<p>Check in order:</p>
+<pre><code class="language-text">1 route reaches firewall?
+2 firewall policy matches correct src/dst/proto/port?
+3 NAT occurs where expected?
+4 route after firewall reaches destination?
+5 destination host firewall allows?
+6 process listens?
+7 return route comes back through expected stateful path?
+8 translated return packet maps correctly?
+</code></pre>
+<p>Logs should prove each step; do not “temporarily allow all” in production as a default debugging method.</p>
+<h2 id="25-evidence-sources">25. Evidence sources</h2>
+<p>Legacy:</p>
+<ul>
+<li>firewall session table,</li>
+<li>firewall traffic/deny logs,</li>
+<li>router route table,</li>
+<li>NAT translation table,</li>
+<li>load balancer logs,</li>
+<li>packet capture/tcpdump,</li>
+<li>proxy logs.</li>
+</ul>
+<p>AWS:</p>
+<ul>
+<li>VPC Flow Logs,</li>
+<li>Network Firewall flow/alert logs,</li>
+<li>ALB access logs/metrics,</li>
+<li>WAF logs,</li>
+<li>Reachability Analyzer,</li>
+<li>route tables,</li>
+<li>Security Group/NACL configuration.</li>
+</ul>
+<p>VPC Flow Logs can record <code>ACCEPT</code> or <code>REJECT</code> metadata, but they are not full packet payload captures and do not replace application logs.</p>
+<h2 id="26-best-references">26. Best references</h2>
+<ul>
+<li>Cloudflare firewall overview: https://www.cloudflare.com/learning/security/what-is-a-firewall/</li>
+<li>AWS SG/NACL flow-log example: https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-records-examples.html</li>
+<li>AWS Network Firewall how it works: https://docs.aws.amazon.com/network-firewall/latest/developerguide/how-it-works.html</li>
+<li>AWS Network Firewall rule engines: https://docs.aws.amazon.com/network-firewall/latest/developerguide/firewall-rules-engines.html</li>
+<li>AWS perimeter-zone migration architecture: https://docs.aws.amazon.com/prescriptive-guidance/latest/migration-perimeter-zone-apps-network-firewall/architecture.html</li>
+</ul>
+<h2 id="27-memory-trick">27. Memory trick</h2>
+<pre><code class="language-text">Route asks: where next?
+Firewall asks: allowed?
+NAT asks: what address/port should be rewritten?
+Proxy asks: can I make the request on your behalf?
+Load balancer asks: which backend?
+WAF asks: is this HTTP request acceptable?
+</code></pre>
+<hr />
+<p><a href="06-dns-tcp-tls-http.html">← Previous</a> · <a href="index.html">Chapter index</a> · <a href="08-legacy-datacenter-networking.html">Next →</a></p></article><div class="pager"><a href="06-dns-tcp-tls-http.html">← Previous chapter</a><a href="08-legacy-datacenter-networking.html">Next chapter →</a></div></main></div><script src="assets/site.js"></script></body></html>

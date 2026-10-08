@@ -1,0 +1,443 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</title><link rel="stylesheet" href="assets/site.css"></head><body><div class="layout"><aside><h2>Networking bootcamp</h2><input id="navSearch" aria-label="Filter chapter titles" placeholder="Filter chapters"><nav><a href="../index.html">AWS course home</a><a href="index.html">Chapter index</a><a href="00-networking-roadmap.html">Networking Bootcamp — Start Here</a><a href="01-layers-frames-packets-ports.html">Layers, Frames, Packets, Ports &amp; Encapsulation</a><a href="02-home-wifi-to-internet.html">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</a><a href="03-mobile-data-to-internet.html">Phone on Mobile Data → the Internet: 4G/5G Mental Model</a><a href="04-ip-subnetting-nat-cgnat.html">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</a><a href="05-routing-isp-bgp-peering.html">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a><a href="06-dns-tcp-tls-http.html">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</a><a href="07-ingress-egress-firewalls-dmz.html">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</a><a href="08-legacy-datacenter-networking.html">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</a><a href="09-aws-internet-vpc-packet-flow.html">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</a><a href="10-network-troubleshooting-labs.html">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</a><a href="11-networking-cheatsheet.html">Networking Cheat Sheet, Memory Map &amp; Interview Questions</a></nav></aside><main><div class="pager"><a href="03-mobile-data-to-internet.html">← Previous chapter</a><a href="05-routing-isp-bgp-peering.html">Next chapter →</a></div><article><details class="toc"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#ip-addressing-subnetting-nat-pat-cgnat-ipv6">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</a><ul>
+<li><a href="#1-the-address-question">1. The address question</a></li>
+<li><a href="#2-ipv4-dotted-decimal-is-just-a-human-representation">2. IPv4 dotted decimal is just a human representation</a></li>
+<li><a href="#3-cidr-notation">3. CIDR notation</a></li>
+<li><a href="#4-how-a-host-decides-same-subnet-or-router">4. How a host decides “same subnet or router?”</a></li>
+<li><a href="#5-private-ipv4-ranges-rfc-1918">5. Private IPv4 ranges (RFC 1918)</a><ul>
+<li><a href="#the-overlap-problem">The overlap problem</a></li>
+</ul>
+</li>
+<li><a href="#6-public-ipv4">6. Public IPv4</a></li>
+<li><a href="#7-special-documentation-ranges-used-in-this-guide">7. Special documentation ranges used in this guide</a></li>
+<li><a href="#8-nat-what-it-actually-changes">8. NAT: what it actually changes</a></li>
+<li><a href="#9-patnapt-why-many-private-devices-share-one-public-ipv4">9. PAT/NAPT: why many private devices share one public IPv4</a></li>
+<li><a href="#10-static-one-to-one-nat-vs-dynamicpat">10. Static one-to-one NAT vs dynamic/PAT</a><ul>
+<li><a href="#one-to-one-mapping">One-to-one mapping</a></li>
+<li><a href="#dynamic-source-natpat">Dynamic source NAT/PAT</a></li>
+<li><a href="#destination-nat-port-forwarding">Destination NAT / port forwarding</a></li>
+</ul>
+</li>
+<li><a href="#11-nat-is-not-a-security-architecture-by-itself">11. NAT is not a security architecture by itself</a></li>
+<li><a href="#12-cgnat-nat-operated-by-the-provider">12. CGNAT: NAT operated by the provider</a></li>
+<li><a href="#13-aws-public-ipv4-is-a-useful-non-obvious-example">13. AWS public IPv4 is a useful non-obvious example</a></li>
+<li><a href="#14-subnetting-exercise-split-a-24">14. Subnetting exercise: split a /24</a><ul>
+<li><a href="#pattern-shortcut">Pattern shortcut</a></li>
+</ul>
+</li>
+<li><a href="#15-vlsm-planning-example">15. VLSM planning example</a></li>
+<li><a href="#16-ipv6-key-conceptual-differences">16. IPv6: key conceptual differences</a><ul>
+<li><a href="#important-nat-contrast">Important NAT contrast</a></li>
+</ul>
+</li>
+<li><a href="#17-dual-stack">17. Dual stack</a></li>
+<li><a href="#18-longest-prefix-match-preview">18. Longest-prefix match preview</a></li>
+<li><a href="#19-address-plan-mistakes-that-hurt-later">19. Address plan mistakes that hurt later</a></li>
+<li><a href="#20-quick-packet-translation-dry-run">20. Quick packet translation dry run</a></li>
+<li><a href="#21-aws-mapping">21. AWS mapping</a></li>
+<li><a href="#22-internetaws-references">22. Internet/AWS references</a></li>
+<li><a href="#23-memory-tricks">23. Memory tricks</a></li>
+<li><a href="#worked-packet-trace-home-pat-cgnat-and-return-traffic">Worked packet trace: home PAT, CGNAT and return traffic</a><ul>
+<li><a href="#map-the-idea-into-aws-without-conflating-the-two-designs">Map the idea into AWS without conflating the two designs</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="ip-addressing-subnetting-nat-pat-cgnat-ipv6">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</h1>
+<p><img alt="NAT and CGNAT mental model" src="assets/diagrams/networking/04-ip-nat.svg" /></p>
+<h2 id="1-the-address-question">1. The address question</h2>
+<p>Every routed packet needs source and destination IP addresses. Before learning CIDR math, understand the job:</p>
+<blockquote>
+<p><strong>An IP address identifies an interface/end point in an IP routing context, and the prefix tells routers which block/network it belongs to.</strong></p>
+</blockquote>
+<p>IPv4 is 32 bits. IPv6 is 128 bits.</p>
+<h2 id="2-ipv4-dotted-decimal-is-just-a-human-representation">2. IPv4 dotted decimal is just a human representation</h2>
+<pre><code class="language-text">192.168.1.25
+</code></pre>
+<p>is four 8-bit numbers:</p>
+<pre><code class="language-text">192      168      1        25
+11000000 10101000 00000001 00011001
+</code></pre>
+<p>Routers perform prefix comparisons in binary. Humans use CIDR notation to describe how many leading bits form the network prefix.</p>
+<h2 id="3-cidr-notation">3. CIDR notation</h2>
+<pre><code class="language-text">192.168.1.0/24
+</code></pre>
+<p>means the first 24 bits are the prefix.</p>
+<p>A <code>/24</code> contains 256 total IPv4 addresses in the mathematical block. Whether all are assignable depends on platform/network rules. AWS reserves addresses within each subnet, so do not equate mathematical block size with usable AWS host count.</p>
+<p>Common sizes:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Prefix</th>
+<th style="text-align: right;">Total IPv4 addresses</th>
+<th>Mental shortcut</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">/16</td>
+<td style="text-align: right;">65,536</td>
+<td>large VPC/site block</td>
+</tr>
+<tr>
+<td style="text-align: right;">/20</td>
+<td style="text-align: right;">4,096</td>
+<td>medium block</td>
+</tr>
+<tr>
+<td style="text-align: right;">/24</td>
+<td style="text-align: right;">256</td>
+<td>classic small LAN-sized block</td>
+</tr>
+<tr>
+<td style="text-align: right;">/26</td>
+<td style="text-align: right;">64</td>
+<td>quarter of a /24</td>
+</tr>
+<tr>
+<td style="text-align: right;">/27</td>
+<td style="text-align: right;">32</td>
+<td>eighth of a /24</td>
+</tr>
+<tr>
+<td style="text-align: right;">/28</td>
+<td style="text-align: right;">16</td>
+<td>small block</td>
+</tr>
+<tr>
+<td style="text-align: right;">/32</td>
+<td style="text-align: right;">1</td>
+<td>single IPv4 address/host route</td>
+</tr>
+</tbody>
+</table>
+<p>Formula:</p>
+<pre><code class="language-text">IPv4 block size = 2^(32 - prefix length)
+</code></pre>
+<h2 id="4-how-a-host-decides-same-subnet-or-router">4. How a host decides “same subnet or router?”</h2>
+<p>Host:</p>
+<pre><code class="language-text">IP: 10.20.30.25/24
+</code></pre>
+<p>Destination A:</p>
+<pre><code class="language-text">10.20.30.99
+</code></pre>
+<p>Same <code>/24</code> prefix -&gt; local-link delivery.</p>
+<p>Destination B:</p>
+<pre><code class="language-text">10.20.31.99
+</code></pre>
+<p>Different <code>/24</code> -&gt; use a router according to routing table.</p>
+<p>This is why an incorrect subnet mask/prefix can create bizarre connectivity: the host may incorrectly believe a remote IP is local and ARP for it, or incorrectly send a local peer to a router.</p>
+<h2 id="5-private-ipv4-ranges-rfc-1918">5. Private IPv4 ranges (RFC 1918)</h2>
+<p>The classic private ranges are:</p>
+<pre><code class="language-text">10.0.0.0/8
+172.16.0.0/12
+192.168.0.0/16
+</code></pre>
+<p>These can be reused by many organizations and are not globally routed as normal public Internet addresses.</p>
+<h3 id="the-overlap-problem">The overlap problem</h3>
+<p>Company A:</p>
+<pre><code class="language-text">10.0.0.0/8
+</code></pre>
+<p>Company B:</p>
+<pre><code class="language-text">10.0.0.0/8
+</code></pre>
+<p>If they later connect networks, overlapping addresses make routing ambiguous. This is a common legacy acquisition/VPN/cloud-migration problem.</p>
+<p>AWS VPC IPAM and disciplined enterprise IP planning help reduce this risk, but they do not magically fix existing overlaps.</p>
+<h2 id="6-public-ipv4">6. Public IPv4</h2>
+<p>A public IPv4 address is intended to be globally routable/unique in Internet routing space under the relevant allocation/announcement model.</p>
+<p>Do not confuse:</p>
+<pre><code class="language-text">“public IP exists”
+</code></pre>
+<p>with:</p>
+<pre><code class="language-text">“the service is reachable from everyone.”
+</code></pre>
+<p>Reachability also needs routing, firewall/security permission, a listening service, and correct return path.</p>
+<h2 id="7-special-documentation-ranges-used-in-this-guide">7. Special documentation ranges used in this guide</h2>
+<p>To avoid accidentally using real routable addresses in examples, documentation commonly uses ranges such as:</p>
+<pre><code class="language-text">192.0.2.0/24
+198.51.100.0/24
+203.0.113.0/24
+</code></pre>
+<p>Treat addresses from those blocks in diagrams as examples, not real targets.</p>
+<h2 id="8-nat-what-it-actually-changes">8. NAT: what it actually changes</h2>
+<p>Network Address Translation rewrites address information as packets cross a translation boundary.</p>
+<p>The most familiar case is source NAT for outbound IPv4:</p>
+<pre><code class="language-text">Inside packet:
+src 10.0.1.25
+ dst 198.51.100.20
+
+After source NAT:
+src 203.0.113.5
+ dst 198.51.100.20
+</code></pre>
+<p>A translation table preserves enough state to map return traffic.</p>
+<h2 id="9-patnapt-why-many-private-devices-share-one-public-ipv4">9. PAT/NAPT: why many private devices share one public IPv4</h2>
+<p>In common home/enterprise usage, address <strong>and port</strong> translation is involved.</p>
+<pre><code class="language-text">10.0.1.25:51001 -&gt; 203.0.113.5:62001
+10.0.1.26:51001 -&gt; 203.0.113.5:62002
+</code></pre>
+<p>The same public address can represent many simultaneous flows because translated ports distinguish mappings.</p>
+<p>AWS documentation explicitly notes that what industry commonly calls NAT devices perform both address and port translation in these scenarios.</p>
+<h2 id="10-static-one-to-one-nat-vs-dynamicpat">10. Static one-to-one NAT vs dynamic/PAT</h2>
+<h3 id="one-to-one-mapping">One-to-one mapping</h3>
+<p>A public address maps predictably to one inside address. Enterprise firewalls often support static NAT for published servers.</p>
+<h3 id="dynamic-source-natpat">Dynamic source NAT/PAT</h3>
+<p>Many inside clients share one/few outside addresses for outbound sessions.</p>
+<h3 id="destination-nat-port-forwarding">Destination NAT / port forwarding</h3>
+<p>Inbound traffic to a public address/port is translated toward an internal server.</p>
+<p>Example:</p>
+<pre><code class="language-text">203.0.113.10:443 -&gt; 10.0.10.50:443
+</code></pre>
+<p>A reverse proxy/load balancer can also publish applications, but that is application/proxying rather than merely packet address translation.</p>
+<h2 id="11-nat-is-not-a-security-architecture-by-itself">11. NAT is not a security architecture by itself</h2>
+<p>It is tempting to say “private IP = secure.” That is incomplete.</p>
+<p>Security depends on:</p>
+<ul>
+<li>ingress/egress policy,</li>
+<li>stateful firewall behavior,</li>
+<li>application authentication,</li>
+<li>patching,</li>
+<li>segmentation,</li>
+<li>logging/monitoring,</li>
+<li>route exposure,</li>
+<li>identity and data controls.</li>
+</ul>
+<p>NAT can incidentally block unsolicited inbound flows if no mapping/publishing exists, but its primary conceptual job is translation.</p>
+<h2 id="12-cgnat-nat-operated-by-the-provider">12. CGNAT: NAT operated by the provider</h2>
+<p>RFC 6598 defines:</p>
+<pre><code class="language-text">100.64.0.0/10
+</code></pre>
+<p>as Shared Address Space for carrier/service-provider use with CGN.</p>
+<p>Possible chain:</p>
+<pre><code class="language-text">Laptop 192.168.1.25
+ -&gt; home router 100.64.5.10
+ -&gt; ISP CGN public 203.0.113.20
+ -&gt; Internet
+</code></pre>
+<p>Problems/implications include:</p>
+<ul>
+<li>harder inbound hosting/port forwarding,</li>
+<li>shared public source addresses,</li>
+<li>need for port/time metadata in abuse investigations,</li>
+<li>application rate limiting by public IP may group unrelated subscribers.</li>
+</ul>
+<h2 id="13-aws-public-ipv4-is-a-useful-non-obvious-example">13. AWS public IPv4 is a useful non-obvious example</h2>
+<p>For EC2, AWS documentation explains that a public IPv4 displayed for an instance is mapped to its primary private IPv4 through NAT. Inside the instance OS, tools such as <code>ip addr</code>/<code>ifconfig</code> show the private address rather than that public IPv4 as a directly configured NIC address.</p>
+<p>The Internet Gateway performs one-to-one NAT behavior for instance public IPv4/Elastic IP traffic as part of Internet connectivity.</p>
+<p>This is an excellent example of why you should distinguish:</p>
+<pre><code class="language-text">logical/public addressing shown by the cloud control plane
+</code></pre>
+<p>from</p>
+<pre><code class="language-text">address configured on the guest network interface
+</code></pre>
+<h2 id="14-subnetting-exercise-split-a-24">14. Subnetting exercise: split a /24</h2>
+<p>Start:</p>
+<pre><code class="language-text">10.0.8.0/24
+</code></pre>
+<p>Split into four equal blocks -&gt; borrow two more prefix bits:</p>
+<pre><code class="language-text">10.0.8.0/26
+10.0.8.64/26
+10.0.8.128/26
+10.0.8.192/26
+</code></pre>
+<p>Each <code>/26</code> contains 64 mathematical addresses.</p>
+<h3 id="pattern-shortcut">Pattern shortcut</h3>
+<p>For IPv4:</p>
+<pre><code class="language-text">/24 256
+/25 128
+/26 64
+/27 32
+/28 16
+/29 8
+/30 4
+/31 2 (special point-to-point use possible)
+/32 1
+</code></pre>
+<p>Each extra prefix bit halves the block.</p>
+<h2 id="15-vlsm-planning-example">15. VLSM planning example</h2>
+<p>Need:</p>
+<pre><code class="language-text">App subnet A: ~100 hosts
+App subnet B: ~100 hosts
+DB subnet A:  ~30 hosts
+DB subnet B:  ~30 hosts
+Ops subnet:   ~20 hosts
+</code></pre>
+<p>Do not assign arbitrary <code>/24</code>s just because they are easy. Plan growth, AZ duplication, container/pod/ENI consumption, load balancer ENIs, endpoints, and future network connections.</p>
+<p>A cloud subnet can run out of IPs before CPU or storage becomes the bottleneck.</p>
+<h2 id="16-ipv6-key-conceptual-differences">16. IPv6: key conceptual differences</h2>
+<p>IPv6 has a much larger address space and globally unique addressing is common. In AWS, IPv6 addresses are globally unique/public by default in the addressing sense.</p>
+<p>That does <strong>not</strong> mean “open to the Internet.” Route tables and security controls still decide reachability.</p>
+<p>For AWS outbound-only IPv6 from private workloads, an <strong>egress-only Internet Gateway</strong> can allow outbound communication while preventing Internet-initiated IPv6 connections.</p>
+<h3 id="important-nat-contrast">Important NAT contrast</h3>
+<pre><code class="language-text">IPv4 private egress: usually NAT Gateway in AWS
+IPv6 private egress: no address-conservation NAT required; use egress-only IGW for outbound-only Internet pattern
+</code></pre>
+<h2 id="17-dual-stack">17. Dual stack</h2>
+<p>A dual-stack workload can have both IPv4 and IPv6. DNS may return A and AAAA records. Client behavior may prefer one family depending on OS/network reachability.</p>
+<p>Troubleshooting rule:</p>
+<blockquote>
+<p>When “some clients work, some fail,” compare IPv4 and IPv6 separately.</p>
+</blockquote>
+<p>It is possible to have healthy IPv4 routing but broken IPv6 routing, DNS, firewall policy, or vice versa.</p>
+<h2 id="18-longest-prefix-match-preview">18. Longest-prefix match preview</h2>
+<p>A router with:</p>
+<pre><code class="language-text">0.0.0.0/0        -&gt; Internet
+10.0.0.0/8       -&gt; internal WAN
+10.20.0.0/16     -&gt; site B
+10.20.30.0/24    -&gt; special firewall
+10.20.30.50/32   -&gt; host-specific next hop
+</code></pre>
+<p>sending to <code>10.20.30.50</code> selects <code>/32</code>, because it is the most specific matching prefix.</p>
+<p>This rule is foundational in enterprise routing and AWS route tables.</p>
+<h2 id="19-address-plan-mistakes-that-hurt-later">19. Address plan mistakes that hurt later</h2>
+<ul>
+<li>Using overlapping RFC1918 ranges everywhere.</li>
+<li>Allocating subnets with no growth room.</li>
+<li>Forgetting Kubernetes/container ENI/pod IP consumption.</li>
+<li>Treating IPs as permanent server identities.</li>
+<li>Hardcoding IPs where DNS/service discovery should be used.</li>
+<li>Mixing “subnet is public” with “address is public.”</li>
+<li>Ignoring IPv6 when clients can reach the service over AAAA records.</li>
+</ul>
+<h2 id="20-quick-packet-translation-dry-run">20. Quick packet translation dry run</h2>
+<p>Client sends:</p>
+<pre><code class="language-text">10.0.1.25:51514 -&gt; 198.51.100.20:443
+</code></pre>
+<p>NAT chooses:</p>
+<pre><code class="language-text">203.0.113.5:62001
+</code></pre>
+<p>Internet sees:</p>
+<pre><code class="language-text">203.0.113.5:62001 -&gt; 198.51.100.20:443
+</code></pre>
+<p>Server responds:</p>
+<pre><code class="language-text">198.51.100.20:443 -&gt; 203.0.113.5:62001
+</code></pre>
+<p>NAT table finds mapping and rewrites:</p>
+<pre><code class="language-text">198.51.100.20:443 -&gt; 10.0.1.25:51514
+</code></pre>
+<p>If the state expires, an unexpected later inbound packet may no longer map to the inside client.</p>
+<h2 id="21-aws-mapping">21. AWS mapping</h2>
+<table>
+<thead>
+<tr>
+<th>Addressing concept</th>
+<th>AWS object/behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>network address plan</td>
+<td>VPC CIDR / IPAM pool</td>
+</tr>
+<tr>
+<td>subnet prefix</td>
+<td>subnet CIDR</td>
+</tr>
+<tr>
+<td>workload address</td>
+<td>ENI private IPv4/IPv6</td>
+</tr>
+<tr>
+<td>stable public IPv4</td>
+<td>Elastic IP where supported</td>
+</tr>
+<tr>
+<td>outbound private IPv4 translation</td>
+<td>NAT Gateway</td>
+</tr>
+<tr>
+<td>instance public IPv4 mapping</td>
+<td>IGW/public IPv4 mapping behavior</td>
+</tr>
+<tr>
+<td>outbound-only IPv6 edge</td>
+<td>egress-only Internet Gateway</td>
+</tr>
+<tr>
+<td>service-private path</td>
+<td>VPC endpoint / PrivateLink depending service pattern</td>
+</tr>
+</tbody>
+</table>
+<h2 id="22-internetaws-references">22. Internet/AWS references</h2>
+<ul>
+<li>RFC 1918: https://www.rfc-editor.org/rfc/rfc1918</li>
+<li>RFC 6598: https://www.rfc-editor.org/rfc/rfc6598</li>
+<li>EC2 IP addressing: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-instance-addressing.html</li>
+<li>AWS public IPv4 mapping: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/working-with-ip-addresses.html</li>
+<li>AWS Internet Gateway: https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html</li>
+<li>AWS egress-only IGW: https://docs.aws.amazon.com/vpc/latest/userguide/egress-only-internet-gateway.html</li>
+</ul>
+<h2 id="23-memory-tricks">23. Memory tricks</h2>
+<pre><code class="language-text">CIDR: more /bits = smaller network
+/24 = 256, /25 = 128, /26 = 64 ...
+
+NAT: rewrite address
+PAT: rewrite/use ports too
+CGNAT: provider-owned large-scale NAT
+
+IPv4 private egress in AWS -&gt; NAT GW
+IPv6 outbound-only in AWS -&gt; egress-only IGW
+</code></pre>
+<hr />
+<h2 id="worked-packet-trace-home-pat-cgnat-and-return-traffic">Worked packet trace: home PAT, CGNAT and return traffic</h2>
+<p>This is a simplified <strong>IPv4/TCP teaching example</strong>, not a capture from a real ISP. Addresses 198.51.100.0/24 and 203.0.113.0/24 are documentation ranges. 100.64.0.0/10 is shared address space for carrier NAT; it is distinct from RFC 1918 private space. Port mappings below are illustrative and implementation-dependent.</p>
+<p>A laptop opens HTTPS to <code>203.0.113.80:443</code>. It uses <code>192.168.1.20:51514</code>. Its home router has ISP-facing address <code>100.64.1.2</code>. The carrier translates that shared address to <code>198.51.100.10</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Observation point</th>
+<th>TCP source</th>
+<th>TCP destination</th>
+<th>What changed?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Laptop to home router</td>
+<td>192.168.1.20:51514</td>
+<td>203.0.113.80:443</td>
+<td>Original tuple</td>
+</tr>
+<tr>
+<td>Home router to ISP</td>
+<td>100.64.1.2:62001</td>
+<td>203.0.113.80:443</td>
+<td>Home PAT translates source address/port</td>
+</tr>
+<tr>
+<td>Carrier to Internet</td>
+<td>198.51.100.10:40020</td>
+<td>203.0.113.80:443</td>
+<td>CGNAT translates source again</td>
+</tr>
+<tr>
+<td>Server response toward carrier</td>
+<td>203.0.113.80:443</td>
+<td>198.51.100.10:40020</td>
+<td>Source/destination swap for response</td>
+</tr>
+<tr>
+<td>Carrier response toward home</td>
+<td>203.0.113.80:443</td>
+<td>100.64.1.2:62001</td>
+<td>Carrier reverses its destination mapping</td>
+</tr>
+<tr>
+<td>Home response toward laptop</td>
+<td>203.0.113.80:443</td>
+<td>192.168.1.20:51514</td>
+<td>Home reverses its destination mapping</td>
+</tr>
+</tbody>
+</table>
+<p>The home router retains a mapping for the laptop flow; the carrier retains a second mapping for the router flow. Translation rewrites relevant IP/transport checksums. Link-layer headers are rebuilt at router hops, while TCP sequence numbers belong to the same end-to-end connection in this basic NAT example. A reverse proxy differs: it terminates one transport connection and opens another.</p>
+<p><strong>Why an unsolicited inbound SYN usually fails:</strong> it has no corresponding NAT mapping; forwarding a port on the home router alone does not create a carrier-side mapping. Mapping expiry can also explain why a long-idle connection stops receiving traffic. NAT translation is not a replacement for firewall policy or application authentication.</p>
+<h3 id="map-the-idea-into-aws-without-conflating-the-two-designs">Map the idea into AWS without conflating the two designs</h3>
+<p>For a standard public-NAT IPv4 Internet path, a private workload routes to a public NAT gateway; the NAT maps its source to the NAT gateway's private address, and the Internet gateway maps that address to the associated Elastic IP. The public subnet needs an Internet gateway route, and the workload subnet needs the NAT route. Return traffic follows the established translations. Security groups track allowed flows; NACLs are stateless and must permit both directions, including required return destination ports.</p>
+<p><strong>Check your understanding:</strong> which source IP does the Internet server observe? In the home example: 198.51.100.10. In the AWS Internet-egress example: the NAT gateway's Elastic IP. Does either setup make the original private client directly reachable by unsolicited traffic? No.</p>
+<p>Sources: <a href="https://www.rfc-editor.org/rfc/rfc6598">RFC 6598 shared address space</a>, <a href="https://www.rfc-editor.org/rfc/rfc5737">RFC 5737 documentation addresses</a>, <a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html">AWS NAT gateway behavior</a>, <a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html">AWS security groups</a>, <a href="https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html">AWS NACLs</a>.</p>
+<p><a href="03-mobile-data-to-internet.html">← Previous</a> · <a href="index.html">Chapter index</a> · <a href="05-routing-isp-bgp-peering.html">Next →</a></p></article><div class="pager"><a href="03-mobile-data-to-internet.html">← Previous chapter</a><a href="05-routing-isp-bgp-peering.html">Next chapter →</a></div></main></div><script src="assets/site.js"></script></body></html>

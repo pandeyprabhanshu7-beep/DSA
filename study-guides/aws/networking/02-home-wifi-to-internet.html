@@ -1,0 +1,331 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your PC on Wi‑Fi → the Internet: Complete Packet Walk</title><link rel="stylesheet" href="assets/site.css"></head><body><div class="layout"><aside><h2>Networking bootcamp</h2><input id="navSearch" aria-label="Filter chapter titles" placeholder="Filter chapters"><nav><a href="../index.html">AWS course home</a><a href="index.html">Chapter index</a><a href="00-networking-roadmap.html">Networking Bootcamp — Start Here</a><a href="01-layers-frames-packets-ports.html">Layers, Frames, Packets, Ports &amp; Encapsulation</a><a href="02-home-wifi-to-internet.html">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</a><a href="03-mobile-data-to-internet.html">Phone on Mobile Data → the Internet: 4G/5G Mental Model</a><a href="04-ip-subnetting-nat-cgnat.html">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</a><a href="05-routing-isp-bgp-peering.html">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a><a href="06-dns-tcp-tls-http.html">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</a><a href="07-ingress-egress-firewalls-dmz.html">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</a><a href="08-legacy-datacenter-networking.html">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</a><a href="09-aws-internet-vpc-packet-flow.html">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</a><a href="10-network-troubleshooting-labs.html">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</a><a href="11-networking-cheatsheet.html">Networking Cheat Sheet, Memory Map &amp; Interview Questions</a></nav></aside><main><div class="pager"><a href="01-layers-frames-packets-ports.html">← Previous chapter</a><a href="03-mobile-data-to-internet.html">Next chapter →</a></div><article><details class="toc"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#your-pc-on-wifi-the-internet-complete-packet-walk">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</a><ul>
+<li><a href="#1-the-scenario">1. The scenario</a></li>
+<li><a href="#2-before-the-browser-can-send-anything-wifi-association">2. Before the browser can send anything: Wi‑Fi association</a></li>
+<li><a href="#3-dhcp-how-the-laptop-learns-basic-network-configuration">3. DHCP: how the laptop learns basic network configuration</a><ul>
+<li><a href="#failure-example">Failure example</a></li>
+</ul>
+</li>
+<li><a href="#4-dns-turn-the-hostname-into-an-ip">4. DNS: turn the hostname into an IP</a></li>
+<li><a href="#5-the-laptop-decides-local-destination-or-remote-destination">5. The laptop decides: local destination or remote destination?</a></li>
+<li><a href="#6-arp-discover-the-gateways-local-mac-address">6. ARP: discover the gateway's local MAC address</a></li>
+<li><a href="#7-tcp-connection-to-https">7. TCP connection to HTTPS</a></li>
+<li><a href="#8-natpat-at-the-home-router">8. NAT/PAT at the home router</a><ul>
+<li><a href="#nat-is-not-exactly-a-firewall">NAT is not exactly a firewall</a></li>
+</ul>
+</li>
+<li><a href="#9-the-modemont-and-isp-access-network">9. The modem/ONT and ISP access network</a></li>
+<li><a href="#10-cgnat-why-what-is-my-ip-can-differ-from-your-router-wan-ip">10. CGNAT: why “what is my IP?” can differ from your router WAN IP</a></li>
+<li><a href="#11-isp-routers-and-the-wider-internet">11. ISP routers and the wider Internet</a></li>
+<li><a href="#12-peering-transit-and-internet-exchanges">12. Peering, transit and Internet exchanges</a><ul>
+<li><a href="#peering">Peering</a></li>
+<li><a href="#transit">Transit</a></li>
+<li><a href="#ixp">IXP</a></li>
+</ul>
+</li>
+<li><a href="#13-arrival-at-the-destination-network">13. Arrival at the destination network</a></li>
+<li><a href="#14-tls-starts-after-transport-connectivity-exists">14. TLS starts after transport connectivity exists</a></li>
+<li><a href="#15-http-request-and-response">15. HTTP request and response</a></li>
+<li><a href="#16-return-traffic-reverse-direction-is-related-but-not-guaranteed-identical">16. Return traffic: reverse direction is related but not guaranteed identical</a></li>
+<li><a href="#17-what-is-ingress-and-egress-here">17. What is ingress and egress here?</a></li>
+<li><a href="#18-a-packet-snapshot-at-key-boundaries">18. A packet snapshot at key boundaries</a><ul>
+<li><a href="#on-laptop-lan-before-nat">On laptop LAN before NAT</a></li>
+<li><a href="#on-public-internet-after-nat">On public Internet after NAT</a></li>
+<li><a href="#on-return-internet-traffic">On return Internet traffic</a></li>
+<li><a href="#back-on-lan-after-nat-reversal">Back on LAN after NAT reversal</a></li>
+</ul>
+</li>
+<li><a href="#19-internet-works-on-phone-but-not-laptop-troubleshooting">19. “Internet works on phone but not laptop” troubleshooting</a></li>
+<li><a href="#20-legacy-to-aws-analogy">20. Legacy-to-AWS analogy</a></li>
+<li><a href="#21-best-internet-examples">21. Best Internet examples</a></li>
+<li><a href="#22-what-you-must-remember">22. What you must remember</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="your-pc-on-wifi-the-internet-complete-packet-walk">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</h1>
+<p><img alt="Home Wi-Fi to Internet" src="assets/diagrams/networking/02-home-wifi.svg" /></p>
+<h2 id="1-the-scenario">1. The scenario</h2>
+<p>You are at home. Your laptop is connected to Wi‑Fi. You type:</p>
+<pre><code class="language-text">https://shop.example.com/products/42
+</code></pre>
+<p>Assume this simplified state:</p>
+<pre><code class="language-text">Laptop Wi-Fi IP:      192.168.1.25/24
+Default gateway:      192.168.1.1
+DNS resolver:         192.168.1.1 (router forwards to ISP/public resolver)
+Router WAN address:   100.64.18.22   (example CGNAT/shared address)
+ISP public NAT addr:  203.0.113.9    (documentation example)
+Website IP:           198.51.100.20  (documentation example)
+Destination TCP port: 443
+</code></pre>
+<p>The specific addresses are examples. <code>192.168.0.0/16</code> is private space; <code>100.64.0.0/10</code> is shared address space reserved for service-provider CGNAT use.</p>
+<h2 id="2-before-the-browser-can-send-anything-wifi-association">2. Before the browser can send anything: Wi‑Fi association</h2>
+<p>Wi‑Fi is the local access/link technology. The laptop discovers an SSID, authenticates/associates according to the network's security mode, and establishes link-layer connectivity to the access point.</p>
+<p>Home equipment often combines several logical functions in one plastic box:</p>
+<pre><code class="language-text">Wi-Fi access point
+Ethernet switch
+IP router/default gateway
+DHCP server
+DNS forwarder/cache
+NAT/PAT
+stateful firewall
+sometimes modem/ONT function
+</code></pre>
+<p>That is why beginners call everything “the router.” In enterprise networks these functions may be separate devices/services.</p>
+<h2 id="3-dhcp-how-the-laptop-learns-basic-network-configuration">3. DHCP: how the laptop learns basic network configuration</h2>
+<p>A typical home client learns configuration automatically using DHCP. Conceptually it receives:</p>
+<ul>
+<li>an IP address such as <code>192.168.1.25</code>,</li>
+<li>a subnet prefix/netmask such as <code>/24</code>,</li>
+<li>a default gateway such as <code>192.168.1.1</code>,</li>
+<li>one or more DNS resolver addresses,</li>
+<li>lease timing and other options.</li>
+</ul>
+<p>Without a default gateway, the laptop can still communicate with local neighbors if addressing is correct, but it normally has no route to arbitrary remote networks.</p>
+<h3 id="failure-example">Failure example</h3>
+<pre><code class="language-text">Laptop IP: 169.254.x.x
+</code></pre>
+<p>On many systems, an IPv4 link-local/self-assigned address can indicate that DHCP did not provide normal configuration. You may have Wi‑Fi radio association but still lack usable routed connectivity.</p>
+<h2 id="4-dns-turn-the-hostname-into-an-ip">4. DNS: turn the hostname into an IP</h2>
+<p>The browser/OS needs an address for <code>shop.example.com</code>.</p>
+<p>The full public DNS hierarchy may involve:</p>
+<pre><code class="language-text">client/stub resolver
+   ↓
+recursive resolver
+   ↓
+root DNS
+   ↓ referral
+TLD (.com) DNS
+   ↓ referral
+authoritative DNS for example.com
+   ↓
+A/AAAA/CNAME/etc. answer
+</code></pre>
+<p>Caching means this full chain does not happen for every request.</p>
+<p>The result might be:</p>
+<pre><code class="language-text">shop.example.com -&gt; 198.51.100.20
+</code></pre>
+<p>DNS has now solved the <strong>name problem</strong>. It has not sent your HTTPS request.</p>
+<h2 id="5-the-laptop-decides-local-destination-or-remote-destination">5. The laptop decides: local destination or remote destination?</h2>
+<p>The laptop compares the destination with its local routes.</p>
+<pre><code class="language-text">192.168.1.0/24 -&gt; directly connected Wi-Fi
+0.0.0.0/0      -&gt; 192.168.1.1
+</code></pre>
+<p><code>198.51.100.20</code> is not in <code>192.168.1.0/24</code>, so the default route wins.</p>
+<p>The next hop is <code>192.168.1.1</code>.</p>
+<h2 id="6-arp-discover-the-gateways-local-mac-address">6. ARP: discover the gateway's local MAC address</h2>
+<p>To send a Wi‑Fi/Ethernet-layer frame toward <code>192.168.1.1</code>, the laptop needs local-link addressing. With IPv4, it may use ARP to learn the gateway's MAC address.</p>
+<p>Critical point:</p>
+<blockquote>
+<p>The laptop does <strong>not</strong> need the website server's MAC address. MAC addresses are local-link identifiers. The first frame targets the local next hop.</p>
+</blockquote>
+<h2 id="7-tcp-connection-to-https">7. TCP connection to HTTPS</h2>
+<p>The laptop chooses an ephemeral source port, for example <code>51514</code>, and initiates TCP:</p>
+<pre><code class="language-text">192.168.1.25:51514 -&gt; 198.51.100.20:443
+</code></pre>
+<p>Simplified handshake:</p>
+<pre><code class="language-text">Laptop                         Website
+  SYN -------------------------&gt;
+      &lt;---------------- SYN/ACK
+  ACK -------------------------&gt;
+</code></pre>
+<p>If this never completes, TLS and HTTP have not started yet.</p>
+<h2 id="8-natpat-at-the-home-router">8. NAT/PAT at the home router</h2>
+<p>Private IPv4 <code>192.168.1.25</code> is not globally routed on the public Internet. The home router usually translates the flow.</p>
+<p>Before translation:</p>
+<pre><code class="language-text">src 192.168.1.25:51514
+ dst 198.51.100.20:443
+</code></pre>
+<p>Possible mapping:</p>
+<pre><code class="language-text">192.168.1.25:51514  &lt;-&gt; router/external-address:62001
+</code></pre>
+<p>Port Address Translation lets multiple inside hosts share one external IPv4 address by assigning distinct translated ports/state.</p>
+<p>A NAT table conceptually remembers:</p>
+<pre><code class="language-text">inside-local                outside
+192.168.1.25:51514  -&gt;  translated-address:62001
+192.168.1.31:53100  -&gt;  translated-address:62002
+</code></pre>
+<p>Return packets matching established translations can be mapped back to the correct internal host.</p>
+<h3 id="nat-is-not-exactly-a-firewall">NAT is not exactly a firewall</h3>
+<p>NAT changes addresses/ports. A stateful firewall enforces connection policy. Consumer devices often combine both, which is why the concepts get conflated.</p>
+<h2 id="9-the-modemont-and-isp-access-network">9. The modem/ONT and ISP access network</h2>
+<p>Depending on your service, the physical/access path may be:</p>
+<pre><code class="language-text">Fiber: laptop -&gt; Wi-Fi router -&gt; ONT -&gt; ISP optical access network
+Cable: laptop -&gt; Wi-Fi router -&gt; cable modem -&gt; HFC/CMTS/CCAP network
+DSL:  laptop -&gt; Wi-Fi router -&gt; DSL modem -&gt; copper access/DSLAM
+Fixed wireless: router/CPE -&gt; radio access -&gt; provider aggregation
+</code></pre>
+<p>The home LAN frame format does not necessarily remain the same through the access provider. The provider carries IP traffic over its own access and transport technologies.</p>
+<h2 id="10-cgnat-why-what-is-my-ip-can-differ-from-your-router-wan-ip">10. CGNAT: why “what is my IP?” can differ from your router WAN IP</h2>
+<p>IPv4 scarcity caused many providers to deploy <strong>Carrier-Grade NAT (CGNAT)</strong>. RFC 6598 reserved <code>100.64.0.0/10</code> as Shared Address Space for provider networks.</p>
+<p>You can therefore have two levels of translation:</p>
+<pre><code class="language-text">Laptop 192.168.1.25
+   ↓ home NAT
+Router WAN 100.64.18.22
+   ↓ ISP CGNAT
+Shared public IPv4 203.0.113.9
+   ↓ Internet
+</code></pre>
+<p>This helps explain why inbound port forwarding can be difficult or impossible when the provider owns the outer NAT mapping.</p>
+<h2 id="11-isp-routers-and-the-wider-internet">11. ISP routers and the wider Internet</h2>
+<p>Your ISP has many routers. Inside one provider, traffic may be forwarded using internal routing protocols and MPLS/SR or other transport technologies. At boundaries between independent networks, BGP exchanges prefix reachability and policy.</p>
+<p>Your packet may traverse:</p>
+<pre><code class="language-text">ISP access router
+ -&gt; regional aggregation
+ -&gt; provider core
+ -&gt; peering/transit edge
+ -&gt; another autonomous system
+ -&gt; destination network edge
+</code></pre>
+<p>The exact path can change because of routing policy, failures, congestion engineering, peering changes, or CDN placement.</p>
+<h2 id="12-peering-transit-and-internet-exchanges">12. Peering, transit and Internet exchanges</h2>
+<h3 id="peering">Peering</h3>
+<p>Two networks exchange traffic directly according to an agreement/policy.</p>
+<h3 id="transit">Transit</h3>
+<p>One network pays another network to provide reachability to wider parts of the Internet.</p>
+<h3 id="ixp">IXP</h3>
+<p>An Internet Exchange Point provides shared infrastructure where many networks can interconnect and peer.</p>
+<p>These commercial/engineering relationships help explain why the “geographically shortest” path is not always selected.</p>
+<h2 id="13-arrival-at-the-destination-network">13. Arrival at the destination network</h2>
+<p>The IP prefix containing <code>198.51.100.20</code> is routed toward the destination operator. The first system that actually handles the application may be a CDN/edge proxy, DDoS protection layer, WAF, reverse proxy, or load balancer rather than the origin server.</p>
+<p>Modern website path:</p>
+<pre><code class="language-text">Browser
+ -&gt; ISP
+ -&gt; Internet
+ -&gt; CDN edge
+ -&gt; WAF/security
+ -&gt; load balancer/reverse proxy
+ -&gt; app service
+ -&gt; database/cache
+</code></pre>
+<h2 id="14-tls-starts-after-transport-connectivity-exists">14. TLS starts after transport connectivity exists</h2>
+<p>Once the connection is available, TLS authenticates the server (normally via its certificate chain and hostname validation), negotiates cryptographic parameters, and derives session keys.</p>
+<p>A certificate error tells you something useful: <strong>you reached enough of the destination path to perform TLS</strong>. This is different from a DNS failure or TCP timeout.</p>
+<h2 id="15-http-request-and-response">15. HTTP request and response</h2>
+<p>Only after the required DNS/routing/transport/security setup can the application exchange HTTP semantics:</p>
+<pre><code class="language-text">GET /products/42 HTTP/1.1
+Host: shop.example.com
+...
+</code></pre>
+<p>The response may trigger many more requests for CSS, JavaScript, images, fonts, APIs, analytics, ads, and other resources. A “single webpage load” can therefore create many connections/streams and DNS lookups.</p>
+<h2 id="16-return-traffic-reverse-direction-is-related-but-not-guaranteed-identical">16. Return traffic: reverse direction is related but not guaranteed identical</h2>
+<p>The server's response is routed toward the source public address. The Internet can use asymmetric routing: the return path need not traverse the exact same routers.</p>
+<p>At the ISP CGNAT and home NAT boundaries, state maps the return traffic back:</p>
+<pre><code class="language-text">198.51.100.20:443 -&gt; 203.0.113.9:translated-port
+ -&gt; 100.64.18.22:translated-port
+ -&gt; 192.168.1.25:51514
+</code></pre>
+<p>The home router then emits a local Wi‑Fi frame to the laptop.</p>
+<h2 id="17-what-is-ingress-and-egress-here">17. What is ingress and egress here?</h2>
+<p>The words are always relative to a boundary.</p>
+<p>From your <strong>home LAN</strong>:</p>
+<pre><code class="language-text">Laptop -&gt; Internet = egress
+Internet -&gt; Laptop = ingress
+</code></pre>
+<p>From the <strong>website's data center</strong>:</p>
+<pre><code class="language-text">Laptop request -&gt; website = ingress
+Website response/request to external API = egress
+</code></pre>
+<p>Never use “ingress” without mentally asking: <strong>ingress into what?</strong></p>
+<h2 id="18-a-packet-snapshot-at-key-boundaries">18. A packet snapshot at key boundaries</h2>
+<p>Assume a single-NAT case for simplicity.</p>
+<h3 id="on-laptop-lan-before-nat">On laptop LAN before NAT</h3>
+<pre><code class="language-text">L2 src MAC: laptop
+L2 dst MAC: home gateway
+IP src:     192.168.1.25
+IP dst:     198.51.100.20
+TCP src:    51514
+TCP dst:    443
+</code></pre>
+<h3 id="on-public-internet-after-nat">On public Internet after NAT</h3>
+<pre><code class="language-text">L2 addresses: change per link
+IP src:      203.0.113.9
+IP dst:      198.51.100.20
+TCP src:     62001
+TCP dst:     443
+</code></pre>
+<h3 id="on-return-internet-traffic">On return Internet traffic</h3>
+<pre><code class="language-text">IP src:  198.51.100.20
+IP dst:  203.0.113.9
+TCP src: 443
+TCP dst: 62001
+</code></pre>
+<h3 id="back-on-lan-after-nat-reversal">Back on LAN after NAT reversal</h3>
+<pre><code class="language-text">IP src:  198.51.100.20
+IP dst:  192.168.1.25
+TCP src: 443
+TCP dst: 51514
+</code></pre>
+<h2 id="19-internet-works-on-phone-but-not-laptop-troubleshooting">19. “Internet works on phone but not laptop” troubleshooting</h2>
+<p>Work down a proof tree:</p>
+<pre><code class="language-text">1. Is laptop associated to Wi-Fi?
+2. Did laptop receive IP/prefix/gateway/DNS?
+3. Can it reach the gateway?
+4. Can it reach a known IP?
+5. Can it resolve DNS?
+6. Can it open TCP/443?
+7. Does TLS validate?
+8. Does HTTP return a useful status?
+</code></pre>
+<p>If another Wi‑Fi device works, the WAN/ISP path is less likely to be the root cause, though not impossible because device-specific policy/DNS/IPv6 can differ.</p>
+<h2 id="20-legacy-to-aws-analogy">20. Legacy-to-AWS analogy</h2>
+<table>
+<thead>
+<tr>
+<th>Home/ISP concept</th>
+<th>AWS analogue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>private laptop IP</td>
+<td>EC2/task private IP</td>
+</tr>
+<tr>
+<td>home LAN subnet</td>
+<td>VPC subnet</td>
+</tr>
+<tr>
+<td>local routing/default route</td>
+<td>subnet route table</td>
+</tr>
+<tr>
+<td>home NAT</td>
+<td>NAT Gateway for private IPv4 egress</td>
+</tr>
+<tr>
+<td>ISP Internet edge</td>
+<td>Internet Gateway + AWS edge/global network</td>
+</tr>
+<tr>
+<td>home firewall</td>
+<td>Security Groups/NACLs/Network Firewall depending layer/scope</td>
+</tr>
+<tr>
+<td>DNS resolver</td>
+<td>VPC Resolver / Route 53</td>
+</tr>
+</tbody>
+</table>
+<p>Do not force the analogy too literally; AWS implements these functions as distributed cloud primitives rather than one home-router box.</p>
+<h2 id="21-best-internet-examples">21. Best Internet examples</h2>
+<ul>
+<li>Cloudflare, How does the Internet work?: https://www.cloudflare.com/learning/network-layer/how-does-the-internet-work/</li>
+<li>RFC 1918 private IPv4: https://www.rfc-editor.org/rfc/rfc1918</li>
+<li>RFC 6598 CGNAT Shared Address Space: https://www.rfc-editor.org/rfc/rfc6598</li>
+<li>Cloudflare, What is a router?: https://www.cloudflare.com/learning/network-layer/what-is-a-router/</li>
+</ul>
+<h2 id="22-what-you-must-remember">22. What you must remember</h2>
+<ol>
+<li>Wi‑Fi gets you onto the local link; it is not “the Internet.”</li>
+<li>DHCP commonly gives your host IP, prefix, gateway, and DNS settings.</li>
+<li>DNS returns addressing information; routing moves packets.</li>
+<li>Remote traffic is normally sent to the default gateway.</li>
+<li>NAT can rewrite private source addressing to an Internet-routable address.</li>
+<li>Your ISP may perform a second CGNAT layer.</li>
+<li>BGP connects independently operated networks; it is policy-driven.</li>
+<li>TLS/HTTP are later stages—do not troubleshoot them before proving basic reachability.</li>
+</ol>
+<hr />
+<p><a href="01-layers-frames-packets-ports.html">← Previous</a> · <a href="index.html">Chapter index</a> · <a href="03-mobile-data-to-internet.html">Next →</a></p></article><div class="pager"><a href="01-layers-frames-packets-ports.html">← Previous chapter</a><a href="03-mobile-data-to-internet.html">Next chapter →</a></div></main></div><script src="assets/site.js"></script></body></html>

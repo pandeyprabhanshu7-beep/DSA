@@ -1,0 +1,326 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Layers, Frames, Packets, Ports &amp; Encapsulation</title><link rel="stylesheet" href="assets/site.css"></head><body><div class="layout"><aside><h2>Networking bootcamp</h2><input id="navSearch" aria-label="Filter chapter titles" placeholder="Filter chapters"><nav><a href="../index.html">AWS course home</a><a href="index.html">Chapter index</a><a href="00-networking-roadmap.html">Networking Bootcamp — Start Here</a><a href="01-layers-frames-packets-ports.html">Layers, Frames, Packets, Ports &amp; Encapsulation</a><a href="02-home-wifi-to-internet.html">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</a><a href="03-mobile-data-to-internet.html">Phone on Mobile Data → the Internet: 4G/5G Mental Model</a><a href="04-ip-subnetting-nat-cgnat.html">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</a><a href="05-routing-isp-bgp-peering.html">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a><a href="06-dns-tcp-tls-http.html">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</a><a href="07-ingress-egress-firewalls-dmz.html">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</a><a href="08-legacy-datacenter-networking.html">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</a><a href="09-aws-internet-vpc-packet-flow.html">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</a><a href="10-network-troubleshooting-labs.html">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</a><a href="11-networking-cheatsheet.html">Networking Cheat Sheet, Memory Map &amp; Interview Questions</a></nav></aside><main><div class="pager"><a href="00-networking-roadmap.html">← Previous chapter</a><a href="02-home-wifi-to-internet.html">Next chapter →</a></div><article><details class="toc"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#layers-frames-packets-ports-encapsulation">Layers, Frames, Packets, Ports &amp; Encapsulation</a><ul>
+<li><a href="#1-why-layers-exist">1. Why layers exist</a></li>
+<li><a href="#2-four-identifiers-people-confuse">2. Four identifiers people confuse</a><ul>
+<li><a href="#memory-trick">Memory trick</a></li>
+</ul>
+</li>
+<li><a href="#3-encapsulation-one-request-becomes-several-wrappers">3. Encapsulation: one request becomes several wrappers</a></li>
+<li><a href="#4-what-changes-at-a-router">4. What changes at a router?</a></li>
+<li><a href="#5-switch-versus-router">5. Switch versus router</a><ul>
+<li><a href="#switch">Switch</a></li>
+<li><a href="#router">Router</a></li>
+<li><a href="#layer-3-switch">Layer-3 switch</a></li>
+</ul>
+</li>
+<li><a href="#6-how-the-host-knows-whether-a-destination-is-local">6. How the host knows whether a destination is local</a></li>
+<li><a href="#7-arp-and-ipv6-neighbor-discovery">7. ARP and IPv6 Neighbor Discovery</a></li>
+<li><a href="#8-tcp-and-udp-in-one-page">8. TCP and UDP in one page</a><ul>
+<li><a href="#tcp">TCP</a></li>
+<li><a href="#udp">UDP</a></li>
+<li><a href="#quic-http3">QUIC / HTTP/3</a></li>
+</ul>
+</li>
+<li><a href="#9-ports-and-sockets">9. Ports and sockets</a></li>
+<li><a href="#10-mtu-fragmentation-and-the-small-ping-works-app-fails-problem">10. MTU, fragmentation and the “small ping works, app fails” problem</a></li>
+<li><a href="#11-icmp-is-not-the-ping-protocol-only">11. ICMP is not “the ping protocol only”</a></li>
+<li><a href="#12-layer-oriented-debugging">12. Layer-oriented debugging</a></li>
+<li><a href="#13-legacy-data-center-connection">13. Legacy data-center connection</a></li>
+<li><a href="#14-aws-bridge">14. AWS bridge</a></li>
+<li><a href="#15-hands-on-lab-on-your-own-computer">15. Hands-on lab on your own computer</a></li>
+<li><a href="#16-memory-card">16. Memory card</a></li>
+<li><a href="#17-internet-lecture-trail">17. Internet lecture trail</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="layers-frames-packets-ports-encapsulation">Layers, Frames, Packets, Ports &amp; Encapsulation</h1>
+<p><img alt="Encapsulation and router behavior" src="assets/diagrams/networking/01-layers.svg" /></p>
+<h2 id="1-why-layers-exist">1. Why layers exist</h2>
+<p>Networking is easier when each part has a narrow responsibility. Your browser should not need to know how Wi‑Fi retransmits a radio frame; your Wi‑Fi adapter should not need to understand HTTP cookies; a core Internet router should not need to parse your HTML.</p>
+<p>The practical TCP/IP model can be remembered as:</p>
+<pre><code class="language-text">Application     HTTP, DNS, SSH, database protocol
+Transport       TCP, UDP, QUIC behavior
+Internet        IP, ICMP, routing between networks
+Link            Ethernet, Wi-Fi, local frame delivery
+Physical        copper, fiber, radio
+</code></pre>
+<p>The seven-layer OSI model is useful vocabulary, but real systems often blur boundaries. Use it to <strong>locate responsibility</strong>, not to force every protocol into a perfect box.</p>
+<h2 id="2-four-identifiers-people-confuse">2. Four identifiers people confuse</h2>
+<p>Suppose your laptop opens HTTPS to <code>198.51.100.20</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Identifier</th>
+<th>Example</th>
+<th>Scope</th>
+<th>Main purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MAC/link address</td>
+<td><code>8c:85:90:aa:bb:cc</code></td>
+<td>Local link</td>
+<td>Deliver a frame to the next interface on the LAN/WLAN</td>
+</tr>
+<tr>
+<td>IP address</td>
+<td><code>192.168.1.25</code> → <code>198.51.100.20</code></td>
+<td>Across routed networks</td>
+<td>Identify source/destination IP endpoints</td>
+</tr>
+<tr>
+<td>Port</td>
+<td><code>51514</code> → <code>443</code></td>
+<td>Host/transport</td>
+<td>Identify a transport endpoint/application socket</td>
+</tr>
+<tr>
+<td>DNS name</td>
+<td><code>shop.example.com</code></td>
+<td>Naming system</td>
+<td>Human/service name that resolves to records such as IPs</td>
+</tr>
+</tbody>
+</table>
+<h3 id="memory-trick">Memory trick</h3>
+<blockquote>
+<p><strong>MAC = next device, IP = remote endpoint/network, port = process, DNS = name.</strong></p>
+</blockquote>
+<p>That statement is simplified but extremely useful.</p>
+<h2 id="3-encapsulation-one-request-becomes-several-wrappers">3. Encapsulation: one request becomes several wrappers</h2>
+<p>Imagine the browser creates:</p>
+<pre><code class="language-text">GET /orders HTTP/1.1
+Host: shop.example.com
+</code></pre>
+<p>A simplified outbound stack is:</p>
+<pre><code class="language-text">HTTP data
+  ↓ encrypted/secured by TLS
+TLS records
+  ↓ carried by TCP
+TCP segment
+  src port 51514
+  dst port 443
+  ↓ carried by IP
+IP packet
+  src 192.168.1.25
+  dst 198.51.100.20
+  ↓ carried on the local Wi-Fi link
+802.11 frame
+  src MAC = laptop Wi-Fi adapter
+  dst MAC = local next hop/AP/gateway side
+  ↓
+radio symbols/bits
+</code></pre>
+<p>At the destination, the wrappers are processed in the opposite direction until the web server/application receives the request.</p>
+<h2 id="4-what-changes-at-a-router">4. What changes at a router?</h2>
+<p>This is a critical interview and troubleshooting concept.</p>
+<p>A normal Layer-3 router forwards the <strong>IP packet</strong> between links. The local-link frame is not carried unchanged from your laptop to the remote server.</p>
+<p>Simplified router behavior:</p>
+<ol>
+<li>Receive an Ethernet/Wi‑Fi frame addressed to one of its local interfaces.</li>
+<li>Remove the link-layer header/trailer.</li>
+<li>Inspect destination IP.</li>
+<li>Decrease IPv4 TTL or IPv6 Hop Limit.</li>
+<li>Find the best matching route for the destination.</li>
+<li>Resolve/know the next-hop link-layer address on the outgoing interface.</li>
+<li>Encapsulate the IP packet inside a <strong>new link-layer frame</strong>.</li>
+<li>Transmit toward the next hop.</li>
+</ol>
+<p>Therefore:</p>
+<pre><code class="language-text">Laptop -&gt; Router A -&gt; Router B -&gt; Server
+
+IP destination may remain: 198.51.100.20
+MAC destination changes:    every Layer-2 segment/hop
+</code></pre>
+<p>NAT is a special case because it can also rewrite IP addresses/ports.</p>
+<h2 id="5-switch-versus-router">5. Switch versus router</h2>
+<h3 id="switch">Switch</h3>
+<p>A Layer-2 switch typically forwards frames inside a broadcast domain/VLAN using MAC address learning.</p>
+<pre><code class="language-text">Host A ---+
+          +--- Switch --- Host B
+Host C ---+
+</code></pre>
+<p>It learns which MAC addresses are reachable through which ports.</p>
+<h3 id="router">Router</h3>
+<p>A router connects IP networks/subnets.</p>
+<pre><code class="language-text">10.0.1.0/24 --- Router --- 10.0.2.0/24
+</code></pre>
+<p>Hosts on <code>10.0.1.0/24</code> send remote-subnet traffic to a router/default gateway.</p>
+<h3 id="layer-3-switch">Layer-3 switch</h3>
+<p>Enterprise switches can also perform routing. Do not infer capability merely from the physical shape of the appliance.</p>
+<h2 id="6-how-the-host-knows-whether-a-destination-is-local">6. How the host knows whether a destination is local</h2>
+<p>Example host:</p>
+<pre><code class="language-text">IP address:      192.168.1.25
+Subnet prefix:   /24
+Default gateway: 192.168.1.1
+</code></pre>
+<p>For destination <code>192.168.1.77</code>, the host can determine that the destination belongs to the same <code>/24</code> and attempt local delivery.</p>
+<p>For destination <code>198.51.100.20</code>, the destination is outside the local prefix, so a typical route table says:</p>
+<pre><code class="language-text">192.168.1.0/24  -&gt; directly connected
+0.0.0.0/0       -&gt; 192.168.1.1
+</code></pre>
+<p>That <code>0.0.0.0/0</code> is the <strong>default route</strong>: the catch-all route when no more specific route matches.</p>
+<h2 id="7-arp-and-ipv6-neighbor-discovery">7. ARP and IPv6 Neighbor Discovery</h2>
+<p>With IPv4, a host often uses <strong>ARP</strong> to learn the MAC address associated with a local IPv4 next hop.</p>
+<p>Example intent:</p>
+<pre><code class="language-text">Laptop: “Who has 192.168.1.1? I need its MAC so I can send this frame.”
+Router: “192.168.1.1 is at aa:bb:cc:dd:ee:ff.”
+</code></pre>
+<p>The laptop does <strong>not</strong> ARP for a remote website IP that is outside its subnet. It ARPs for the local next hop (often the default gateway).</p>
+<p>IPv6 uses Neighbor Discovery rather than ARP.</p>
+<h2 id="8-tcp-and-udp-in-one-page">8. TCP and UDP in one page</h2>
+<h3 id="tcp">TCP</h3>
+<p>TCP provides a reliable byte stream with connection state, sequencing, acknowledgements, retransmission, flow control, and congestion-control mechanisms.</p>
+<p>Common protocols: HTTPS over TCP, SSH, many databases.</p>
+<p>A classic TCP connection starts:</p>
+<pre><code class="language-text">Client                  Server
+  | ---- SYN ----------&gt; |
+  | &lt;--- SYN + ACK ----- |
+  | ---- ACK ----------&gt; |
+  |   connected          |
+</code></pre>
+<h3 id="udp">UDP</h3>
+<p>UDP is message/datagram-oriented and does not itself provide TCP-style connection establishment/reliability.</p>
+<p>Common uses include DNS transport, voice/video mechanisms, gaming, and QUIC.</p>
+<h3 id="quic-http3">QUIC / HTTP/3</h3>
+<p>Modern HTTP/3 uses QUIC over UDP and integrates transport/security behavior differently from classic HTTP over TCP + TLS. The important beginner lesson is: <strong>UDP does not imply “unreliable application.”</strong> Reliability can be implemented above UDP, as QUIC does.</p>
+<h2 id="9-ports-and-sockets">9. Ports and sockets</h2>
+<p>A server process listens on a transport endpoint, for example TCP port 443.</p>
+<p>The client usually chooses an ephemeral source port:</p>
+<pre><code class="language-text">192.168.1.25:51514  ---&gt; 198.51.100.20:443
+</code></pre>
+<p>The 5-tuple commonly used to distinguish a flow is:</p>
+<pre><code class="language-text">source IP
+source port
+destination IP
+destination port
+protocol
+</code></pre>
+<p>This is why thousands of clients can all connect to the same server port 443 while remaining distinct flows.</p>
+<h2 id="10-mtu-fragmentation-and-the-small-ping-works-app-fails-problem">10. MTU, fragmentation and the “small ping works, app fails” problem</h2>
+<p>Each link has a Maximum Transmission Unit (MTU). If a path cannot carry a packet as large as the sender expects, fragmentation or Path MTU Discovery behavior matters. VPN/tunnel headers reduce usable payload size.</p>
+<p>Symptoms of MTU issues can include:</p>
+<ul>
+<li>small requests work but larger transfers stall,</li>
+<li>TLS connections behave strangely,</li>
+<li>VPN-connected applications fail selectively,</li>
+<li>ICMP filtering breaks Path MTU Discovery.</li>
+</ul>
+<p>Do not make MTU your first guess, but know it exists when basic connectivity works yet larger packets fail.</p>
+<h2 id="11-icmp-is-not-the-ping-protocol-only">11. ICMP is not “the ping protocol only”</h2>
+<p>ICMP supports network control/error messages. <code>ping</code> commonly uses ICMP Echo, but ICMP is also involved in operational behavior such as reporting unreachable destinations and supporting path diagnostics. Blocking all ICMP can create subtle operational problems.</p>
+<h2 id="12-layer-oriented-debugging">12. Layer-oriented debugging</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely area to check first</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Wi‑Fi shows disconnected</td>
+<td>physical/link/access</td>
+</tr>
+<tr>
+<td>Has Wi‑Fi but no IP</td>
+<td>DHCP/address configuration</td>
+</tr>
+<tr>
+<td>Can reach local gateway but not Internet</td>
+<td>routing/NAT/ISP</td>
+</tr>
+<tr>
+<td>Can reach IP but hostname fails</td>
+<td>DNS</td>
+</tr>
+<tr>
+<td>TCP connection refused</td>
+<td>destination reachable, no listener or active reject</td>
+</tr>
+<tr>
+<td>TCP timeout</td>
+<td>path/policy/drop/congestion possible</td>
+</tr>
+<tr>
+<td>TLS certificate error</td>
+<td>TLS/name/certificate/time issue</td>
+</tr>
+<tr>
+<td>HTTP 403</td>
+<td>application/WAF/authz rather than basic routing</td>
+</tr>
+<tr>
+<td>HTTP 500</td>
+<td>application/server dependency</td>
+</tr>
+</tbody>
+</table>
+<h2 id="13-legacy-data-center-connection">13. Legacy data-center connection</h2>
+<p>In a legacy enterprise, teams often divided ownership like this:</p>
+<pre><code class="language-text">Server team        host OS, NIC, TCP listener
+Network team       VLAN, switch, route, BGP/OSPF
+Firewall team      access policy/NAT/inspection
+DNS team           zones/resolvers
+Load balancer team VIP/pools/certificates
+Application team   HTTP/API behavior
+</code></pre>
+<p>A ticket might bounce among five teams because each owns a different layer. AWS collapses some appliances into services, but the logical boundaries remain.</p>
+<h2 id="14-aws-bridge">14. AWS bridge</h2>
+<p>When you later see:</p>
+<pre><code class="language-text">EC2 ENI -&gt; subnet -&gt; route table -&gt; NAT gateway -&gt; IGW
+</code></pre>
+<p>translate it mentally to:</p>
+<pre><code class="language-text">host interface -&gt; local routed segment -&gt; next-hop decision
+-&gt; address translation edge -&gt; Internet routing edge
+</code></pre>
+<p>Security Groups are not “AWS magic”; they are a stateful packet/flow permission boundary associated with supported interfaces/resources. NACLs are a different, stateless subnet-level control.</p>
+<h2 id="15-hands-on-lab-on-your-own-computer">15. Hands-on lab on your own computer</h2>
+<p>Run equivalents appropriate for your OS:</p>
+<pre><code class="language-bash"># Linux/macOS examples
+ip addr                 # or ifconfig
+ip route                # route table
+a rp -a                 # use: arp -a (remove the space)
+nslookup example.com
+# or dig example.com
+traceroute example.com
+curl -v https://example.com/
+</code></pre>
+<p>Windows equivalents include:</p>
+<pre><code class="language-powershell">ipconfig /all
+route print
+arp -a
+nslookup example.com
+tracert example.com
+curl.exe -v https://example.com/
+</code></pre>
+<p>Record:</p>
+<ul>
+<li>your private IP,</li>
+<li>prefix/netmask,</li>
+<li>default gateway,</li>
+<li>DNS resolver,</li>
+<li>resolved destination IP,</li>
+<li>first few route hops.</li>
+</ul>
+<p>Do not be surprised if some <code>traceroute</code> hops show <code>*</code>; networks can filter or deprioritize the diagnostic messages while forwarding normal traffic.</p>
+<h2 id="16-memory-card">16. Memory card</h2>
+<pre><code class="language-text">Name        DNS
+Process     Port
+Remote host IP
+Local hop   MAC/link address
+Next hop    Route table
+Permission  Firewall/policy
+Proof       packet capture/log/flow evidence
+</code></pre>
+<h2 id="17-internet-lecture-trail">17. Internet lecture trail</h2>
+<ul>
+<li>Cloudflare, Network layer: https://www.cloudflare.com/learning/network-layer/what-is-the-network-layer/</li>
+<li>Cloudflare, Router: https://www.cloudflare.com/learning/network-layer/what-is-a-router/</li>
+<li>Cloudflare, Internet overview: https://www.cloudflare.com/learning/network-layer/how-does-the-internet-work/</li>
+</ul>
+<hr />
+<p><a href="00-networking-roadmap.html">← Previous</a> · <a href="index.html">Chapter index</a> · <a href="02-home-wifi-to-internet.html">Next →</a></p></article><div class="pager"><a href="00-networking-roadmap.html">← Previous chapter</a><a href="02-home-wifi-to-internet.html">Next chapter →</a></div></main></div><script src="assets/site.js"></script></body></html>

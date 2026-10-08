@@ -1,0 +1,452 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</title><link rel="stylesheet" href="assets/site.css"></head><body><div class="layout"><aside><h2>Networking bootcamp</h2><input id="navSearch" aria-label="Filter chapter titles" placeholder="Filter chapters"><nav><a href="../index.html">AWS course home</a><a href="index.html">Chapter index</a><a href="00-networking-roadmap.html">Networking Bootcamp — Start Here</a><a href="01-layers-frames-packets-ports.html">Layers, Frames, Packets, Ports &amp; Encapsulation</a><a href="02-home-wifi-to-internet.html">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</a><a href="03-mobile-data-to-internet.html">Phone on Mobile Data → the Internet: 4G/5G Mental Model</a><a href="04-ip-subnetting-nat-cgnat.html">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</a><a href="05-routing-isp-bgp-peering.html">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a><a href="06-dns-tcp-tls-http.html">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</a><a href="07-ingress-egress-firewalls-dmz.html">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</a><a href="08-legacy-datacenter-networking.html">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</a><a href="09-aws-internet-vpc-packet-flow.html">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</a><a href="10-network-troubleshooting-labs.html">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</a><a href="11-networking-cheatsheet.html">Networking Cheat Sheet, Memory Map &amp; Interview Questions</a></nav></aside><main><div class="pager"><a href="09-aws-internet-vpc-packet-flow.html">← Previous chapter</a><a href="11-networking-cheatsheet.html">Next chapter →</a></div><article><details class="toc"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#network-troubleshooting-labs-stop-guessing-prove-the-broken-layer">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</a><ul>
+<li><a href="#1-the-golden-rule">1. The golden rule</a></li>
+<li><a href="#2-the-troubleshooting-ladder">2. The troubleshooting ladder</a></li>
+<li><a href="#3-build-an-evidence-table-before-testing">3. Build an evidence table before testing</a></li>
+<li><a href="#4-local-host-lab">4. Local host lab</a><ul>
+<li><a href="#exercise">Exercise</a></li>
+</ul>
+</li>
+<li><a href="#5-dns-lab">5. DNS lab</a><ul>
+<li><a href="#failure-patterns">Failure patterns</a></li>
+</ul>
+</li>
+<li><a href="#6-test-an-ip-path-separately-from-dns">6. Test an IP path separately from DNS</a></li>
+<li><a href="#7-routepath-tools">7. Route/path tools</a></li>
+<li><a href="#8-transport-test">8. Transport test</a><ul>
+<li><a href="#port-open">Port open</a></li>
+<li><a href="#server-listener">Server listener</a></li>
+</ul>
+</li>
+<li><a href="#9-tls-test">9. TLS test</a></li>
+<li><a href="#10-http-test">10. HTTP test</a><ul>
+<li><a href="#status-interpretation">Status interpretation</a></li>
+</ul>
+</li>
+<li><a href="#11-packet-capture">11. Packet capture</a></li>
+<li><a href="#12-nat-troubleshooting">12. NAT troubleshooting</a></li>
+<li><a href="#13-stateful-firewall-troubleshooting">13. Stateful firewall troubleshooting</a></li>
+<li><a href="#14-aws-troubleshooting-checklist-ec2-to-internet">14. AWS troubleshooting checklist — EC2 to Internet</a></li>
+<li><a href="#15-aws-troubleshooting-checklist-internet-to-alb">15. AWS troubleshooting checklist — Internet to ALB</a></li>
+<li><a href="#16-aws-troubleshooting-checklist-alb-to-app">16. AWS troubleshooting checklist — ALB to app</a></li>
+<li><a href="#17-aws-troubleshooting-checklist-app-to-rds">17. AWS troubleshooting checklist — app to RDS</a></li>
+<li><a href="#18-vpc-flow-logs-dry-run">18. VPC Flow Logs dry run</a></li>
+<li><a href="#19-reachability-analyzer-lab">19. Reachability Analyzer lab</a></li>
+<li><a href="#20-route-table-lab">20. Route-table lab</a></li>
+<li><a href="#21-nacl-ephemeral-port-lab">21. NACL ephemeral-port lab</a></li>
+<li><a href="#22-sg-statefulness-lab">22. SG statefulness lab</a></li>
+<li><a href="#23-ipv4-vs-ipv6-split-test">23. IPv4 vs IPv6 split test</a></li>
+<li><a href="#24-mtuvpn-symptom-lab">24. MTU/VPN symptom lab</a></li>
+<li><a href="#25-works-from-bastion-but-not-app-server">25. “Works from bastion but not app server”</a></li>
+<li><a href="#26-works-by-ip-but-not-hostname">26. “Works by IP but not hostname”</a></li>
+<li><a href="#27-works-in-browser-but-curl-fails">27. “Works in browser but curl fails”</a></li>
+<li><a href="#28-403-means-firewall-wrong">28. “403 means firewall” — wrong</a></li>
+<li><a href="#29-minimal-incident-notes-template">29. Minimal incident notes template</a></li>
+<li><a href="#30-best-toolsreference-trail">30. Best tools/reference trail</a></li>
+<li><a href="#31-memory-trick">31. Memory trick</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="network-troubleshooting-labs-stop-guessing-prove-the-broken-layer">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</h1>
+<p><img alt="Troubleshooting decision tree" src="assets/diagrams/networking/11-troubleshooting.svg" /></p>
+<h2 id="1-the-golden-rule">1. The golden rule</h2>
+<blockquote>
+<p><strong>Change nothing until you can state the first layer where observed behavior differs from expected behavior.</strong></p>
+</blockquote>
+<p>Randomly opening firewalls creates security risk and destroys evidence.</p>
+<h2 id="2-the-troubleshooting-ladder">2. The troubleshooting ladder</h2>
+<p>Use this order:</p>
+<pre><code class="language-text">1. Name/DNS
+2. Local address/interface
+3. Local route/default gateway
+4. End-to-end route/reachability
+5. Firewall/security policy
+6. Transport/listener
+7. TLS
+8. HTTP/application
+9. downstream dependencies
+</code></pre>
+<p>A later layer cannot work if an earlier required layer is broken.</p>
+<h2 id="3-build-an-evidence-table-before-testing">3. Build an evidence table before testing</h2>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Expected</th>
+<th>Observed</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DNS A/AAAA</td>
+<td>expected endpoint</td>
+<td>?</td>
+<td><code>dig</code></td>
+</tr>
+<tr>
+<td>source IP</td>
+<td>expected interface</td>
+<td>?</td>
+<td><code>ip addr</code></td>
+</tr>
+<tr>
+<td>route</td>
+<td>expected gateway/target</td>
+<td>?</td>
+<td><code>ip route get</code> / VPC RT</td>
+</tr>
+<tr>
+<td>TCP port</td>
+<td>opens</td>
+<td>?</td>
+<td><code>nc</code> / <code>curl</code></td>
+</tr>
+<tr>
+<td>TLS cert</td>
+<td>valid hostname</td>
+<td>?</td>
+<td><code>openssl</code></td>
+</tr>
+<tr>
+<td>HTTP</td>
+<td>200/expected code</td>
+<td>?</td>
+<td><code>curl -v</code></td>
+</tr>
+<tr>
+<td>backend</td>
+<td>healthy</td>
+<td>?</td>
+<td>LB target health/logs</td>
+</tr>
+</tbody>
+</table>
+<p>This prevents “I think the route is correct” debugging.</p>
+<h2 id="4-local-host-lab">4. Local host lab</h2>
+<p>Linux examples:</p>
+<pre><code class="language-bash">ip addrip route
+ip route get 1.1.1.1
+arp -n
+resolvectl status   # systemd systems
+ss -lntup
+</code></pre>
+<p>macOS equivalents include:</p>
+<pre><code class="language-bash">ifconfig
+netstat -rn
+route -n get default
+arp -a
+lsof -iTCP -sTCP:LISTEN
+</code></pre>
+<p>Windows:</p>
+<pre><code class="language-powershell">ipconfig /all
+route print
+arp -a
+Get-NetTCPConnection -State Listen
+</code></pre>
+<h3 id="exercise">Exercise</h3>
+<p>Find your:</p>
+<ul>
+<li>active interface,</li>
+<li>private IP,</li>
+<li>prefix/netmask,</li>
+<li>default gateway,</li>
+<li>DNS resolvers,</li>
+<li>listening local ports.</li>
+</ul>
+<h2 id="5-dns-lab">5. DNS lab</h2>
+<pre><code class="language-bash">nslookup example.com
+dig example.com A
+dig example.com AAAA
+</code></pre>
+<p>Then compare a specific resolver:</p>
+<pre><code class="language-bash">dig @1.1.1.1 example.com A
+dig @8.8.8.8 example.com A
+</code></pre>
+<p>Do not assume answers will always be identical because CDNs/geo/routing/caching can influence results.</p>
+<h3 id="failure-patterns">Failure patterns</h3>
+<pre><code class="language-text">NXDOMAIN      name does not exist according to DNS response
+SERVFAIL      resolver/authoritative/validation/dependency problem possible
+timeout       resolver path/firewall/network issue possible
+wrong IP      stale/misconfigured DNS/cache/split-horizon issue
+</code></pre>
+<h2 id="6-test-an-ip-path-separately-from-dns">6. Test an IP path separately from DNS</h2>
+<p>If DNS returns <code>198.51.100.20</code>, you can reason about IP separately.</p>
+<p><code>ping</code> may be filtered, so do not require it.</p>
+<p>Use application-relevant tests:</p>
+<pre><code class="language-bash">nc -vz host.example 443
+curl -v https://host.example/
+</code></pre>
+<p>For HTTP services where you need to force a particular IP while preserving hostname/SNI, <code>curl --resolve</code> can be a powerful authorized diagnostic:</p>
+<pre><code class="language-bash">curl -v --resolve api.example.com:443:203.0.113.25 https://api.example.com/
+</code></pre>
+<p>This isolates DNS from TLS/HTTP endpoint testing.</p>
+<h2 id="7-routepath-tools">7. Route/path tools</h2>
+<pre><code class="language-bash">traceroute example.com
+mtr example.com
+</code></pre>
+<p>Windows:</p>
+<pre><code class="language-powershell">tracert example.com
+pathping example.com
+</code></pre>
+<p>Interpret carefully. Missing intermediate responses do not necessarily mean packet forwarding failed.</p>
+<h2 id="8-transport-test">8. Transport test</h2>
+<h3 id="port-open">Port open</h3>
+<pre><code class="language-bash">nc -vz api.example.com 443
+</code></pre>
+<h3 id="server-listener">Server listener</h3>
+<p>Linux:</p>
+<pre><code class="language-bash">ss -lntp | grep ':8080'
+</code></pre>
+<p>If a process listens only on:</p>
+<pre><code class="language-text">127.0.0.1:8080
+</code></pre>
+<p>remote load balancers cannot normally reach it via the host's private ENI address. Bind to the correct interface according to application/security requirements.</p>
+<h2 id="9-tls-test">9. TLS test</h2>
+<pre><code class="language-bash">openssl s_client \
+  -connect api.example.com:443 \
+  -servername api.example.com
+</code></pre>
+<p>Inspect:</p>
+<ul>
+<li>certificate subject/SAN,</li>
+<li>issuer/chain,</li>
+<li>expiration,</li>
+<li>negotiated TLS version/cipher,</li>
+<li>hostname/SNI behavior.</li>
+</ul>
+<p>A successful TCP connection plus failed TLS narrows the problem dramatically.</p>
+<h2 id="10-http-test">10. HTTP test</h2>
+<pre><code class="language-bash">curl -v https://api.example.com/health
+</code></pre>
+<p>Observe:</p>
+<pre><code class="language-text">resolved IP
+connection target
+TLS messages
+HTTP status
+redirect Location header
+server/proxy headers (when present)
+response timing
+</code></pre>
+<h3 id="status-interpretation">Status interpretation</h3>
+<pre><code class="language-text">403 from WAF != TCP failure
+503 from ALB != DNS failure
+504 often indicates upstream timeout path
+401 != firewall denial
+</code></pre>
+<h2 id="11-packet-capture">11. Packet capture</h2>
+<p>Authorized Linux capture:</p>
+<pre><code class="language-bash">sudo tcpdump -ni any host 198.51.100.20 and port 443
+</code></pre>
+<p>You might see:</p>
+<pre><code class="language-text">SYN sent, no SYN/ACK        path/drop/destination issue
+SYN, SYN/ACK, ACK           TCP established
+TLS ClientHello, alert      TLS negotiation/certificate/protocol issue
+HTTP request + response     network and transport are functioning
+RST                          active reset/refusal/closed state
+</code></pre>
+<p>Wireshark provides deeper visual decoding.</p>
+<p>Do not capture traffic you are not authorized to inspect; payloads can contain sensitive data.</p>
+<h2 id="12-nat-troubleshooting">12. NAT troubleshooting</h2>
+<p>Questions:</p>
+<pre><code class="language-text">Is source translation expected?
+What public IP should destination see?
+Does NAT have translation/session capacity?
+Is return traffic addressed to translated tuple?
+Is vendor allowlisting the translated public IP?
+Is there double NAT/CGNAT?
+</code></pre>
+<p>A common vendor integration test is to call an endpoint that reports the source public IP, or inspect vendor logs, then compare with expected NAT EIP.</p>
+<h2 id="13-stateful-firewall-troubleshooting">13. Stateful firewall troubleshooting</h2>
+<p>Check session logs/table:</p>
+<pre><code class="language-text">did SYN enter?
+which policy matched?
+was source NAT applied?
+did SYN leave?
+did SYN/ACK return?
+did it return through same stateful device/path?
+was it dropped by threat/IPS policy?
+</code></pre>
+<p>A stateful firewall with no return packet cannot complete the flow even if its allow rule looks correct.</p>
+<h2 id="14-aws-troubleshooting-checklist-ec2-to-internet">14. AWS troubleshooting checklist — EC2 to Internet</h2>
+<pre><code class="language-text">[ ] DNS resolution works
+[ ] EC2 has correct private IP
+[ ] subnet route table has expected default route
+[ ] NAT/IGW target exists and is in correct state
+[ ] NAT Gateway public subnet itself routes to IGW
+[ ] SG egress allows required flow
+[ ] NACL permits both directions
+[ ] Network Firewall/inspection routes are symmetric/correct
+[ ] destination permits the NAT/public source
+[ ] IPv4/IPv6 family is what you expect
+</code></pre>
+<h2 id="15-aws-troubleshooting-checklist-internet-to-alb">15. AWS troubleshooting checklist — Internet to ALB</h2>
+<pre><code class="language-text">[ ] DNS points to correct ALB/CloudFront endpoint
+[ ] ALB scheme is internet-facing
+[ ] ALB subnets have appropriate Internet routing
+[ ] ALB SG allows client source/443
+[ ] NACLs do not block
+[ ] listener exists on expected port/protocol
+[ ] certificate/SNI is correct
+[ ] WAF is not blocking unexpectedly
+[ ] targets are healthy
+</code></pre>
+<h2 id="16-aws-troubleshooting-checklist-alb-to-app">16. AWS troubleshooting checklist — ALB to app</h2>
+<pre><code class="language-text">[ ] target IP/instance registered
+[ ] target health-check port/path correct
+[ ] APP-SG permits source ALB-SG
+[ ] app subnet route/local path correct
+[ ] NACL permits flow/return
+[ ] process listens on expected interface/port
+[ ] host firewall permits
+[ ] app health endpoint returns expected status fast enough
+</code></pre>
+<h2 id="17-aws-troubleshooting-checklist-app-to-rds">17. AWS troubleshooting checklist — app to RDS</h2>
+<pre><code class="language-text">[ ] DNS endpoint resolves
+[ ] route/local/VPC connectivity exists
+[ ] DB-SG permits APP-SG on DB port
+[ ] NACLs permit flow
+[ ] DB is available/listening
+[ ] credentials/auth method valid
+[ ] TLS requirement/client trust correct
+[ ] connection pool not exhausted
+</code></pre>
+<p>A DB authentication error proves much more network path success than a timeout.</p>
+<h2 id="18-vpc-flow-logs-dry-run">18. VPC Flow Logs dry run</h2>
+<p>Imagine record metadata indicates:</p>
+<pre><code class="language-text">srcaddr=10.0.11.25
+dstaddr=10.0.21.10
+srcport=53120
+dstport=5432
+protocol=6
+action=REJECT
+</code></pre>
+<p>This immediately focuses investigation on network policy/path around that ENI/subnet observation point rather than SQL credentials.</p>
+<p>If action is <code>ACCEPT</code> but app times out, investigate:</p>
+<ul>
+<li>another hop/policy,</li>
+<li>host firewall,</li>
+<li>service listener,</li>
+<li>app-level timeout,</li>
+<li>return path,</li>
+<li>packet loss/MTU.</li>
+</ul>
+<h2 id="19-reachability-analyzer-lab">19. Reachability Analyzer lab</h2>
+<p>Use Reachability Analyzer to model a path such as:</p>
+<pre><code class="language-text">EC2 ENI -&gt; another ENI
+EC2 -&gt; Internet Gateway path
+source -&gt; destination through TGW/peering supported resources
+</code></pre>
+<p>Important: it statically analyzes configuration. It does not prove that your application process is listening or that a runtime service is healthy.</p>
+<h2 id="20-route-table-lab">20. Route-table lab</h2>
+<p>Given:</p>
+<pre><code class="language-text">10.0.0.0/16  local
+10.50.0.0/16 tgw
+0.0.0.0/0    nat
+</code></pre>
+<p>Answer:</p>
+<pre><code class="language-text">10.0.12.8   -&gt; local
+10.50.8.8   -&gt; TGW
+8.8.8.8     -&gt; NAT
+</code></pre>
+<p>Now add:</p>
+<pre><code class="language-text">10.50.8.0/24 firewall-endpoint
+</code></pre>
+<p>Destination <code>10.50.8.8</code> now matches <code>/24</code> and takes the more specific firewall route.</p>
+<h2 id="21-nacl-ephemeral-port-lab">21. NACL ephemeral-port lab</h2>
+<p>Client:</p>
+<pre><code class="language-text">10.0.1.25:53000 -&gt; 10.0.2.50:443
+</code></pre>
+<p>Stateless subnet ACL reasoning must cover:</p>
+<pre><code class="language-text">forward packet to destination 443
+reverse packet to client 53000
+</code></pre>
+<p>If the return-direction ACL blocks the ephemeral port, the connection fails even though inbound 443 looks correct.</p>
+<h2 id="22-sg-statefulness-lab">22. SG statefulness lab</h2>
+<p>SG permits outbound HTTPS from client.</p>
+<pre><code class="language-text">client ephemeral -&gt; server 443
+</code></pre>
+<p>The response is recognized as return traffic for the established allowed connection under SG statefulness. You do not add a broad “inbound 443” rule to the client just to receive that response.</p>
+<h2 id="23-ipv4-vs-ipv6-split-test">23. IPv4 vs IPv6 split test</h2>
+<pre><code class="language-bash">curl -4 -v https://example.com/
+curl -6 -v https://example.com/
+</code></pre>
+<p>If one works and the other fails, stop treating the problem as one generic “Internet” issue. Compare DNS AAAA, IPv6 route, egress-only/IGW path, SG/NACL IPv6 rules, and upstream support.</p>
+<h2 id="24-mtuvpn-symptom-lab">24. MTU/VPN symptom lab</h2>
+<p>Scenario:</p>
+<pre><code class="language-text">SSH login works
+small HTTP response works
+large upload stalls over VPN
+</code></pre>
+<p>Investigate MTU/MSS/Path MTU Discovery and tunnel overhead after proving route/policy basics.</p>
+<p>Useful tools vary by OS; controlled pings with DF/size options and packet captures can reveal fragmentation-needed/ICMP behavior.</p>
+<h2 id="25-works-from-bastion-but-not-app-server">25. “Works from bastion but not app server”</h2>
+<p>Compare exactly:</p>
+<pre><code class="language-text">source subnet
+source SG
+route table association
+NACL
+DNS resolver/search path
+NAT/egress IP
+proxy environment variables
+IPv6 availability
+host firewall
+</code></pre>
+<p>Do not conclude “AWS network is random.” The two hosts are different network principals/paths.</p>
+<h2 id="26-works-by-ip-but-not-hostname">26. “Works by IP but not hostname”</h2>
+<p>High probability areas:</p>
+<ul>
+<li>DNS resolution,</li>
+<li>split-horizon zone,</li>
+<li>stale cache,</li>
+<li>search suffix,</li>
+<li>proxy/SNI/Host header behavior.</li>
+</ul>
+<p>If HTTPS works only by hostname and fails by IP, that may be expected because TLS certificate/SNI and virtual hosting depend on hostname.</p>
+<h2 id="27-works-in-browser-but-curl-fails">27. “Works in browser but curl fails”</h2>
+<p>Compare:</p>
+<ul>
+<li>proxy settings,</li>
+<li>client certificates,</li>
+<li>browser DNS/DoH,</li>
+<li>cookies/authentication,</li>
+<li>HTTP/2/3 behavior,</li>
+<li>user agent/WAF policy,</li>
+<li>system trust store vs browser trust store.</li>
+</ul>
+<h2 id="28-403-means-firewall-wrong">28. “403 means firewall” — wrong</h2>
+<p>A network firewall normally drops/rejects before an HTTP application response. An HTTP <code>403</code> means some HTTP-speaking component generated a response—perhaps WAF, proxy, API gateway, application authorization.</p>
+<p>That is valuable evidence that DNS/routing/transport/TLS likely got much farther than a raw network drop.</p>
+<h2 id="29-minimal-incident-notes-template">29. Minimal incident notes template</h2>
+<pre><code class="language-text">Client/source:
+Timestamp + timezone:
+Hostname:
+Resolved A/AAAA:
+Source public egress IP:
+Expected destination/port:
+Route path expectation:
+TCP result:
+TLS result:
+HTTP result:
+Relevant SG/NACL/firewall rule IDs:
+Flow-log evidence:
+LB/WAF/app log evidence:
+Recent changes:
+</code></pre>
+<p>This is vastly more useful than “network not working.”</p>
+<h2 id="30-best-toolsreference-trail">30. Best tools/reference trail</h2>
+<ul>
+<li>VPC Flow Logs basics: https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-basics.html</li>
+<li>Flow-log records: https://docs.aws.amazon.com/vpc/latest/userguide/flow-log-records.html</li>
+<li>Reachability Analyzer: https://docs.aws.amazon.com/vpc/latest/reachability/what-is-reachability-analyzer.html</li>
+<li>Route priority: https://docs.aws.amazon.com/vpc/latest/userguide/route-tables-priority.html</li>
+</ul>
+<h2 id="31-memory-trick">31. Memory trick</h2>
+<blockquote>
+<p><strong>D-A-R-E-P-T-A = DNS, Address, Route, Edge translation, Policy, Transport, Application.</strong></p>
+</blockquote>
+<p>Write the evidence for each letter. The first failed letter is where investigation begins.</p>
+<hr />
+<p><a href="09-aws-internet-vpc-packet-flow.html">← Previous</a> · <a href="index.html">Chapter index</a> · <a href="11-networking-cheatsheet.html">Next →</a></p></article><div class="pager"><a href="09-aws-internet-vpc-packet-flow.html">← Previous chapter</a><a href="11-networking-cheatsheet.html">Next chapter →</a></div></main></div><script src="assets/site.js"></script></body></html>

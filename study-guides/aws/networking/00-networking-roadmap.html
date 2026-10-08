@@ -1,0 +1,272 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Networking Bootcamp — Start Here</title><link rel="stylesheet" href="assets/site.css"></head><body><div class="layout"><aside><h2>Networking bootcamp</h2><input id="navSearch" aria-label="Filter chapter titles" placeholder="Filter chapters"><nav><a href="../index.html">AWS course home</a><a href="index.html">Chapter index</a><a href="00-networking-roadmap.html">Networking Bootcamp — Start Here</a><a href="01-layers-frames-packets-ports.html">Layers, Frames, Packets, Ports &amp; Encapsulation</a><a href="02-home-wifi-to-internet.html">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</a><a href="03-mobile-data-to-internet.html">Phone on Mobile Data → the Internet: 4G/5G Mental Model</a><a href="04-ip-subnetting-nat-cgnat.html">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</a><a href="05-routing-isp-bgp-peering.html">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a><a href="06-dns-tcp-tls-http.html">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</a><a href="07-ingress-egress-firewalls-dmz.html">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</a><a href="08-legacy-datacenter-networking.html">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</a><a href="09-aws-internet-vpc-packet-flow.html">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</a><a href="10-network-troubleshooting-labs.html">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</a><a href="11-networking-cheatsheet.html">Networking Cheat Sheet, Memory Map &amp; Interview Questions</a></nav></aside><main><div class="pager"><a href="../index.html">Course home</a><a href="01-layers-frames-packets-ports.html">Next chapter →</a></div><article><details class="toc"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#networking-bootcamp-start-here">Networking Bootcamp — Start Here</a><ul>
+<li><a href="#the-seven-questions-to-ask-for-every-network-problem">The seven questions to ask for every network problem</a><ul>
+<li><a href="#memory-trick">Memory trick</a></li>
+</ul>
+</li>
+<li><a href="#recommended-study-order">Recommended study order</a></li>
+<li><a href="#one-diagram-to-remember-before-anything-else">One diagram to remember before anything else</a></li>
+<li><a href="#what-the-internet-actually-means">What “the Internet” actually means</a></li>
+<li><a href="#how-aws-fits-into-this-picture">How AWS fits into this picture</a></li>
+<li><a href="#the-three-traffic-directions-you-should-recognize">The three traffic directions you should recognize</a><ul>
+<li><a href="#northsouth">North–south</a></li>
+<li><a href="#eastwest">East–west</a></li>
+<li><a href="#managementcontrol-plane-traffic">Management/control-plane traffic</a></li>
+</ul>
+</li>
+<li><a href="#beginner-mistakes-this-bootcamp-will-remove">Beginner mistakes this bootcamp will remove</a></li>
+<li><a href="#internet-examples-and-authoritative-reading">Internet examples and authoritative reading</a></li>
+<li><a href="#self-test-before-moving-on">Self-test before moving on</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="networking-bootcamp-start-here">Networking Bootcamp — Start Here</h1>
+<p><img alt="Networking roadmap" src="assets/diagrams/networking/00-roadmap.svg" /></p>
+<p>If networking feels mysterious, do <strong>not</strong> begin with VPC route tables. Begin with one question:</p>
+<blockquote>
+<p><strong>When I type <code>https://example.com</code> on my laptop or phone, what physical and logical systems touch my traffic before the page appears?</strong></p>
+</blockquote>
+<p>AWS networking is mostly the same networking ideas exposed as software-defined resources. The names change; the packet still needs an address, a next hop, a permitted path, a transport session, and an application endpoint.</p>
+<h2 id="the-seven-questions-to-ask-for-every-network-problem">The seven questions to ask for every network problem</h2>
+<ol>
+<li><strong>Name:</strong> What hostname did the client use, and what IP did DNS return?</li>
+<li><strong>Address:</strong> What source and destination IPs exist at this point in the path? Were they translated?</li>
+<li><strong>Local link:</strong> How does the device reach the next-hop router on this LAN/WLAN/cellular access network?</li>
+<li><strong>Route:</strong> Which routing table chooses the next hop for the destination prefix?</li>
+<li><strong>Policy:</strong> Which firewall/security policy can allow or deny the flow?</li>
+<li><strong>Transport:</strong> Which protocol and ports are used? Did TCP/QUIC establish a session?</li>
+<li><strong>Application:</strong> Did TLS and HTTP/application behavior succeed after the network path worked?</li>
+</ol>
+<h3 id="memory-trick">Memory trick</h3>
+<blockquote>
+<p><strong>N-A-L-R-P-T-A = Name, Address, Link, Route, Policy, Transport, Application.</strong></p>
+</blockquote>
+<p>If you debug in that order, you avoid the common mistake of changing firewall rules when the real problem is DNS, routing, or an application that is not listening.</p>
+<h2 id="recommended-study-order">Recommended study order</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Order</th>
+<th>Lecture</th>
+<th>Why it comes here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td><a href="01-layers-frames-packets-ports.html">Layers, Frames, Packets, Ports &amp; Encapsulation</a></td>
+<td>Learn the vocabulary that all later diagrams use.</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td><a href="02-home-wifi-to-internet.html">Your PC on Wi‑Fi → the Internet</a></td>
+<td>Builds the complete path from a familiar device.</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td><a href="03-mobile-data-to-internet.html">Phone on Mobile Data → the Internet</a></td>
+<td>Shows why cellular access differs from Wi‑Fi while IP remains the common layer.</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td><a href="04-ip-subnetting-nat-cgnat.html">IP Addressing, Subnetting, NAT &amp; CGNAT</a></td>
+<td>Explains private/public addresses and why NAT exists.</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td><a href="05-routing-isp-bgp-peering.html">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a></td>
+<td>Explains how packets cross independent networks.</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td><a href="06-dns-tcp-tls-http.html">DNS → TCP/QUIC → TLS → HTTP</a></td>
+<td>Reconstructs a browser request in time order.</td>
+</tr>
+<tr>
+<td style="text-align: right;">7</td>
+<td><a href="07-ingress-egress-firewalls-dmz.html">Ingress, Egress, Firewalls, WAF, Proxies &amp; DMZs</a></td>
+<td>Explains security controls at different layers.</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td><a href="08-legacy-datacenter-networking.html">Legacy/In-house Data Center Network Flow</a></td>
+<td>Gives the exact mental bridge to enterprise networking.</td>
+</tr>
+<tr>
+<td style="text-align: right;">9</td>
+<td><a href="09-aws-internet-vpc-packet-flow.html">AWS Internet &amp; VPC Packet Flow</a></td>
+<td>Maps every legacy component to AWS.</td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td><a href="10-network-troubleshooting-labs.html">Network Troubleshooting Labs</a></td>
+<td>Teaches how to prove which layer is broken.</td>
+</tr>
+<tr>
+<td style="text-align: right;">11</td>
+<td><a href="11-networking-cheatsheet.html">Networking Cheat Sheet &amp; Interview Questions</a></td>
+<td>Revision and recall.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="one-diagram-to-remember-before-anything-else">One diagram to remember before anything else</h2>
+<pre><code class="language-text">Application wants: https://shop.example.com/orders
+                         |
+                         v
+                    DNS resolves name
+                         |
+                         v
+             destination IP: 198.51.100.20
+                         |
+                         v
+             local routing table decides:
+             remote network -&gt; default gateway
+                         |
+                         v
+      Laptop --Wi-Fi--&gt; home router --ISP--&gt; Internet routers
+                         |
+                         v
+               destination edge/firewall/LB
+                         |
+                         v
+                    application server
+</code></pre>
+<p>The important idea is that <strong>your laptop usually does not know the complete Internet path</strong>. It knows the destination IP and a local route, often a default route. Each router independently performs a similar next-hop decision.</p>
+<h2 id="what-the-internet-actually-means">What “the Internet” actually means</h2>
+<p>The Internet is a <strong>network of networks</strong>, not one giant LAN. Large networks are organized into independently administered routing domains called <strong>Autonomous Systems (ASes)</strong>. ISPs, cloud providers, CDNs, universities, and large enterprises may operate ASes. BGP is the principal protocol used to exchange reachable IP prefixes and routing policy between ASes.</p>
+<p>Do not memorize “BGP finds the shortest path.” That is an oversimplification. BGP is <strong>policy-driven</strong>; AS-path length is only one attribute among several, and commercial or engineering policy can make a longer-looking route preferable.</p>
+<h2 id="how-aws-fits-into-this-picture">How AWS fits into this picture</h2>
+<table>
+<thead>
+<tr>
+<th>Familiar network idea</th>
+<th>Legacy/home example</th>
+<th>AWS expression</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Address range</td>
+<td>Office subnet <code>10.20.30.0/24</code></td>
+<td>VPC/subnet CIDR</td>
+</tr>
+<tr>
+<td>Routing table</td>
+<td>Router/default gateway routes</td>
+<td>VPC route table</td>
+</tr>
+<tr>
+<td>Internet edge</td>
+<td>ISP-facing router/firewall</td>
+<td>Internet Gateway + public routing</td>
+</tr>
+<tr>
+<td>Outbound address translation</td>
+<td>Firewall/router PAT</td>
+<td>NAT Gateway for private IPv4 egress</td>
+</tr>
+<tr>
+<td>Stateful workload firewall</td>
+<td>Host or perimeter firewall</td>
+<td>Security Group</td>
+</tr>
+<tr>
+<td>Stateless subnet ACL</td>
+<td>Router ACL</td>
+<td>Network ACL</td>
+</tr>
+<tr>
+<td>Layer-7 web firewall</td>
+<td>Appliance WAF/reverse proxy</td>
+<td>AWS WAF</td>
+</tr>
+<tr>
+<td>Deep packet/IPS firewall</td>
+<td>Palo Alto/Fortinet/etc.</td>
+<td>AWS Network Firewall / appliances via GWLB</td>
+</tr>
+<tr>
+<td>DNS</td>
+<td>Corporate DNS / public DNS</td>
+<td>Route 53 + VPC Resolver</td>
+</tr>
+<tr>
+<td>Load balancer</td>
+<td>F5/HAProxy/NGINX appliance</td>
+<td>ALB/NLB</td>
+</tr>
+<tr>
+<td>Hub router</td>
+<td>Core/WAN router</td>
+<td>Transit Gateway</td>
+</tr>
+<tr>
+<td>Private carrier circuit</td>
+<td>MPLS/private line</td>
+<td>Direct Connect</td>
+</tr>
+<tr>
+<td>Site-to-site encrypted tunnel</td>
+<td>IPsec VPN appliance</td>
+<td>AWS Site-to-Site VPN</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-three-traffic-directions-you-should-recognize">The three traffic directions you should recognize</h2>
+<h3 id="northsouth">North–south</h3>
+<p>Traffic crosses the environment boundary.</p>
+<pre><code class="language-text">Internet user -&gt; enterprise/AWS application
+application -&gt; Internet SaaS/API
+</code></pre>
+<h3 id="eastwest">East–west</h3>
+<p>Traffic stays inside the environment but crosses workloads/segments.</p>
+<pre><code class="language-text">web tier -&gt; app tier -&gt; database
+service A -&gt; service B
+VPC A -&gt; VPC B
+</code></pre>
+<h3 id="managementcontrol-plane-traffic">Management/control-plane traffic</h3>
+<p>Administrators or automation configure resources; this is not always the same path as application data.</p>
+<pre><code class="language-text">Engineer -&gt; AWS API/control plane
+Application packet -&gt; VPC data path
+</code></pre>
+<p>This distinction matters because a console/API action can succeed while the packet path is broken, or the packet path can work while IAM prevents you from changing it.</p>
+<h2 id="beginner-mistakes-this-bootcamp-will-remove">Beginner mistakes this bootcamp will remove</h2>
+<ul>
+<li>Thinking a public subnet is public because of its name.</li>
+<li>Thinking a public IP is physically configured on every NIC exactly as shown in the console.</li>
+<li>Thinking DNS sends your web request to the server.</li>
+<li>Thinking the destination MAC address of an Internet packet is the remote server’s MAC.</li>
+<li>Thinking routers forward based on TCP port instead of destination IP prefixes.</li>
+<li>Thinking NAT is the same thing as a firewall.</li>
+<li>Thinking “ingress” always means public Internet traffic.</li>
+<li>Thinking all firewalls work at the same network layer.</li>
+<li>Thinking Security Groups and NACLs behave identically.</li>
+<li>Thinking an outbound HTTPS request requires inbound port 443 to be open on the client.</li>
+<li>Thinking <code>ping</code> proves an HTTPS application is healthy.</li>
+<li>Thinking <code>traceroute</code> always reveals every router.</li>
+</ul>
+<h2 id="internet-examples-and-authoritative-reading">Internet examples and authoritative reading</h2>
+<ul>
+<li>Cloudflare, <strong>How does the Internet work?</strong>: https://www.cloudflare.com/learning/network-layer/how-does-the-internet-work/</li>
+<li>Cloudflare, <strong>What is a router?</strong>: https://www.cloudflare.com/learning/network-layer/what-is-a-router/</li>
+<li>Cloudflare, <strong>What is BGP?</strong>: https://www.cloudflare.com/learning/security/glossary/what-is-bgp/</li>
+<li>Cloudflare, <strong>What is DNS?</strong>: https://www.cloudflare.com/learning/dns/what-is-dns/</li>
+<li>AWS, <strong>Amazon VPC User Guide</strong>: https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html</li>
+</ul>
+<blockquote>
+<p><strong>Teaching note:</strong> external diagrams are linked as references. The diagrams packaged in this course are original study redraws so they remain readable, printable, and consistent with the rest of the guide.</p>
+</blockquote>
+<h2 id="self-test-before-moving-on">Self-test before moving on</h2>
+<p>You are ready for the next lecture if you can explain, without AWS terminology:</p>
+<ol>
+<li>Why a laptop needs a default gateway.</li>
+<li>Why the destination MAC on the first Wi‑Fi frame is normally the gateway/AP-side next hop rather than the remote website.</li>
+<li>Why DNS and routing solve different problems.</li>
+<li>Why a private IPv4 address can access the Internet through NAT.</li>
+<li>Why a return packet may take a different physical/router path on the Internet.</li>
+</ol>
+<p><a href="01-layers-frames-packets-ports.html">Next → Layers, Frames, Packets, Ports &amp; Encapsulation</a></p>
+<hr />
+<p><a href="index.html">Chapter index</a> · <a href="01-layers-frames-packets-ports.html">Next →</a></p></article><div class="pager"><a href="../index.html">Course home</a><a href="01-layers-frames-packets-ports.html">Next chapter →</a></div></main></div><script src="assets/site.js"></script></body></html>

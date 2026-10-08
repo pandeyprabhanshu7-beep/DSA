@@ -1,0 +1,442 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Legacy / In-house Data Center Networking: Complete Flow Before Cloud</title><link rel="stylesheet" href="assets/site.css"></head><body><div class="layout"><aside><h2>Networking bootcamp</h2><input id="navSearch" aria-label="Filter chapter titles" placeholder="Filter chapters"><nav><a href="../index.html">AWS course home</a><a href="index.html">Chapter index</a><a href="00-networking-roadmap.html">Networking Bootcamp — Start Here</a><a href="01-layers-frames-packets-ports.html">Layers, Frames, Packets, Ports &amp; Encapsulation</a><a href="02-home-wifi-to-internet.html">Your PC on Wi‑Fi → the Internet: Complete Packet Walk</a><a href="03-mobile-data-to-internet.html">Phone on Mobile Data → the Internet: 4G/5G Mental Model</a><a href="04-ip-subnetting-nat-cgnat.html">IP Addressing, Subnetting, NAT, PAT, CGNAT &amp; IPv6</a><a href="05-routing-isp-bgp-peering.html">Routing, ISPs, Autonomous Systems, BGP, Peering &amp; Transit</a><a href="06-dns-tcp-tls-http.html">DNS → Routing → TCP/QUIC → TLS → HTTP: A Browser Request in Time Order</a><a href="07-ingress-egress-firewalls-dmz.html">Ingress, Egress, Firewalls, WAF, Proxies, DMZ &amp; Stateful vs Stateless Filtering</a><a href="08-legacy-datacenter-networking.html">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</a><a href="09-aws-internet-vpc-packet-flow.html">AWS Internet &amp; VPC Packet Flow — From Browser to Private Application and Back</a><a href="10-network-troubleshooting-labs.html">Network Troubleshooting Labs — Stop Guessing, Prove the Broken Layer</a><a href="11-networking-cheatsheet.html">Networking Cheat Sheet, Memory Map &amp; Interview Questions</a></nav></aside><main><div class="pager"><a href="07-ingress-egress-firewalls-dmz.html">← Previous chapter</a><a href="09-aws-internet-vpc-packet-flow.html">Next chapter →</a></div><article><details class="toc"><summary>On this page</summary><div class="toc">
+<ul>
+<li><a href="#legacy-in-house-data-center-networking-complete-flow-before-cloud">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</a><ul>
+<li><a href="#1-why-learn-the-legacy-design-first">1. Why learn the legacy design first?</a></li>
+<li><a href="#2-a-representative-enterprise-internet-facing-architecture">2. A representative enterprise Internet-facing architecture</a></li>
+<li><a href="#3-the-physical-layer-people-forget">3. The physical layer people forget</a></li>
+<li><a href="#4-carrierisp-edge">4. Carrier/ISP edge</a></li>
+<li><a href="#5-public-ip-ownership-and-publishing-services">5. Public IP ownership and publishing services</a></li>
+<li><a href="#6-vlans-and-subnets">6. VLANs and subnets</a></li>
+<li><a href="#7-default-gateway-and-first-hop-redundancy">7. Default gateway and first-hop redundancy</a></li>
+<li><a href="#8-coredistributionaccess-networking">8. Core/distribution/access networking</a></li>
+<li><a href="#9-dmzperimeter-zone">9. DMZ/perimeter zone</a></li>
+<li><a href="#10-traditional-firewall-pair">10. Traditional firewall pair</a></li>
+<li><a href="#11-load-balancer-appliance">11. Load balancer appliance</a></li>
+<li><a href="#12-internal-dns">12. Internal DNS</a></li>
+<li><a href="#13-inbound-web-request-complete-legacy-flow">13. Inbound web request: complete legacy flow</a><ul>
+<li><a href="#step-1-dns">Step 1: DNS</a></li>
+<li><a href="#step-2-internet-routing">Step 2: Internet routing</a></li>
+<li><a href="#step-3-edge-router">Step 3: edge router</a></li>
+<li><a href="#step-4-perimeter-firewall">Step 4: perimeter firewall</a></li>
+<li><a href="#step-5-wafreverse-proxy">Step 5: WAF/reverse proxy</a></li>
+<li><a href="#step-6-load-balancer">Step 6: load balancer</a></li>
+<li><a href="#step-7-internal-routingfirewall">Step 7: internal routing/firewall</a></li>
+<li><a href="#step-8-application">Step 8: application</a></li>
+<li><a href="#step-9-db-flow">Step 9: DB flow</a></li>
+<li><a href="#step-10-response">Step 10: response</a></li>
+</ul>
+</li>
+<li><a href="#14-outbound-app-to-saas-flow">14. Outbound app-to-SaaS flow</a></li>
+<li><a href="#15-east-west-app-to-db-flow">15. East-west app-to-DB flow</a></li>
+<li><a href="#16-corporate-user-to-internal-app">16. Corporate user to internal app</a></li>
+<li><a href="#17-mplsprivate-wan-legacy-model">17. MPLS/private WAN legacy model</a></li>
+<li><a href="#18-two-data-centers-for-dr">18. Two data centers for DR</a></li>
+<li><a href="#19-change-management-in-legacy-networking">19. Change management in legacy networking</a></li>
+<li><a href="#20-common-legacy-failure-scenarios">20. Common legacy failure scenarios</a><ul>
+<li><a href="#wrong-vlan">Wrong VLAN</a></li>
+<li><a href="#duplicate-ip">Duplicate IP</a></li>
+<li><a href="#bad-maskgateway">Bad mask/gateway</a></li>
+<li><a href="#firewall-asymmetric-routing">Firewall asymmetric routing</a></li>
+<li><a href="#nat-shadowingorder">NAT shadowing/order</a></li>
+<li><a href="#stale-load-balancer-pool">Stale load-balancer pool</a></li>
+<li><a href="#dns-stale-record">DNS stale record</a></li>
+<li><a href="#route-leakadvertisement-mistake">Route leak/advertisement mistake</a></li>
+<li><a href="#mtu-mismatch-through-vpn">MTU mismatch through VPN</a></li>
+</ul>
+</li>
+<li><a href="#21-legacy-aws-mapping-table">21. Legacy → AWS mapping table</a></li>
+<li><a href="#22-what-does-not-map-one-to-one">22. What does not map one-to-one</a></li>
+<li><a href="#23-the-best-migration-question">23. The best migration question</a></li>
+<li><a href="#24-reference-trail">24. Reference trail</a></li>
+<li><a href="#25-memory-map">25. Memory map</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="legacy-in-house-data-center-networking-complete-flow-before-cloud">Legacy / In-house Data Center Networking: Complete Flow Before Cloud</h1>
+<p><img alt="Legacy data center network" src="assets/diagrams/networking/08-legacy-dc.svg" /></p>
+<h2 id="1-why-learn-the-legacy-design-first">1. Why learn the legacy design first?</h2>
+<p>AWS did not invent IP routing, subnets, firewalls, load balancing, DNS, NAT, private connectivity, or segmentation. Cloud services mostly make these capabilities programmable and managed at a different operational layer.</p>
+<p>If you understand the old data-center path, VPC architecture becomes a mapping exercise rather than memorization.</p>
+<h2 id="2-a-representative-enterprise-internet-facing-architecture">2. A representative enterprise Internet-facing architecture</h2>
+<pre><code class="language-text">Users
+  |
+Internet
+  |
+ISP A -------- ISP B
+  |              |
+Edge Router A  Edge Router B
+       \        /
+        HA Firewall Pair
+             |
+          DMZ VLAN
+     WAF / Reverse Proxy
+      Load Balancer VIP
+             |
+       Internal Firewall
+             |
+          App VLAN
+             |
+       Internal Firewall
+             |
+           DB VLAN
+</code></pre>
+<p>Real environments vary widely. Some combine WAF/LB/firewall functions; others separate them into dedicated appliance clusters.</p>
+<h2 id="3-the-physical-layer-people-forget">3. The physical layer people forget</h2>
+<p>A data center also requires:</p>
+<ul>
+<li>carrier circuits/fiber cross-connects,</li>
+<li>patch panels,</li>
+<li>top-of-rack switches,</li>
+<li>core/distribution switches,</li>
+<li>redundant power,</li>
+<li>optics/transceivers,</li>
+<li>rack space,</li>
+<li>spare ports/capacity,</li>
+<li>out-of-band management.</li>
+</ul>
+<p>Cloud removes much direct hardware operation from application teams, but networking constraints still exist logically.</p>
+<h2 id="4-carrierisp-edge">4. Carrier/ISP edge</h2>
+<p>An enterprise can connect to one or multiple ISPs.</p>
+<p>Small design:</p>
+<pre><code class="language-text">enterprise router -&gt; one ISP -&gt; default route
+</code></pre>
+<p>Larger resilient design:</p>
+<pre><code class="language-text">         ISP A
+          |
+      Edge Router A
+         \ /
+      Enterprise
+         / \
+      Edge Router B
+          |
+         ISP B
+</code></pre>
+<p>Public BGP may be used when the organization has the addressing/ASN/design requirements to advertise prefixes through multiple providers.</p>
+<h2 id="5-public-ip-ownership-and-publishing-services">5. Public IP ownership and publishing services</h2>
+<p>A company might receive/provider-assign public addresses or own provider-independent address space. It then exposes services through:</p>
+<ul>
+<li>static NAT,</li>
+<li>firewall VIPs,</li>
+<li>load-balancer virtual IPs,</li>
+<li>reverse proxies,</li>
+<li>public DNS.</li>
+</ul>
+<p>Example:</p>
+<pre><code class="language-text">www.corp.example -&gt; 203.0.113.50
+</code></pre>
+<p>At the edge:</p>
+<pre><code class="language-text">203.0.113.50:443 -&gt; load balancer/WAF tier
+</code></pre>
+<p>The backend server can remain on private RFC1918 addressing.</p>
+<h2 id="6-vlans-and-subnets">6. VLANs and subnets</h2>
+<p>A typical segmentation plan:</p>
+<pre><code class="language-text">DMZ VLAN       10.10.10.0/24
+Web VLAN       10.10.20.0/24
+App VLAN       10.10.30.0/24
+DB VLAN        10.10.40.0/24
+Management     10.10.50.0/24
+Backup         10.10.60.0/24
+</code></pre>
+<p>VLAN is a Layer-2 segmentation mechanism; subnet is an IP Layer-3 concept. They are often mapped one-to-one operationally but are not definitionally the same thing.</p>
+<h2 id="7-default-gateway-and-first-hop-redundancy">7. Default gateway and first-hop redundancy</h2>
+<p>Servers in a VLAN need a default gateway, often provided by redundant switches/routers/firewalls using a first-hop redundancy mechanism or clustered virtual gateway.</p>
+<p>Example server:</p>
+<pre><code class="language-text">IP:      10.10.30.25/24
+Gateway: 10.10.30.1
+</code></pre>
+<p>The virtual gateway can survive one physical network device failing.</p>
+<h2 id="8-coredistributionaccess-networking">8. Core/distribution/access networking</h2>
+<p>Classic campus/data-center hierarchy:</p>
+<pre><code class="language-text">servers
+  ↓
+access / top-of-rack switches
+  ↓
+distribution/aggregation
+  ↓
+core
+  ↓
+firewall/WAN/Internet
+</code></pre>
+<p>Modern leaf-spine fabrics flatten this topology, but the reasoning remains: many server links aggregate into redundant high-capacity routed paths.</p>
+<h2 id="9-dmzperimeter-zone">9. DMZ/perimeter zone</h2>
+<p>Internet-facing components are isolated from trusted internal networks.</p>
+<p>Why?</p>
+<p>If the public web server is compromised, the attacker should not automatically receive unrestricted Layer-3 access to database/admin networks.</p>
+<p>Policy can be:</p>
+<pre><code class="language-text">Internet -&gt; WAF/LB :443 only
+WAF/LB -&gt; web/app :8080 only
+app -&gt; DB :5432 only
+admin -&gt; management :approved protocols only
+</code></pre>
+<h2 id="10-traditional-firewall-pair">10. Traditional firewall pair</h2>
+<p>Enterprises often run two firewalls for HA:</p>
+<pre><code class="language-text">Firewall A active
+Firewall B standby
+</code></pre>
+<p>or active/active designs depending platform/topology.</p>
+<p>Operational work includes:</p>
+<ul>
+<li>rule changes/tickets,</li>
+<li>NAT rules,</li>
+<li>software upgrades,</li>
+<li>failover tests,</li>
+<li>state synchronization,</li>
+<li>hardware replacement,</li>
+<li>interface/VLAN configuration,</li>
+<li>capacity planning,</li>
+<li>logging/SIEM integration.</li>
+</ul>
+<p>AWS managed networking removes some appliance lifecycle work but replaces it with route/policy/service design responsibilities.</p>
+<h2 id="11-load-balancer-appliance">11. Load balancer appliance</h2>
+<p>A legacy load balancer commonly exposes a VIP:</p>
+<pre><code class="language-text">VIP 10.10.10.50:443
+</code></pre>
+<p>Backend pool:</p>
+<pre><code class="language-text">10.10.20.11:8080
+10.10.20.12:8080
+10.10.20.13:8080
+</code></pre>
+<p>It monitors health and chooses a backend. L7 devices can also route by hostname/path and terminate TLS.</p>
+<p>AWS mapping:</p>
+<pre><code class="language-text">F5/NetScaler/HAProxy cluster -&gt; ALB/NLB depending requirement
+</code></pre>
+<h2 id="12-internal-dns">12. Internal DNS</h2>
+<p>Corporate DNS often handles both:</p>
+<ul>
+<li>public zones or delegation relationships,</li>
+<li>internal-only names such as <code>db01.prod.corp.local</code>/enterprise domains.</li>
+</ul>
+<p>Clients point at corporate recursive resolvers, often integrated with Active Directory in Windows-heavy environments.</p>
+<p>Hybrid cloud introduces split resolution problems:</p>
+<pre><code class="language-text">on-prem clients must resolve AWS private names
+AWS workloads must resolve on-prem private names
+</code></pre>
+<p>Route 53 Resolver endpoints/rules solve the DNS forwarding part; VPN/DX/TGW solve the network reachability part.</p>
+<h2 id="13-inbound-web-request-complete-legacy-flow">13. Inbound web request: complete legacy flow</h2>
+<p>Assume user requests:</p>
+<pre><code class="language-text">https://www.corp.example/orders
+</code></pre>
+<h3 id="step-1-dns">Step 1: DNS</h3>
+<p>Public authoritative DNS returns <code>203.0.113.50</code>.</p>
+<h3 id="step-2-internet-routing">Step 2: Internet routing</h3>
+<p>BGP/Internet routing carries traffic toward the enterprise's provider/edge.</p>
+<h3 id="step-3-edge-router">Step 3: edge router</h3>
+<p>Enterprise edge receives the public-prefix traffic and forwards according to internal edge routing.</p>
+<h3 id="step-4-perimeter-firewall">Step 4: perimeter firewall</h3>
+<p>Firewall permits TCP 443 for the published service and may perform NAT/VIP forwarding.</p>
+<h3 id="step-5-wafreverse-proxy">Step 5: WAF/reverse proxy</h3>
+<p>Inspects HTTP/TLS according to architecture; can block web attacks.</p>
+<h3 id="step-6-load-balancer">Step 6: load balancer</h3>
+<p>Chooses a healthy application target.</p>
+<h3 id="step-7-internal-routingfirewall">Step 7: internal routing/firewall</h3>
+<p>Traffic crosses into application VLAN only on approved port.</p>
+<h3 id="step-8-application">Step 8: application</h3>
+<p>App processes business logic.</p>
+<h3 id="step-9-db-flow">Step 9: DB flow</h3>
+<p>App opens a separate connection to DB network, e.g. TCP 5432.</p>
+<h3 id="step-10-response">Step 10: response</h3>
+<p>Return traffic follows valid routes/state through the environment and back to the user.</p>
+<h2 id="14-outbound-app-to-saas-flow">14. Outbound app-to-SaaS flow</h2>
+<p>App <code>10.10.30.25</code> calls vendor API <code>api.vendor.example:443</code>.</p>
+<pre><code class="language-text">App
+ -&gt; default gateway
+ -&gt; internal/core routing
+ -&gt; egress firewall
+ -&gt; source NAT
+ -&gt; ISP
+ -&gt; Internet/BGP
+ -&gt; vendor edge
+</code></pre>
+<p>The vendor may allowlist enterprise public NAT addresses.</p>
+<p>Problem during migration:</p>
+<pre><code class="language-text">on-prem egress IP is allowlisted
+AWS NAT Gateway EIP is not
+</code></pre>
+<p>The cloud app can resolve DNS and reach the Internet but gets HTTP 403 or connection rejection from vendor policy. That is not necessarily an AWS routing failure.</p>
+<h2 id="15-east-west-app-to-db-flow">15. East-west app-to-DB flow</h2>
+<pre><code class="language-text">App 10.10.30.25:ephemeral
+ -&gt; route to 10.10.40.0/24
+ -&gt; internal firewall policy
+ -&gt; DB 10.10.40.10:5432
+</code></pre>
+<p>The DB does not need Internet access to serve internal clients.</p>
+<p>This maps nicely to AWS:</p>
+<pre><code class="language-text">APP-SG -&gt; DB-SG :5432
+DB subnet no default Internet route
+</code></pre>
+<h2 id="16-corporate-user-to-internal-app">16. Corporate user to internal app</h2>
+<p>A user in an office may traverse:</p>
+<pre><code class="language-text">Laptop
+ -&gt; access switch/Wi-Fi
+ -&gt; campus gateway
+ -&gt; WAN/MPLS/SD-WAN
+ -&gt; data center firewall
+ -&gt; internal load balancer
+ -&gt; app
+</code></pre>
+<p>If remote:</p>
+<pre><code class="language-text">Laptop
+ -&gt; home ISP
+ -&gt; corporate VPN gateway
+ -&gt; internal network
+ -&gt; app
+</code></pre>
+<p>This is the conceptual predecessor to Client VPN, Site-to-Site VPN, Direct Connect, Zero Trust/private access products, and hybrid cloud routing.</p>
+<h2 id="17-mplsprivate-wan-legacy-model">17. MPLS/private WAN legacy model</h2>
+<p>Enterprises historically connected offices/data centers using carrier private WANs such as MPLS L3VPN services.</p>
+<p>Conceptually:</p>
+<pre><code class="language-text">Branch A -&gt; carrier private WAN -&gt; Data Center
+Branch B -&gt; carrier private WAN -&gt; Data Center
+</code></pre>
+<p>Cloud migration adds AWS as another site through VPN/Direct Connect, or shifts to Internet/SD-WAN-centric designs.</p>
+<h2 id="18-two-data-centers-for-dr">18. Two data centers for DR</h2>
+<p>Legacy resiliency might use:</p>
+<pre><code class="language-text">Primary DC
+Secondary DR DC
+</code></pre>
+<p>with:</p>
+<ul>
+<li>replicated databases/storage,</li>
+<li>DNS/global load-balancing failover,</li>
+<li>WAN replication links,</li>
+<li>duplicated firewall/LB infrastructure,</li>
+<li>runbooks to activate DR.</li>
+</ul>
+<p>Cloud Regions/AZs change implementation but not the core questions: failure domain, RTO, RPO, data replication, traffic failover, capacity.</p>
+<h2 id="19-change-management-in-legacy-networking">19. Change management in legacy networking</h2>
+<p>A simple requirement like “allow app A to call database B” can become:</p>
+<pre><code class="language-text">1 submit firewall ticket
+2 identify exact source subnet
+3 identify destination VIP/server
+4 identify port/protocol
+5 security review
+6 change window
+7 implement ACL/firewall rule
+8 test
+9 update CMDB/documentation
+</code></pre>
+<p>Cloud infrastructure-as-code can make these changes faster/repeatable, but careless automation can also reproduce bad policy instantly. Automation does not remove the need for correct intent.</p>
+<h2 id="20-common-legacy-failure-scenarios">20. Common legacy failure scenarios</h2>
+<h3 id="wrong-vlan">Wrong VLAN</h3>
+<p>Server connected/tagged into wrong broadcast domain.</p>
+<h3 id="duplicate-ip">Duplicate IP</h3>
+<p>Two hosts use same address.</p>
+<h3 id="bad-maskgateway">Bad mask/gateway</h3>
+<p>Local/remote decisions fail.</p>
+<h3 id="firewall-asymmetric-routing">Firewall asymmetric routing</h3>
+<p>Request and reply cross different firewalls without shared state.</p>
+<h3 id="nat-shadowingorder">NAT shadowing/order</h3>
+<p>Wrong translation rule matches before intended rule.</p>
+<h3 id="stale-load-balancer-pool">Stale load-balancer pool</h3>
+<p>VIP exists but backends unhealthy.</p>
+<h3 id="dns-stale-record">DNS stale record</h3>
+<p>Hostname points to retired VIP.</p>
+<h3 id="route-leakadvertisement-mistake">Route leak/advertisement mistake</h3>
+<p>Traffic follows wrong WAN/ISP path.</p>
+<h3 id="mtu-mismatch-through-vpn">MTU mismatch through VPN</h3>
+<p>Small traffic succeeds; larger flows fail.</p>
+<h2 id="21-legacy-aws-mapping-table">21. Legacy → AWS mapping table</h2>
+<table>
+<thead>
+<tr>
+<th>Legacy data center</th>
+<th>AWS service/primitive</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IP address management spreadsheet/IPAM appliance</td>
+<td>VPC IPAM</td>
+</tr>
+<tr>
+<td>VLAN/subnet</td>
+<td>VPC subnet (not exactly a VLAN)</td>
+</tr>
+<tr>
+<td>core router</td>
+<td>distributed VPC routing / Transit Gateway for hub patterns</td>
+</tr>
+<tr>
+<td>Internet edge router</td>
+<td>Internet Gateway + AWS edge routing</td>
+</tr>
+<tr>
+<td>firewall pair</td>
+<td>Security Groups/NACLs and/or Network Firewall/appliances</td>
+</tr>
+<tr>
+<td>NAT appliance</td>
+<td>NAT Gateway</td>
+</tr>
+<tr>
+<td>WAF appliance</td>
+<td>AWS WAF</td>
+</tr>
+<tr>
+<td>F5/ADC load balancer</td>
+<td>ALB/NLB/GWLB depending need</td>
+</tr>
+<tr>
+<td>DNS appliance/service</td>
+<td>Route 53 + VPC Resolver</td>
+</tr>
+<tr>
+<td>MPLS/private circuit</td>
+<td>Direct Connect / carrier integration</td>
+</tr>
+<tr>
+<td>IPsec concentrator</td>
+<td>Site-to-Site VPN</td>
+</tr>
+<tr>
+<td>firewall traffic logs</td>
+<td>VPC Flow Logs / Network Firewall logs</td>
+</tr>
+<tr>
+<td>network path testing</td>
+<td>Reachability Analyzer + conventional tools</td>
+</tr>
+</tbody>
+</table>
+<h2 id="22-what-does-not-map-one-to-one">22. What does not map one-to-one</h2>
+<p>Do not say:</p>
+<pre><code class="language-text">VPC = VLAN
+Security Group = firewall appliance
+Internet Gateway = physical router
+</code></pre>
+<p>These analogies help intuition but implementations differ. AWS constructs are distributed managed services with cloud-specific semantics.</p>
+<h2 id="23-the-best-migration-question">23. The best migration question</h2>
+<p>For every legacy component ask:</p>
+<pre><code class="language-text">What responsibility did the appliance/team own?
+What AWS service now owns part of that responsibility?
+What responsibility still belongs to me?
+</code></pre>
+<p>Example NAT appliance:</p>
+<pre><code class="language-text">Old responsibilities:
+hardware HA, patch OS, scale appliance, NAT rules, routing, logs
+
+NAT Gateway removes:
+OS/hardware management and much HA/scaling implementation
+
+You still own:
+subnet/route design, AZ resilience, EIP/vendor allowlists,
+cost, monitoring, connection behavior, security/egress policy
+</code></pre>
+<h2 id="24-reference-trail">24. Reference trail</h2>
+<ul>
+<li>AWS perimeter-zone migration architecture: https://docs.aws.amazon.com/prescriptive-guidance/latest/migration-perimeter-zone-apps-network-firewall/architecture.html</li>
+<li>AWS Security Reference Architecture network guidance: https://docs.aws.amazon.com/prescriptive-guidance/latest/security-reference-architecture/network.html</li>
+<li>AWS hybrid networking: https://docs.aws.amazon.com/whitepapers/latest/aws-vpc-connectivity-options/welcome.html</li>
+</ul>
+<h2 id="25-memory-map">25. Memory map</h2>
+<pre><code class="language-text">Legacy Internet app:
+DNS -&gt; ISP/BGP -&gt; edge router -&gt; firewall/NAT -&gt; DMZ/WAF/LB
+    -&gt; app VLAN -&gt; internal firewall -&gt; DB VLAN
+
+AWS Internet app:
+Route 53 -&gt; AWS edge/CloudFront/WAF -&gt; IGW/public ingress
+    -&gt; ALB -&gt; SG -&gt; private app -&gt; SG -&gt; DB
+</code></pre>
+<hr />
+<p><a href="07-ingress-egress-firewalls-dmz.html">← Previous</a> · <a href="index.html">Chapter index</a> · <a href="09-aws-internet-vpc-packet-flow.html">Next →</a></p></article><div class="pager"><a href="07-ingress-egress-firewalls-dmz.html">← Previous chapter</a><a href="09-aws-internet-vpc-packet-flow.html">Next chapter →</a></div></main></div><script src="assets/site.js"></script></body></html>
