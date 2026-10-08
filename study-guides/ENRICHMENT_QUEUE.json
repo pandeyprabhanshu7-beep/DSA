@@ -814,7 +814,7 @@
     "validation": "Java 17 jdk.compiler module: deterministic/boundary cases, 100000 randomized range updates and 200000 oracle queries passed; generated reader equivalence, local links/anchors and SVG XML checked; live literal-marker placeholder audit 174; browser visual QA not executed.",
     "estimated_next_tokens": 11000,
     "estimate_method": "Tokenizer unavailable. Section 8 has 1728 characters, estimated as 432 tokens by chars/4; add heuristic reserves of 1500 comparison/research, 6500 teaching/code/diagram/HTML, and 2500 verification/checkpoint, then round conservatively. Not account-quota telemetry.",
-    "last_successful_commit": "2a54688a9367a4110b80d20b469986214fe6c2a0",
+    "last_successful_commit": "fe32fc85bb395cf2e610bf31f9605f0813c6766d",
     "last_processed_at": "2026-10-08T11:29:57-04:00",
     "next_batch_decision": "One bounded section completed. Remaining runtime budget is not exposed, so stop before reading another section and continue section 8 on a later hourly run."
   }
