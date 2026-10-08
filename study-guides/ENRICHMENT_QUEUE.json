@@ -526,6 +526,7 @@
         "compared_sha256": "8b2752df0853d73f900dd9e58b71e7593a28d7bd0fef4847ffa5ed4ad250d657",
         "canonical_sha256_after": "c91326928dc2be42c0a55da2e0a91e4953395c96d1d2be258302db434b56fce8"
       },
+      "last_successful_commit": "e6023f5b5cc7d65db08aebc23fb1d417925de1d8",
       "validation": "Both resolved sources were read and hashed; Java 17 source-file launch passed explicit capacity/cache checks and 10,000 seeded randomized version-fencing rounds; Pandoc rebuild was deterministic; embedded Markdown payload equality, unique IDs, internal anchors, relative links/assets, search-index targets, JSON and git diff checks passed; live DSA placeholder audit 174; isolated browser could not reach the loopback preview, so browser visual QA was not executed.",
       "next_action": "No forced fundamentals continuation. Rotate fairly to an accessible unpromoted domain (prefer AI foundations/RAG/CAG); on the next system-design turn, process the distinct blueprints source or add the queued retry/idempotency packet trace without creating a versioned duplicate.",
       "priority": 10
