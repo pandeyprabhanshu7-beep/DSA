@@ -5,7 +5,7 @@
 ## Navigation
 
 - [Course home](../index.md)
-- [Separate networking lecture index](../index.md)
+- [Separate networking lecture index](index.md)
 - [AWS VPC module](09-aws-internet-vpc-packet-flow.md)
 
 ---

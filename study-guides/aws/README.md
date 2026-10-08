@@ -32,3 +32,8 @@ Each guide should be self-contained and teach from first principles:
 - [Networking Foundations Bootcamp (HTML)](networking/AWS_Networking_Foundations_Bootcamp.html)
 
 See [STATUS.md](STATUS.md) for the scheduler's continuation state.
+
+
+## Maintain the networking readers
+
+Edit `networking/AWS_Networking_Foundations_Bootcamp.md` as the authoritative source. The twelve chapter Markdown/HTML pairs and combined HTML are generated views, not independent historical editions. Run `python build_networking.py` from any directory (requires the Python `markdown` package). This rebuilds readers, navigation, diagrams and local styling. Commit the source and generated outputs together. The builder does not change publication status or publish automatically.
