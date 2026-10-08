@@ -503,6 +503,7 @@
         "compared_sha256": "eb7e33869e7bd119f9b52d12ef7e9a7c301ba67065e87abf822fbd1396e51e80",
         "canonical_sha256_after": "ed463b7ea3692774c10f55f19e75e1c75fbc1432a510e8674f982c4d9e079ab2"
       },
+      "last_successful_commit": "f64d5cf3b93114a88e4dc6437348ee0cb7e433ae",
       "validation": "Both resolved sources were read and hashed; DOCX ZIP integrity/traversal checks passed and two useful figures were retained; both Java 17 source-file programs passed explicit failures plus 10,000 seeded randomized tenant-scope/invalidation rounds; Pandoc rebuild was deterministic; embedded Markdown payload equality, unique IDs, internal anchors, relative links/assets, PNG signatures/dimensions, search-index targets, Mermaid counts, JSON and git diff checks passed; live DSA placeholder audit 174; browser visual QA was not executed.",
       "next_action": "Rotate fairly to the accessible unpromoted DevOps/backend domain (prefer cicd-cloud-kubernetes); on the next AI foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment without creating a versioned duplicate.",
       "priority": 8
