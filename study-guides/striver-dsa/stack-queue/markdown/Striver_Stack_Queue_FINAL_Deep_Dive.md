@@ -788,91 +788,112 @@ Initially head=null and size=0 represent the empty stack. Prepending a node make
 
 [← S5](#s5-stack-using-linked-list) · [Index](#navigation-and-index) · [S7 →](#s7-balanced-parentheses)
 
-### Detailed question understanding
+### Exact problem and API contract
 
-**What is the problem/lesson asking?** Queue Using Linked List. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Implement a dynamically sized **FIFO queue of integers** using a **singly linked list**, without calling a built-in queue. Expose **offer(int)**, **poll()**, **peek()**, **size()**, and **isEmpty()**. In this guide, polling or peeking an empty queue throws **NoSuchElementException**. Unlike the bounded circular-array queue in S2, there is no fixed capacity; allocation can still fail if memory is exhausted.
 
-### Three requirement-clarifying examples
+**What the interviewer checks:** A new value goes at the **tail**, and the oldest value leaves from the **head**. Crucially, removing the final node must clear **both** pointers, or the next insertion can corrupt the queue.
 
-| # | Input / setup | Output / observation | Why it matters |
+### Four concrete examples
+
+| # | Operations | Expected result | Why it matters |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | offer(10), offer(20), offer(30), peek(), poll(), offer(40), poll(), poll(), poll() | peek=10; polls **10,20,30,40**; final size=0 | FIFO with interleaving |
+| 2 | poll(), peek() on a new queue | both throw **NoSuchElementException** | Empty contract |
+| 3 | offer(-7), offer(-7), size(), poll(), poll(), isEmpty() | size=2; polls **-7,-7**; true | Duplicates and one-node transition |
+| 4 | offer(-2147483648), poll(), offer(2147483647), peek(), poll() | -2147483648; peek=2147483647; poll=2147483647 | Extreme integers and reuse after empty |
 
-### Pattern recognition
+### Pattern recognition: baseline versus optimized representation
 
-**Primary pattern:** LIFO/FIFO invariant
+A correct but inefficient singly linked queue can keep only **head** and append each new node by traversing the list: **offer O(n)**, poll O(1). Alternatively, append at the head and remove from the tail, but removing a singly linked tail requires finding its predecessor: **poll O(n)**. Both approaches repeatedly scan nodes.
 
-> **KEY INTUITION —** Choose the representation whose natural endpoint matches the API operation.
+**Optimization:** retain **head and tail**. The head is the next node to remove; tail is the final node to append after. No traversal is required for either operation.
 
-### Brute-force / straightforward baseline
+**Invariant:** If size=0, **head == null and tail == null**. If size>0, head is the oldest live node, tail is the newest, **tail.next == null**, and following next from head visits exactly size nodes in arrival order.
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+### Visual: pointer ownership, not array indices
 
-### Optimized reasoning
+~~~mermaid
+flowchart LR
+  H["head: oldest"] --> A["10"] --> B["20"] --> C["30"] --> N["null"]
+  T["tail: newest"] -.-> C
+  P["poll returns 10"] --> H2["head moves to 20"]
+  O["offer 40"] --> T2["old tail.next = 40; tail = 40"]
+~~~
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+**One-element special case:** after poll, head becomes null, so set tail=null too. For the next offer, set head and tail to the same new node.
 
-### Detailed dry run
+### Detailed state trace
 
-Write index/value, stack/queue/deque before, all pops/removals, insertion, and answer after each iteration.
+| Step | Operation | Head → tail | head | tail | size | Output |
+|---:|---|---|---|---|---:|---|
+| 0 | initialize | [] | null | null | 0 | — |
+| 1 | offer(10) | 10 | 10 | 10 | 1 | — |
+| 2 | offer(20) | 10 → 20 | 10 | 20 | 2 | — |
+| 3 | offer(30) | 10 → 20 → 30 | 10 | 30 | 3 | — |
+| 4 | peek() | 10 → 20 → 30 | 10 | 30 | 3 | 10 |
+| 5 | poll() | 20 → 30 | 20 | 30 | 2 | 10 |
+| 6 | offer(40) | 20 → 30 → 40 | 20 | 40 | 3 | — |
+| 7 | poll() | 30 → 40 | 30 | 40 | 2 | 20 |
+| 8 | poll() | 40 | 40 | 40 | 1 | 30 |
+| 9 | poll() | [] | null | null | 0 | 40 |
+| 10 | offer(50) | 50 | 50 | 50 | 1 | — |
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+At step 9, leaving tail pointing to the removed node is a bug: step 10 would attach a node to a stale tail while head might still be null.
 
-### Java implementation / template
+### Java 17 implementation — standalone LinkedQueue.java
 
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
-```
+~~~java
+import java.util.NoSuchElementException;
 
-### Key line to highlight
+public final class LinkedQueue {
+    private static final class Node {
+        final int value;
+        Node next;
+        Node(int value) { this.value = value; }
+    }
+    private Node head, tail;
+    private int size;
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+    public void offer(int value) {
+        Node node = new Node(value);
+        if (tail == null) head = node;
+        else tail.next = node;
+        tail = node;
+        size++;
+    }
+    public int poll() {
+        if (head == null) throw new NoSuchElementException("queue empty");
+        int answer = head.value;
+        head = head.next;
+        size--;
+        if (head == null) tail = null;
+        return answer;
+    }
+    public int peek() {
+        if (head == null) throw new NoSuchElementException("queue empty");
+        return head.value;
+    }
+    public int size() { return size; }
+    public boolean isEmpty() { return head == null; }
+}
+~~~
 
-### Correctness checklist
+**Key lines:** **tail.next = node** links the new node after all earlier arrivals; **tail = node** moves the append endpoint. **if (head == null) tail = null** restores the empty-state invariant. Do not detach head before saving its value.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+### Correctness proof and complexity
 
-### Boundary conditions
+**Base:** both pointers null and size zero describe the empty FIFO sequence. **Offer:** appends exactly one new node after the previous tail (or creates the only node), so all existing nodes stay in order and the new value is newest. **Poll:** returns the head value and advances to the next oldest; if no nodes remain, both endpoints become null. **Peek:** observes head without changing the sequence. Induction over operations proves FIFO behavior and the pointer invariant.
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+**Complexity:** offer/poll/peek/size/isEmpty are **O(1) worst-case** pointer/count work per call; each offer allocates one O(1)-size node. Total live storage **O(n)** for n enqueued elements. This is unlike an array-based queue: no resizing/copying is needed, but each node adds allocation and pointer overhead.
 
-### Complexity — derive it instead of memorizing it
+### Boundaries, mistakes, and follow-ups
 
-**Primitive operations O(1), total storage O(n) unless an emulation intentionally shifts work.**
+Check empty poll/peek; single-node insertion and removal; append after becoming empty; duplicate values; extreme integers; long alternating offer/poll sequences; and garbage collection after dropping the last reference. Common errors: updating tail but not head on first insert; forgetting tail=null on last removal; using tail.next before testing tail; returning tail rather than head; or claiming a singly linked tail can be removed in O(1) without predecessor information.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+**Interview variations:** generic queue with type parameter; compare circular array locality versus linked nodes; implement a deque using a doubly linked list; discuss why a non-thread-safe two-pointer queue is not suitable for concurrent producers/consumers without synchronization.
 
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
-
-> **MEMORY TRICK —** NAME THE ENDPOINT INVARIANT.
-
-### Interview follow-ups and variations
-
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+> **Memory trick:** **ENQUEUE AT TAIL, DEQUEUE AT HEAD; EMPTY MEANS BOTH NULL.**
 
 [↑ Back to Index](#navigation-and-index)
 
@@ -984,91 +1005,118 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 
 [← S7](#s7-balanced-parentheses) · [Index](#navigation-and-index) · [S9 →](#s9-infix-to-postfix)
 
-### Detailed question understanding
+### Exact problem and API contract
 
-**What is the problem/lesson asking?** Min Stack. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Design an integer **LIFO stack** supporting **push(int)**, **pop()**, **top()**, and **getMin()** in **O(1) worst-case time per operation**, even after arbitrary pushes and pops. This study version also exposes size() and isEmpty(); pop/top/getMin on an empty stack throw **NoSuchElementException**. The minimum is among **currently present** elements, not all values ever pushed.
 
-### Three requirement-clarifying examples
+### Four concrete examples
 
-| # | Input / setup | Output / observation | Why it matters |
+| # | Operations | Expected result | What it tests |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | push(-2), push(0), push(-3), getMin(), pop(), top(), getMin() | **-3, -3, 0, -2** | Minimum must restore after pop |
+| 2 | push(5), push(5), getMin(), pop(), getMin(), pop(), isEmpty() | **5, 5, 5, true** | Duplicate minima |
+| 3 | push(8), push(3), push(7), getMin(), pop(), getMin(), pop(), getMin() | **3, 7, 3, 3, 8** | Removing nonminimum then minimum |
+| 4 | push(2147483647), push(-2147483648), getMin(), pop(), getMin() | **-2147483648, -2147483648, 2147483647** | Integer extremes |
 
-### Pattern recognition
+**Empty:** pop(), top(), getMin() each throw NoSuchElementException. An empty string or sentinel integer is not an acceptable stand-in for the minimum of an empty stack.
 
-**Primary pattern:** LIFO/FIFO invariant
+### Pattern recognition, baseline, and optimization
 
-> **KEY INTUITION —** Choose the representation whose natural endpoint matches the API operation.
+**Clue:** ordinary stack operations are already O(1), but the interviewer also requires the minimum **after undoing the latest push**.
 
-### Brute-force / straightforward baseline
+**Baseline:** keep a normal stack and scan all live values for getMin(): O(n) per query. Maintaining one global minimum variable fails when the minimum is popped: its predecessor minimum is lost. A second minimum stack works, but a **pair per stack entry** is especially easy to reason about.
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+**Optimized invariant:** store **(value, minSoFar)** for each entry. The minSoFar at the top is exactly the minimum of all live entries. On push(x), newMin = min(x, previousTop.minSoFar), or x for the first push. Pop removes both the value and its saved minimum, automatically revealing the prior minimum.
 
-### Optimized reasoning
+### Mermaid: saved minima travel with stack history
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+~~~mermaid
+flowchart LR
+  A["push 5 → (5,5)"] --> B["push 2 → (2,2) on top"]
+  B --> C["push 8 → (8,2) on top"]
+  C --> D["pop 8 → top (2,2)"]
+  D --> E["pop 2 → top (5,5)"]
+~~~
+
+The **second number** is not the current input value; it is the minimum of the stack prefix ending at that entry.
 
 ### Detailed dry run
 
-Write index/value, stack/queue/deque before, all pops/removals, insertion, and answer after each iteration.
+| Step | Operation | Stack top → bottom: (value,minSoFar) | Returned | Current min |
+|---:|---|---|---|---|
+| 0 | new MinStack | [] | — | undefined |
+| 1 | push(5) | [(5,5)] | — | 5 |
+| 2 | push(2) | [(2,2), (5,5)] | — | 2 |
+| 3 | push(8) | [(8,2), (2,2), (5,5)] | — | 2 |
+| 4 | getMin() | unchanged | 2 | 2 |
+| 5 | pop() | [(2,2), (5,5)] | 8 | 2 |
+| 6 | pop() | [(5,5)] | 2 | 5 |
+| 7 | push(1) | [(1,1), (5,5)] | — | 1 |
+| 8 | top() | unchanged | 1 | 1 |
+| 9 | pop() | [(5,5)] | 1 | 5 |
+| 10 | pop() | [] | 5 | undefined |
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+**Why duplicates matter:** pushing 5 twice stores [(5,5),(5,5)]. After popping one, getMin remains 5. A minimum stack that only records strictly decreasing minima must carefully preserve counts.
 
-### Java implementation / template
+### Java 17 implementation — standalone MinStack.java
 
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
-```
+~~~java
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.NoSuchElementException;
 
-### Key line to highlight
+public final class MinStack {
+    private static final class Entry {
+        final int value, minSoFar;
+        Entry(int value, int minSoFar) {
+            this.value = value;
+            this.minSoFar = minSoFar;
+        }
+    }
+    private final Deque<Entry> stack = new ArrayDeque<>();
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+    public void push(int value) {
+        int nextMin = stack.isEmpty() ? value : Math.min(value, stack.peek().minSoFar);
+        stack.push(new Entry(value, nextMin));
+    }
+    public int pop() {
+        if (stack.isEmpty()) throw new NoSuchElementException("stack empty");
+        return stack.pop().value;
+    }
+    public int top() {
+        if (stack.isEmpty()) throw new NoSuchElementException("stack empty");
+        return stack.peek().value;
+    }
+    public int getMin() {
+        if (stack.isEmpty()) throw new NoSuchElementException("stack empty");
+        return stack.peek().minSoFar;
+    }
+    public int size() { return stack.size(); }
+    public boolean isEmpty() { return stack.isEmpty(); }
+}
+~~~
 
-### Correctness checklist
+**Key line:** **Math.min(value, stack.peek().minSoFar)** makes every entry carry the minimum for its whole surviving prefix. **Pop removes the stored minimum with the value**, so no rescan or recomputation is needed.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+### Correctness proof and complexity
 
-### Boundary conditions
+For the empty stack the invariant is vacuous. Suppose the top entry stores the minimum of all n current values. After pushing x, min(x, oldMin) is exactly the minimum of the n+1 values; storing it with x preserves the invariant. Pop removes that entry and exposes the previous top, whose saved min was computed before the removed push, so it remains correct. Therefore getMin reads the true live minimum at every nonempty state. Top and pop obey ordinary LIFO semantics.
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+**push, pop, top, getMin, size, isEmpty:** O(1) worst-case time; one O(1)-size Entry per push. **Space:** O(n) for n live entries (value plus minimum metadata), O(1) extra work space per call. Using a balanced tree or sorting would add unnecessary log n or n work.
 
-### Complexity — derive it instead of memorizing it
+### Advanced variant: reversible encoded minimum (optional)
 
-**Primitive operations O(1), total storage O(n) unless an emulation intentionally shifts work.**
+An older project workbook describes a **single stack of long values plus one current minimum**. When a new x is below min, push a marker **2*x - min** and update min=x. The marker is smaller than the new minimum, so it is distinguishable from ordinary values. On pop of a marker, the real popped value is min and the old minimum is **2*min - marker**. This uses **O(1) auxiliary metadata beyond the stored stack** and O(1) operations, but the algebra is less intuitive than entry pairs.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+**Use long internally for all encoded arithmetic.** With int values at both extremes, 2*x-min can overflow int. The entry-pair implementation above avoids this pitfall and is the recommended first interview explanation.
 
-### Memoization / repeated-work note
+### Boundaries, common mistakes, and follow-ups
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+Test empty operations; one value; duplicate minimum values; removing a minimum and restoring the previous one; negative and extreme int values; interleaved top/getMin; and pushes after the stack becomes empty. Mistakes include retaining only a global minimum, forgetting to save the previous minimum, comparing against the wrong prefix, confusing top with min, and incorrectly claiming O(1) getMin while scanning.
 
-> **MEMORY TRICK —** NAME THE ENDPOINT INVARIANT.
+**Interview variations:** two-stack minima with duplicate counts; reversible encoded markers; max stack; minimum queue using two min-stacks; sliding-window minimum using a monotonic deque. For the **minimum queue**, each transfer must preserve the minimum summaries on both stacks.
 
-### Interview follow-ups and variations
-
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+> **Memory trick:** **EACH ENTRY REMEMBERS THE MINIMUM AT ITS PUSH TIME.**
 
 [↑ Back to Index](#navigation-and-index)
 
