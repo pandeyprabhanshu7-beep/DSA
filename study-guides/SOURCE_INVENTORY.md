@@ -16,7 +16,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | system-design-fundamentals | System design/data | PROMOTED | `study-guides/system-design/fundamentals/` | system_design_fundamentals_deep_research.md<br>system_design_fundamentals.md |
 | system-design-blueprints | System design/data | DISCOVERED | `study-guides/system-design/blueprints/` | top_5_system_design_interview_blueprints.md |
 | database-caching-java | System design/data | DISCOVERED | `study-guides/databases/caching-java/` | database_internals_caching_java_master_guide.md |
-| cicd-cloud-kubernetes | DevOps/backend | DISCOVERED | `study-guides/devops/cicd/` | cicd_aws_azure_teamcity_jenkins_guide.html<br>ai_cicd_spring_python_guides_complete.zip |
+| cicd-cloud-kubernetes | DevOps/backend | PROMOTED | `study-guides/devops/cicd/` | cicd_aws_azure_teamcity_jenkins_guide.html<br>ai_cicd_spring_python_guides_complete.zip |
 | spring-ai-python-api | DevOps/backend | DISCOVERED | `study-guides/backend/spring-ai-python/` | ai_cicd_spring_python_guides_complete.zip<br>spring_ai_python_api_interview_guide.html |
 | angular | Frontend | DISCOVERED | `study-guides/frontend/angular/` | Angular_Interview_Mermaid_Workbook.md<br>Angular_Interview_Workbook.docx |
 | javascript-html-css | Frontend | DISCOVERED | `study-guides/frontend/javascript-html-css/` | JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md<br>JavaScript_HTML_CSS_Interview_Workbook.docx |
@@ -35,8 +35,8 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | spring-boot-ai-labs.zip | 2026-10-07T16:41:39.053086Z | DISCOVERED |
 | MASTER_PROMPT.md | 2026-10-06T19:51:18.409209Z | DISCOVERED |
 | spring-boot-ai-journey.zip | 2026-10-06T19:51:18.370213Z | DISCOVERED |
-| cicd_aws_azure_teamcity_jenkins_guide.html | 2026-09-17T05:55:55.269830Z | DISCOVERED |
-| ai_cicd_spring_python_guides_complete.zip | 2026-09-17T05:55:54.714170Z | DISCOVERED |
+| cicd_aws_azure_teamcity_jenkins_guide.html | 2026-09-17T05:55:55.269830Z | READY — compared; byte-identical to bundled generated HTML |
+| ai_cicd_spring_python_guides_complete.zip | 2026-09-17T05:55:54.714170Z | READY — CI/CD source promoted; AI-platform and Spring/Python remain queued |
 | ai_platform_master_guide.html | 2026-09-17T05:55:54.695794Z | DISCOVERED |
 | spring_ai_python_api_interview_guide.html | 2026-09-17T05:55:54.480720Z | DISCOVERED |
 | ai_platform_engineering_complete_bundle.zip | 2026-09-16T16:22:16.910779Z | DISCOVERED |
@@ -78,6 +78,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 - Existing DSA and AWS sources remain canonical. Historical attachments provide improvements, not replacement editions.
 - System-design fundamentals now has one canonical [Markdown/HTML guide](system-design/); the 1,785-line deep-research source won the content comparison, while the shorter source's distinct case studies remain queued under blueprints.
 - AI foundations, RAG and CAG now has one canonical [Markdown/HTML guide](ai/); the broader Mermaid source won the content comparison, while two useful original workbook figures were retained without duplicating its redundant flow diagrams.
+- CI/CD, Kubernetes and cloud delivery now has one canonical [Markdown/HTML guide](devops/); the bundle supplied its authoritative Markdown and nine figures, while the standalone HTML was verified as an exact generated duplicate rather than promoted separately.
 - Graph/tree/stack editions and matching DOCX documents are grouped into one destination; latest coverage must be chosen after reading.
 - The AI/CI-CD/Spring-Python ZIP may contain Markdown and assets for three separate topics; inspect archive contents before deciding.
 - The AI-platform illustrated edition may hold useful material missing from a later master guide. Compare content; merge the best coverage in place.

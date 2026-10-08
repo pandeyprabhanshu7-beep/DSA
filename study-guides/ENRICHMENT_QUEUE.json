@@ -39,7 +39,10 @@
       "version_id": null,
       "modified_at": "2026-09-17T05:55:55.269830Z",
       "size_bytes": 194744,
-      "status": "DISCOVERED"
+      "status": "READY",
+      "last_read_at": "2026-10-08T08:33:40-04:00",
+      "sha256": "a78c3ee9f83d6970c9fc55e81d6b355cfb66c13e798ed27bc487fc39aeee1f4d",
+      "selection": "Read and compared; byte-identical to the generated HTML in the bundle, so it is not promoted as a competing source edition."
     },
     {
       "name": "ai_cicd_spring_python_guides_complete.zip",
@@ -48,7 +51,10 @@
       "version_id": null,
       "modified_at": "2026-09-17T05:55:54.714170Z",
       "size_bytes": 2535466,
-      "status": "DISCOVERED"
+      "status": "READY",
+      "last_read_at": "2026-10-08T08:33:40-04:00",
+      "sha256": "c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31",
+      "selection": "Archive integrity/traversal checks passed; its CI/CD Markdown and nine topic figures were selected for the canonical DevOps guide. AI-platform and Spring/Python contents remain separately queued."
     },
     {
       "name": "ai_platform_master_guide.html",
@@ -582,14 +588,29 @@
       "id": "cicd-cloud-kubernetes",
       "domain": "DevOps/backend",
       "canonical_target": "study-guides/devops/cicd/",
-      "target_exists": false,
-      "status": "DISCOVERED",
+      "target_exists": true,
+      "status": "PROMOTED",
       "source_names": [
         "cicd_aws_azure_teamcity_jenkins_guide.html",
         "ai_cicd_spring_python_guides_complete.zip"
       ],
-      "last_processed_at": null,
-      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "last_processed_at": "2026-10-08T08:33:40-04:00",
+      "processed_sections": [
+        "Claim-bound release authorization — four decisions, OIDC-to-STS trace, exact-claim invariant and Java policy model",
+        "Rollback and concurrent releases — four races, compare-and-set trace, immutable release record and Java concurrency model"
+      ],
+      "source_revision": {
+        "baseline_commit": "a2990d507473430a8b46563b8f6c6c0dcd4864c8",
+        "selected_library_file_id": "libfile_d6a32648e8408191845065f5dc21ed2a",
+        "selected_bundle_sha256": "c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31",
+        "selected_inner_source": "atlas_guides/cicd_aws_azure_teamcity_jenkins_guide.md",
+        "selected_inner_sha256": "10deac7075831e2c2fbd88757ead4e284c7ff0fcd4ab3e9693553502be91919e",
+        "compared_library_file_id": "libfile_0bfe6eef3e148191b043eec8eb84f5e0",
+        "compared_html_sha256": "a78c3ee9f83d6970c9fc55e81d6b355cfb66c13e798ed27bc487fc39aeee1f4d",
+        "canonical_sha256_after": "f1bafdaca870dc09dbba7ae92f56519f948cef5fb9f4c9d06a18d62084c7494d"
+      },
+      "validation": "Standalone HTML and bundle contents were read and hashed; ZIP integrity/traversal checks passed; both Java 17 source-file programs passed explicit cases plus 20,000 seeded adversarial rounds; Pandoc rebuild was deterministic; embedded Markdown payload equality, unique IDs, internal anchors, relative assets, PNG signatures/dimensions, visual contact-sheet inspection, search-index targets, Mermaid counts, JSON and git diff checks passed; live DSA placeholder audit 174; live cloud/CI integrations and browser rendering were not executed.",
+      "next_action": "Rotate fairly to an accessible unpromoted frontend source (prefer Angular); on the next DevOps pass, deepen probe-driven rollout failure diagnosis and TeamCity/Jenkins agent isolation without creating a versioned duplicate.",
       "priority": 13
     },
     {

@@ -56,5 +56,6 @@ The hourly pipeline covers the full technical study collection, including DSA, A
 - [AWS networking bootcamp](study-guides/aws/networking/) and [continuation status](study-guides/aws/STATUS.md)
 - [System design fundamentals](study-guides/system-design/) — canonical Markdown and searchable mobile HTML
 - [AI, RAG, CAG and deep learning](study-guides/ai/) — canonical Markdown, retained source figures and searchable mobile HTML
+- [CI/CD, Kubernetes and cloud delivery](study-guides/devops/) — Jenkins, TeamCity, AWS/Azure identity, immutable promotion and searchable mobile HTML
 
 Queued sources are not automatically complete or published; the inventory distinguishes existing canonical guides, discovered source candidates and sources still to locate.
