@@ -8,6 +8,7 @@
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 9",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 10",
+    "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 6",
     "src/README.md excerpt"
   ],
   "files": [
@@ -97,14 +98,15 @@
         "## 4.2 AVL vs Red-Black"
       ],
       "completed_sections": [
+        "6. B+ Tree",
         "7. Binary Heap / Priority Queue",
         "8. Trie / Prefix Tree",
         "9. Segment Tree + Lazy Propagation",
         "10. Fenwick Tree"
       ],
-      "next_section": "6. B+ Tree",
-      "processed_range": "lines 834-913 (inclusive section boundary in materialized source)",
-      "target": "advanced-trees/binary-heap-priority-queue.md"
+      "next_section": "5. B-Tree",
+      "processed_range": "lines 782-833 (inclusive section boundary in materialized source)",
+      "target": "advanced-trees/b-plus-tree-database-index.md"
     },
     {
       "relative_path": "untitled/AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md",
@@ -829,16 +831,16 @@
   ],
   "next_batch": {
     "source": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md",
-    "section": "6. B+ Tree",
+    "section": "5. B-Tree",
     "status": "QUEUED",
-    "estimated_tokens": 12500,
-    "estimate_method": "Tokenizer unavailable. The bounded source is 2772 characters, estimated at 693 tokens by chars/4; add heuristic reserves of 2200 for comparison/research, 7000 for teaching/code/diagram/HTML, and 2500 for verification/checkpoint work, then round conservatively. This is not account-quota telemetry.",
-    "budget_action": "End this batch after one validated section because remaining runtime budget is not exposed. A later hourly run should compare section 6 against canonical database-index coverage before publishing."
+    "estimated_tokens": 15000,
+    "estimate_method": "Tokenizer unavailable. The bounded source is 7147 characters, estimated at 1787 tokens by chars/4; add heuristic reserves of 2500 for comparison/research, 8000 for teaching/code/diagram/HTML, and 2500 for verification/checkpoint work, then round conservatively. This is not account-quota telemetry.",
+    "budget_action": "End this batch after one validated section because remaining runtime budget is not exposed. A later hourly run should compare section 5 with the B+ tree module and canonical database-index coverage, publishing only distinct value."
   },
   "validation": {
-    "java": "Java 17 jdk.compiler module passed for Fenwick, LazySegmentTree, LowercaseTrie and IntMinHeap. IntMinHeapCheck passed deterministic/boundary cases, 100000 mixed random PriorityQueue-oracle operations and 10000 random heapify-and-drain comparisons.",
+    "java": "Java 17 jdk.compiler module passed for Fenwick, LazySegmentTree, LowercaseTrie, IntMinHeap and BPlusTreeReadModel. BPlusTreeReadModelCheck passed deterministic/boundary cases, 100000 seeded random point lookups and 50000 seeded random bounded range comparisons against TreeMap.",
     "readers": "HTML generated from canonical Markdown with matching SHA256; all local links and fragment targets checked",
-    "diagrams": "Fenwick, segment-tree, trie and heap SVG XML parsed; browser visual QA not executed",
-    "last_processed_at": "2026-10-08T13:28:32-04:00"
+    "diagrams": "Fenwick, segment-tree, trie, heap and B+ tree SVG XML parsed; browser visual QA not executed",
+    "last_processed_at": "2026-10-08T14:32:02-04:00"
   }
 }

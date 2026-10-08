@@ -20,6 +20,10 @@ This separate folder receives selected, enriched technical material from the upl
 - [Binary Heap / Priority Queue — HTML](advanced-trees/binary-heap-priority-queue.html)
 - [Integer min-heap Java](advanced-trees/java/IntMinHeap.java)
 - [Integer min-heap validation harness](advanced-trees/java/IntMinHeapCheck.java)
+- [B+ Tree Database Index — Markdown](advanced-trees/b-plus-tree-database-index.md)
+- [B+ Tree Database Index — HTML](advanced-trees/b-plus-tree-database-index.html)
+- [B+ tree immutable read model](advanced-trees/java/BPlusTreeReadModel.java)
+- [B+ tree validation harness](advanced-trees/java/BPlusTreeReadModelCheck.java)
 
 ## Intake state
 
@@ -29,10 +33,10 @@ See [intake manifest](INTAKE_MANIFEST.json) for source hashes, statuses and exac
 
 ## Continue next
 
-Read advanced-trees section 6: B+ Tree, then compare it against canonical database-index coverage before publishing one focused module. Estimated next-batch budget: approximately 12,500 tokens. The estimate uses the section's 2,772 characters / 4 (about 693 source tokens because a tokenizer is unavailable), plus heuristic reserves of 2,200 for comparison/research, 7,000 for teaching/code/diagram/HTML, and 2,500 for validation/checkpoint work, rounded conservatively. It is not account-quota telemetry. Stop at a durable checkpoint if resources are insufficient; later hourly runs retry.
+Read advanced-trees section 5: B-Tree, then compare it with the new B+ tree module and canonical database-index coverage. Publish only if it contributes a distinct teaching unit rather than a terminology-only duplicate. Estimated next-batch budget: approximately 15,000 tokens. The estimate uses the section's 7,147 characters / 4 (about 1,787 source tokens because a tokenizer is unavailable), plus heuristic reserves of 2,500 for comparison/research, 8,000 for teaching/code/diagram/HTML, and 2,500 for validation/checkpoint work, rounded conservatively. It is not account-quota telemetry. Stop at a durable checkpoint if resources are insufficient; later hourly runs retry.
 
 ## Maintain readers
 
 Run `python build_readers.py` (requires Python `markdown`) after editing local Markdown. Source Markdown is canonical; HTML is generated from it. Keep topic Java and diagram changes in the same validated commit.
 
-Validation: the Java 17 compiler module ran all topic harnesses. The Fenwick harness passed 100,000 randomized point updates and 200,000 oracle queries; the lazy segment tree harness passed 100,000 randomized range updates and 200,000 oracle queries; the trie harness passed 50,000 randomized insert attempts, 100,000 exact/prefix queries and 10,000 autocomplete comparisons; the heap harness passed 100,000 mixed operations and 10,000 heapify-and-drain comparisons. Deterministic/boundary cases, generated Markdown/HTML payload hashes, local links/anchors and SVG XML were checked. Browser visual QA remains pending.
+Validation: the Java 17 compiler module ran all topic harnesses. The Fenwick harness passed 100,000 randomized point updates and 200,000 oracle queries; the lazy segment tree harness passed 100,000 randomized range updates and 200,000 oracle queries; the trie harness passed 50,000 randomized insert attempts, 100,000 exact/prefix queries and 10,000 autocomplete comparisons; the heap harness passed 100,000 mixed operations and 10,000 heapify-and-drain comparisons; the B+ tree read model passed 100,000 random point lookups and 50,000 random bounded range comparisons. Deterministic/boundary cases, generated Markdown/HTML payload hashes, local links/anchors and SVG XML were checked. Browser visual QA remains pending.

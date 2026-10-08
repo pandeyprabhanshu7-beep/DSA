@@ -1,0 +1,427 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="source-sha256" content="e14527283e84fb5c35066027cb0bbda62cdb59634756d5a3de39cd5737fb3720"><title>B+ Tree Database Index: Route Once, Scan Leaves</title><style>body{font:17px/1.7 system-ui;color:#172033;background:#f4f7fb;margin:0}main{max-width:1040px;margin:auto;padding:24px}article{background:white;padding:28px;border-radius:16px}a{color:#1261a0}h1,h2,h3{line-height:1.25}img{max-width:100%;height:auto}pre{background:#101c30;color:#eef4ff;padding:18px;overflow:auto;border-radius:10px}table{display:block;overflow:auto;border-collapse:collapse}th,td{border:1px solid #d3dce9;padding:10px;text-align:left}details{background:#eaf2fa;padding:12px}.toc ul{max-height:280px;overflow:auto}input{padding:10px;width:min(100%,420px)}@media(max-width:600px){main{padding:8px}article{padding:16px;font-size:16px}}</style></head><body><main><article><input id="filter" aria-label="Filter section links" placeholder="Filter section links"><details open class="toc"><summary>Sections</summary><div class="toc">
+<ul>
+<li><a href="#b-tree-database-index-route-once-scan-leaves">B+ Tree Database Index: Route Once, Scan Leaves</a><ul>
+<li><a href="#1-simple-definition-and-learning-contract">1. Simple definition and learning contract</a><ul>
+<li><a href="#four-concrete-examples">Four concrete examples</a></li>
+</ul>
+</li>
+<li><a href="#2-b-tree-family-intuition-optimize-page-visits">2. B-tree family intuition: optimize page visits</a><ul>
+<li><a href="#b-tree-versus-b-tree-vocabulary">B-tree versus B+ tree vocabulary</a></li>
+</ul>
+</li>
+<li><a href="#3-structure-and-invariants">3. Structure and invariants</a></li>
+<li><a href="#4-point-lookup-trace">4. Point lookup trace</a></li>
+<li><a href="#5-range-scan-trace">5. Range scan trace</a></li>
+<li><a href="#6-dynamic-insertion-and-deletion-mechanics">6. Dynamic insertion and deletion mechanics</a><ul>
+<li><a href="#leaf-split-example">Leaf split example</a></li>
+<li><a href="#deletion-is-not-merely-remove-a-key">Deletion is not merely “remove a key”</a></li>
+</ul>
+</li>
+<li><a href="#7-java-17-read-model">7. Java 17 read model</a></li>
+<li><a href="#8-why-the-read-algorithms-are-correct">8. Why the read algorithms are correct</a></li>
+<li><a href="#9-cost-derivation-including-output">9. Cost derivation, including output</a></li>
+<li><a href="#10-database-reality-and-trade-offs">10. Database reality and trade-offs</a><ul>
+<li><a href="#clustered-and-secondary-indexes-are-product-specific">Clustered and secondary indexes are product-specific</a></li>
+<li><a href="#b-tree-strengths">B+ tree strengths</a></li>
+<li><a href="#costs-and-alternatives">Costs and alternatives</a></li>
+</ul>
+</li>
+<li><a href="#11-common-errors-boundaries-and-interview-variations">11. Common errors, boundaries and interview variations</a></li>
+<li><a href="#12-verification-sources-and-continuation">12. Verification, sources and continuation</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="b-tree-database-index-route-once-scan-leaves">B+ Tree Database Index: Route Once, Scan Leaves</h1>
+<p><a href="../README.html">Local study intake</a> · <a href="java/BPlusTreeReadModel.java">Java read model</a> · <a href="java/BPlusTreeReadModelCheck.java">Validation harness</a></p>
+<p>This module enriches section 6 of the uploaded <code>Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>. The source contributes the B+ tree distinction, linked-leaf idea and split outline. The page-oriented model, exact separator invariant, four examples, lookup/range traces, deletion cautions, Java 17 bulk-loaded read model, correctness argument, cost derivation, database boundaries and original diagram are added teaching material. The canonical system-design guide already compares B-tree and LSM families; this focused module adds data-structure mechanics instead of duplicating that overview.</p>
+<h2 id="1-simple-definition-and-learning-contract">1. Simple definition and learning contract</h2>
+<p>A <strong>B+ tree</strong> is a height-balanced multiway search tree designed to keep many keys in each node. Internal nodes route by separator keys; leaf nodes hold the searchable entries in key order. A leaf-level sibling chain lets a range query descend once and then continue sequentially.</p>
+<p>This module uses one precise separator convention:</p>
+<blockquote>
+<p><code>separator[i]</code> is the smallest key in <code>children[i + 1]</code>'s subtree.</p>
+</blockquote>
+<p>Therefore a search key equal to a separator goes <strong>right</strong>. Real engines can encode boundaries differently; never mix a diagram's convention with different comparison code.</p>
+<p>The runnable Java model is intentionally narrower than a database engine:</p>
+<ul>
+<li>input is already sorted and keys are distinct;</li>
+<li><code>bulkLoad</code> creates an immutable in-memory index;</li>
+<li><code>get</code> performs point lookup;</li>
+<li><code>range(from, to, limit)</code> returns inclusive, ascending results;</li>
+<li>leaves are linked for continuation;</li>
+<li>there is no insert/delete API, page cache, WAL, MVCC, latch, checksum, overflow page, compression or crash recovery.</li>
+</ul>
+<p>That boundary is important: the program validates routing and range-scan invariants without pretending to implement a storage engine.</p>
+<h3 id="four-concrete-examples">Four concrete examples</h3>
+<table>
+<thead>
+<tr>
+<th>Data / request</th>
+<th>Expected result</th>
+<th>Concept tested</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>keys <code>5,9,12,18,24,31,44,52</code>; <code>get(24)</code></td>
+<td>value for key 24</td>
+<td>equality with a leaf entry</td>
+</tr>
+<tr>
+<td>same tree; <code>get(25)</code></td>
+<td>empty</td>
+<td>landing in the correct leaf does not imply a match</td>
+</tr>
+<tr>
+<td>same tree; <code>range(10,40,99)</code></td>
+<td>keys <code>12,18,24,31</code></td>
+<td>one descent, then linked-leaf continuation</td>
+</tr>
+<tr>
+<td>same tree; <code>range(18,24,2)</code></td>
+<td>keys <code>18,24</code></td>
+<td>inclusive bounds and output limit</td>
+</tr>
+</tbody>
+</table>
+<p>The implementation also accepts an empty input, supports <code>Integer.MIN_VALUE</code>/<code>MAX_VALUE</code>, rejects duplicate or unsorted keys, rejects negative limits, and rejects reversed range bounds.</p>
+<h2 id="2-b-tree-family-intuition-optimize-page-visits">2. B-tree family intuition: optimize page visits</h2>
+<p>A binary search tree spends one pointer per branch and may hold one key per node. A disk-oriented tree instead tries to match a node to a storage page. If one page can hold hundreds of separators and child page identifiers, fan-out is high and height stays small.</p>
+<p>For example, a purely illustrative fan-out of 256 can address roughly:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Levels containing children</th>
+<th style="text-align: right;">Approximate leaf-page reach</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">256</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">65,536</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">16,777,216</td>
+</tr>
+</tbody>
+</table>
+<p>Those are not capacity promises: page size, key width, tuple metadata, fill factor, compression and engine format change fan-out. The lesson is that a shallow page tree can replace many random pointer hops.</p>
+<h3 id="b-tree-versus-b-tree-vocabulary">B-tree versus B+ tree vocabulary</h3>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Classical B-tree description</th>
+<th>B+ tree description used here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Internal node contents</td>
+<td>keys may be searchable records</td>
+<td>separators primarily route</td>
+</tr>
+<tr>
+<td>Search success</td>
+<td>may occur before a leaf</td>
+<td>confirmed in a leaf</td>
+</tr>
+<tr>
+<td>Leaf contents</td>
+<td>records not necessarily confined there</td>
+<td>all searchable key/value entries</td>
+</tr>
+<tr>
+<td>Ordered range</td>
+<td>possible by ordered traversal</td>
+<td>natural after reaching first leaf</td>
+</tr>
+<tr>
+<td>Internal fan-out</td>
+<td>high</td>
+<td>often higher when internal payload is smaller</td>
+</tr>
+</tbody>
+</table>
+<p>Database product documentation often says <strong>B-tree</strong> for a page structure with B+ tree-like characteristics. PostgreSQL documents leaf tuples that point to table rows and internal tuples that point down a level; SQLite distinguishes table and index b-tree page formats. Prefer the engine's documented terms over arguing from the textbook label.</p>
+<h2 id="3-structure-and-invariants">3. Structure and invariants</h2>
+<p><img alt="Root routing, linked leaves, point lookup and range continuation" src="assets/b-plus-tree-range-scan.svg" /></p>
+<p>The example has root separators <code>[18 | 44]</code> and leaves:</p>
+<ul>
+<li><code>L0 = [5,9,12]</code></li>
+<li><code>L1 = [18,24,31]</code></li>
+<li><code>L2 = [44,52]</code></li>
+</ul>
+<p>Its invariants are:</p>
+<ol>
+<li><strong>Sorted pages:</strong> keys inside every node are strictly increasing in this model.</li>
+<li><strong>Separator ranges:</strong> child 0 contains keys <code>&lt; separator[0]</code>; a middle child <code>i</code> contains keys <code>&gt;= separator[i-1]</code> and <code>&lt; separator[i]</code>; the last child contains keys <code>&gt;=</code> the final separator.</li>
+<li><strong>Leaf-only entries:</strong> a point result is accepted only after searching a leaf.</li>
+<li><strong>Uniform depth:</strong> every leaf is at the same depth.</li>
+<li><strong>Ordered leaf chain:</strong> following <code>next</code> visits all later leaves in nondecreasing key order without returning to internal nodes.</li>
+<li><strong>Occupancy:</strong> non-root nodes normally obey engine-specific minimum and maximum fill rules. The bulk loader balances groups, but this teaching model does not expose dynamic underflow/overflow repair.</li>
+</ol>
+<p>The routing loop uses an <strong>upper bound</strong> over separators:</p>
+<pre><code class="language-java">int child = 0;
+while (child &lt; separators.length &amp;&amp; key &gt;= separators[child]) {
+    child++;
+}
+</code></pre>
+<p>Production code normally binary-searches a wide node, as the Java source does. The <code>&gt;=</code> is the key line: with lower-bound-of-right-child separators, equality belongs to the right child.</p>
+<h2 id="4-point-lookup-trace">4. Point lookup trace</h2>
+<p>Find key 24 in the pictured tree.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Page step</th>
+<th>Keys inspected</th>
+<th>Decision</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>root <code>[18,44]</code></td>
+<td>choose child 1</td>
+<td><code>24 &gt;= 18</code> but <code>24 &lt; 44</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>leaf <code>[18,24,31]</code></td>
+<td>binary-search index 1</td>
+<td>key equals 24</td>
+</tr>
+<tr>
+<td style="text-align: right;">result</td>
+<td>entry <code>(24,value)</code></td>
+<td>found</td>
+<td>only a leaf confirms membership</td>
+</tr>
+</tbody>
+</table>
+<p>Find missing key 25:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Page step</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>the same root comparisons choose child 1</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>leaf binary search places 25 between 24 and 31</td>
+</tr>
+<tr>
+<td style="text-align: right;">result</td>
+<td>not found; do not scan the next leaf for an exact unique-key lookup</td>
+</tr>
+</tbody>
+</table>
+<p>For duplicate-key database indexes, one logical key may map to several row identifiers or span representation-specific entries. This Java contract avoids that separate problem by requiring distinct keys.</p>
+<h2 id="5-range-scan-trace">5. Range scan trace</h2>
+<p>Run <code>range(10, 40, 99)</code>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Step</th>
+<th>Current page / position</th>
+<th>Output</th>
+<th>Next action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>root <code>[18,44]</code> routes 10 to <code>L0</code></td>
+<td><code>[]</code></td>
+<td>descend once</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>lower-bound search in <code>[5,9,12]</code> gives index 2</td>
+<td><code>[12]</code></td>
+<td>leaf exhausted; follow <code>next</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>scan <code>[18,24,31]</code></td>
+<td><code>[12,18,24,31]</code></td>
+<td>leaf exhausted; follow <code>next</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>first key in <code>[44,52]</code> is 44</td>
+<td>unchanged</td>
+<td><code>44 &gt; 40</code>; stop immediately</td>
+</tr>
+</tbody>
+</table>
+<p>The scan does <strong>not</strong> descend from the root for every returned key. That is the central B+ tree range advantage: routing cost is paid for the start, then leaf adjacency carries the scan.</p>
+<p>Limits are operationally useful. <code>range(10,40,2)</code> stops after <code>[12,18]</code>; it need not materialize the full matching range merely to discard later items.</p>
+<h2 id="6-dynamic-insertion-and-deletion-mechanics">6. Dynamic insertion and deletion mechanics</h2>
+<p>The runnable model is immutable, but interviews often ask for the write path.</p>
+<h3 id="leaf-split-example">Leaf split example</h3>
+<p>Assume a leaf holds at most three keys. Insert 28 into <code>[18,24,31]</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>State</th>
+<th>Parent action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>insert in order</td>
+<td><code>[18,24,28,31]</code></td>
+<td>leaf overflows</td>
+</tr>
+<tr>
+<td>split</td>
+<td>left <code>[18,24]</code>, right <code>[28,31]</code></td>
+<td>wire <code>left.next = right</code>; preserve old successor after right</td>
+</tr>
+<tr>
+<td>publish separator</td>
+<td>right's first key is 28</td>
+<td>copy 28 into parent with a downlink to right</td>
+</tr>
+</tbody>
+</table>
+<p>If the parent overflows, split it and propagate a routing entry upward. A root split creates a new root and is the only ordinary insertion event that increases height.</p>
+<h3 id="deletion-is-not-merely-remove-a-key">Deletion is not merely “remove a key”</h3>
+<p>After deleting from a leaf:</p>
+<ol>
+<li>if occupancy is still legal, stop—but update an ancestor separator if the leaf's first key changed and that key defines a boundary;</li>
+<li>otherwise redistribute with a sibling when allowed, then refresh separators;</li>
+<li>otherwise merge siblings, repair the leaf chain, and remove the redundant parent entry;</li>
+<li>propagate parent underflow upward; if a root has only one child, replace the root and reduce height.</li>
+</ol>
+<p>A frequent error is to borrow or merge leaf entries but leave the parent boundary stale. Another is to repair parent pointers while forgetting the leaf <code>next</code> link. A production engine additionally coordinates concurrent readers, logged page changes, split visibility and recovery; these details are outside an interview-level container implementation.</p>
+<h2 id="7-java-17-read-model">7. Java 17 read model</h2>
+<p>The complete source is <a href="java/BPlusTreeReadModel.java">BPlusTreeReadModel.java</a>. It creates balanced leaf groups from sorted input, links them, and repeatedly groups children into internal nodes. Each separator is derived—not guessed—from the first key of its right child.</p>
+<pre><code class="language-java">private Leaf descend(int key) {
+    Node node = root;
+    while (node instanceof Internal internal) {
+        int child = upperBound(internal.separators, key);
+        node = internal.children[child];
+    }
+    return (Leaf) node;
+}
+</code></pre>
+<p>Range lookup descends to <code>fromInclusive</code>, uses a leaf lower bound, and then advances through <code>leaf.next</code>:</p>
+<pre><code class="language-java">Leaf leaf = descend(fromInclusive);
+int index = lowerBound(leaf.keys, fromInclusive);
+while (leaf != null &amp;&amp; result.size() &lt; limit) {
+    while (index &lt; leaf.keys.length &amp;&amp; result.size() &lt; limit) {
+        int key = leaf.keys[index];
+        if (key &gt; toInclusive) return result;
+        result.add(new Entry(key, leaf.values[index++]));
+    }
+    leaf = leaf.next;
+    index = 0;
+}
+</code></pre>
+<p><code>limit</code> caps the number of constructed <code>Entry</code> results. It does not promise a database execution plan, isolation level, stable snapshot, or server-side cursor.</p>
+<h2 id="8-why-the-read-algorithms-are-correct">8. Why the read algorithms are correct</h2>
+<p><strong>Descent.</strong> In an internal node, <code>upperBound(separators,key)</code> returns the number of separators less than or equal to <code>key</code>. By the separator-range invariant, exactly that child contains every possible occurrence of <code>key</code>. Repeating this choice moves one level downward while preserving the claim that the selected subtree is the only candidate. Uniform leaf depth guarantees termination at a leaf; binary search then finds the key if and only if it exists.</p>
+<p><strong>Range start.</strong> The same descent selects the only leaf that could contain <code>fromInclusive</code>. A lower-bound search chooses the first leaf key not less than the lower bound, so no qualifying key inside that leaf is skipped.</p>
+<p><strong>Range continuation.</strong> Keys remaining in the current leaf are ordered. The leaf-chain invariant says every key in the next leaf is at least every key in the current leaf, and repeated <code>next</code> visits all later leaves. Appending until a key exceeds <code>toInclusive</code> therefore returns every in-range entry, in order, exactly once. Stopping at <code>limit</code> returns the correct prefix of that ordered answer.</p>
+<p><strong>Bulk loading.</strong> Input keys are strictly increasing. Contiguous slices are therefore internally sorted and every leaf's keys are below the next leaf's keys. Separators copied from right-child minima establish the routing ranges. Grouping every node at one level before building the next keeps all leaves at uniform depth. Induction over constructed levels proves all read invariants.</p>
+<h2 id="9-cost-derivation-including-output">9. Cost derivation, including output</h2>
+<p>Let <code>n</code> be entries, <code>F</code> average internal fan-out, <code>B</code> average leaf entries, <code>h</code> tree height, and <code>k</code> returned entries.</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th style="text-align: right;">Page-oriented intuition</th>
+<th style="text-align: right;">Java model CPU cost</th>
+<th style="text-align: right;">Result space</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>point lookup</td>
+<td style="text-align: right;">O(h) page visits</td>
+<td style="text-align: right;">O(h log F + log B), bounded by O(log n)</td>
+<td style="text-align: right;">O(1)</td>
+</tr>
+<tr>
+<td>range lookup</td>
+<td style="text-align: right;">O(h + leaves visited) page visits</td>
+<td style="text-align: right;">O(log n + k) plus boundary checks</td>
+<td style="text-align: right;">O(k)</td>
+</tr>
+<tr>
+<td>bulk load</td>
+<td style="text-align: right;">sequential construction</td>
+<td style="text-align: right;">O(n)</td>
+<td style="text-align: right;">O(n) index storage</td>
+</tr>
+</tbody>
+</table>
+<p>With useful occupancy, <code>h</code> is logarithmic in fan-out: approximately <code>O(log_F(n/B))</code> internal levels plus the leaf. Exact height depends on root and occupancy rules.</p>
+<p>Returning <code>k</code> Java records necessarily costs O(k) time and O(k) output space; no algorithm can materialize k distinct results in less. If values themselves are copied rather than referenced, add the total copied payload length. A streaming cursor can reduce client-side auxiliary memory to O(1) beyond buffers, but total output work remains proportional to what is consumed.</p>
+<p>The Java model stores every key/value reference plus node arrays: O(n) total. Its iterative lookup uses O(1) auxiliary stack space.</p>
+<h2 id="10-database-reality-and-trade-offs">10. Database reality and trade-offs</h2>
+<h3 id="clustered-and-secondary-indexes-are-product-specific">Clustered and secondary indexes are product-specific</h3>
+<p>In InnoDB, the clustered index stores row data and secondary entries include the row's primary-key columns. A wide primary key therefore enlarges secondary indexes. PostgreSQL's documented B-tree leaf tuples point to table rows in a heap-organized relation. These are different physical contracts even though both expose ordered indexes.</p>
+<h3 id="b-tree-strengths">B+ tree strengths</h3>
+<ul>
+<li>equality, inequality and bounded range predicates;</li>
+<li>ordered iteration and <code>ORDER BY</code> plans when index order aligns;</li>
+<li>predecessor/successor and prefix ranges under a compatible collation/operator class;</li>
+<li>shallow trees through high page fan-out.</li>
+</ul>
+<h3 id="costs-and-alternatives">Costs and alternatives</h3>
+<ul>
+<li>random insertions can split pages and amplify writes;</li>
+<li>every additional index consumes storage and write work;</li>
+<li>wide keys reduce fan-out;</li>
+<li>an unanchored substring search such as <code>LIKE '%term%'</code> is not rescued by ordinary key ordering;</li>
+<li>hash indexes target equality, LSM families buffer writes and pay compaction/read trade-offs, and inverted/spatial/vector indexes serve different predicates.</li>
+</ul>
+<p>An index being available does not force the optimizer to use it. Selectivity, covering ability, table size, statistics, ordering and base-row fetch cost can make a scan or another index cheaper.</p>
+<h2 id="11-common-errors-boundaries-and-interview-variations">11. Common errors, boundaries and interview variations</h2>
+<ul>
+<li>Route separator equality left while separators mean “minimum of right child.” Use <code>&gt;=</code>/upper bound for this convention.</li>
+<li>Return an internal separator as the record. In this model, only leaves contain searchable entries.</li>
+<li>Re-descend for every range key. Descend once, then use the leaf chain.</li>
+<li>Call the structure “sorted” without naming the comparison/collation. Index order is defined by an operator class or comparator.</li>
+<li>Claim all database B-trees have an identical leaf-link or payload layout. Cite the target engine.</li>
+<li>Ignore duplicate keys, null ordering, composite encodings or row identifiers. They materially change the entry contract.</li>
+<li>Treat every page split as a height increase. Height rises only when the root splits.</li>
+<li>Describe deletion without separator refresh, leaf-link repair, or root contraction.</li>
+<li>Equate O(log n) CPU with a fixed number of disk reads. Cache residency and page layout dominate real latency.</li>
+<li>Present the Java model as durable or concurrent. It is an immutable algorithm model only.</li>
+</ul>
+<p>Useful interview follow-ups:</p>
+<ol>
+<li><strong>Composite index <code>(tenant_id, created_at)</code>:</strong> explain why tenant equality plus a time range forms one contiguous key interval, while filtering only on <code>created_at</code> may not.</li>
+<li><strong>Covering index:</strong> add projected columns to leaf entries to avoid a base-row fetch, then discuss larger leaves and lower fan-out.</li>
+<li><strong>Bulk load versus online insert:</strong> sorted bulk load can build compact leaves sequentially; online writes need split and concurrency protocols.</li>
+<li><strong>B+ tree versus LSM:</strong> compare random page maintenance with buffered sequential writes, compaction, read amplification and range behavior.</li>
+<li><strong>Concurrent split:</strong> describe why readers must see either a safe old path or the new right sibling; actual latching and WAL algorithms are engine-specific.</li>
+</ol>
+<h2 id="12-verification-sources-and-continuation">12. Verification, sources and continuation</h2>
+<p>The Java 17 compiler module compiled the read model and independent harness. The harness passed deterministic lookup/range/boundary cases, rejected malformed contracts, and compared 100,000 seeded random point lookups plus 50,000 seeded random bounded range queries against <code>TreeMap</code>.</p>
+<p>Sources checked 2026-10-08:</p>
+<ul>
+<li>Uploaded <code>Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>, section 6, lines 782–833 (SHA-256 <code>86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1</code>): conceptual spine and split outline.</li>
+<li><a href="https://www.postgresql.org/docs/current/btree.html">PostgreSQL 18 — B-Tree Indexes</a>: multi-level page structure, leaf/internal tuple roles and cascading page splits.</li>
+<li><a href="https://www.sqlite.org/fileformat2.html#b_tree_pages">SQLite — Database File Format: B-tree Pages</a>: balanced depth, page types, ordered cells and interior child routing.</li>
+<li><a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html">MySQL 8.4 — InnoDB Clustered and Secondary Indexes</a>: row storage in the clustered index and primary-key columns in secondary entries.</li>
+<li><a href="../../system-design/fundamentals/guide.html#10-indexing-b-tree-vs-lsm-tree">Canonical system-design fundamentals</a>: retained high-level index/storage comparison.</li>
+</ul>
+<p>Next bounded source section: section 5, B-Tree. Compare it with this module before deciding whether it adds a distinct teaching unit; do not publish a terminology-only duplicate.</p></article></main><script>document.querySelector("#filter").oninput=e=>{let q=e.target.value.toLowerCase();document.querySelectorAll(".toc li").forEach(li=>li.hidden=!li.textContent.toLowerCase().includes(q))}</script></body></html>

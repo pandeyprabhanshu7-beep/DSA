@@ -773,7 +773,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Read bounded advanced-trees section 6 (B+ Tree), compare it with canonical database-index coverage, and publish only distinct improvements.",
+    "next_action": "Read bounded advanced-trees section 5 (B-Tree), compare it with the B+ tree module and canonical database-index coverage, and publish only a distinct teaching unit.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -810,14 +810,15 @@
       "Advanced trees section 10: Fenwick tree",
       "Advanced trees section 9: Segment Tree + Lazy Propagation",
       "Advanced trees section 8: Trie / Prefix Tree",
-      "Advanced trees section 7: Binary Heap / Priority Queue"
+      "Advanced trees section 7: Binary Heap / Priority Queue",
+      "Advanced trees section 6: B+ Tree Database Index"
     ],
-    "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 834-913; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1",
-    "validation": "Java 17 jdk.compiler module: deterministic/boundary cases, 100000 mixed random PriorityQueue-oracle operations and 10000 random heapify-and-drain comparisons passed; generated reader equivalence, local links/anchors and SVG XML checked; live literal-marker placeholder audit 174; browser visual QA not executed.",
-    "estimated_next_tokens": 12500,
-    "estimate_method": "Tokenizer unavailable. Section 6 has 2772 characters, estimated as 693 tokens by chars/4; add heuristic reserves of 2200 comparison/research, 7000 teaching/code/diagram/HTML, and 2500 verification/checkpoint, then round conservatively. Not account-quota telemetry.",
+    "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 782-833; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1",
+    "validation": "Archive ZIP integrity/traversal and source SHA passed; Java 17 jdk.compiler module passed deterministic/boundary contracts plus 100000 seeded random point lookups and 50000 seeded random bounded range comparisons against TreeMap; generated reader equivalence, local links/anchors and SVG XML checked; live literal-marker placeholder audit 174; browser visual QA not executed.",
+    "estimated_next_tokens": 15000,
+    "estimate_method": "Tokenizer unavailable. Section 5 has 7147 characters, estimated as 1787 tokens by chars/4; add heuristic reserves of 2500 comparison/research, 8000 teaching/code/diagram/HTML, and 2500 verification/checkpoint, then round conservatively. Not account-quota telemetry.",
     "last_successful_commit": "7398837331104b6eba598134c01fdda6e2690356",
-    "last_processed_at": "2026-10-08T13:28:32-04:00",
-    "next_batch_decision": "One bounded section completed. Remaining runtime budget is not exposed, so stop before reading another section and continue section 6 on a later hourly run."
+    "last_processed_at": "2026-10-08T14:32:02-04:00",
+    "next_batch_decision": "One bounded section completed. Remaining runtime budget is not exposed, so stop before reading section 5 content and continue it on a later hourly run."
   }
 }
