@@ -818,7 +818,7 @@
     "validation": "Archive ZIP integrity/traversal and source SHA passed; corrected the source's commented-out root declaration; Java 17 jdk.compiler module passed deterministic/boundary contracts, 1000 shuffled insert/delete permutations and 200000 seeded mixed operations across minimum degrees 2-9 against TreeSet with repeated structural validation; generated reader equivalence, local links/anchors and SVG XML checked; live literal-marker placeholder audit 174; browser visual QA not executed.",
     "estimated_next_tokens": 15000,
     "estimate_method": "Tokenizer unavailable. Section 4 has 7803 characters, estimated as 1951 tokens by chars/4; add heuristic reserves of 2500 comparison/research, 8000 teaching/code/diagram/HTML, and 2500 verification/checkpoint, then round conservatively. Not account-quota telemetry.",
-    "last_successful_commit": "68fe274a021cb62be6f1550ce8a28b75f266aa21",
+    "last_successful_commit": "3f6b36a0e5c67c456a97115dadac9dd01f0a0eb1",
     "last_processed_at": "2026-10-08T16:28:25-04:00",
     "next_batch_decision": "One bounded section completed. Remaining runtime budget is not exposed, so stop before reading section 4 content and continue it on a later hourly run."
   }
