@@ -13,7 +13,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | advanced-trees | DSA | DISCOVERED | `study-guides/advanced-trees/` | Advanced_Trees_FAANG_Mermaid_Study_Guide.md<br>Tree_Advanced_FAANG_Study_Guide.docx<br>advanced_trees_interview_guide.md |
 | ai-foundations-rag-cag | AI | DISCOVERED | `study-guides/ai/foundations-rag-cag/` | AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md<br>AI_RAG_CAG_Deep_Learning_Developer_Guide.docx |
 | ai-platform | AI | DISCOVERED | `study-guides/ai/platform/` | ai_cicd_spring_python_guides_complete.zip<br>ai_platform_master_guide.html<br>ai_platform_engineering_complete_bundle.zip<br>ai_platform_engineering_illustrated.html |
-| system-design-fundamentals | System design/data | DISCOVERED | `study-guides/system-design/fundamentals/` | system_design_fundamentals_deep_research.md<br>system_design_fundamentals.md |
+| system-design-fundamentals | System design/data | PROMOTED | `study-guides/system-design/fundamentals/` | system_design_fundamentals_deep_research.md<br>system_design_fundamentals.md |
 | system-design-blueprints | System design/data | DISCOVERED | `study-guides/system-design/blueprints/` | top_5_system_design_interview_blueprints.md |
 | database-caching-java | System design/data | DISCOVERED | `study-guides/databases/caching-java/` | database_internals_caching_java_master_guide.md |
 | cicd-cloud-kubernetes | DevOps/backend | DISCOVERED | `study-guides/devops/cicd/` | cicd_aws_azure_teamcity_jenkins_guide.html<br>ai_cicd_spring_python_guides_complete.zip |
@@ -43,8 +43,8 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | ai_platform_engineering_illustrated.html | 2026-09-16T16:22:16.059506Z | DISCOVERED |
 | database_internals_caching_java_master_guide.md | 2026-09-16T05:20:18.877277Z | DISCOVERED |
 | top_5_system_design_interview_blueprints.md | 2026-09-11T21:27:10.870584Z | DISCOVERED |
-| system_design_fundamentals_deep_research.md | 2026-09-11T21:27:08.096531Z | DISCOVERED |
-| system_design_fundamentals.md | 2026-09-11T04:57:16.259594Z | DISCOVERED |
+| system_design_fundamentals_deep_research.md | 2026-09-11T21:27:08.096531Z | PROMOTED — canonical fundamentals base |
+| system_design_fundamentals.md | 2026-09-11T04:57:16.259594Z | READY — compared; distinct case studies reserved for blueprints |
 | ai_jobs_elimination_deep_research_2026.md | 2026-09-10T23:06:32.260101Z | DISCOVERED |
 | Take_U_Forward_Graph_Verified_Problem_Guide_v3.md | 2026-09-08T04:49:59.864498Z | DISCOVERED |
 | Take_U_Forward_Tree_Verified_Problem_Guide_v3.md | 2026-09-08T04:49:59.825371Z | DISCOVERED |
@@ -76,6 +76,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 ## Interpretation
 
 - Existing DSA and AWS sources remain canonical. Historical attachments provide improvements, not replacement editions.
+- System-design fundamentals now has one canonical [Markdown/HTML guide](system-design/); the 1,785-line deep-research source won the content comparison, while the shorter source's distinct case studies remain queued under blueprints.
 - Graph/tree/stack editions and matching DOCX documents are grouped into one destination; latest coverage must be chosen after reading.
 - The AI/CI-CD/Spring-Python ZIP may contain Markdown and assets for three separate topics; inspect archive contents before deciding.
 - The AI-platform illustrated edition may hold useful material missing from a later master guide. Compare content; merge the best coverage in place.
