@@ -52,7 +52,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | Take_U_Forward_Stack_Queue_Complete_Deep_Guide_v2.md | 2026-09-08T01:35:54.662145Z | DISCOVERED |
 | AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md | 2026-09-08T00:10:00.856206Z | PROMOTED — canonical AI foundations/RAG/CAG base |
 | DSA_Graph_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.813753Z | DISCOVERED |
-| Advanced_Trees_FAANG_Mermaid_Study_Guide.md | 2026-09-08T00:10:00.813395Z | IN_PROGRESS — uploaded archive sections 5–10 promoted as focused modules; section 4 next |
+| Advanced_Trees_FAANG_Mermaid_Study_Guide.md | 2026-09-08T00:10:00.813395Z | IN_PROGRESS — sections 3–10 promoted as focused modules; section 2 merged into canonical BST-6/BST-7; section 1 next |
 | Angular_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.775386Z | DISCOVERED |
 | JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.753196Z | DISCOVERED |
 | DSA_Tree_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.743385Z | DISCOVERED |
@@ -83,7 +83,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 - The AI/CI-CD/Spring-Python ZIP may contain Markdown and assets for three separate topics; inspect archive contents before deciding.
 - The AI-platform illustrated edition may hold useful material missing from a later master guide. Compare content; merge the best coverage in place.
 - Database internals, caching and Java connectivity are a distinct source, and arrays, advanced trees and frontend guides are newly enrolled topics.
-- The uploaded advanced-trees guide is processed in bounded sections under [local project notes](local-project-notes/); Fenwick, lazy segment tree, trie, heap, B+ tree, B-tree, Red-Black Tree and AVL Tree are promoted, while section 2 Binary Search Tree Core is the exact continuation and must be compared carefully with richer canonical Trees/BST coverage.
+- The uploaded advanced-trees guide is processed in bounded sections under [local project notes](local-project-notes/); Fenwick, lazy segment tree, trie, heap, B+ tree, B-tree, Red-Black Tree and AVL Tree are promoted as focused modules. Section 2 Binary Search Tree Core improved canonical BST-6/BST-7 in place; section 1 Tree Mental Model & Taxonomy is the exact continuation and must be compared carefully with richer canonical Trees/BST coverage.
 - AI projects keep their code in existing repositories. Enroll technical explanations, setup, architecture and lessons here.
 - Missing AWS master-guide, cloud-comparison and Java/security source bytes remain NEEDS_SOURCE. Known topics are queued without pretending they were imported.
 - No personal resumes or unrelated private documents are enrolled. Source identifiers are retrieval references, not credentials.

@@ -1371,7 +1371,7 @@ class DepthBfs {
 
 **Attribution boundaries:** The problem definition and examples follow [LeetCode 104](https://leetcode.com/problems/maximum-depth-of-binary-tree/); [Take U Forward L14](https://www.youtube.com/watch?v=eD3tmO66aBA) provides the course lesson. The path-copy baseline, induction, trace, Mermaid drawing, memory tricks, and Java 17 teaching implementations above are original study-guide explanations, not quotations or claimed video transcripts.
 
-[↑ Back to Index](#navigation-and-index) · [↑ Top](#striver-take-u-forward-trees-bst-deep-study-guide) · [← BT-12](#bt-12-preorder-inorder-postorder-in-one-iterative-traversal) · [BT-14 →](#bt-14-check-if-a-binary-tree-is-height-balanced)
+[↑ Back to Index](#navigation-and-index) · [↑ Top](#striver-take-u-forward-trees-and-bst-deep-study-guide) · [← BT-12](#bt-12-preorder-inorder-postorder-in-one-iterative-traversal) · [BT-14 →](#bt-14-check-if-a-binary-tree-is-height-balanced)
 
 ---
 
@@ -4218,15 +4218,18 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Insert into a BST. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Maintain a **strict** binary-search tree: every key in `left` is smaller than the node key and every key in `right` is larger. Insert `key` if it is absent and return the (possibly new) root. This card uses **set semantics**, so an equal key is a no-op. A multiset policy must instead specify whether duplicates go left, right, or into a frequency field.
 
-### Three requirement-clarifying examples
+The important precondition is that the input already satisfies the BST invariant. Insertion preserves a valid BST; it does not repair an invalid one and it does not keep the tree balanced.
+
+### Four requirement-clarifying examples
 
 | # | Input / setup | Output / observation | Why it matters |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | empty tree, insert `50` | `50` becomes the root | caller must keep the returned root |
+| 2 | `50,30,70,60,80`, insert `65` | attach `65` as `60.right` | only one root-to-null path is examined |
+| 3 | same tree, insert `70` | unchanged; return `false` | duplicates are rejected by this contract |
+| 4 | insert `1,2,3,4` in order | a right-skewed chain | ordinary BST height can become `n` |
 
 ### Pattern recognition
 
@@ -4234,73 +4237,90 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 
 > **KEY INTUITION —** One comparison discards an entire subtree; complexity depends on height.
 
-### Brute-force / straightforward baseline
+### Unnecessary baseline: full-tree scan
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+A generic binary-tree approach could scan all `n` nodes to check for a duplicate and then search for an attachment point. That throws away the strongest fact in the input: ordering already proves that all but one subtree are impossible after each comparison.
 
 ### Optimized reasoning
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+Walk from the root. At node `x`, `key < x.key` forces the destination into `x.left`; `key > x.key` forces it into `x.right`; equality ends with no mutation. Stop at the first null child and attach one leaf there.
 
-### Detailed dry run
+**Search-path invariant:** before every iteration, if `key` is already present—or has a legal insertion position—then it lies in the subtree rooted at `current`. The comparison preserves this invariant while discarding the other subtree.
 
-Annotate recursive return values or the BFS queue after each level. Separate information returned upward from answers scored locally.
+### Dry run — insert `65`
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+Start with keys `50,30,70,60,80`:
 
-### Java implementation / template
+| Step | Current | Comparison | Next state |
+|---:|---:|---|---|
+| 1 | `50` | `65 > 50` | only `50.right` can contain `65`; go to `70` |
+| 2 | `70` | `65 < 70` | only `70.left` can contain `65`; go to `60` |
+| 3 | `60` | `65 > 60` | `60.right` is null; attach new leaf `65` |
+| 4 | — | inorder is `30,50,60,65,70,80` | strict ordering is preserved |
+
+### Java core
 
 ```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+static final class Node {
+    int key;
+    Node left, right;
+    Node(int key) { this.key = key; }
+}
+
+// Returns the possibly new root; equal keys are ignored.
+static Node insert(Node root, int key) {
+    if (root == null) return new Node(key);
+    if (key < root.key) {
+        root.left = insert(root.left, key);
+    } else if (key > root.key) {
+        root.right = insert(root.right, key);
+    }
+    return root;
+}
 ```
+
+The complete, compiled set implementation uses iterative insertion to avoid a recursive call per level: [`BstIntSet.java`](../java/BstIntSet.java). Its independent oracle harness is [`BstIntSetCheck.java`](../java/BstIntSetCheck.java).
 
 ### Key line to highlight
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+`root.right = insert(root.right, key);` reconnects the updated child subtree. Calling recursively without assigning the returned child loses a newly created node when that child was null.
 
 ### Correctness checklist
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+1. The comparison chooses the only subtree whose allowed key interval contains `key`.
+2. By induction, the recursive call returns that subtree with `key` inserted once, or unchanged if equal.
+3. Every existing key in the chosen child stays on its legal side of `root`; the untouched child remains valid.
+4. The base case creates a leaf, which has no children to violate ordering. Therefore the returned tree is a valid strict BST containing exactly the old keys plus `key` when absent.
 
 ### Boundary conditions
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+- Empty root: return the new node and assign it at the caller.
+- Duplicate: define a policy; this implementation leaves both tree and size unchanged.
+- `Integer.MIN_VALUE` / `MAX_VALUE`: direct integer comparison is safe; subtraction-based comparators can overflow.
+- Sorted input: height becomes `n`, so recursion can overflow the call stack for a very large tree.
+- Invalid input tree: following one path is no longer sound.
 
 ### Complexity — derive it instead of memorizing it
 
-**O(h): O(log n) balanced, O(n) skewed.**
+Exactly one node per level is inspected until a null child or equal key: **`O(h)` time**. This is `O(log n)` when height is logarithmic and `O(n)` for a chain. Recursive code uses **`O(h)` stack**; iterative code uses **`O(1)` auxiliary space**. Creating the new leaf costs `O(1)`; there is no output collection to construct.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+### Common errors and trade-offs
 
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+- Forgetting `root = insert(root, key)` when the tree may be empty.
+- Using `<=` on one side without a documented duplicate policy.
+- Claiming `O(log n)` without a balancing guarantee.
+- Rebuilding an inorder list: it proves ordering but changes insertion to `O(n)` time and output space.
+- Plain BST code makes rotations visible and simple, but Java's production [`TreeSet`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/TreeSet.html) uses a red-black tree to guarantee logarithmic basic operations.
 
 > **MEMORY TRICK —** BST = ONE COMPARISON CHOOSES ONE SUBTREE.
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. Return the inserted node, or return the root plus a `boolean` indicating whether size changed.
+2. Store a duplicate count per node; how do insert, delete, size, and inorder output change?
+3. Insert iteratively with `O(1)` auxiliary space.
+4. Keep parent pointers or successor/predecessor links.
+5. Guarantee `O(log n)` with AVL/red-black balancing, or randomize priorities with a treap.
 
 [↑ Back to Index](#navigation-and-index)
 
@@ -4313,15 +4333,18 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Delete a Node from BST. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given a valid strict BST and `key`, remove that key if present and return the possibly new root. Search still follows one path, but deletion must also reconnect the parent to a valid replacement subtree.
 
-### Three requirement-clarifying examples
+Once the node is found, its child count determines the only structural case: zero children (return null), one child (return that child), or two children (replace the key with its inorder successor, then delete the successor from the right subtree).
+
+### Four requirement-clarifying examples
 
 | # | Input / setup | Output / observation | Why it matters |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | empty tree or missing `99` | unchanged | absent deletion is a no-op |
+| 2 | delete leaf `20` | parent link becomes null | zero-child case |
+| 3 | delete `80` when it has left child `75` | `75` takes its place | one-child case preserves the whole child subtree |
+| 4 | delete `30` with children `20,40` and `35` under `40` | copy successor `35`, then remove old `35` | two-child case must avoid duplicate keys |
 
 ### Pattern recognition
 
@@ -4329,73 +4352,114 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 
 > **KEY INTUITION —** One comparison discards an entire subtree; complexity depends on height.
 
-### Brute-force / straightforward baseline
+### Baseline and why rebuilding is wasteful
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+One correct baseline is: collect all keys except the target in inorder order, then build another BST. It costs `O(n)` time and `O(n)` output/auxiliary storage, discards node identity, and may produce a different shape. Local deletion changes only a root-to-node path plus the successor path.
 
 ### Optimized reasoning
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+**Recursive contract:** `delete(node, key)` returns a valid BST containing exactly the keys formerly in `node`'s subtree except `key` if it existed.
 
-### Detailed dry run
+- If `key` is smaller/larger, recurse into exactly one child and reconnect the returned subtree.
+- With at most one child, that child already satisfies every ancestor bound that the deleted node satisfied.
+- With two children, the smallest key in the right subtree is greater than every left key and no greater than any other right key. Copy it, then delete its original node.
 
-Annotate recursive return values or the BFS queue after each level. Separate information returned upward from answers scored locally.
+### Structural trace on one tree
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+```mermaid
+flowchart TD
+    A["50"] --> B["30"]
+    A --> C["70"]
+    B --> D["20"]
+    B --> E["40"]
+    E --> F["35"]
+    C --> G["60"]
+    C --> H["80"]
+    H --> I["75"]
+```
+
+| Operation | Search / mutation trace | Resulting local fact |
+|---|---|---|
+| delete `20` | `50 → 30 → 20`; return null | `30.left = null` |
+| delete `80` | `50 → 70 → 80`; return only child `75` | `70.right = 75` |
+| delete `30` | find successor `35` via `30.right=40`, then left | node key becomes `35`; original leaf `35` is removed |
+| delete `99` | `50 → 70 → 80 → null` | every returned subtree is unchanged |
+
+For the two-child case, copying without the second deletion would leave two `35` keys and violate strict-set semantics.
 
 ### Java implementation / template
 
 ```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+static Node delete(Node root, int key) {
+    if (root == null) return null;
+
+    if (key < root.key) {
+        root.left = delete(root.left, key);
+    } else if (key > root.key) {
+        root.right = delete(root.right, key);
+    } else if (root.left == null) {
+        return root.right;
+    } else if (root.right == null) {
+        return root.left;
+    } else {
+        Node successor = minimum(root.right);
+        root.key = successor.key;
+        root.right = delete(root.right, successor.key);
+    }
+    return root;
+}
+
+static Node minimum(Node node) {
+    while (node.left != null) node = node.left;
+    return node;
+}
 ```
+
+This corrects the uploaded note's malformed snippet, where executable successor-copy and recursive-delete statements had been swallowed by line comments. See the complete compiled version in [`BstIntSet.java`](../java/BstIntSet.java).
 
 ### Key line to highlight
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+`root.right = delete(root.right, successor.key);` removes the copied successor from its old location **and** reconnects the resulting subtree. Omitting either part creates a duplicate or loses a child update.
 
 ### Correctness checklist
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+Prove the recursive contract by subtree height. Null is immediate. For an unequal key, the induction hypothesis repairs the only possible child and the parent ordering is unchanged. For zero/one child, returning the child cannot introduce a key outside the deleted node's ancestor interval. For two children, the successor is the smallest right key, so it is larger than every left key and legal at the root; recursively removing its old occurrence restores uniqueness. Thus all cases return precisely the old keys minus the target and preserve BST ordering.
 
 ### Boundary conditions
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+- Deleting the root: the caller must assign the returned root.
+- Missing key: stop at null without changing size.
+- One-node tree: deleting its key returns null.
+- Two-child replacement changes the key stored in the found node; external references by node identity may observe that distinction.
+- Duplicates require a separate frequency/policy contract.
+- Very skewed trees make recursive depth `n` and risk stack overflow.
 
 ### Complexity — derive it instead of memorizing it
 
-**O(h): O(log n) balanced, O(n) skewed.**
+Search follows at most `h` nodes. In the two-child case, successor search and removal follow paths inside the same height bound, so total time is **`O(h)`**, not `O(h²)`: `O(log n)` for logarithmic height and `O(n)` when skewed. Recursive auxiliary space is **`O(h)`**. No result collection is constructed; mutations and replacement storage are `O(1)` beyond the stack.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+### Common errors and trade-offs
 
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+- Copying the successor key but leaving its original node in place.
+- Forgetting to reconnect `root.left` or `root.right` to the recursive result.
+- Returning null for a one-child node and dropping its whole child subtree.
+- Decrementing a stored size before knowing the key exists.
+- Confusing inorder successor (minimum of right subtree) with immediate right child.
+- Predecessor replacement is equally correct: use maximum of the left subtree and then delete it there.
 
 > **MEMORY TRICK —** BST = ONE COMPARISON CHOOSES ONE SUBTREE.
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. Implement deletion iteratively while retaining parent pointers for `O(1)` auxiliary space.
+2. Return the physically removed node rather than only the new root.
+3. Maintain subtree sizes for rank/select; which nodes need recomputation after deletion?
+4. Show the symmetric predecessor-based two-child case.
+5. Extend deletion to AVL or red-black trees, where rotations/recoloring restore a height invariant.
+
+### Source boundary and verification
+
+The local project source actually reviewed for these cards was `Advanced_Trees_FAANG_Mermaid_Study_Guide.md`, section 2, lines 197–271. Its examples and successor strategy were retained; the contracts, proofs, complexity derivations, failure modes, production comparison, diagrams, corrected Java, and tests are added teaching material. The companion harness checks the source-shaped cases, duplicate/missing/extreme keys, shuffled insert/delete orders, structural invariants, and randomized behavior against `java.util.TreeSet`.
 
 [↑ Back to Index](#navigation-and-index)
 

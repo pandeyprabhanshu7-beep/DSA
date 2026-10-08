@@ -12,6 +12,7 @@
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 5",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 4",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 3",
+    "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 2",
     "src/README.md excerpt"
   ],
   "files": [
@@ -108,11 +109,12 @@
         "9. Segment Tree + Lazy Propagation",
         "10. Fenwick Tree",
         "4. Red-Black Tree",
-        "3. AVL Tree"
+        "3. AVL Tree",
+        "2. Binary Search Tree Core"
       ],
-      "next_section": "2. Binary Search Tree Core",
-      "processed_range": "lines 272-448 (inclusive section boundary in materialized source)",
-      "target": "advanced-trees/avl-tree-insertion-deletion.md"
+      "next_section": "1. Tree Mental Model & Taxonomy",
+      "processed_range": "lines 197-271 (inclusive section boundary in materialized source)",
+      "target": "../striver-dsa/trees-bst/markdown/Striver_Trees_BST_FINAL_Deep_Dive.md (BST-6 and BST-7)"
     },
     {
       "relative_path": "untitled/AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md",
@@ -837,16 +839,16 @@
   ],
   "next_batch": {
     "source": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md",
-    "section": "2. Binary Search Tree Core",
+    "section": "1. Tree Mental Model & Taxonomy",
     "status": "QUEUED",
-    "estimated_tokens": 14000,
-    "estimate_method": "Tokenizer unavailable. The bounded source is 2983 characters, estimated at 746 tokens by chars/4; add heuristic reserves of 2500 for comparison/research, 8000 for teaching/code/diagram/HTML, and 2500 for verification/checkpoint work, then round conservatively. This is not account-quota telemetry.",
-    "budget_action": "End this batch after one validated section because remaining runtime budget is not exposed. A later hourly run should compare section 2 with canonical Trees/BST coverage before merging any distinct improvement."
+    "estimated_tokens": 16000,
+    "estimate_method": "Tokenizer unavailable. Lines 24-196 are 8610 characters, estimated at 2153 tokens by chars/4; add heuristic reserves of 2500 for comparison/research, 8000 for teaching/code/diagram/HTML, and 2500 for verification/checkpoint work, then round conservatively. This is not account-quota telemetry.",
+    "budget_action": "End this batch after one bounded source section because remaining runtime budget is not exposed. A later hourly run should compare section 1 with the canonical introductory tree/traversal cards before merging only distinct improvements."
   },
   "validation": {
-    "java": "Java 17 jdk.compiler module passed for Fenwick, LazySegmentTree, LowercaseTrie, IntMinHeap, BPlusTreeReadModel, BTreeIntSet, RedBlackIntSet and AvlIntSet. AvlIntSetCheck passed 657617 assertions covering deterministic/boundary cases, all four insertion rotations, deletion propagation, 1000 shuffled insert/delete permutations and 200000 seeded mixed operations against TreeSet while repeatedly validating ordering, cached heights and AVL balance.",
-    "readers": "HTML generated from canonical Markdown with matching SHA256; all local links and fragment targets checked",
-    "diagrams": "Fenwick, segment-tree, trie, heap, B+ tree, B-tree, red-black-tree and AVL SVG XML parsed; browser visual QA not executed",
-    "last_processed_at": "2026-10-08T18:34:41-04:00"
+    "java": "Java 17 jdk.compiler module compiled BstIntSet and its independent harness; BstIntSetCheck passed 456423 assertions covering the source examples, empty/duplicate/missing/extreme keys, 1000 shuffled insert/delete permutations and 200000 seeded mixed operations against TreeSet with repeated ordering, reachability and size validation.",
+    "readers": "Canonical Trees/BST reader rebuilt from Markdown; restored its missing marked.parse render step and repaired one stale top anchor; exact embedded payload equality, idempotence, local links, fragment targets and responsive/search/Mermaid hooks checked",
+    "diagrams": "The added Mermaid deletion tree is embedded in the canonical payload; concept-map SVG XML parsed; browser visual QA not executed",
+    "last_processed_at": "2026-10-08T19:32:04-04:00"
   }
 }
