@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600" role="img" aria-labelledby="title desc">
+  <title id="title">Trie storing car, card, care and cat</title>
+  <desc id="desc">A root-to-c-to-a shared path branches to r and t. The r node and its d and e children are complete words, and t is a complete word.</desc>
+  <style>
+    .bg{fill:#f7f9fc}.edge{stroke:#748397;stroke-width:3}.node{fill:#fff;stroke:#1f4f7a;stroke-width:3}.terminal{fill:#e8f7ee;stroke:#207a45;stroke-width:4}.text{font:20px system-ui,sans-serif;fill:#172033;text-anchor:middle}.small{font:15px system-ui,sans-serif;fill:#4c596b;text-anchor:middle}.label{font:bold 20px system-ui,sans-serif;fill:#172033}.note{font:16px system-ui,sans-serif;fill:#4c596b}.edgeLabel{font:bold 17px system-ui,sans-serif;fill:#49596c;text-anchor:middle}
+  </style>
+  <rect class="bg" width="900" height="600" rx="18"/>
+  <text class="label" x="34" y="40">Shared-prefix structure</text>
+  <text class="note" x="34" y="67">green double-border nodes mark complete words; every root path spells a prefix</text>
+  <g class="edge">
+    <path d="M450 130 L450 190 M450 260 L450 320 M450 390 L300 465 M450 390 L600 465 M300 525 L190 560 M300 525 L410 560"/>
+  </g>
+  <g class="edgeLabel">
+    <text x="468" y="166">c</text><text x="468" y="296">a</text>
+    <text x="365" y="435">r</text><text x="535" y="435">t</text>
+    <text x="246" y="555">d</text><text x="354" y="555">e</text>
+  </g>
+  <g>
+    <circle class="node" cx="450" cy="105" r="42"/><text class="text" x="450" y="112">root</text>
+    <circle class="node" cx="450" cy="225" r="36"/><text class="text" x="450" y="232">c</text>
+    <circle class="node" cx="450" cy="355" r="36"/><text class="text" x="450" y="362">a</text>
+    <circle class="terminal" cx="300" cy="495" r="36"/><circle class="node" cx="300" cy="495" r="29"/><text class="text" x="300" y="502">r</text>
+    <circle class="terminal" cx="600" cy="495" r="36"/><circle class="node" cx="600" cy="495" r="29"/><text class="text" x="600" y="502">t</text>
+    <circle class="terminal" cx="190" cy="570" r="25"/><circle class="node" cx="190" cy="570" r="18"/><text class="text" x="190" y="577">d</text>
+    <circle class="terminal" cx="410" cy="570" r="25"/><circle class="node" cx="410" cy="570" r="18"/><text class="text" x="410" y="577">e</text>
+  </g>
+  <text class="small" x="690" y="350">path “ca” exists</text>
+  <text class="small" x="690" y="375">but is not a word</text>
+  <text class="small" x="690" y="495">“cat” is a word</text>
+  <text class="small" x="300" y="445">“car” is a word</text>
+</svg>

@@ -1,0 +1,377 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="source-sha256" content="8800b2389109948c23047a263bd1f608e665b2042f287332072dd1955fc7a181"><title>Trie / Prefix Tree: Search One Character at a Time</title><style>body{font:17px/1.7 system-ui;color:#172033;background:#f4f7fb;margin:0}main{max-width:1040px;margin:auto;padding:24px}article{background:white;padding:28px;border-radius:16px}a{color:#1261a0}h1,h2,h3{line-height:1.25}img{max-width:100%;height:auto}pre{background:#101c30;color:#eef4ff;padding:18px;overflow:auto;border-radius:10px}table{display:block;overflow:auto;border-collapse:collapse}th,td{border:1px solid #d3dce9;padding:10px;text-align:left}details{background:#eaf2fa;padding:12px}.toc ul{max-height:280px;overflow:auto}input{padding:10px;width:min(100%,420px)}@media(max-width:600px){main{padding:8px}article{padding:16px;font-size:16px}}</style></head><body><main><article><input id="filter" aria-label="Filter section links" placeholder="Filter section links"><details open class="toc"><summary>Sections</summary><div class="toc">
+<ul>
+<li><a href="#trie-prefix-tree-search-one-character-at-a-time">Trie / Prefix Tree: Search One Character at a Time</a><ul>
+<li><a href="#1-problem-and-exact-contract">1. Problem and exact contract</a><ul>
+<li><a href="#four-concrete-examples">Four concrete examples</a></li>
+</ul>
+</li>
+<li><a href="#2-why-a-trie-instead-of-scanning-or-hashing">2. Why a trie instead of scanning or hashing</a></li>
+<li><a href="#3-representation-and-invariants">3. Representation and invariants</a></li>
+<li><a href="#4-insertion-dry-run-car-card-care-cat">4. Insertion dry run: car, card, care, cat</a><ul>
+<li><a href="#search-trace">Search trace</a></li>
+</ul>
+</li>
+<li><a href="#5-autocomplete-trace-and-output-ordering">5. Autocomplete trace and output ordering</a></li>
+<li><a href="#6-complete-java-17-implementation">6. Complete Java 17 implementation</a></li>
+<li><a href="#7-correctness">7. Correctness</a></li>
+<li><a href="#8-time-space-and-output-construction-costs">8. Time, space and output-construction costs</a></li>
+<li><a href="#9-boundaries-and-common-errors">9. Boundaries and common errors</a></li>
+<li><a href="#10-variations-and-interview-follow-ups">10. Variations and interview follow-ups</a></li>
+<li><a href="#11-unicode-and-normalization-boundary">11. Unicode and normalization boundary</a></li>
+<li><a href="#sources-and-continuation">Sources and continuation</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="trie-prefix-tree-search-one-character-at-a-time">Trie / Prefix Tree: Search One Character at a Time</h1>
+<p><a href="../README.html">Local study intake</a> · <a href="java/LowercaseTrie.java">Java source</a> · <a href="java/LowercaseTrieCheck.java">Validation harness</a></p>
+<p>This module enriches section 8 of the uploaded <code>Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>. Its lowercase-English trie is the source spine. The explicit API contract, examples, invariants, node trace, autocomplete operation, proof, diagram, runnable Java and independent tests are added teaching material. A repository-wide Markdown comparison found no existing canonical trie guide, so this focused module does not duplicate a richer repository edition.</p>
+<h2 id="1-problem-and-exact-contract">1. Problem and exact contract</h2>
+<p>A trie stores a set of words by sharing their prefixes. Each edge consumes one symbol; the path from the root spells a prefix. This implementation supports:</p>
+<ul>
+<li><code>insert(word)</code>: store a new word and report whether it was absent;</li>
+<li><code>contains(word)</code>: test a complete word;</li>
+<li><code>startsWith(prefix)</code>: test whether the prefix path exists;</li>
+<li><code>autocomplete(prefix,limit)</code>: return at most <code>limit</code> stored words in ascending ASCII order.</li>
+</ul>
+<p>Stored words must be non-empty strings containing only lowercase ASCII <code>a</code> through <code>z</code>. Prefixes may be empty: the empty prefix denotes the root, so <code>startsWith("")</code> is true and <code>autocomplete("",k)</code> enumerates the first <code>k</code> words. Null, uppercase, accented, punctuation and digit input is rejected. A production Unicode trie requires an explicit normalization and code-point policy; silently treating UTF-16 <code>char</code> values as user-perceived characters is not enough.</p>
+<h3 id="four-concrete-examples">Four concrete examples</h3>
+<table>
+<thead>
+<tr>
+<th>Stored words / operation</th>
+<th>Result</th>
+<th>What it demonstrates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>insert <code>car</code>, <code>card</code>, <code>care</code>, <code>cat</code></td>
+<td>size 4</td>
+<td>Prefix nodes <code>c</code> and <code>ca</code> are shared.</td>
+</tr>
+<tr>
+<td><code>contains("car")</code>, <code>contains("ca")</code></td>
+<td><code>true</code>, <code>false</code></td>
+<td>A path can exist without marking a complete word.</td>
+</tr>
+<tr>
+<td><code>startsWith("ca")</code>, <code>startsWith("cab")</code></td>
+<td><code>true</code>, <code>false</code></td>
+<td>Prefix search stops at the first missing edge.</td>
+</tr>
+<tr>
+<td><code>autocomplete("car",2)</code></td>
+<td><code>[car, card]</code></td>
+<td>The prefix itself comes first when it is a word; the limit stops traversal.</td>
+</tr>
+</tbody>
+</table>
+<p>Inserting <code>car</code> again returns false and does not change the size. The structure represents a set, not a multiset. If occurrence counts are required, store a terminal frequency rather than a boolean.</p>
+<h2 id="2-why-a-trie-instead-of-scanning-or-hashing">2. Why a trie instead of scanning or hashing</h2>
+<p>Suppose a dictionary has <code>N</code> words and a query prefix has length <code>P</code>.</p>
+<ul>
+<li>Scanning all strings and calling <code>startsWith</code> can inspect O(NP) characters before output construction.</li>
+<li>A hash set gives expected O(L) complete-word lookup for word length <code>L</code>, but it does not directly answer arbitrary prefixes or enumerate descendants.</li>
+<li>A balanced ordered set can locate a prefix range in O(P log N) comparison work plus output, depending on comparison costs.</li>
+<li>A trie walks the prefix in O(P), then traverses only the reachable subtree needed for results.</li>
+</ul>
+<p>The trade-off is memory. A fixed 26-child array makes the next edge constant-time and preserves alphabetical traversal, but every node reserves 26 references even when it has one child. A map-backed node uses less space for sparse alphabets but adds hashing/tree-map overhead. A compressed/radix trie merges chains of one-child nodes and stores substrings on edges; it saves nodes but makes edge matching more complex.</p>
+<p><img alt="Trie containing car, card, care and cat" src="assets/trie-prefix-tree.svg" /></p>
+<h2 id="3-representation-and-invariants">3. Representation and invariants</h2>
+<p>Each node contains a 26-slot child array and a <code>word</code> flag. Slot <code>0</code> represents <code>a</code>; slot <code>25</code> represents <code>z</code>.</p>
+<pre><code class="language-java">private static final class Node {
+    private final Node[] children = new Node[26];
+    private boolean word;
+}
+</code></pre>
+<p>Two invariants explain almost every operation:</p>
+<ol>
+<li><strong>Path invariant:</strong> after processing the first <code>i</code> characters of an input, <code>current</code> is the node reached by exactly that length-<code>i</code> prefix. If an edge is missing during a read, no stored path spells the input.</li>
+<li><strong>Terminal invariant:</strong> <code>node.word</code> is true exactly when the root-to-node path is a stored complete word. Descendants do not make the current prefix a word.</li>
+</ol>
+<p>The second invariant is why <code>contains("ca")</code> is false even though <code>ca</code> is the shared path to four words. It is also why <code>contains("car")</code> remains true after adding longer words such as <code>card</code>.</p>
+<h2 id="4-insertion-dry-run-car-card-care-cat">4. Insertion dry run: <code>car</code>, <code>card</code>, <code>care</code>, <code>cat</code></h2>
+<p>Start with only the root.</p>
+<table>
+<thead>
+<tr>
+<th>Insert</th>
+<th>Character transition</th>
+<th>New node?</th>
+<th>Terminal change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>car</code></td>
+<td>root → <code>c</code></td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td></td>
+<td><code>c</code> → <code>a</code></td>
+<td>yes</td>
+<td>no</td>
+</tr>
+<tr>
+<td></td>
+<td><code>ca</code> → <code>r</code></td>
+<td>yes</td>
+<td>mark <code>car</code></td>
+</tr>
+<tr>
+<td><code>card</code></td>
+<td>root → <code>c</code> → <code>a</code> → <code>r</code></td>
+<td>no; reuse all three</td>
+<td>no</td>
+</tr>
+<tr>
+<td></td>
+<td><code>car</code> → <code>d</code></td>
+<td>yes</td>
+<td>mark <code>card</code></td>
+</tr>
+<tr>
+<td><code>care</code></td>
+<td>root → <code>c</code> → <code>a</code> → <code>r</code></td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td></td>
+<td><code>car</code> → <code>e</code></td>
+<td>yes</td>
+<td>mark <code>care</code></td>
+</tr>
+<tr>
+<td><code>cat</code></td>
+<td>root → <code>c</code> → <code>a</code></td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td></td>
+<td><code>ca</code> → <code>t</code></td>
+<td>yes</td>
+<td>mark <code>cat</code></td>
+</tr>
+</tbody>
+</table>
+<p>The four words contain 13 characters in total, but only six non-root nodes are needed: <code>c</code>, <code>a</code>, <code>r</code>, <code>d</code>, <code>e</code>, <code>t</code>. Sharing grows when words have long common prefixes.</p>
+<h3 id="search-trace">Search trace</h3>
+<p>For <code>contains("ca")</code>, <code>walk</code> finds <code>c</code> and then <code>a</code>. The path invariant succeeds, but the terminal flag at <code>ca</code> is false, so complete-word search returns false.</p>
+<p>For <code>startsWith("cab")</code>, <code>walk</code> reaches <code>ca</code>, then finds no <code>b</code> child. It returns null immediately. It does not scan unrelated <code>r</code> or <code>t</code> branches.</p>
+<p>For <code>contains("car")</code>, the path exists and the <code>r</code> node is terminal, so the answer is true.</p>
+<h2 id="5-autocomplete-trace-and-output-ordering">5. Autocomplete trace and output ordering</h2>
+<p><code>autocomplete("car",10)</code> first walks to the <code>car</code> node. Depth-first enumeration then follows three rules:</p>
+<ol>
+<li>Emit the current path first if its node is terminal.</li>
+<li>Visit child slots from <code>a</code> to <code>z</code>.</li>
+<li>Stop as soon as the result count reaches the limit.</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Visit</th>
+<th style="text-align: right;">Terminal?</th>
+<th>Output after visit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>car</code></td>
+<td style="text-align: right;">yes</td>
+<td><code>[car]</code></td>
+</tr>
+<tr>
+<td><code>card</code> via child <code>d</code></td>
+<td style="text-align: right;">yes</td>
+<td><code>[car, card]</code></td>
+</tr>
+<tr>
+<td><code>care</code> via child <code>e</code></td>
+<td style="text-align: right;">yes</td>
+<td><code>[car, card, care]</code></td>
+</tr>
+</tbody>
+</table>
+<p>The order is lexicographic for this lowercase ASCII contract because the prefix comes before its proper extensions and children are visited in alphabet order. No separate sort is needed.</p>
+<p>The recursion uses one mutable <code>StringBuilder</code>. After returning from a child, this key line removes precisely the appended edge character:</p>
+<pre><code class="language-java">path.setLength(path.length() - 1);
+</code></pre>
+<p>Without that backtrack, the next sibling would inherit the previous sibling's characters—for example, <code>card</code> followed by the incorrect <code>carde</code> instead of <code>care</code>.</p>
+<h2 id="6-complete-java-17-implementation">6. Complete Java 17 implementation</h2>
+<p>The runnable canonical source is <a href="java/LowercaseTrie.java">LowercaseTrie.java</a>.</p>
+<pre><code class="language-java">import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+public final class LowercaseTrie {
+    private static final int ALPHABET_SIZE = 26;
+    private static final class Node {
+        private final Node[] children = new Node[ALPHABET_SIZE];
+        private boolean word;
+    }
+
+    private final Node root = new Node();
+    private int wordCount;
+
+    public int size() { return wordCount; }
+
+    public boolean insert(String word) {
+        validate(word, false, &quot;word&quot;);
+        Node current = root;
+        for (int i = 0; i &lt; word.length(); i++) {
+            int index = word.charAt(i) - 'a';
+            if (current.children[index] == null)
+                current.children[index] = new Node();
+            current = current.children[index];
+        }
+        if (current.word) return false;
+        current.word = true;
+        wordCount++;
+        return true;
+    }
+
+    public boolean contains(String word) {
+        validate(word, false, &quot;word&quot;);
+        Node node = walk(word);
+        return node != null &amp;&amp; node.word;
+    }
+
+    public boolean startsWith(String prefix) {
+        validate(prefix, true, &quot;prefix&quot;);
+        return walk(prefix) != null;
+    }
+
+    public List&lt;String&gt; autocomplete(String prefix, int limit) {
+        validate(prefix, true, &quot;prefix&quot;);
+        if (limit &lt; 0) throw new IllegalArgumentException(&quot;negative limit&quot;);
+        if (limit == 0) return List.of();
+        Node start = walk(prefix);
+        if (start == null) return List.of();
+        List&lt;String&gt; result = new ArrayList&lt;&gt;(Math.min(limit, wordCount));
+        collect(start, new StringBuilder(prefix), limit, result);
+        return result;
+    }
+
+    private Node walk(String text) {
+        Node current = root;
+        for (int i = 0; i &lt; text.length(); i++) {
+            current = current.children[text.charAt(i) - 'a'];
+            if (current == null) return null;
+        }
+        return current;
+    }
+
+    private void collect(Node node, StringBuilder path, int limit,
+                         List&lt;String&gt; result) {
+        if (node.word) {
+            result.add(path.toString());
+            if (result.size() == limit) return;
+        }
+        for (int index = 0; index &lt; ALPHABET_SIZE; index++) {
+            Node child = node.children[index];
+            if (child == null) continue;
+            path.append((char) ('a' + index));
+            collect(child, path, limit, result);
+            path.setLength(path.length() - 1);
+            if (result.size() == limit) return;
+        }
+    }
+
+    private static void validate(String text, boolean allowEmpty,
+                                 String label) {
+        Objects.requireNonNull(text, label);
+        if (!allowEmpty &amp;&amp; text.isEmpty())
+            throw new IllegalArgumentException(label + &quot; must not be empty&quot;);
+        for (int i = 0; i &lt; text.length(); i++) {
+            char character = text.charAt(i);
+            if (character &lt; 'a' || character &gt; 'z')
+                throw new IllegalArgumentException(&quot;lowercase a-z required&quot;);
+        }
+    }
+}
+</code></pre>
+<p>The actual source uses the same algorithm with more informative error messages. Validation must occur before subtracting <code>'a'</code>; otherwise uppercase or punctuation can create a negative/out-of-range child index.</p>
+<h2 id="7-correctness">7. Correctness</h2>
+<p><strong>Insertion.</strong> Initially <code>current</code> is the root, which represents the empty prefix. At each character, insertion follows the corresponding edge, creating it if absent. Therefore the path invariant holds after every iteration. After the final character, setting <code>word=true</code> makes the terminal invariant true for exactly the inserted word. Re-insertion finds the same terminal flag and changes neither paths nor set size.</p>
+<p><strong>Complete-word search.</strong> <code>walk</code> returns null exactly when an input edge is absent. If it returns a node, the path invariant says that node spells the entire query. The terminal invariant then makes <code>node.word</code> equivalent to membership in the stored-word set.</p>
+<p><strong>Prefix search.</strong> A non-null result from <code>walk(prefix)</code> proves that the prefix path exists; a missing edge proves it does not. The empty prefix maps to the always-present root by contract.</p>
+<p><strong>Autocomplete.</strong> The initial walk restricts enumeration to paths beginning with the requested prefix. Depth-first traversal emits only terminal nodes, so every output is stored, and reaches every terminal descendant unless the requested limit is already met. Each child edge is visited in ascending letter order and a node is emitted before descendants, so outputs are in ascending ASCII lexicographic order. The early-return checks guarantee at most <code>limit</code> outputs.</p>
+<h2 id="8-time-space-and-output-construction-costs">8. Time, space and output-construction costs</h2>
+<p>Let <code>L</code> be an inserted/searched word length, <code>P</code> the prefix length, <code>M</code> the number of trie nodes, <code>V</code> the descendant nodes visited during enumeration, <code>D</code> the longest explored suffix depth, and <code>A</code> the total number of characters copied into returned strings.</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th style="text-align: right;">Time</th>
+<th style="text-align: right;">Auxiliary / output space</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>insert</code></td>
+<td style="text-align: right;">O(L)</td>
+<td style="text-align: right;">O(L) new nodes worst case</td>
+</tr>
+<tr>
+<td><code>contains</code></td>
+<td style="text-align: right;">O(L)</td>
+<td style="text-align: right;">O(1)</td>
+</tr>
+<tr>
+<td><code>startsWith</code></td>
+<td style="text-align: right;">O(P)</td>
+<td style="text-align: right;">O(1)</td>
+</tr>
+<tr>
+<td><code>autocomplete</code></td>
+<td style="text-align: right;">O(P + V + A)</td>
+<td style="text-align: right;">O(D) recursion/builder + O(A) returned text</td>
+</tr>
+</tbody>
+</table>
+<p>Autocomplete is not merely O(P + numberOfWords). Constructing each returned Java <code>String</code> copies its characters, so the output text itself costs O(A). A small result limit can reduce <code>V</code>, but an unlucky sparse subtree may still require visiting nonterminal nodes before finding enough words.</p>
+<p>The data structure has at most <code>1 + sum(length of every distinct inserted word)</code> nodes, hence O(total inserted characters) nodes. This fixed-array representation reserves 26 child references per node, so its practical reference storage is O(26M), conventionally simplified to O(M) because 26 is constant. A map-backed Unicode design would instead depend on the number of actual edges plus map overhead.</p>
+<p>Recursive enumeration consumes O(D) call-stack frames. Extremely long keys can overflow the Java stack; an explicit stack is safer when key length is untrusted.</p>
+<h2 id="9-boundaries-and-common-errors">9. Boundaries and common errors</h2>
+<ul>
+<li>Return true from <code>contains</code> whenever a path exists: this confuses <code>ca</code> with stored word <code>car</code>.</li>
+<li>Mark every traversed node terminal during insertion: every prefix becomes a false word.</li>
+<li>Forget to reuse existing child nodes: shared prefixes disappear and earlier descendants can be lost.</li>
+<li>Convert <code>character-'a'</code> before validation: unsupported characters produce invalid indices.</li>
+<li>Forget autocomplete backtracking: sibling paths accumulate one another's characters.</li>
+<li>Sort autocomplete results after already walking an ordered child array: unnecessary O(K log K) work for K results.</li>
+<li>Claim lookup is O(1): it is independent of dictionary size under this representation but still reads all L input characters.</li>
+<li>Treat Java <code>char</code> as a full Unicode character: supplementary Unicode code points use surrogate pairs. Define normalization, case and code-point handling first.</li>
+<li>Delete by only clearing a terminal flag and assume memory is reclaimed: pruning requires walking back while preserving nodes shared by other words.</li>
+<li>Call the mutable implementation thread-safe: concurrent insertion and traversal require synchronization or immutable snapshots.</li>
+</ul>
+<p>Test duplicate words, a word that is another word's prefix, missing middle/last edges, one-character words, empty prefixes, limit zero, unsupported characters, wide shared prefixes and deep chains.</p>
+<h2 id="10-variations-and-interview-follow-ups">10. Variations and interview follow-ups</h2>
+<p><strong>Deletion.</strong> Clear the terminal marker, then prune a node only if it is nonterminal and has no children. Recursive deletion should return whether the parent may safely remove that child. Never prune a node still needed by another word.</p>
+<p><strong>Wildcard search.</strong> For <code>.</code> meaning any letter, a normal character follows one child; <code>.</code> branches across all non-null children. Worst-case time becomes exponential in the number of wildcards because the query genuinely denotes many paths.</p>
+<p><strong>Word Search II.</strong> Build a trie of dictionary words, DFS the board, and stop a board path immediately when its character prefix has no trie edge. Mark found terminal words to avoid duplicates. Complexity depends on board branching and pruning, not just dictionary lookup.</p>
+<p><strong>Bitwise trie.</strong> Store integer bits rather than letters. To maximize XOR, greedily prefer the opposite bit when it exists. Its depth is fixed by integer width, but signed-bit and duplicate-count rules must be explicit.</p>
+<p><strong>Compressed/radix trie.</strong> Merge every nonbranching chain into one edge label. Search compares substrings within edges; insertion may split an edge at the first mismatch. This reduces node overhead for sparse long keys.</p>
+<p><strong>Ternary search trie.</strong> Each node stores one character and low/equal/high links. It trades fixed alphabet arrays for character comparisons and usually lower sparse-node memory.</p>
+<p><strong>Ranked autocomplete.</strong> Store subtree maximum score or top candidates so a best-first traversal can prioritize popularity rather than alphabetic order. Updating scores then has a new invariant: every ancestor summary must reflect its descendants.</p>
+<h2 id="11-unicode-and-normalization-boundary">11. Unicode and normalization boundary</h2>
+<p>The executable module intentionally chooses lowercase ASCII. For general text, decide at least:</p>
+<ol>
+<li>Whether canonically equivalent sequences normalize to one form, such as NFC.</li>
+<li>Whether matching is case-sensitive and which locale rules apply.</li>
+<li>Whether edges represent UTF-16 code units, Unicode code points or grapheme clusters.</li>
+<li>Whether child storage is a hash map, ordered map or compressed edge table.</li>
+</ol>
+<p>Java <code>String</code> provides code-point operations in addition to UTF-16 <code>char</code> access. Switching to code points changes the child key type and iteration logic; it is not a safe one-line expansion of the 26-slot array.</p>
+<h2 id="sources-and-continuation">Sources and continuation</h2>
+<ul>
+<li>Uploaded <code>Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>, section 8, lines 914–977 (SHA-256 <code>86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1</code>): conceptual spine and lowercase child-array model.</li>
+<li><a href="https://doi.org/10.1145/367390.367400">Edward Fredkin, “Trie Memory,” Communications of the ACM 3(9), 1960</a>: primary historical source for trie organization and terminology.</li>
+<li><a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html">Java SE 17 <code>String</code> API</a>: authoritative boundary for UTF-16 strings and code-point APIs.</li>
+</ul>
+<p>Next bounded source section: section 7, Binary Heap / Priority Queue. Compare it with repository coverage before publishing. Later source sections remain queued rather than implicitly reviewed.</p></article></main><script>document.querySelector("#filter").oninput=e=>{let q=e.target.value.toLowerCase();document.querySelectorAll(".toc li").forEach(li=>li.hidden=!li.textContent.toLowerCase().includes(q))}</script></body></html>

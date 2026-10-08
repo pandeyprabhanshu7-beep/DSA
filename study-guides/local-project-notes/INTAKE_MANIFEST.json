@@ -4,6 +4,7 @@
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
   "last_successful_commit": "fe32fc85bb395cf2e610bf31f9605f0813c6766d",
   "inventory_only_except": [
+    "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 9",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 10",
     "src/README.md excerpt"
@@ -95,12 +96,13 @@
         "## 4.2 AVL vs Red-Black"
       ],
       "completed_sections": [
+        "8. Trie / Prefix Tree",
         "9. Segment Tree + Lazy Propagation",
         "10. Fenwick Tree"
       ],
-      "next_section": "8. Trie / Prefix Tree",
-      "processed_range": "lines 978-1097 (inclusive section boundary in materialized source)",
-      "target": "advanced-trees/segment-tree-lazy-propagation.md"
+      "next_section": "7. Binary Heap / Priority Queue",
+      "processed_range": "lines 914-977 (inclusive section boundary in materialized source)",
+      "target": "advanced-trees/trie-prefix-tree.md"
     },
     {
       "relative_path": "untitled/AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md",
@@ -825,16 +827,16 @@
   ],
   "next_batch": {
     "source": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md",
-    "section": "8. Trie / Prefix Tree",
+    "section": "7. Binary Heap / Priority Queue",
     "status": "QUEUED",
-    "estimated_tokens": 11000,
-    "estimate_method": "Tokenizer unavailable. The bounded source is 1728 characters, estimated at 432 tokens by chars/4; add heuristic reserves of 1500 for comparison/research, 6500 for teaching/code/diagram/HTML, and 2500 for verification/checkpoint work, then round conservatively. This is not account-quota telemetry.",
-    "budget_action": "End this batch after one validated section because remaining runtime budget is not exposed. A later hourly run should compare section 8 against canonical trie coverage before publishing."
+    "estimated_tokens": 12000,
+    "estimate_method": "Tokenizer unavailable. The bounded source is 2790 characters, estimated at 698 tokens by chars/4; add heuristic reserves of 1800 for comparison/research, 6500 for teaching/code/diagram/HTML, and 2500 for verification/checkpoint work, then round conservatively. This is not account-quota telemetry.",
+    "budget_action": "End this batch after one validated section because remaining runtime budget is not exposed. A later hourly run should compare section 7 against canonical heap coverage before publishing."
   },
   "validation": {
-    "java": "Java 17 jdk.compiler module passed for Fenwick and LazySegmentTree. LazySegmentTreeCheck passed deterministic/boundary cases, 100000 random range updates and 200000 oracle queries.",
+    "java": "Java 17 jdk.compiler module passed for Fenwick, LazySegmentTree and LowercaseTrie. LowercaseTrieCheck passed deterministic/boundary cases, 50000 random insert attempts, 100000 exact/prefix oracle queries and 10000 autocomplete comparisons.",
     "readers": "HTML generated from canonical Markdown with matching SHA256; all local links and fragment targets checked",
-    "diagrams": "Fenwick and segment-tree SVG XML parsed; browser visual QA not executed",
-    "last_processed_at": "2026-10-08T11:29:57-04:00"
+    "diagrams": "Fenwick, segment-tree and trie SVG XML parsed; browser visual QA not executed",
+    "last_processed_at": "2026-10-08T12:31:07-04:00"
   }
 }

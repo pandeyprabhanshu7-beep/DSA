@@ -773,7 +773,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Read bounded advanced-trees section 8 (Trie / Prefix Tree), compare it with canonical trie coverage, and publish only distinct improvements.",
+    "next_action": "Read bounded advanced-trees section 7 (Binary Heap / Priority Queue), compare it with canonical heap coverage, and publish only distinct improvements.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -808,14 +808,15 @@
     "manifest": "study-guides/local-project-notes/INTAKE_MANIFEST.json",
     "completed_sections": [
       "Advanced trees section 10: Fenwick tree",
-      "Advanced trees section 9: Segment Tree + Lazy Propagation"
+      "Advanced trees section 9: Segment Tree + Lazy Propagation",
+      "Advanced trees section 8: Trie / Prefix Tree"
     ],
-    "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 978-1097; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1",
-    "validation": "Java 17 jdk.compiler module: deterministic/boundary cases, 100000 randomized range updates and 200000 oracle queries passed; generated reader equivalence, local links/anchors and SVG XML checked; live literal-marker placeholder audit 174; browser visual QA not executed.",
-    "estimated_next_tokens": 11000,
-    "estimate_method": "Tokenizer unavailable. Section 8 has 1728 characters, estimated as 432 tokens by chars/4; add heuristic reserves of 1500 comparison/research, 6500 teaching/code/diagram/HTML, and 2500 verification/checkpoint, then round conservatively. Not account-quota telemetry.",
+    "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 914-977; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1",
+    "validation": "Java 17 jdk.compiler module: deterministic/boundary cases, 50000 randomized insert attempts, 100000 exact/prefix oracle queries and 10000 autocomplete comparisons passed; generated reader equivalence, local links/anchors and SVG XML checked; live literal-marker placeholder audit 174; browser visual QA not executed.",
+    "estimated_next_tokens": 12000,
+    "estimate_method": "Tokenizer unavailable. Section 7 has 2790 characters, estimated as 698 tokens by chars/4; add heuristic reserves of 1800 comparison/research, 6500 teaching/code/diagram/HTML, and 2500 verification/checkpoint, then round conservatively. Not account-quota telemetry.",
     "last_successful_commit": "fe32fc85bb395cf2e610bf31f9605f0813c6766d",
-    "last_processed_at": "2026-10-08T11:29:57-04:00",
-    "next_batch_decision": "One bounded section completed. Remaining runtime budget is not exposed, so stop before reading another section and continue section 8 on a later hourly run."
+    "last_processed_at": "2026-10-08T12:31:07-04:00",
+    "next_batch_decision": "One bounded section completed. Remaining runtime budget is not exposed, so stop before reading another section and continue section 7 on a later hourly run."
   }
 }
