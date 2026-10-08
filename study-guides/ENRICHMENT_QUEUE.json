@@ -765,6 +765,41 @@
     "cadence": "hourly",
     "sections_per_run": "1–2",
     "single_writer": true
+  },
+  "local_folder_intake": {
+    "id": "ideaprojects-untitled",
+    "source_path": "C:\\Users\\Admin\\IdeaProjects\\untitled",
+    "status": "NEEDS_SOURCE",
+    "access_blocker": "Windows PC folder is not mounted in this Linux workspace. Requires uploaded ZIP or another authorized accessible copy.",
+    "canonical_target": "study-guides/local-project-notes/",
+    "discovered_files": 0,
+    "next_action": "Resolve uploaded archive, inventory filenames and sizes first, classify useful CS material, then read only the selected section.",
+    "batch_policy": {
+      "max_sections_per_run": 2,
+      "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
+      "excluded_content": [
+        "build outputs",
+        "dependency caches",
+        "IDE metadata",
+        "logs",
+        "binaries without learning value",
+        "credentials and personal/unrelated documents"
+      ],
+      "checkpoint_fields": [
+        "source_hash",
+        "relative_path",
+        "section_or_line_range",
+        "completed_sections",
+        "next_section",
+        "validation",
+        "last_successful_commit",
+        "estimated_next_tokens",
+        "estimate_method",
+        "blocked_reason"
+      ],
+      "budget_strategy": "After each push estimate next section input plus research, examples, code, HTML, validation and checkpoint overhead. Use tokenizer when available, otherwise label heuristic estimates. Proceed only when exposed remaining budget supports a conservative reserve; if unknown choose one bounded section, avoid reading the next large file, and stop at a durable boundary.",
+      "limit_strategy": "Save a checkpoint before expensive work and after each push. If limit/context interruption is observed, stop the current run; keep hourly task enabled for later retry. Respect explicit retry-after if reported. Do not invent account quota/reset time or switch tasks to evade a global limit."
+    },
+    "teaching_standard": "Explain simply and deeply, use multiple correct examples, useful diagrams, Java/code when relevant, old-vs-new approaches, what problems changed techniques resolve, trade-offs, failure modes and authoritative source links. Do not claim Stanford credentials."
   }
 }
-
