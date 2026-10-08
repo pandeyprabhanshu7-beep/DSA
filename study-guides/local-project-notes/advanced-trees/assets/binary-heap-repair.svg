@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="650" viewBox="0 0 1000 650" role="img" aria-labelledby="title desc">
+  <title id="title">Binary min-heap array mapping and repair paths</title>
+  <desc id="desc">The heap array two, five, three, nine, seven, eight, six maps to a complete tree. A green add path moves four from index seven toward the root, while an orange poll path moves the last value downward through smaller children.</desc>
+  <style>
+    .bg{fill:#f7f9fc}.edge{stroke:#78879a;stroke-width:3}.node{fill:#fff;stroke:#1f4f7a;stroke-width:3}.up{fill:#e8f7ee;stroke:#207a45;stroke-width:4}.down{fill:#fff1df;stroke:#b46300;stroke-width:4}.text{font:19px system-ui,sans-serif;fill:#172033;text-anchor:middle}.small{font:14px system-ui,sans-serif;fill:#4c596b;text-anchor:middle}.label{font:bold 20px system-ui,sans-serif;fill:#172033}.note{font:16px system-ui,sans-serif;fill:#4c596b}.arrowUp{fill:none;stroke:#207a45;stroke-width:5;marker-end:url(#greenArrow)}.arrowDown{fill:none;stroke:#b46300;stroke-width:5;marker-end:url(#orangeArrow)}
+  </style>
+  <defs>
+    <marker id="greenArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#207a45"/></marker>
+    <marker id="orangeArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#b46300"/></marker>
+  </defs>
+  <rect class="bg" width="1000" height="650" rx="18"/>
+  <text class="label" x="34" y="40">Min-heap: complete shape + parent ≤ children</text>
+  <g class="edge">
+    <path d="M500 130 L300 230 M500 130 L700 230 M300 290 L190 400 M300 290 L390 400 M700 290 L610 400 M700 290 L810 400 M190 460 L115 540"/>
+  </g>
+  <g>
+    <circle class="node" cx="500" cy="105" r="42"/><text class="text" x="500" y="112">2</text><text class="small" x="500" y="166">i=0</text>
+    <circle class="node" cx="300" cy="260" r="38"/><text class="text" x="300" y="267">5</text><text class="small" x="300" y="317">i=1</text>
+    <circle class="node" cx="700" cy="260" r="38"/><text class="text" x="700" y="267">3</text><text class="small" x="700" y="317">i=2</text>
+    <circle class="node" cx="190" cy="430" r="36"/><text class="text" x="190" y="437">9</text><text class="small" x="190" y="480">i=3</text>
+    <circle class="node" cx="390" cy="430" r="36"/><text class="text" x="390" y="437">7</text><text class="small" x="390" y="480">i=4</text>
+    <circle class="node" cx="610" cy="430" r="36"/><text class="text" x="610" y="437">8</text><text class="small" x="610" y="480">i=5</text>
+    <circle class="node" cx="810" cy="430" r="36"/><text class="text" x="810" y="437">6</text><text class="small" x="810" y="480">i=6</text>
+    <circle class="up" cx="115" cy="565" r="34"/><text class="text" x="115" y="572">4</text><text class="small" x="115" y="615">new i=7</text>
+  </g>
+  <path class="arrowUp" d="M135 538 Q155 500 177 463"/><path class="arrowUp" d="M175 397 Q220 330 280 292"/>
+  <path class="arrowDown" d="M535 120 Q640 155 684 224"/><path class="arrowDown" d="M720 294 Q770 330 798 394"/>
+  <text class="note" x="40" y="90">add(4): append, then repair upward</text>
+  <text class="note" x="660" y="90">poll(): last value repairs downward</text>
+  <g transform="translate(320,555)">
+    <rect x="0" y="0" width="350" height="48" rx="8" fill="#fff" stroke="#1f4f7a" stroke-width="2"/>
+    <text class="text" x="175" y="30">array: [2, 5, 3, 9, 7, 8, 6]</text>
+  </g>
+</svg>

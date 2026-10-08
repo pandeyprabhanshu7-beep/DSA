@@ -1,0 +1,419 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="source-sha256" content="6bed8cf53145417f100259613fcb7c68ef11a936e8934e6d910df07e8cf50db9"><title>Binary Heap and Priority Queue: Repair One Path</title><style>body{font:17px/1.7 system-ui;color:#172033;background:#f4f7fb;margin:0}main{max-width:1040px;margin:auto;padding:24px}article{background:white;padding:28px;border-radius:16px}a{color:#1261a0}h1,h2,h3{line-height:1.25}img{max-width:100%;height:auto}pre{background:#101c30;color:#eef4ff;padding:18px;overflow:auto;border-radius:10px}table{display:block;overflow:auto;border-collapse:collapse}th,td{border:1px solid #d3dce9;padding:10px;text-align:left}details{background:#eaf2fa;padding:12px}.toc ul{max-height:280px;overflow:auto}input{padding:10px;width:min(100%,420px)}@media(max-width:600px){main{padding:8px}article{padding:16px;font-size:16px}}</style></head><body><main><article><input id="filter" aria-label="Filter section links" placeholder="Filter section links"><details open class="toc"><summary>Sections</summary><div class="toc">
+<ul>
+<li><a href="#binary-heap-and-priority-queue-repair-one-path">Binary Heap and Priority Queue: Repair One Path</a><ul>
+<li><a href="#1-simple-definition-and-exact-contract">1. Simple definition and exact contract</a><ul>
+<li><a href="#four-concrete-examples">Four concrete examples</a></li>
+</ul>
+</li>
+<li><a href="#2-two-structural-facts">2. Two structural facts</a></li>
+<li><a href="#3-insertion-append-then-sift-up">3. Insertion: append, then sift up</a></li>
+<li><a href="#4-remove-min-replace-the-root-then-sift-down">4. Remove-min: replace the root, then sift down</a></li>
+<li><a href="#5-build-a-heap-in-on-not-on-log-n">5. Build a heap in O(n), not O(n log n)</a></li>
+<li><a href="#6-complete-java-17-implementation">6. Complete Java 17 implementation</a></li>
+<li><a href="#7-correctness">7. Correctness</a></li>
+<li><a href="#8-complexity-and-output-cost">8. Complexity and output cost</a></li>
+<li><a href="#9-java-priorityqueue-boundaries">9. Java PriorityQueue boundaries</a></li>
+<li><a href="#10-choosing-the-right-structure">10. Choosing the right structure</a></li>
+<li><a href="#11-common-errors-and-boundaries">11. Common errors and boundaries</a></li>
+<li><a href="#12-interview-patterns-and-extensions">12. Interview patterns and extensions</a></li>
+<li><a href="#sources-and-continuation">Sources and continuation</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="binary-heap-and-priority-queue-repair-one-path">Binary Heap and Priority Queue: Repair One Path</h1>
+<p><a href="../README.html">Local study intake</a> · <a href="java/IntMinHeap.java">Java source</a> · <a href="java/IntMinHeapCheck.java">Validation harness</a></p>
+<p>This module enriches section 7 of the uploaded <code>Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>. Its min-heap and two-operation trace are the source spine. The precise contract, four examples, invariants, linear heap construction, correctness proofs, Java API boundaries, diagram and independent randomized tests are added teaching material. Existing repository coverage uses a priority queue inside Dijkstra; it does not duplicate these heap internals.</p>
+<h2 id="1-simple-definition-and-exact-contract">1. Simple definition and exact contract</h2>
+<p>A <strong>priority queue</strong> is an abstract data type: add an item, inspect the highest-priority item, and remove that item. A <strong>binary heap</strong> is one efficient implementation of that contract.</p>
+<p>This module implements an integer <strong>min-heap</strong>:</p>
+<ul>
+<li><code>add(value)</code> inserts any signed <code>int</code>, including duplicates.</li>
+<li><code>peek()</code> returns the smallest value without removal.</li>
+<li><code>poll()</code> removes and returns one smallest value.</li>
+<li><code>size()</code> and <code>isEmpty()</code> expose the current count.</li>
+<li><code>new IntMinHeap(values)</code> copies an input array and heapifies it in O(n).</li>
+</ul>
+<p><code>peek</code> and <code>poll</code> throw <code>NoSuchElementException</code> on an empty heap. The caller's input array is never retained. Equal values have no stable first-in/first-out order; if ties need deterministic ordering, store a secondary sequence number and include it in the comparator.</p>
+<h3 id="four-concrete-examples">Four concrete examples</h3>
+<table>
+<thead>
+<tr>
+<th>Starting state</th>
+<th>Operation</th>
+<th>Result</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[2,5,3,9,7,8,6]</code></td>
+<td>add <code>4</code></td>
+<td>valid layout <code>[2,4,3,5,7,8,6,9]</code></td>
+<td>Append at the complete-tree position, then sift upward.</td>
+</tr>
+<tr>
+<td><code>[2,4,3,5,7,8,6,9]</code></td>
+<td>poll</td>
+<td>returns <code>2</code>; one valid layout is <code>[3,4,6,5,7,8,9]</code></td>
+<td>Move the last value to the root, then sift downward.</td>
+</tr>
+<tr>
+<td>empty heap</td>
+<td>add <code>5,-2,5</code> then drain</td>
+<td><code>-2,5,5</code></td>
+<td>Negative values and duplicates are ordinary priorities.</td>
+</tr>
+<tr>
+<td>Java <code>PriorityQueue</code> containing <code>1,7,3</code></td>
+<td>iterate or print backing order</td>
+<td>not guaranteed sorted</td>
+<td>Only the head is guaranteed least; polling repeatedly produces sorted order.</td>
+</tr>
+</tbody>
+</table>
+<p>The exact internal array is not unique when equal priorities exist. Correctness depends on the invariant, not on matching one drawing.</p>
+<h2 id="2-two-structural-facts">2. Two structural facts</h2>
+<p>A binary heap combines:</p>
+<ol>
+<li><strong>Shape invariant:</strong> it is a complete binary tree—all levels are full except perhaps the last, which fills from left to right.</li>
+<li><strong>Min-heap order invariant:</strong> every parent value is less than or equal to each child value.</li>
+</ol>
+<p>The shape invariant lets an array encode the tree without pointers. For a zero-based node index <code>i</code>:</p>
+<pre><code class="language-text">parent(i) = (i - 1) / 2       when i &gt; 0
+left(i)   = 2i + 1
+right(i)  = 2i + 2
+</code></pre>
+<p><img alt="Array-to-tree mapping and the repair paths for add and poll" src="assets/binary-heap-repair.svg" /></p>
+<p>The order invariant is deliberately weaker than sorting. A parent precedes its descendants by priority, but siblings and cousins need not be ordered. In <code>[2,5,3,9,7,8,6]</code>, value 5 appears before 3 in the array even though 3 is smaller; both are valid children of 2.</p>
+<p>That weak promise is the advantage: only one root-to-leaf path can become invalid after insertion or root removal.</p>
+<h2 id="3-insertion-append-then-sift-up">3. Insertion: append, then sift up</h2>
+<p>Insert <code>4</code> into <code>[2,5,3,9,7,8,6]</code>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Step</th>
+<th>Index and comparison</th>
+<th>Action</th>
+<th>Array</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>append at index 7</td>
+<td>preserves complete-tree shape</td>
+<td><code>[2,5,3,9,7,8,6,4]</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>parent index 3 contains 9; <code>9 &gt; 4</code></td>
+<td>move 9 down</td>
+<td><code>[2,5,3,4,7,8,6,9]</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>parent index 1 contains 5; <code>5 &gt; 4</code></td>
+<td>move 5 down</td>
+<td><code>[2,4,3,5,7,8,6,9]</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>parent index 0 contains 2; <code>2 &lt;= 4</code></td>
+<td>stop</td>
+<td>unchanged</td>
+</tr>
+</tbody>
+</table>
+<p>Before insertion, all old edges obeyed heap order. Appending creates only one new edge—from the new leaf to its parent—that might be wrong. Each upward move repairs the lower edge and moves the possible violation one level toward the root.</p>
+<p>The implementation holds the inserted value in a local variable and moves parents downward rather than swapping on every level:</p>
+<pre><code class="language-java">private void siftUp(int index) {
+    int value = elements[index];
+    while (index &gt; 0) {
+        int parent = (index - 1) / 2;
+        if (elements[parent] &lt;= value) break;
+        elements[index] = elements[parent];
+        index = parent;
+    }
+    elements[index] = value;
+}
+</code></pre>
+<p>The stop line matters: once <code>parent &lt;= value</code>, every ancestor is also no greater than that parent by the old invariant, so no higher comparison can require a move.</p>
+<h2 id="4-remove-min-replace-the-root-then-sift-down">4. Remove-min: replace the root, then sift down</h2>
+<p>Poll <code>[2,4,3,5,7,8,6,9]</code>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Step</th>
+<th>Candidate and children</th>
+<th>Action</th>
+<th>Logical array</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>save root 2; remove last value 9</td>
+<td>place 9 at root</td>
+<td><code>[9,4,3,5,7,8,6]</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>children are 4 and 3</td>
+<td>choose smaller child 3; move it up</td>
+<td><code>[3,4,9,5,7,8,6]</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>candidate 9 has children 8 and 6</td>
+<td>choose 6; move it up</td>
+<td><code>[3,4,6,5,7,8,9]</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>new index is a leaf</td>
+<td>place 9; stop</td>
+<td>unchanged</td>
+</tr>
+</tbody>
+</table>
+<p>Always compare with the <strong>smaller child</strong>. Swapping with the left child merely because it is smaller than the candidate can leave a still-smaller right child under the larger parent, immediately violating heap order.</p>
+<pre><code class="language-java">int smallerChild = left;
+if (right &lt; size &amp;&amp; elements[right] &lt; elements[left]) {
+    smallerChild = right;
+}
+if (value &lt;= elements[smallerChild]) break;
+</code></pre>
+<p>Only the path followed by the last value can be invalid. The untouched sibling subtrees preserve their previous heap order.</p>
+<h2 id="5-build-a-heap-in-on-not-on-log-n">5. Build a heap in O(n), not O(n log n)</h2>
+<p>Repeatedly calling <code>add</code> is correct and costs O(n log n) in the worst case. Bottom-up heapify is faster:</p>
+<ol>
+<li>Leaves already satisfy heap order because they have no children.</li>
+<li>The last internal node is <code>n/2 - 1</code>.</li>
+<li>Sift every internal node down, moving backward to the root.</li>
+</ol>
+<pre><code class="language-java">for (int index = size / 2 - 1; index &gt;= 0; index--) {
+    siftDown(index);
+}
+</code></pre>
+<p>It is tempting to multiply n nodes by O(log n), but most nodes are near the bottom and move little or not at all. At most about <code>n/2^(h+1)</code> nodes have height <code>h</code>. The total work is bounded by:</p>
+<pre><code class="language-text">n * Σ(h / 2^(h+1)) = O(n)
+</code></pre>
+<p>The infinite weighted sum is constant. Thus bottom-up heapify is O(n), while sorting is O(n log n). Heapifying establishes priority access; it does not sort the array.</p>
+<h2 id="6-complete-java-17-implementation">6. Complete Java 17 implementation</h2>
+<p>The runnable source is <a href="java/IntMinHeap.java">IntMinHeap.java</a>.</p>
+<pre><code class="language-java">import java.util.Arrays;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+
+public final class IntMinHeap {
+    private int[] elements;
+    private int size;
+
+    public IntMinHeap() { elements = new int[16]; }
+
+    public IntMinHeap(int[] values) {
+        Objects.requireNonNull(values, &quot;values&quot;);
+        elements = Arrays.copyOf(values, Math.max(16, values.length));
+        size = values.length;
+        for (int i = size / 2 - 1; i &gt;= 0; i--) siftDown(i);
+    }
+
+    public int size() { return size; }
+    public boolean isEmpty() { return size == 0; }
+
+    public void add(int value) {
+        ensureCapacity();
+        elements[size] = value;
+        siftUp(size);
+        size++;
+    }
+
+    public int peek() {
+        if (size == 0) throw new NoSuchElementException(&quot;heap is empty&quot;);
+        return elements[0];
+    }
+
+    public int poll() {
+        int minimum = peek();
+        int last = elements[--size];
+        if (size &gt; 0) {
+            elements[0] = last;
+            siftDown(0);
+        }
+        return minimum;
+    }
+
+    private void siftUp(int index) {
+        int value = elements[index];
+        while (index &gt; 0) {
+            int parent = (index - 1) / 2;
+            if (elements[parent] &lt;= value) break;
+            elements[index] = elements[parent];
+            index = parent;
+        }
+        elements[index] = value;
+    }
+
+    private void siftDown(int index) {
+        int value = elements[index];
+        int firstLeaf = size / 2;
+        while (index &lt; firstLeaf) {
+            int left = index * 2 + 1;
+            int right = left + 1;
+            int smaller = left;
+            if (right &lt; size &amp;&amp; elements[right] &lt; elements[left]) smaller = right;
+            if (value &lt;= elements[smaller]) break;
+            elements[index] = elements[smaller];
+            index = smaller;
+        }
+        elements[index] = value;
+    }
+
+    private void ensureCapacity() {
+        if (size &lt; elements.length) return;
+        int old = elements.length;
+        int next = old + (old &gt;&gt;&gt; 1) + 1;
+        if (next &lt; 0) throw new OutOfMemoryError(&quot;heap capacity overflow&quot;);
+        elements = Arrays.copyOf(elements, next);
+    }
+}
+</code></pre>
+<p>The single-element <code>poll</code> case matters. After decrementing size to zero, do not call <code>siftDown(0)</code>; there is no logical root to repair.</p>
+<h2 id="7-correctness">7. Correctness</h2>
+<p><strong>Insertion.</strong> Appending preserves the complete-tree shape. All old edges remain valid; only the new value and its ancestors can violate order. During sift-up, every moved parent is placed below a smaller value but remains above its unchanged children because it previously bounded that subtree. When the value reaches the root or a parent no greater than it, its incoming edge is valid. Therefore all parent-child edges satisfy heap order.</p>
+<p><strong>Peek.</strong> Repeatedly applying the order invariant along every root-to-node path shows the root is no greater than any node, so it is a minimum.</p>
+<p><strong>Poll.</strong> Removing the last position and moving it to the root preserves complete-tree shape. Only the replacement's downward path can violate order. Sift-down selects the smaller child; moving that child upward makes the current parent no greater than both children. When the replacement is no greater than its smaller child or reaches a leaf, its edge relationships are valid. Untouched subtrees were never modified, so the whole tree is a heap. The saved old root is a minimum by the peek argument.</p>
+<p><strong>Heapify.</strong> Process nodes from the last internal node to the root. Before processing index <code>i</code>, both child subtrees have already been heapified. Sift-down makes the subtree rooted at <code>i</code> a heap without breaking its child subtrees. Reverse induction leaves the root subtree—the entire array—a heap.</p>
+<h2 id="8-complexity-and-output-cost">8. Complexity and output cost</h2>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th style="text-align: right;">Time</th>
+<th style="text-align: right;">Auxiliary space</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>construct empty heap</td>
+<td style="text-align: right;">O(1)</td>
+<td style="text-align: right;">O(initial capacity)</td>
+</tr>
+<tr>
+<td>bottom-up constructor</td>
+<td style="text-align: right;">O(n)</td>
+<td style="text-align: right;">O(n) copied backing array</td>
+</tr>
+<tr>
+<td><code>peek</code>, <code>size</code>, <code>isEmpty</code></td>
+<td style="text-align: right;">O(1)</td>
+<td style="text-align: right;">O(1)</td>
+</tr>
+<tr>
+<td><code>add</code></td>
+<td style="text-align: right;">O(log n) worst case; occasional O(n) resize</td>
+<td style="text-align: right;">O(1), excluding backing growth</td>
+</tr>
+<tr>
+<td><code>poll</code></td>
+<td style="text-align: right;">O(log n)</td>
+<td style="text-align: right;">O(1)</td>
+</tr>
+</tbody>
+</table>
+<p>Dynamic-array resizing makes insertion amortized O(log n): array copies are occasional, while the sift path is logarithmic. Storage is O(n).</p>
+<p>The heap does not offer a sorted iteration output. Draining n items with repeated <code>poll</code> constructs sorted output in O(n log n) time and O(n) output space. Copying the internal heap order would cost O(n), but that output is only a heap layout, not sorted order. In-place heapsort uses O(n) heap construction plus O(n log n) removals and O(1) auxiliary array space; it is not stable.</p>
+<h2 id="9-java-priorityqueue-boundaries">9. Java <code>PriorityQueue</code> boundaries</h2>
+<p>Java's <code>PriorityQueue</code> is a min-priority heap by default. Its head is the least element under natural or comparator ordering. <code>offer</code>/<code>poll</code> are O(log n), <code>peek</code> is O(1), while <code>contains</code> and <code>remove(Object)</code> are linear. Its iterator and <code>toArray()</code> do not promise sorted order.</p>
+<pre><code class="language-java">PriorityQueue&lt;Integer&gt; min = new PriorityQueue&lt;&gt;();
+PriorityQueue&lt;Integer&gt; max = new PriorityQueue&lt;&gt;(Comparator.reverseOrder());
+</code></pre>
+<p>For records, write a total comparator:</p>
+<pre><code class="language-java">record Task(int priority, long sequence, String id) {}
+Comparator&lt;Task&gt; order = Comparator
+        .comparingInt(Task::priority)
+        .thenComparingLong(Task::sequence);
+</code></pre>
+<p>Do not write <code>(a,b) -&gt; a.priority() - b.priority()</code>: subtraction can overflow and violate comparator ordering. Use <code>Integer.compare</code> or comparator factories.</p>
+<p>Do not mutate fields that determine an element's priority while it is inside the queue. The queue is not notified and will not repair the element's position. Remove/reinsert it, use immutable entries, or insert a new version and skip stale entries—as section G-32 in the canonical <a href="../../striver-dsa/graph-dsa/html/index.html">Graph DSA reader</a> does.</p>
+<p>Java's <code>PriorityQueue</code> is not synchronized and rejects null. For concurrent mutation, choose a suitable concurrent design such as <code>PriorityBlockingQueue</code>, while still defining ordering and shutdown/backpressure semantics.</p>
+<h2 id="10-choosing-the-right-structure">10. Choosing the right structure</h2>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th style="text-align: right;">Unsorted array/list</th>
+<th style="text-align: right;">Sorted array/list</th>
+<th style="text-align: right;">Balanced search tree</th>
+<th style="text-align: right;">Binary heap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>insert</td>
+<td style="text-align: right;">O(1) amortized</td>
+<td style="text-align: right;">O(n)</td>
+<td style="text-align: right;">O(log n)</td>
+<td style="text-align: right;">O(log n)</td>
+</tr>
+<tr>
+<td>inspect minimum</td>
+<td style="text-align: right;">O(n)</td>
+<td style="text-align: right;">O(1)</td>
+<td style="text-align: right;">O(log n) or O(1) with cached end</td>
+<td style="text-align: right;">O(1)</td>
+</tr>
+<tr>
+<td>remove minimum</td>
+<td style="text-align: right;">O(n)</td>
+<td style="text-align: right;">O(n) for array shift</td>
+<td style="text-align: right;">O(log n)</td>
+<td style="text-align: right;">O(log n)</td>
+</tr>
+<tr>
+<td>search/remove arbitrary value</td>
+<td style="text-align: right;">O(n)</td>
+<td style="text-align: right;">O(log n) search + O(n) removal</td>
+<td style="text-align: right;">O(log n)</td>
+<td style="text-align: right;">O(n) without extra index</td>
+</tr>
+<tr>
+<td>ordered traversal</td>
+<td style="text-align: right;">sort first</td>
+<td style="text-align: right;">already ordered</td>
+<td style="text-align: right;">O(n)</td>
+<td style="text-align: right;">repeated poll O(n log n)</td>
+</tr>
+</tbody>
+</table>
+<p>Use a heap when repeated best-item selection dominates. Use a balanced tree when predecessor/successor, ordered iteration or arbitrary ordered deletion matters. Use a deque for strict FIFO/LIFO behavior; priority is not arrival order.</p>
+<h2 id="11-common-errors-and-boundaries">11. Common errors and boundaries</h2>
+<ul>
+<li>Assume the array is globally sorted: only parent-child relationships are guaranteed.</li>
+<li>Poll by shifting every array element left: this wastes O(n) and ignores complete-tree repair.</li>
+<li>Sift down through the left child without comparing the right child: the smaller right child may remain above its parent.</li>
+<li>Continue sifting after the invariant is restored: extra work risks corrupting a correct subtree.</li>
+<li>Use the wrong last-internal-node formula: zero-based heapify begins at <code>n/2 - 1</code>.</li>
+<li>Call repeated insertion “linear heap construction”: it is O(n log n) worst case; bottom-up heapify is O(n).</li>
+<li>Expect stable ties: equal-priority order is unspecified unless encoded explicitly.</li>
+<li>Iterate a Java <code>PriorityQueue</code> expecting ascending values: poll repeatedly or copy and sort.</li>
+<li>Use mutable comparator fields or subtraction comparators: ordering becomes stale or inconsistent.</li>
+<li>Confuse this data structure with the JVM memory heap: they share a word, not a purpose.</li>
+</ul>
+<p>Test empty and singleton heaps, duplicates, negative/extreme integers, ascending and descending insertion, capacity growth, already-valid heaps, arbitrary arrays and long mixed operation sequences against an independent priority-queue oracle.</p>
+<h2 id="12-interview-patterns-and-extensions">12. Interview patterns and extensions</h2>
+<p><strong>Top K largest.</strong> Keep a min-heap of at most K items. When size exceeds K, remove the smallest. The root is the current kth largest; total time O(n log K), storage O(K). For K smallest, reverse the priority.</p>
+<p><strong>Merge K sorted lists.</strong> Put each list's current head in a min-heap keyed by value. Poll the smallest, append it, and add its successor. For total output N, time is O(N log K), and constructing the N-element answer costs O(N) output space.</p>
+<p><strong>K-way streaming / external merge.</strong> The same frontier idea merges sorted files without loading all records. The heap stores one candidate per input stream; I/O buffering becomes the dominant engineering concern.</p>
+<p><strong>Running median.</strong> Maintain a max-heap for the lower half and min-heap for the upper half. Preserve both ordering (<code>max(lower) &lt;= min(upper)</code>) and size balance (difference at most one).</p>
+<p><strong>Dijkstra / best-first search.</strong> Insert newly improved states. Java lacks a general decrease-key handle, so stale entries may remain; compare a polled version/distance against current authoritative state before processing.</p>
+<p><strong>Indexed heap.</strong> Maintain item-to-index mappings to support decrease-key or arbitrary removal in O(log n). Every swap must update both the heap array and index map—one additional invariant that is easy to break.</p>
+<p><strong>D-ary heap.</strong> More children reduce height but increase the comparisons needed to find the best child. It can improve cache/branch trade-offs in workloads with many updates, but binary heaps remain the clearest interview baseline.</p>
+<h2 id="sources-and-continuation">Sources and continuation</h2>
+<ul>
+<li>Uploaded <code>Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>, section 7, lines 834–913 (SHA-256 <code>86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1</code>): conceptual spine, custom min-heap and two-operation example.</li>
+<li><a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/PriorityQueue.html">Java SE 17 <code>PriorityQueue</code> API</a>: authoritative ordering, complexity, iteration and concurrency contracts.</li>
+<li><a href="../../striver-dsa/graph-dsa/html/index.html">Canonical Graph DSA reader</a>, section G-32 Dijkstra — Priority Queue: existing application coverage retained rather than duplicated here.</li>
+</ul>
+<p>Next bounded source section: section 6, B+ Tree. Compare it with database-index coverage before publishing. Later source sections remain queued rather than implicitly reviewed.</p></article></main><script>document.querySelector("#filter").oninput=e=>{let q=e.target.value.toLowerCase();document.querySelectorAll(".toc li").forEach(li=>li.hidden=!li.textContent.toLowerCase().includes(q))}</script></body></html>
