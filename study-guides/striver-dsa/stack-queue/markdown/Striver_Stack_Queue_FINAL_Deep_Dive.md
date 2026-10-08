@@ -354,89 +354,312 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Queue Using Two Stacks. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Implement a **FIFO queue** using only the normal operations of **two LIFO stacks**.
 
-### Three requirement-clarifying examples
+The queue must support:
 
-| # | Input / setup | Output / observation | Why it matters |
+```text
+push(x) / offer(x)  -> add x at the back
+pop()               -> remove and return the front
+peek()              -> return the front without removing it
+empty()             -> whether no elements remain
+```
+
+The central mismatch is:
+
+```text
+Queue wants oldest item first.
+Stack exposes newest item first.
+```
+
+The problem therefore asks us to use **one reversal of order to cancel another reversal**.
+
+Canonical problem statements such as LeetCode 232 allow only stack-style operations: push to top, peek/pop from top, size, and emptiness checks. Take U Forward presents the same FIFO API with two stacks.
+
+### Four examples before the algorithm
+
+| # | Operations | Important states | Result |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | push(4), push(8), pop(), peek() | oldest value 4 must leave before 8 | pop = 4, peek = 8 |
+| 2 | push(1), push(2), push(3), pop(), pop() | one transfer should serve multiple pops | 1, then 2 |
+| 3 | push(1), push(2), pop(), push(3), peek() | new pushes must not jump ahead of older items already waiting in output stack | peek = 2 |
+| 4 | empty() on a new queue | both stacks are empty | true |
+
+### Visual model
+
+Use two stacks:
+
+```text
+          NEW ITEMS                           OLD ITEMS READY TO LEAVE
+             in                                      out
+
+push(1)      1
+push(2)      2
+             1
+push(3)      3
+             2
+             1
+
+When front is requested and out is empty:
+
+move all in -> out
+
+in: []                                      out:
+                                               1  <- queue front
+                                               2
+                                               3
+
+The transfer reverses the LIFO order,
+so the oldest queue element becomes the stack top.
+```
 
 ### Pattern recognition
 
-**Primary pattern:** LIFO/FIFO invariant
+Use this pattern when:
 
-> **KEY INTUITION —** Choose the representation whose natural endpoint matches the API operation.
+- a FIFO interface must be built from LIFO primitives;
+- a costly reversal can be **deferred until needed**;
+- after one expensive rebuild, many future operations can reuse the rebuilt state;
+- the interviewer asks for **amortized O(1)** queue operations.
 
-### Brute-force / straightforward baseline
+> **KEY INTUITION —** Keep new elements in one stack. Move them to the second stack **only when the second stack is empty**. Never disturb older elements that are already in dequeue order.
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+### Brute-force / eager two-stack approach
 
-### Optimized reasoning
+A straightforward two-stack solution can make every push expensive:
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+1. move every element from stack A to stack B;
+2. push the new value into A;
+3. move everything from B back to A.
+
+Then A's top is always the queue front.
+
+That works, but every push may move O(n) elements.
+
+For n pushes:
+
+```text
+1 + 2 + 3 + ... + n = O(n^2)
+```
+
+The repeated work is obvious: the same old elements are moved back and forth after every insertion.
+
+### Optimized lazy-transfer approach
+
+Maintain:
+
+```text
+in  = newly pushed elements, newest on top
+out = elements already reversed into queue-removal order
+```
+
+Rules:
+
+1. **push(x)** -> push only into `in`.
+2. **peek/pop**:
+   - if `out` is nonempty, use it directly;
+   - otherwise move every element from `in` to `out` once.
+3. **empty()** -> both stacks must be empty.
+
+### Invariant
+
+At all times:
+
+- every element in `out` is **older** than every element in `in`;
+- the top of `out`, when it exists, is the queue front;
+- transfer happens only when `out` is empty, so newly pushed items can never overtake older waiting items.
 
 ### Detailed dry run
 
-Write index/value, stack/queue/deque before, all pops/removals, insertion, and answer after each iteration.
+Operations:
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```text
+push(10)
+push(20)
+push(30)
+pop()
+push(40)
+peek()
+pop()
+pop()
+peek()
 ```
 
-### Key line to highlight
+| Step | Operation | in stack (top first) | out stack (top first) | What happens | Result |
+|---:|---|---|---|---|---|
+| 1 | push(10) | [10] | [] | append new item to in | — |
+| 2 | push(20) | [20,10] | [] | append new item to in | — |
+| 3 | push(30) | [30,20,10] | [] | append new item to in | — |
+| 4 | pop() | [] | [10,20,30] -> [20,30] | out empty, transfer all once; pop oldest | 10 |
+| 5 | push(40) | [40] | [20,30] | do **not** transfer; 20 is still older | — |
+| 6 | peek() | [40] | [20,30] | read out top | 20 |
+| 7 | pop() | [40] | [30] | pop out top | 20 |
+| 8 | pop() | [40] | [] | pop out top | 30 |
+| 9 | peek() | [] | [40] | out empty now, transfer in -> out | 40 |
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+The most important state is step 5:
 
-### Correctness checklist
+```text
+in  = [40]
+out = [20,30]
+```
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+It is **wrong** to transfer 40 into out here. Queue order says 20 and 30 must leave before 40.
+
+### Java implementation
+
+Use `ArrayDeque` as a stack through only stack operations `push/pop/peek`.
+
+```java
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.NoSuchElementException;
+
+final class MyQueue {
+    private final Deque<Integer> in = new ArrayDeque<>();
+    private final Deque<Integer> out = new ArrayDeque<>();
+
+    public void push(int x) {
+        in.push(x);
+    }
+
+    public int pop() {
+        moveIfNeeded();
+
+        if (out.isEmpty()) {
+            throw new NoSuchElementException("queue is empty");
+        }
+
+        return out.pop();
+    }
+
+    public int peek() {
+        moveIfNeeded();
+
+        if (out.isEmpty()) {
+            throw new NoSuchElementException("queue is empty");
+        }
+
+        return out.peek();
+    }
+
+    public boolean empty() {
+        return in.isEmpty() && out.isEmpty();
+    }
+
+    private void moveIfNeeded() {
+        if (!out.isEmpty()) {
+            return;
+        }
+
+        while (!in.isEmpty()) {
+            out.push(in.pop());
+        }
+    }
+}
+```
+
+### Key lines to highlight
+
+```java
+if (!out.isEmpty()) {
+    return;
+}
+```
+
+This is what makes the implementation **lazy**.
+
+If we transferred whenever `in` contained something, a newly pushed value could interfere with older elements already in `out`.
+
+And:
+
+```java
+while (!in.isEmpty()) {
+    out.push(in.pop());
+}
+```
+
+This reverses arrival order exactly once for that batch.
+
+### Correctness reasoning
+
+**Invariant:** if `out` is nonempty, its top is the oldest element in the entire queue.
+
+- Initially both stacks are empty, so the invariant is true.
+- `push(x)` places x in `in`. Because x is newest, it must come after every element already in `out`; the invariant remains true.
+- If `out` is empty, transferring all of `in` reverses LIFO order. The oldest element from `in` becomes the top of `out`.
+- `pop` removes exactly that oldest element.
+- Since transfer occurs only when `out` is empty, no newer element can be placed ahead of an older element already waiting in `out`.
+
+Therefore every pop/peek observes FIFO order.
+
+### Complexity — amortized, not just worst-case
+
+A single `pop()` may trigger a transfer of k elements, so **one call can be O(k)**.
+
+But examine one element x over its entire lifetime:
+
+```text
+push into in       -> once
+pop from in        -> at most once
+push into out      -> at most once
+pop from out       -> once
+```
+
+No element ever moves from `out` back to `in`.
+
+Across m queue operations, each element pays for a constant number of stack operations.
+
+Therefore:
+
+```text
+push       O(1) worst-case
+peek/pop   O(1) amortized, O(n) worst-case for one transfer-triggering call
+empty      O(1)
+space      O(n)
+```
 
 ### Boundary conditions
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+- **new queue** -> `empty() == true`;
+- **one element** -> first pop returns it and both stacks become empty;
+- **interleaved push after pop** -> do not transfer while `out` still contains older values;
+- **peek followed by pop** -> both must return the same front value unless another mutation occurs;
+- **empty pop/peek** -> decide API contract explicitly; this implementation throws `NoSuchElementException`;
+- `ArrayDeque` does not permit null elements, which fits integer interview versions naturally.
 
-### Complexity — derive it instead of memorizing it
+### Common wrong approaches
 
-**Primitive operations O(1), total storage O(n) unless an emulation intentionally shifts work.**
+1. **Move elements on every pop and move them back afterward.**  
+   Correct but repeatedly re-reverses the same items.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+2. **Transfer from in while out is nonempty.**  
+   Breaks FIFO order because new elements can overtake old ones.
 
-### Memoization / repeated-work note
+3. **Use queue operations on the deques.**  
+   That violates the spirit of the problem; treat both deques strictly as stacks.
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+4. **Claim every pop is O(1) worst-case.**  
+   The correct statement is O(1) **amortized**.
 
-> **MEMORY TRICK —** NAME THE ENDPOINT INVARIANT.
+### Memory trick
 
-### Interview follow-ups and variations
+> **IN collects. OUT serves. Transfer only when OUT is empty.**
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+Or even shorter:
+
+```text
+NEW -> IN
+OLD -> OUT
+EMPTY OUT? FLIP ONCE
+```
+
+### Interview follow-ups
+
+- Implement the opposite transformation: **stack using queues**.
+- Add `size()` in O(1) using `in.size() + out.size()`.
+- Explain why this is an example of amortized analysis.
+- Compare with a real `ArrayDeque` queue and explain why the two-stack version is educational rather than the preferred production queue representation.
 
 [↑ Back to Index](#navigation-and-index)
 
