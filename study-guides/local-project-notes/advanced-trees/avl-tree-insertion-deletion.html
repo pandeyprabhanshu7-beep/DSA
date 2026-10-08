@@ -1,0 +1,408 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="source-sha256" content="42154c89f7d3f0b5877559173b7dc1517d049d2bb0dd45d8e781bd734f914b6f"><title>AVL Tree: Height-Guided Rotations After Every Update</title><style>body{font:17px/1.7 system-ui;color:#172033;background:#f4f7fb;margin:0}main{max-width:1040px;margin:auto;padding:24px}article{background:white;padding:28px;border-radius:16px}a{color:#1261a0}h1,h2,h3{line-height:1.25}img{max-width:100%;height:auto}pre{background:#101c30;color:#eef4ff;padding:18px;overflow:auto;border-radius:10px}table{display:block;overflow:auto;border-collapse:collapse}th,td{border:1px solid #d3dce9;padding:10px;text-align:left}details{background:#eaf2fa;padding:12px}.toc ul{max-height:280px;overflow:auto}input{padding:10px;width:min(100%,420px)}@media(max-width:600px){main{padding:8px}article{padding:16px;font-size:16px}}</style></head><body><main><article><input id="filter" aria-label="Filter section links" placeholder="Filter section links"><details open class="toc"><summary>Sections</summary><div class="toc">
+<ul>
+<li><a href="#avl-tree-height-guided-rotations-after-every-update">AVL Tree: Height-Guided Rotations After Every Update</a><ul>
+<li><a href="#1-simple-definition-and-exact-contract">1. Simple definition and exact contract</a><ul>
+<li><a href="#four-concrete-examples">Four concrete examples</a></li>
+</ul>
+</li>
+<li><a href="#2-why-plain-bst-insertion-is-not-enough">2. Why plain BST insertion is not enough</a></li>
+<li><a href="#3-four-imbalance-families">3. Four imbalance families</a></li>
+<li><a href="#4-rotation-internals-and-the-height-update-trap">4. Rotation internals and the height-update trap</a></li>
+<li><a href="#5-insertion-dry-run-a-large-lr-case">5. Insertion dry run: a large LR case</a><ul>
+<li><a href="#insertion-invariant">Insertion invariant</a></li>
+</ul>
+</li>
+<li><a href="#6-deletion-why-repair-may-continue-to-the-root">6. Deletion: why repair may continue to the root</a><ul>
+<li><a href="#deletion-trace-95100611-112-then-remove-10">Deletion trace: 9,5,10,0,6,11,-1,1,2, then remove 10</a></li>
+</ul>
+</li>
+<li><a href="#7-complete-java-17-implementation">7. Complete Java 17 implementation</a></li>
+<li><a href="#8-correctness-arguments">8. Correctness arguments</a></li>
+<li><a href="#9-why-avl-height-is-logarithmic">9. Why AVL height is logarithmic</a></li>
+<li><a href="#10-complexity-including-output-construction">10. Complexity, including output construction</a></li>
+<li><a href="#11-boundaries-and-common-errors">11. Boundaries and common errors</a></li>
+<li><a href="#12-avl-versus-other-ordered-structures">12. AVL versus other ordered structures</a></li>
+<li><a href="#13-interview-variations">13. Interview variations</a></li>
+<li><a href="#14-sources-and-provenance">14. Sources and provenance</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="avl-tree-height-guided-rotations-after-every-update">AVL Tree: Height-Guided Rotations After Every Update</h1>
+<p><a href="../README.html">Local study intake</a> · <a href="java/AvlIntSet.java">Java implementation</a> · <a href="java/AvlIntSetCheck.java">Validation harness</a> · <a href="red-black-tree-insertion-deletion.html">Red-black comparison</a></p>
+<p>This module enriches section 3 of the uploaded <code>Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>. The source contributes the four rotation cases, a useful LR trace and the warning that deletion can rebalance several ancestors. Its Java cannot compile as written because inline comments swallow height updates, complete <code>if</code> conditions and the LR/RL rotations. The repository version replaces that fragment with a complete Java 17 set, one shared repair routine for insertion and deletion, structural validation, four contract examples, proofs, an original rotation diagram and independent randomized tests.</p>
+<p>The canonical Trees/BST guide contained no AVL material, so this focused advanced-tree unit does not duplicate an existing lesson.</p>
+<h2 id="1-simple-definition-and-exact-contract">1. Simple definition and exact contract</h2>
+<p>An <strong>AVL tree</strong> is a binary search tree that stores each node's height and maintains this rule at every node:</p>
+<pre><code class="language-text">abs(height(left) - height(right)) &lt;= 1
+</code></pre>
+<p>This module uses <code>height(null)=0</code> and <code>height(leaf)=1</code>. Its balance factor is:</p>
+<pre><code class="language-text">balance(node) = height(node.left) - height(node.right)
+</code></pre>
+<p>Positive means left-heavy; negative means right-heavy.</p>
+<p>The Java class implements a mutable set of distinct <code>int</code> values:</p>
+<ul>
+<li><code>add(key)</code> returns <code>true</code> only when a new key is stored;</li>
+<li><code>remove(key)</code> returns <code>true</code> only when an existing key is removed;</li>
+<li><code>contains(key)</code> performs ordinary BST search;</li>
+<li><code>toList()</code> constructs all keys in ascending order;</li>
+<li><code>heightLevels()</code> returns zero for empty and one for a leaf;</li>
+<li><code>validate()</code> checks strict ordering, stored heights, AVL balance and recorded size.</li>
+</ul>
+<p>It is an in-memory teaching structure, not a concurrent collection or persistent index.</p>
+<h3 id="four-concrete-examples">Four concrete examples</h3>
+<table>
+<thead>
+<tr>
+<th>Start</th>
+<th>Operation</th>
+<th>Expected result</th>
+<th>Concept</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>empty</td>
+<td>add <code>30,20,10</code></td>
+<td>sorted <code>[10,20,30]</code>, height 2</td>
+<td>LL imbalance needs one right rotation</td>
+</tr>
+<tr>
+<td>empty</td>
+<td>add <code>30,10,20</code></td>
+<td>sorted <code>[10,20,30]</code>, height 2</td>
+<td>LR zig-zag needs two rotations</td>
+</tr>
+<tr>
+<td><code>{10,20,30}</code></td>
+<td>add <code>20</code></td>
+<td><code>false</code>; size remains 3</td>
+<td>duplicate keys are rejected</td>
+</tr>
+<tr>
+<td><code>{MIN_VALUE,0,MAX_VALUE}</code></td>
+<td>remove <code>0</code></td>
+<td><code>[MIN_VALUE,MAX_VALUE]</code></td>
+<td>comparisons avoid subtraction overflow</td>
+</tr>
+</tbody>
+</table>
+<p>Removing a missing key is a no-op and returns <code>false</code>. The tree shape is internal: callers rely on set behavior and invariants, not one exact layout.</p>
+<h2 id="2-why-plain-bst-insertion-is-not-enough">2. Why plain BST insertion is not enough</h2>
+<p>Sorted insertion into an ordinary BST can form a chain. Searching <code>1,2,3,...,n</code> then costs <code>O(n)</code> in the worst case. AVL adds one integer height per node and repairs a subtree as soon as its balance reaches <code>+2</code> or <code>-2</code>.</p>
+<p><img alt="AVL LL, RR, LR and RL rotation repairs" src="assets/avl-rotation-cases.svg" /></p>
+<p>Rotations preserve in-order key order. They change height without changing the set of keys.</p>
+<h2 id="3-four-imbalance-families">3. Four imbalance families</h2>
+<table>
+<thead>
+<tr>
+<th>Heavy path from unbalanced node <code>z</code></th>
+<th style="text-align: right;">Child balance</th>
+<th>Repair</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>left → left (LL)</td>
+<td style="text-align: right;"><code>balance(z.left) &gt;= 0</code></td>
+<td>rotate right at <code>z</code></td>
+</tr>
+<tr>
+<td>right → right (RR)</td>
+<td style="text-align: right;"><code>balance(z.right) &lt;= 0</code></td>
+<td>rotate left at <code>z</code></td>
+</tr>
+<tr>
+<td>left → right (LR)</td>
+<td style="text-align: right;"><code>balance(z.left) &lt; 0</code></td>
+<td>rotate left at child, then right at <code>z</code></td>
+</tr>
+<tr>
+<td>right → left (RL)</td>
+<td style="text-align: right;"><code>balance(z.right) &gt; 0</code></td>
+<td>rotate right at child, then left at <code>z</code></td>
+</tr>
+</tbody>
+</table>
+<p>Memory rule: a straight heavy path needs one opposite rotation; a zig-zag is straightened at the child first, then rotated at the parent.</p>
+<p>The repair code deliberately classifies from <strong>child balance</strong>, not from the inserted or deleted key:</p>
+<pre><code class="language-java">if (balance &gt; 1) {
+    if (balance(node.left) &lt; 0) node.left = rotateLeft(node.left);
+    return rotateRight(node);
+}
+if (balance &lt; -1) {
+    if (balance(node.right) &gt; 0) node.right = rotateRight(node.right);
+    return rotateLeft(node);
+}
+</code></pre>
+<p>That rule works for both insertion and deletion. Direction tests based on the updated key are common insertion shortcuts but are wrong for general deletion repair.</p>
+<h2 id="4-rotation-internals-and-the-height-update-trap">4. Rotation internals and the height-update trap</h2>
+<p>Right rotation at <code>z</code>, where <code>y=z.left</code>:</p>
+<ol>
+<li>save <code>middle=y.right</code>;</li>
+<li>make <code>z</code> the right child of <code>y</code>;</li>
+<li>attach <code>middle</code> as <code>z.left</code>;</li>
+<li>update <code>z</code> first because it moved down;</li>
+<li>update <code>y</code>, the new subtree root;</li>
+<li>return <code>y</code> to the caller so the parent reconnects correctly.</li>
+</ol>
+<pre><code class="language-java">private static Node rotateRight(Node top) {
+    Node promoted = top.left;
+    Node middle = promoted.right;
+    promoted.right = top;
+    top.left = middle;
+    updateHeight(top);
+    updateHeight(promoted);
+    return promoted;
+}
+</code></pre>
+<p>Updating the promoted node first reads a stale height from the node that moved down. The tree may still search correctly while future balance decisions become wrong; this is why the test harness validates cached heights, not just returned keys.</p>
+<h2 id="5-insertion-dry-run-a-large-lr-case">5. Insertion dry run: a large LR case</h2>
+<p>Insert <code>50,30,70,20,40,60,80,10,25,27</code>.</p>
+<p>The first nine values form a valid AVL tree. Key 27 becomes the right child of 25. While recursion unwinds:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Node</th>
+<th style="text-align: right;">Left height</th>
+<th style="text-align: right;">Right height</th>
+<th style="text-align: right;">Balance</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">25</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">-1</td>
+<td>still balanced</td>
+</tr>
+<tr>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">-1</td>
+<td>still balanced</td>
+</tr>
+<tr>
+<td style="text-align: right;">30</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">+2</td>
+<td>left-heavy, but left child is right-heavy: LR</td>
+</tr>
+</tbody>
+</table>
+<p>Repair:</p>
+<ol>
+<li><code>rotateLeft(20)</code> promotes 25 and makes 20 its left child.</li>
+<li><code>rotateRight(30)</code> promotes 25 over 30.</li>
+<li>Recompute heights bottom-up.</li>
+</ol>
+<p>The repaired left subtree of 50 is rooted at 25, with <code>20</code> on the left and <code>30</code> on the right; 27 stays left of 30. Node 50 has left/right heights 3 and 2, so it remains balanced.</p>
+<h3 id="insertion-invariant">Insertion invariant</h3>
+<p>Before returning from <code>insert(node,key)</code>:</p>
+<blockquote>
+<p>the returned subtree contains exactly the old keys plus <code>key</code> if absent, obeys BST order, stores exact heights, and has balance in <code>{-1,0,+1}</code>.</p>
+</blockquote>
+<p>The base case creates a height-1 leaf. Recursive insertion changes only one child. <code>rebalance</code> updates the current height and performs the unique straight or zig-zag repair if required.</p>
+<h2 id="6-deletion-why-repair-may-continue-to-the-root">6. Deletion: why repair may continue to the root</h2>
+<p>BST deletion has three structural cases:</p>
+<ol>
+<li>leaf: return <code>null</code>;</li>
+<li>one child: return that child;</li>
+<li>two children: copy the in-order successor from the right subtree, then delete its old copy.</li>
+</ol>
+<p>Afterward, every ancestor on the search path is rebalanced. Deletion can reduce subtree height, so repairing one node can expose a new imbalance higher up. Unlike insertion, work must continue during the entire recursive return.</p>
+<h3 id="deletion-trace-95100611-112-then-remove-10">Deletion trace: <code>9,5,10,0,6,11,-1,1,2</code>, then remove 10</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Step</th>
+<th>State change</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>find 10 by BST search</td>
+<td>only one path can contain it</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>replace/remove through its single/right-side structure</td>
+<td>standard BST deletion</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>update the former parent height</td>
+<td>one subtree may now be shorter</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>observe a left-heavy ancestor</td>
+<td>deletion, not the removed key, determines the case</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td>inspect the left child's balance and rotate</td>
+<td>restore the local <code>abs(balance)&lt;=1</code> rule</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>continue unwinding and checking ancestors</td>
+<td>height reduction can propagate</td>
+</tr>
+</tbody>
+</table>
+<p>The harness executes this case, validates after deletion, and then deletes every remaining key while rechecking invariants.</p>
+<p>The public method first runs <code>contains</code>. That adds another logarithmic descent but makes missing-key removal a strict structural no-op and simplifies the recursive precondition.</p>
+<h2 id="7-complete-java-17-implementation">7. Complete Java 17 implementation</h2>
+<p>The runnable implementation is <a href="java/AvlIntSet.java">AvlIntSet.java</a>; <a href="java/AvlIntSetCheck.java">AvlIntSetCheck.java</a> supplies deterministic, adversarial, permutation and randomized oracle tests.</p>
+<p>Insertion and deletion both end at the same repair function:</p>
+<pre><code class="language-java">private static Node rebalance(Node node) {
+    updateHeight(node);
+    int balance = balance(node);
+    if (balance &gt; 1) {
+        if (balance(node.left) &lt; 0) node.left = rotateLeft(node.left);
+        return rotateRight(node);
+    }
+    if (balance &lt; -1) {
+        if (balance(node.right) &gt; 0) node.right = rotateRight(node.right);
+        return rotateLeft(node);
+    }
+    return node;
+}
+</code></pre>
+<p>Using one routine prevents insertion and deletion logic from drifting apart. <code>validate()</code> independently recomputes true heights from the leaves and rejects a stale cached value even when all membership queries happen to succeed.</p>
+<h2 id="8-correctness-arguments">8. Correctness arguments</h2>
+<p><strong>Search.</strong> Strict BST order puts every possible target in exactly one of the current node, left subtree or right subtree. Each comparison descends one level, so <code>contains</code> returns true exactly for stored keys.</p>
+<p><strong>Rotation order.</strong> In a right rotation, the ordered regions remain <code>A &lt; y &lt; B &lt; z &lt; C</code> before and after reconnecting. Left rotation is symmetric. Therefore rotations preserve the BST invariant and all keys.</p>
+<p><strong>Height repair.</strong> The node moved down depends only on its newly attached children, so updating it first computes its exact height. The promoted node can then use that value. A single rotation repairs straight heavy paths; straightening the child followed by the parent rotation repairs zig-zags. The returned subtree has balance at most one.</p>
+<p><strong>Insertion.</strong> Inductively, the recursive child returns a valid AVL subtree with exactly the intended keys. Only ancestors on that path can change height. <code>rebalance</code> restores each such node without changing order or membership, proving the returned root is a valid AVL set.</p>
+<p><strong>Deletion.</strong> Standard BST deletion removes exactly the target; successor substitution preserves strict order. Only nodes on the deletion/successor path can lose height. Rebalancing every ancestor restores stored height and AVL balance, so the final tree is valid and lacks exactly the removed key.</p>
+<p><strong>Traversal.</strong> In-order traversal emits the left subtree, node, then right subtree. BST order and induction imply <code>toList()</code> returns every stored key once in ascending order.</p>
+<h2 id="9-why-avl-height-is-logarithmic">9. Why AVL height is logarithmic</h2>
+<p>Let <code>N(h)</code> be the minimum nodes in an AVL tree of height <code>h</code> under this module's level convention. The sparsest legal height-<code>h</code> tree has child heights <code>h-1</code> and <code>h-2</code>:</p>
+<pre><code class="language-text">N(0)=0, N(1)=1
+N(h)=1 + N(h-1) + N(h-2)
+</code></pre>
+<p>This Fibonacci-like recurrence grows exponentially with <code>h</code>; solving in the other direction gives <code>h=O(log n)</code>. Therefore search, insertion and deletion traverse only logarithmically many levels in the worst case. NIST's <a href="https://xlinux.nist.gov/dads/">Dictionary of Algorithms and Data Structures</a> records AVL among balanced search-tree structures.</p>
+<h2 id="10-complexity-including-output-construction">10. Complexity, including output construction</h2>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th style="text-align: right;">Time</th>
+<th style="text-align: right;">Auxiliary/output space</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>contains</code></td>
+<td style="text-align: right;"><code>O(log n)</code></td>
+<td style="text-align: right;"><code>O(1)</code> iterative</td>
+</tr>
+<tr>
+<td><code>add</code></td>
+<td style="text-align: right;"><code>O(log n)</code></td>
+<td style="text-align: right;"><code>O(log n)</code> recursion</td>
+</tr>
+<tr>
+<td><code>remove</code></td>
+<td style="text-align: right;"><code>O(log n)</code> including precheck</td>
+<td style="text-align: right;"><code>O(log n)</code> recursion</td>
+</tr>
+<tr>
+<td>one rotation</td>
+<td style="text-align: right;"><code>O(1)</code></td>
+<td style="text-align: right;"><code>O(1)</code></td>
+</tr>
+<tr>
+<td><code>toList</code></td>
+<td style="text-align: right;"><code>O(n)</code></td>
+<td style="text-align: right;"><code>O(n)</code> output plus <code>O(log n)</code> stack</td>
+</tr>
+<tr>
+<td><code>validate</code></td>
+<td style="text-align: right;"><code>O(n)</code></td>
+<td style="text-align: right;"><code>O(log n)</code> stack</td>
+</tr>
+<tr>
+<td>tree storage</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;"><code>O(n)</code> nodes, including one cached height each</td>
+</tr>
+</tbody>
+</table>
+<p>Returning <code>n</code> boxed integers is an <code>O(n)</code> construction cost; it is not constant auxiliary space. Java object-layout overhead is implementation-dependent.</p>
+<h2 id="11-boundaries-and-common-errors">11. Boundaries and common errors</h2>
+<ul>
+<li>Pick one height convention and use it everywhere. Mixing leaf height 0 with leaf height 1 corrupts balance calculations.</li>
+<li>Update the node moved down before the promoted node after rotation.</li>
+<li>Reconnect the rotation's returned root at the caller; rotating local references alone loses the repair.</li>
+<li>During deletion, classify from child balance, not from the deleted key's direction.</li>
+<li>Continue deletion repair through every ancestor; stopping after the first rotation is unsafe.</li>
+<li>Guard duplicate insertion and missing deletion so size stays correct.</li>
+<li>Compare integers with <code>&lt;</code>/<code>&gt;</code> or <code>Integer.compare</code>, not subtraction that can overflow.</li>
+<li>Validate cached metadata separately from search results.</li>
+<li>The class is not thread-safe; external synchronization or a concurrent structure is required for shared mutation.</li>
+</ul>
+<h2 id="12-avl-versus-other-ordered-structures">12. AVL versus other ordered structures</h2>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Suitable baseline</th>
+<th>Trade-off</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>worst-case ordered lookup with tight height</td>
+<td>AVL tree</td>
+<td>stores height and may rebalance more aggressively</td>
+</tr>
+<tr>
+<td>general Java ordered map/set</td>
+<td><code>TreeMap</code> / <code>TreeSet</code></td>
+<td>Java specifies a red-black implementation, not AVL</td>
+</tr>
+<tr>
+<td>page-oriented database index</td>
+<td>B-tree/B+ tree</td>
+<td>high fan-out reduces page transitions</td>
+</tr>
+<tr>
+<td>average constant-time lookup without order</td>
+<td>hash table</td>
+<td>no sorted traversal or predecessor/successor</td>
+</tr>
+<tr>
+<td>indexed range aggregates</td>
+<td>Fenwick/segment tree</td>
+<td>exploits dense positions and an aggregation operation</td>
+</tr>
+</tbody>
+</table>
+<p>Oracle's <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/TreeMap.html">Java 17 <code>TreeMap</code> documentation</a> documents a red-black <code>NavigableMap</code> with logarithmic core operations. Use it for standard Java production code unless an AVL-specific requirement and maintenance burden are justified.</p>
+<h2 id="13-interview-variations">13. Interview variations</h2>
+<ol>
+<li>Derive the Fibonacci minimum-node recurrence and logarithmic height.</li>
+<li>Return the first unbalanced ancestor and name LL/RR/LR/RL from a trace.</li>
+<li>Add <code>floor</code>, <code>ceiling</code>, predecessor and successor.</li>
+<li>Store subtree sizes for rank/select and prove metadata update order.</li>
+<li>Convert the set into a generic comparator-based map with replacement semantics.</li>
+<li>Compare insertion-only repair with deletion's potentially repeated ancestor repairs.</li>
+<li>Compare AVL, red-black, treap, B-tree and skip-list choices for a workload.</li>
+</ol>
+<h2 id="14-sources-and-provenance">14. Sources and provenance</h2>
+<ul>
+<li>Candidate source actually read: <code>untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>, section 3, lines 272–448; archive and source SHA-256 values are recorded in the intake manifest.</li>
+<li>Definition/index reference: <a href="https://xlinux.nist.gov/dads/">NIST Dictionary of Algorithms and Data Structures</a>.</li>
+<li>Java comparison reference: <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/TreeMap.html">Java SE 17 <code>TreeMap</code></a>.</li>
+<li>Historical origin: G. M. Adelson-Velsky and E. M. Landis, “An algorithm for the organization of information,” 1962.</li>
+</ul>
+<p>The contract, repair routine, traces, proofs, boundary analysis, corrected Java, SVG and tests are original teaching additions. This module does not claim that Java's standard ordered collections use AVL trees.</p></article></main><script>document.querySelector("#filter").oninput=e=>{let q=e.target.value.toLowerCase();document.querySelectorAll(".toc li").forEach(li=>li.hidden=!li.textContent.toLowerCase().includes(q))}</script></body></html>
