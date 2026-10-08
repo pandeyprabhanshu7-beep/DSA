@@ -609,6 +609,7 @@
         "compared_html_sha256": "a78c3ee9f83d6970c9fc55e81d6b355cfb66c13e798ed27bc487fc39aeee1f4d",
         "canonical_sha256_after": "f1bafdaca870dc09dbba7ae92f56519f948cef5fb9f4c9d06a18d62084c7494d"
       },
+      "last_successful_commit": "cd6e673ceef0a5e9209c603dc4bd746175c4fde1",
       "validation": "Standalone HTML and bundle contents were read and hashed; ZIP integrity/traversal checks passed; both Java 17 source-file programs passed explicit cases plus 20,000 seeded adversarial rounds; Pandoc rebuild was deterministic; embedded Markdown payload equality, unique IDs, internal anchors, relative assets, PNG signatures/dimensions, visual contact-sheet inspection, search-index targets, Mermaid counts, JSON and git diff checks passed; live DSA placeholder audit 174; live cloud/CI integrations and browser rendering were not executed.",
       "next_action": "Rotate fairly to an accessible unpromoted frontend source (prefer Angular); on the next DevOps pass, deepen probe-driven rollout failure diagnosis and TeamCity/Jenkins agent isolation without creating a versioned duplicate.",
       "priority": 13
