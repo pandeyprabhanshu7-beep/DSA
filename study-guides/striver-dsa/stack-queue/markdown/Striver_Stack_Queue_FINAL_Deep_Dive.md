@@ -1127,190 +1127,272 @@ Test empty operations; one value; duplicate minimum values; removing a minimum a
 
 [← S8](#s8-min-stack) · [Index](#navigation-and-index) · [S10 →](#s10-prefix-to-infix)
 
-### Detailed question understanding
+### Exact problem and input contract
 
-**What is the problem/lesson asking?** Infix to Postfix. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Convert a **valid infix arithmetic expression** (operators between operands) into equivalent **postfix / Reverse Polish notation** (operators after operands), without evaluating it. Accept identifiers such as `total_1`, unsigned integers such as `12`, parentheses and binary `+ - * / ^`. Whitespace is optional. Operators `^` (highest), `* /`, `+ -` have descending precedence; `^` is **right-associative**, all others left-associative. Unary minus, implicit multiplication and function calls are **not supported**. Return space-separated tokens, which avoids ambiguity for multi-character operands. Malformed expressions throw `IllegalArgumentException`.
 
-### Three requirement-clarifying examples
+### Verified input/output examples
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| Infix input | Postfix output | Key point |
+|---|---|---|
+| `A+B*C` | `A B C * +` | Multiply before add |
+| `A^B^C` | `A B C ^ ^` | Right-associative exponent: `A^(B^C)` |
+| `(12+3)*4` | `12 3 + 4 *` | Parentheses override precedence |
+| `a-b-c` | `a b - c -` | Left-associative subtraction |
+| `foo + bar*2` | `foo bar 2 * +` | Multi-character identifiers |
 
-### Pattern recognition
+Invalid: `A+`, `A B`, `A+*B`, `()`, `A(B)`, `(A+B`, `A+B)`, `A$B`.
 
-**Primary pattern:** Stack parsing
+### Baseline and why a stack improves it
 
-> **KEY INTUITION —** Nesting and precedence require remembering the most recent unresolved opening/operator/expression.
+A baseline is to parse the expression into an expression tree, then perform postorder traversal. That is O(n) time and O(n) space but builds a whole tree. The **shunting-yard** stack method emits postfix directly with one operator stack and output list; each token enters/exits the stack at most once.
 
-### Brute-force / straightforward baseline
+### Invariant and optimized algorithm
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+After scanning the first `i` tokens, the output contains completed postfix subexpressions in left-to-right evaluation order; the operator stack holds **pending operators and unmatched opening parentheses**. When a new binary operator `op` arrives, pop operators of **higher precedence**, or of **equal precedence when `op` is left-associative**. For `^`, do not pop an equal-precedence `^`. A closing parenthesis drains operators until its matching opening parenthesis; neither parenthesis appears in the output. `needOperand` checks alternation between operands/operators and rejects invalid syntax.
 
-### Optimized reasoning
+### Detailed trace — `(12+3)*4`
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+Operator stack shown **bottom → top**.
 
-### Detailed dry run
+| Read | Output tokens | Operator stack | Why |
+|---|---|---|---|
+| start | — | — | Nothing consumed |
+| `(` | — | `(` | New grouping boundary |
+| `12` | `12` | `(` | Operand emitted immediately |
+| `+` | `12` | `( +` | Pending binary operator |
+| `3` | `12 3` | `( +` | Operand emitted |
+| `)` | `12 3 +` | — | Drain through matching `(` |
+| `*` | `12 3 +` | `*` | Pending multiplication |
+| `4` | `12 3 + 4` | `*` | Operand emitted |
+| end | `12 3 + 4 *` | — | Drain remaining operators |
 
-Write index/value, stack/queue/deque before, all pops/removals, insertion, and answer after each iteration.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```mermaid
+flowchart LR
+    A["Infix tokens"] --> B{"Operand?"}
+    B -->|yes| C["Append to output"]
+    B -->|no| D{"Parenthesis?"}
+    D -->|opening| E["Push '('"]
+    D -->|closing| F["Pop operators until '('"]
+    D -->|operator| G["Pop higher/equal precedence as associativity allows; push operator"]
+    C --> H["Next token"]
+    E --> H
+    F --> H
+    G --> H
 ```
 
-### Key line to highlight
+### Java 17 — standalone implementation
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+```java
+import java.util.*;
+public final class InfixToPostfix {
+    private static boolean operand(String t) {
+        return t.matches("[A-Za-z_][A-Za-z0-9_]*|[0-9]+");
+    }
+    private static int precedence(String op) {
+        return switch (op) {
+            case "+", "-" -> 1;
+            case "*", "/" -> 2;
+            case "^" -> 3;
+            default -> throw new IllegalArgumentException("Operator: " + op);
+        };
+    }
+    private static List<String> tokenize(String input) {
+        if (input == null) throw new IllegalArgumentException("null expression");
+        List<String> tokens = new ArrayList<>();
+        for (int i = 0; i < input.length();) {
+            char c = input.charAt(i);
+            if (Character.isWhitespace(c)) { i++; continue; }
+            if (Character.isLetter(c) || c == '_' || Character.isDigit(c)) {
+                int start = i++;
+                if (Character.isDigit(c)) {
+                    while (i < input.length() && Character.isDigit(input.charAt(i))) i++;
+                } else {
+                    while (i < input.length() && (Character.isLetterOrDigit(input.charAt(i))
+                            || input.charAt(i) == '_')) i++;
+                }
+                String token = input.substring(start, i);
+                if (!operand(token)) throw new IllegalArgumentException("Invalid operand: " + token);
+                tokens.add(token);
+            } else if ("()+-*/^".indexOf(c) >= 0) {
+                tokens.add(String.valueOf(c)); i++;
+            } else throw new IllegalArgumentException("Unexpected character: " + c);
+        }
+        return tokens;
+    }
+    public static String convert(String expression) {
+        List<String> tokens = tokenize(expression);
+        if (tokens.isEmpty()) throw new IllegalArgumentException("Empty expression");
+        Deque<String> ops = new ArrayDeque<>();
+        List<String> out = new ArrayList<>();
+        boolean needOperand = true;
+        for (String t : tokens) {
+            if (operand(t)) {
+                if (!needOperand) throw new IllegalArgumentException("Missing operator");
+                out.add(t); needOperand = false;
+            } else if (t.equals("(")) {
+                if (!needOperand) throw new IllegalArgumentException("Missing operator before (");
+                ops.push(t);
+            } else if (t.equals(")")) {
+                if (needOperand) throw new IllegalArgumentException("Missing operand before )");
+                while (!ops.isEmpty() && !ops.peek().equals("(")) out.add(ops.pop());
+                if (ops.isEmpty()) throw new IllegalArgumentException("Unmatched )");
+                ops.pop(); needOperand = false;
+            } else {
+                if (needOperand) throw new IllegalArgumentException("Missing left operand");
+                while (!ops.isEmpty() && !ops.peek().equals("(") &&
+                       (precedence(ops.peek()) > precedence(t) ||
+                        (precedence(ops.peek()) == precedence(t) && !t.equals("^")))) {
+                    out.add(ops.pop());
+                }
+                ops.push(t); needOperand = true;
+            }
+        }
+        if (needOperand) throw new IllegalArgumentException("Trailing operator or empty ()");
+        while (!ops.isEmpty()) {
+            String t = ops.pop();
+            if (t.equals("(")) throw new IllegalArgumentException("Unmatched (");
+            out.add(t);
+        }
+        return String.join(" ", out);
+    }
+    public static void main(String[] args) {
+        System.out.println(convert("(12+3)*4")); // 12 3 + 4 *
+    }
+}
+```
 
-### Correctness checklist
+**Key line:** `precedence(top) == precedence(incoming) && !incoming.equals("^")` implements left-associativity while preserving right-associative exponentiation. Reversing this condition changes `A^B^C` incorrectly.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+### Correctness and complexity
 
-### Boundary conditions
+By induction over consumed tokens, emitting an operand preserves postfix operand order; pushing a pending operator delays it until all operands of higher-precedence operations have been emitted. Popping on lower/equal incoming precedence (except equal right-associative `^`) ensures each operator appears after its operands and in the correct association order. Parentheses isolate grouped operations. Final stack draining emits every remaining operator exactly once, giving equivalent postfix.
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+**Time O(n)** for n input characters: lexical scanning is linear, and each token is pushed/popped at most once. **Auxiliary space O(n)** for output and operator stack (excluding output, operator stack O(n)). Parenthesis depth can reach n. No arithmetic is evaluated, so operand magnitude cannot overflow conversion.
 
-### Complexity — derive it instead of memorizing it
+### Common mistakes, boundaries and follow-ups
 
-**O(n) time and O(n) stack.**
+- Do not pop equal-precedence `^`; `A^B^C` must represent `A^(B^C)`.
+- Reject unary `-A` under this binary-only contract; a unary-aware tokenizer needs an explicit unary operator.
+- Never emit parentheses into postfix; reject unmatched or empty parentheses.
+- Test one operand, deep nesting, long identifiers, whitespace, repeated equal-precedence operators and malformed syntax.
+- Interview follow-ups: add unary operators/functions, build an AST, evaluate postfix, or convert postfix back to infix. For `n` tokens, repeated string concatenation may be quadratic; use a token list and `String.join`.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
-
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
-
-> **MEMORY TRICK —** MOST RECENT UNRESOLVED ITEM GOES ON THE STACK.
-
-### Interview follow-ups and variations
-
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+> **MEMORY TRICK:** **Operands go OUT; operators WAIT until precedence/parentheses permit.**
 
 [↑ Back to Index](#navigation-and-index)
 
 ---
+
 
 <a id="s10-prefix-to-infix"></a>
 ## S10. Prefix to Infix
 
 [← S9](#s9-infix-to-postfix) · [Index](#navigation-and-index) · [S11 →](#s11-prefix-to-postfix)
 
-### Detailed question understanding
+### Exact problem and input contract
 
-**What is the problem/lesson asking?** Prefix to Infix. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Convert a **prefix / Polish notation** expression (operator before its two operands) into an equivalent **fully parenthesized infix** expression. Input tokens must be **whitespace-separated**, including single-character operands; this allows multi-digit numbers and variable names. Supported operands: unsigned decimal integers or identifiers; supported binary operators: `+ - * / ^`. No unary operators. Return fully parenthesized infix preserving the exact expression tree. Malformed inputs throw `IllegalArgumentException`.
 
-### Three requirement-clarifying examples
+### Verified input/output examples
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| Prefix input | Infix output | Interpretation |
+|---|---|---|
+| `* + A B C` | `((A+B)*C)` | Multiply the sum by C |
+| `- A / B C` | `(A-(B/C))` | Operand order matters for subtraction/division |
+| `^ A ^ B C` | `(A^(B^C))` | Explicit right grouping |
+| `+ 12 * x 3` | `(12+(x*3))` | Multi-token identifiers/numbers |
+| `A` | `A` | Single operand needs no parentheses |
 
-### Pattern recognition
+Invalid: `+ A` (missing operand), `A B` (extra operand), `+ A B C` (extra operand), `? A B` (invalid token). Compact `*+ABC` is intentionally not accepted; write `* + A B C`.
 
-**Primary pattern:** Stack parsing
+### Baseline vs optimized stack
 
-> **KEY INTUITION —** Nesting and precedence require remembering the most recent unresolved opening/operator/expression.
+A direct recursive parser reads prefix **left-to-right**, recursively parses left and right subtrees, then returns `(left op right)`; it uses O(n) stack depth and builds an AST or nested strings. A reverse scan is iterative and uses a stack: read tokens **right-to-left**, push operands; on an operator pop the **left operand first**, then the **right**, combine, and push the parenthesized result.
 
-### Brute-force / straightforward baseline
+### Invariant and detailed trace
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+After scanning a suffix of the prefix tokens right-to-left, each stack entry is the fully parenthesized infix form of **one complete subtree** of that suffix. The top two subtrees are the left/right children required by the next encountered operator.
 
-### Optimized reasoning
+Trace `* + A B C` (stack **bottom → top**):
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+| Token (reverse order) | Stack after operation | Explanation |
+|---|---|---|
+| start | — | Empty |
+| `C` | `C` | Push operand |
+| `B` | `C, B` | Push operand |
+| `A` | `C, B, A` | Push operand |
+| `+` | `C, (A+B)` | Pop left A, right B |
+| `*` | `((A+B)*C)` | Pop left (A+B), right C |
 
-### Detailed dry run
-
-Write index/value, stack/queue/deque before, all pops/removals, insertion, and answer after each iteration.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```mermaid
+flowchart LR
+    A["Read prefix tokens from RIGHT to LEFT"] --> B{"Operand?"}
+    B -->|yes| C["Push operand string"]
+    B -->|no, operator| D["Pop LEFT, then RIGHT"]
+    D --> E["Push (LEFT op RIGHT)"]
+    C --> F["Continue"]
+    E --> F
+    F --> G["End: exactly one expression"]
 ```
 
-### Key line to highlight
+### Java 17 — standalone implementation
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+```java
+import java.util.*;
+public final class PrefixToInfix {
+    private static boolean operand(String t) {
+        return t.matches("[A-Za-z_][A-Za-z0-9_]*|[0-9]+");
+    }
+    private static boolean operator(String t) {
+        return t.length() == 1 && "+-*/^".contains(t);
+    }
+    public static String convert(String expression) {
+        if (expression == null || expression.isBlank())
+            throw new IllegalArgumentException("Empty expression");
+        String[] tokens = expression.trim().split("\\s+");
+        Deque<String> stack = new ArrayDeque<>();
+        for (int i = tokens.length - 1; i >= 0; i--) {
+            String t = tokens[i];
+            if (operand(t)) stack.push(t);
+            else if (operator(t)) {
+                if (stack.size() < 2)
+                    throw new IllegalArgumentException("Missing operand for " + t);
+                String left = stack.pop(), right = stack.pop();
+                stack.push("(" + left + t + right + ")");
+            } else throw new IllegalArgumentException("Invalid token: " + t);
+        }
+        if (stack.size() != 1) throw new IllegalArgumentException("Extra operands");
+        return stack.pop();
+    }
+    public static void main(String[] args) {
+        System.out.println(convert("* + A B C")); // ((A+B)*C)
+    }
+}
+```
 
-### Correctness checklist
+**Key lines:** `String left = stack.pop(), right = stack.pop();` — **do not reverse them**. For `- A / B C`, reversing changes the meaning. Full parentheses make associativity unambiguous.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+### Correctness and complexity
 
-### Boundary conditions
+Base case: a pushed operand is a correct infix representation of a one-node subtree. Inductive step: when scanning an operator right-to-left, the two top entries are already-correct representations of its left and right operand subtrees. Combining `(left op right)` preserves their exact tree and operation order. After consuming the entire valid prefix expression, one entry represents the whole tree; any other stack size indicates invalid arity.
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+**Time O(n + L)** for n tokens and total produced string length L if concatenation cost is accounted for; repeated immutable string concatenation can make a deeply nested expression **O(n²) time** in the worst case. **Space O(n + L)** for stack and strings (and intermediate copies may increase peak memory). For strict linear-time construction, build an AST and serialize once with `StringBuilder`. This simple stack version prioritizes clarity.
 
-### Complexity — derive it instead of memorizing it
+### Mistakes, boundaries and interview follow-ups
 
-**O(n) time and O(n) stack.**
+- Reverse scan, not forward scan, for the simple operand stack.
+- Pop **left before right**; subtraction and division expose the error.
+- Input `A` is valid; empty input and insufficient/excess operands are invalid.
+- Operators are binary; `- 5` is invalid, while `- 0 5` is valid.
+- Ask: how to support unary operators, reconstruct an AST, remove redundant parentheses, or convert prefix to postfix?
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
-
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
-
-> **MEMORY TRICK —** MOST RECENT UNRESOLVED ITEM GOES ON THE STACK.
-
-### Interview follow-ups and variations
-
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+> **MEMORY TRICK:** **Scan BACKWARD; pop LEFT first; wrap every binary combination.**
 
 [↑ Back to Index](#navigation-and-index)
 
 ---
+
 
 <a id="s11-prefix-to-postfix"></a>
 ## S11. Prefix to Postfix

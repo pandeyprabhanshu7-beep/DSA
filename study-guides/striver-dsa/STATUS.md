@@ -14,6 +14,8 @@
 |---|---:|---:|---|
 | S1 Stack Using Array | ✅ | ✅ | Four examples, array invariant, Java, trace, proof and boundaries |
 | S6 Queue Using Linked List | ✅ | ✅ | Four examples, head/tail invariant, Java, full-to-empty trace, proof and boundaries |
+| S9 Infix to Postfix | ✅ | ✅ | Five verified examples, operator precedence/associativity, syntax checks, Java, trace, proof and Mermaid |
+| S10 Prefix to Infix | ✅ | ✅ | Five verified examples, reverse scan, operand-order trace, Java, proof and Mermaid |
 | S8 Min Stack | ✅ | ✅ | Four examples, saved-minimum pairs, Java, restoration trace, proof and encoded-state alternative |
 | S5 Stack Using Linked List | ✅ | ✅ | Four examples, pointer diagram, Java, trace, proof and boundaries |
 | S2 Queue Using Circular Array | ✅ | ✅ | Four concrete examples, circular-state diagram, Java, wrap-around trace, invariant and proof |
@@ -31,7 +33,7 @@
 | H-10 Subarray Sum Equals K | ✅ | ✅ | Prefix-frequency proof, Java and overflow handling |
 | H-16 Minimum Window Substring | ✅ | ✅ | Four examples, brute force, frequency-window invariant, detailed ADOBECODEBANC trace, Java, proof and O(m+n) derivation |
 
-## Completion audit — 2026-10-08 ET (updated 01:33)
+## Completion audit — 2026-10-08 ET (updated 02:34)
 
 The five canonical Markdown guides and their five responsive HTML reading editions exist in the repository.
 
@@ -40,11 +42,11 @@ Current explicit Java placeholder count:
 | Guide | Cards with placeholder Java |
 |---|---:|
 | Graph | 51 |
-| Stack & Queue | 20 |
+| Stack & Queue | 18 |
 | Linked List | 27 |
 | Trees & BST | 51 |
 | HashMap & Hashing | 26 |
-| **Total** | **175** |
+| **Total** | **173** |
 
 Previously removed placeholders:
 - S4 Queue Using Two Stacks
@@ -58,9 +60,15 @@ Prior run removed two more placeholders:
 - S1 Stack Using Array
 - S5 Stack Using Linked List
 
-This run removed two more placeholders:
+Prior run removed two more placeholders:
 - S6 Queue Using Linked List
 - S8 Min Stack
+
+This run removed two more placeholders:
+- S9 Infix to Postfix
+- S10 Prefix to Infix
+
+S9/S10 verification: Java 17 javac compilation and execution, 11 explicit valid examples, 15 invalid-input cases, and 10,000 deterministic randomized expression pairs (20,000 random comparisons), totaling 20,026 assertions. The tested algorithms are the methods reproduced in the guides; HTML embedded Markdown equality verified.
 
 Earlier S2/S3 verification: Java 17 compilation, explicit cases and 20,000 deterministic randomized paired operations against ArrayDeque.
 
@@ -71,7 +79,7 @@ S6/S8 verification: Java sources compiled with javac --release 17 and executed o
 All five canonical responsive HTML files have been resynchronized so their embedded Markdown payload now exactly matches the paired canonical Markdown file.
 
 Remaining work:
-1. Replace the **175** remaining Java placeholders with problem-specific code.
+1. Replace the **173** remaining Java placeholders with problem-specific code.
 2. Replace generic examples with concrete 3–4 example sets.
 3. Expand hard-card dry runs into explicit state tables.
 4. Add correctness proofs and boundary-condition reasoning card by card.
@@ -101,5 +109,5 @@ These repository editions preserve the latest retained topic structure and study
 - [x] H-16 Minimum Window Substring deepened
 - [x] S2 Circular Queue and S3 One-Queue Stack deepened and Java-tested
 - [x] S1 Array Stack and S5 Linked Stack deepened and Java-tested
-- [ ] replace remaining 175 Java placeholders
+- [ ] replace remaining 173 Java placeholders
 - [ ] ongoing research-driven dry-run / example / boundary expansion
