@@ -1,7 +1,7 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="source-sha256" content="6ec805a2d1a9420d02b375b5280d2fa68fdd758d02fcd892d7fb6efc2ad6ee30"><title>Local Project Study Notes</title><style>body{font:17px/1.7 system-ui;color:#172033;background:#f4f7fb;margin:0}main{max-width:1040px;margin:auto;padding:24px}article{background:white;padding:28px;border-radius:16px}a{color:#1261a0}h1,h2,h3{line-height:1.25}img{max-width:100%;height:auto}pre{background:#101c30;color:#eef4ff;padding:18px;overflow:auto;border-radius:10px}table{display:block;overflow:auto;border-collapse:collapse}th,td{border:1px solid #d3dce9;padding:10px;text-align:left}details{background:#eaf2fa;padding:12px}.toc ul{max-height:280px;overflow:auto}input{padding:10px;width:min(100%,420px)}@media(max-width:600px){main{padding:8px}article{padding:16px;font-size:16px}}</style></head><body><main><article><input id="filter" aria-label="Filter section links" placeholder="Filter section links"><details open class="toc"><summary>Sections</summary><div class="toc">
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="source-sha256" content="33269e0bde5ed9959f8fcb633a7059290930abfea7427725072eedba716b6ff9"><title>Local Project Study Notes</title><style>body{font:17px/1.7 system-ui;color:#172033;background:#f4f7fb;margin:0}main{max-width:1040px;margin:auto;padding:24px}article{background:white;padding:28px;border-radius:16px}a{color:#1261a0}h1,h2,h3{line-height:1.25}img{max-width:100%;height:auto}pre{background:#101c30;color:#eef4ff;padding:18px;overflow:auto;border-radius:10px}table{display:block;overflow:auto;border-collapse:collapse}th,td{border:1px solid #d3dce9;padding:10px;text-align:left}details{background:#eaf2fa;padding:12px}.toc ul{max-height:280px;overflow:auto}input{padding:10px;width:min(100%,420px)}@media(max-width:600px){main{padding:8px}article{padding:16px;font-size:16px}}</style></head><body><main><article><input id="filter" aria-label="Filter section links" placeholder="Filter section links"><details open class="toc"><summary>Sections</summary><div class="toc">
 <ul>
 <li><a href="#local-project-study-notes">Local Project Study Notes</a><ul>
-<li><a href="#first-completed-batch">First completed batch</a></li>
+<li><a href="#completed-advanced-tree-modules">Completed advanced-tree modules</a></li>
 <li><a href="#intake-state">Intake state</a></li>
 <li><a href="#continue-next">Continue next</a></li>
 <li><a href="#maintain-readers">Maintain readers</a></li>
@@ -11,18 +11,22 @@
 </div>
 </details><h1 id="local-project-study-notes">Local Project Study Notes</h1>
 <p>This separate folder receives selected, enriched technical material from the uploaded <code>untitled.zip</code>. The original archive is preserved separately; only useful, validated teaching batches are published here.</p>
-<h2 id="first-completed-batch">First completed batch</h2>
+<h2 id="completed-advanced-tree-modules">Completed advanced-tree modules</h2>
 <ul>
 <li><a href="advanced-trees/fenwick-tree.html">Fenwick Tree — Markdown</a></li>
 <li><a href="advanced-trees/fenwick-tree.html">Fenwick Tree — HTML</a></li>
 <li><a href="advanced-trees/java/Fenwick.java">Java implementation</a></li>
 <li><a href="advanced-trees/java/FenwickCheck.java">Validation harness</a></li>
+<li><a href="advanced-trees/segment-tree-lazy-propagation.html">Segment Tree with Lazy Propagation — Markdown</a></li>
+<li><a href="advanced-trees/segment-tree-lazy-propagation.html">Segment Tree with Lazy Propagation — HTML</a></li>
+<li><a href="advanced-trees/java/LazySegmentTree.java">Lazy segment tree Java</a></li>
+<li><a href="advanced-trees/java/LazySegmentTreeCheck.java">Lazy segment tree validation harness</a></li>
 </ul>
 <h2 id="intake-state">Intake state</h2>
 <p>53 files: 28 Markdown candidates, 18 Mermaid sources, and 7 other files. Candidate means eligible for review, not certification that its content is correct. Older Graph/Stack/Tree/Linked List/Hashing editions must be compared with existing canonical repository guides before importing improvements. Do not create parallel replacement books here. Arrays, advanced trees, AI, frontend and system-design material can be published in bounded topic sections under this folder after comparison with other queued sources. One real Markdown guide is stored inside <code>.idea</code>; retain it as a candidate rather than excluding it by directory name alone.</p>
 <p>See <a href="INTAKE_MANIFEST.json">intake manifest</a> for source hashes, statuses and exact continuation. No build/IDE metadata was published. No source program from the archive was executed.</p>
 <h2 id="continue-next">Continue next</h2>
-<p>Read advanced-trees section 9: Segment Tree + Lazy Propagation. Estimated next-batch budget: approximately 12,000 tokens, a conservative heuristic rather than a reading of remaining account quota. Stop at a durable checkpoint if resources are insufficient; later hourly runs retry.</p>
+<p>Read advanced-trees section 8: Trie / Prefix Tree, then compare it against any richer canonical trie coverage before publishing one focused module. Estimated next-batch budget: approximately 11,000 tokens. The estimate uses the section's 1,728 characters / 4 (about 432 source tokens because a tokenizer is unavailable), plus heuristic reserves of 1,500 for comparison/research, 6,500 for teaching/code/diagram/HTML, and 2,500 for validation/checkpoint work. It is not account-quota telemetry. Stop at a durable checkpoint if resources are insufficient; later hourly runs retry.</p>
 <h2 id="maintain-readers">Maintain readers</h2>
 <p>Run <code>python build_readers.py</code> (requires Python <code>markdown</code>) after editing local Markdown. Source Markdown is canonical; HTML is generated from it. Keep topic Java and diagram changes in the same validated commit.</p>
-<p>Validation: Java 17 compilation, 100,000 randomized updates, 200,000 oracle queries, local link/anchor checks and SVG XML validation passed. Browser visual QA remains pending.</p></article></main><script>document.querySelector("#filter").oninput=e=>{let q=e.target.value.toLowerCase();document.querySelectorAll(".toc li").forEach(li=>li.hidden=!li.textContent.toLowerCase().includes(q))}</script></body></html>
+<p>Validation: the Java 17 compiler module ran both topic harnesses. The Fenwick harness passed 100,000 randomized point updates and 200,000 oracle queries; the lazy segment tree harness passed deterministic/boundary cases plus 100,000 randomized range updates and 200,000 oracle queries. Generated Markdown/HTML payload hashes, local links/anchors and SVG XML were checked. Browser visual QA remains pending.</p></article></main><script>document.querySelector("#filter").oninput=e=>{let q=e.target.value.toLowerCase();document.querySelectorAll(".toc li").forEach(li=>li.hidden=!li.textContent.toLowerCase().includes(q))}</script></body></html>

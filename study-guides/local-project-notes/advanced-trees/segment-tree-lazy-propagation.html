@@ -1,0 +1,359 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="source-sha256" content="7f01ae45262390834afb76547551946ce2b11b67cee25ec980d49df61a772cfb"><title>Segment Tree with Lazy Propagation: Defer Work, Preserve Sums</title><style>body{font:17px/1.7 system-ui;color:#172033;background:#f4f7fb;margin:0}main{max-width:1040px;margin:auto;padding:24px}article{background:white;padding:28px;border-radius:16px}a{color:#1261a0}h1,h2,h3{line-height:1.25}img{max-width:100%;height:auto}pre{background:#101c30;color:#eef4ff;padding:18px;overflow:auto;border-radius:10px}table{display:block;overflow:auto;border-collapse:collapse}th,td{border:1px solid #d3dce9;padding:10px;text-align:left}details{background:#eaf2fa;padding:12px}.toc ul{max-height:280px;overflow:auto}input{padding:10px;width:min(100%,420px)}@media(max-width:600px){main{padding:8px}article{padding:16px;font-size:16px}}</style></head><body><main><article><input id="filter" aria-label="Filter section links" placeholder="Filter section links"><details open class="toc"><summary>Sections</summary><div class="toc">
+<ul>
+<li><a href="#segment-tree-with-lazy-propagation-defer-work-preserve-sums">Segment Tree with Lazy Propagation: Defer Work, Preserve Sums</a><ul>
+<li><a href="#1-exact-problem-and-api-contract">1. Exact problem and API contract</a><ul>
+<li><a href="#four-concrete-examples">Four concrete examples</a></li>
+</ul>
+</li>
+<li><a href="#2-why-a-plain-array-or-prefix-sums-are-not-enough">2. Why a plain array or prefix sums are not enough</a></li>
+<li><a href="#3-representation-and-two-invariants">3. Representation and two invariants</a></li>
+<li><a href="#4-the-three-overlap-cases">4. The three overlap cases</a></li>
+<li><a href="#5-full-lazy-tag-state-trace">5. Full lazy-tag state trace</a></li>
+<li><a href="#6-complete-java-17-implementation">6. Complete Java 17 implementation</a></li>
+<li><a href="#7-why-the-algorithm-is-correct">7. Why the algorithm is correct</a></li>
+<li><a href="#8-derived-complexity-including-output-cost">8. Derived complexity, including output cost</a></li>
+<li><a href="#9-choosing-among-related-structures">9. Choosing among related structures</a></li>
+<li><a href="#10-boundaries-and-common-failures">10. Boundaries and common failures</a></li>
+<li><a href="#11-interview-variations-worth-deriving">11. Interview variations worth deriving</a></li>
+<li><a href="#sources-and-continuation">Sources and continuation</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</details><h1 id="segment-tree-with-lazy-propagation-defer-work-preserve-sums">Segment Tree with Lazy Propagation: Defer Work, Preserve Sums</h1>
+<p><a href="../README.html">Local study intake</a> · <a href="java/LazySegmentTree.java">Java source</a> · <a href="java/LazySegmentTreeCheck.java">Validation harness</a></p>
+<p>This module enriches section 9 of the uploaded <code>Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>. Its range-add/range-sum example is the source spine. The explicit contract, four examples, invariants, proof, comparisons, diagram, production-shaped Java and independent tests are added teaching material. It is a focused module, not a second copy of the uploaded book.</p>
+<h2 id="1-exact-problem-and-api-contract">1. Exact problem and API contract</h2>
+<p>Maintain a <strong>non-empty</strong> array while requests arrive in any order:</p>
+<ul>
+<li><code>rangeAdd(left,right,delta)</code> adds a signed <code>delta</code> to every element in the inclusive, zero-based interval <code>[left,right]</code>.</li>
+<li><code>rangeSum(left,right)</code> returns the sum of that inclusive interval.</li>
+</ul>
+<p>Both endpoints must be valid and <code>left &lt;= right</code>. Construction copies the information into the tree, so later changes to the caller's input array do not change the data structure. Values, deltas, <code>delta * intervalLength</code>, and every sum must fit in signed <code>long</code>; Java integer arithmetic does not report ordinary overflow, so this is a precondition rather than a checked guarantee.</p>
+<p>This is specifically a <strong>range-add/range-sum</strong> tree. A range-assignment tree needs a different lazy-tag composition rule: assignment overwrites an older assignment, while addition accumulates.</p>
+<h3 id="four-concrete-examples">Four concrete examples</h3>
+<table>
+<thead>
+<tr>
+<th>Initial logical array</th>
+<th>Operation</th>
+<th style="text-align: right;">Result</th>
+<th>Point of the example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[2,1,3,4]</code></td>
+<td><code>rangeSum(1,3)</code></td>
+<td style="text-align: right;">8</td>
+<td>Query includes both endpoints.</td>
+</tr>
+<tr>
+<td><code>[2,1,3,4]</code></td>
+<td>add <code>+5</code> to <code>[1,2]</code>, then sum <code>[0,3]</code></td>
+<td style="text-align: right;">20</td>
+<td>Logical array becomes <code>[2,6,8,4]</code>.</td>
+</tr>
+<tr>
+<td><code>[0,0,0]</code></td>
+<td>add <code>-7</code> to <code>[0,2]</code>, then sum <code>[1,1]</code></td>
+<td style="text-align: right;">-7</td>
+<td>Negative updates and singleton queries work.</td>
+</tr>
+<tr>
+<td><code>[2_000_000_000,2_000_000_000]</code></td>
+<td>sum <code>[0,1]</code></td>
+<td style="text-align: right;">4,000,000,000</td>
+<td>Stored sums must be <code>long</code>, not <code>int</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-why-a-plain-array-or-prefix-sums-are-not-enough">2. Why a plain array or prefix sums are not enough</h2>
+<p>With an ordinary array, adding to a range touches every covered element. With static prefix sums, a query is constant time, but changing one element invalidates all later prefixes. Rebuilding after every range update can be linear.</p>
+<p>A segment tree stores an aggregate for a hierarchy of intervals. A request descends only through intervals that meet a query boundary. When an update fully covers an interval, lazy propagation changes that node's sum immediately and records one pending per-element delta for its descendants. It does <strong>not</strong> visit all leaves.</p>
+<p><img alt="Segment tree intervals after adding 10 to indices 2 through 6" src="assets/segment-tree-lazy.svg" /></p>
+<p>The picture deliberately separates a node's exact aggregate from its children. For example, node <code>[2,3]</code> has sum 27 and lazy tag <code>+10</code>; its leaves may still store 3 and 4. The parent answer is current even though descendant detail is deferred.</p>
+<h2 id="3-representation-and-two-invariants">3. Representation and two invariants</h2>
+<p>For node <code>v</code> representing <code>[low,high]</code>:</p>
+<ul>
+<li><code>tree[v]</code> is the exact logical sum of every element in <code>[low,high]</code>, including all updates that fully covered this node.</li>
+<li><code>lazy[v]</code> is a per-element increment already included in <code>tree[v]</code> but not yet copied into the two child nodes.</li>
+</ul>
+<p>That wording prevents the most common misconception: a lazy tag is <strong>not</strong> an update missing from the current node. The current node is already correct. Only its children owe the update.</p>
+<p><code>apply(v,low,high,delta)</code> therefore performs both lines:</p>
+<pre><code class="language-java">tree[v] += delta * (high - low + 1L);
+lazy[v] += delta;
+</code></pre>
+<p>The segment length matters because an increment of 10 over two elements raises their sum by 20. Tags accumulate because consecutive additions commute: owing <code>+4</code> and then <code>-1</code> is the same as owing <code>+3</code>.</p>
+<p><code>push</code> transfers the parent's pending delta to both children, updates their sums through <code>apply</code>, and clears the parent tag. Pushing preserves the parent sum: the left and right length increases add to exactly the parent's length increase.</p>
+<h2 id="4-the-three-overlap-cases">4. The three overlap cases</h2>
+<p>At every recursive node, classify its interval against the requested interval:</p>
+<ol>
+<li><strong>No overlap:</strong> return the sum identity <code>0</code>, or do nothing for an update.</li>
+<li><strong>Full cover:</strong> for a query, return <code>tree[v]</code>; for an update, call <code>apply</code> and stop descending.</li>
+<li><strong>Partial overlap:</strong> push any pending tag, recurse into both children, then combine.</li>
+</ol>
+<p>The full-cover stop is the optimization. A wide update is represented by a small number of canonical tree intervals rather than by all affected leaves.</p>
+<p>For a partial update, after pushing and recursion, restore the merge invariant:</p>
+<pre><code class="language-java">tree[v] = tree[2 * v] + tree[2 * v + 1];
+</code></pre>
+<p>For a partial query, pushing is needed before inspecting children, but recomputing the parent is not: transferring a tag changes where the sum is stored, not the logical sum of the parent interval.</p>
+<h2 id="5-full-lazy-tag-state-trace">5. Full lazy-tag state trace</h2>
+<p>Start with <code>[2,1,3,4,5,7,6,8]</code>, whose total is 36. Add 10 to <code>[2,6]</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Visit</th>
+<th>Overlap with <code>[2,6]</code></th>
+<th>Action</th>
+<th>Relevant state afterward</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[0,7]</code></td>
+<td>partial</td>
+<td>descend</td>
+<td>root waits for recomputation</td>
+</tr>
+<tr>
+<td><code>[0,3]</code></td>
+<td>partial</td>
+<td>skip <code>[0,1]</code>; visit <code>[2,3]</code></td>
+<td>left branch only partly changes</td>
+</tr>
+<tr>
+<td><code>[2,3]</code></td>
+<td>full</td>
+<td>apply <code>+10</code></td>
+<td><code>tree=27</code>, <code>lazy=10</code></td>
+</tr>
+<tr>
+<td><code>[4,7]</code></td>
+<td>partial</td>
+<td>visit both children</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>[4,5]</code></td>
+<td>full</td>
+<td>apply <code>+10</code></td>
+<td><code>tree=32</code>, <code>lazy=10</code></td>
+</tr>
+<tr>
+<td><code>[6,7]</code></td>
+<td>partial</td>
+<td>update leaf <code>[6,6]</code>; skip <code>[7,7]</code></td>
+<td><code>[6,6]</code> becomes 16</td>
+</tr>
+<tr>
+<td>ancestors</td>
+<td>—</td>
+<td>add child sums</td>
+<td>root becomes 86</td>
+</tr>
+</tbody>
+</table>
+<p>The logical array is now <code>[2,1,13,14,15,17,16,8]</code>, but leaves 2–5 need not have changed yet.</p>
+<p>Now query <code>[1,5]</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Query fragment</th>
+<th>Decision</th>
+<th>Contribution / state change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[0,1]</code></td>
+<td>partial</td>
+<td>leaf 1 contributes 1</td>
+</tr>
+<tr>
+<td><code>[2,3]</code></td>
+<td>full</td>
+<td>return stored 27; no push needed</td>
+</tr>
+<tr>
+<td><code>[4,5]</code></td>
+<td>full</td>
+<td>return stored 32; no push needed</td>
+</tr>
+<tr>
+<td><code>[6,7]</code></td>
+<td>outside</td>
+<td>contribute 0</td>
+</tr>
+</tbody>
+</table>
+<p>The result is <code>1 + 27 + 32 = 60</code>.</p>
+<p>Suppose the next request is the singleton sum <code>[2,2]</code>. The query partially overlaps <code>[2,3]</code>, so <code>push</code> applies <code>+10</code> to leaves <code>[2,2]</code> and <code>[3,3]</code>, then clears <code>lazy[2,3]</code>. Leaf 2 returns 13. Before the push, the parent was 27; afterward its children are 13 and 14, still totaling 27. This is the central state transition to be able to explain in an interview.</p>
+<h2 id="6-complete-java-17-implementation">6. Complete Java 17 implementation</h2>
+<p>The runnable source is <a href="java/LazySegmentTree.java">LazySegmentTree.java</a>.</p>
+<pre><code class="language-java">import java.util.Objects;
+
+public final class LazySegmentTree {
+    private final int size;
+    private final long[] tree;
+    private final long[] lazy;
+
+    public LazySegmentTree(long[] values) {
+        Objects.requireNonNull(values, &quot;values&quot;);
+        if (values.length == 0)
+            throw new IllegalArgumentException(&quot;values must not be empty&quot;);
+        size = values.length;
+        tree = new long[Math.multiplyExact(4, size)];
+        lazy = new long[tree.length];
+        build(1, 0, size - 1, values);
+    }
+
+    public int size() { return size; }
+
+    public void rangeAdd(int left, int right, long delta) {
+        checkRange(left, right);
+        rangeAdd(1, 0, size - 1, left, right, delta);
+    }
+
+    public long rangeSum(int left, int right) {
+        checkRange(left, right);
+        return rangeSum(1, 0, size - 1, left, right);
+    }
+
+    private void build(int v, int low, int high, long[] a) {
+        if (low == high) { tree[v] = a[low]; return; }
+        int mid = low + (high - low) / 2;
+        build(2 * v, low, mid, a);
+        build(2 * v + 1, mid + 1, high, a);
+        tree[v] = tree[2 * v] + tree[2 * v + 1];
+    }
+
+    private void apply(int v, int low, int high, long delta) {
+        tree[v] += delta * (high - low + 1L);
+        lazy[v] += delta;
+    }
+
+    private void push(int v, int low, int high) {
+        if (lazy[v] == 0 || low == high) return;
+        int mid = low + (high - low) / 2;
+        apply(2 * v, low, mid, lazy[v]);
+        apply(2 * v + 1, mid + 1, high, lazy[v]);
+        lazy[v] = 0;
+    }
+
+    private void rangeAdd(int v, int low, int high,
+                          int ql, int qr, long delta) {
+        if (qr &lt; low || high &lt; ql) return;
+        if (ql &lt;= low &amp;&amp; high &lt;= qr) { apply(v, low, high, delta); return; }
+        push(v, low, high);
+        int mid = low + (high - low) / 2;
+        rangeAdd(2 * v, low, mid, ql, qr, delta);
+        rangeAdd(2 * v + 1, mid + 1, high, ql, qr, delta);
+        tree[v] = tree[2 * v] + tree[2 * v + 1];
+    }
+
+    private long rangeSum(int v, int low, int high, int ql, int qr) {
+        if (qr &lt; low || high &lt; ql) return 0;
+        if (ql &lt;= low &amp;&amp; high &lt;= qr) return tree[v];
+        push(v, low, high);
+        int mid = low + (high - low) / 2;
+        return rangeSum(2 * v, low, mid, ql, qr)
+                + rangeSum(2 * v + 1, mid + 1, high, ql, qr);
+    }
+
+    private void checkRange(int left, int right) {
+        if (left &lt; 0 || right &gt;= size)
+            throw new IndexOutOfBoundsException(&quot;range outside array&quot;);
+        if (left &gt; right)
+            throw new IllegalArgumentException(&quot;left must be &lt;= right&quot;);
+    }
+}
+</code></pre>
+<p>The actual file has more informative exception text; the algorithm is identical. <code>low + (high-low)/2</code> avoids the addition form that can overflow for large endpoints. A <code>4n</code> allocation is a simple safe upper bound for this recursive layout; the exact number of tree nodes is linear but depends on how non-power-of-two intervals split.</p>
+<h2 id="7-why-the-algorithm-is-correct">7. Why the algorithm is correct</h2>
+<p><strong>Base state.</strong> <code>build</code> stores each leaf value. Every internal node stores the sum of its two disjoint child intervals, so all interval sums are correct and every lazy tag is zero.</p>
+<p><strong>Full-cover update.</strong> <code>apply</code> adds <code>delta * intervalLength</code> to the node sum, exactly the logical change for that interval. Accumulating the tag records precisely what its children still owe, preserving both invariants without descending.</p>
+<p><strong>Partial update.</strong> <code>push</code> first makes both children correct and clears the parent's debt. Recursive calls correctly update the overlapping child portions; non-overlapping portions remain unchanged. Re-adding the two child sums therefore restores the exact parent sum.</p>
+<p><strong>Query.</strong> A no-overlap interval contributes the sum identity zero. A fully covered node returns its exact stored sum. For partial overlap, pushing makes child detail current; recursion returns the exact sums of two disjoint requested pieces. Adding them gives exactly the requested range. These cases cover every relative position, so every returned answer is correct.</p>
+<h2 id="8-derived-complexity-including-output-cost">8. Derived complexity, including output cost</h2>
+<p><code>build</code> visits each represented node once, so it takes O(n) time and O(log n) recursion depth. The <code>tree</code> and <code>lazy</code> arrays are O(n).</p>
+<p>At each depth, one-dimensional interval boundaries create only a constant number of partially overlapping nodes. Fully covered nodes stop. A range update or range query therefore visits O(log n) canonical-boundary nodes and takes O(log n) time, with O(log n) call-stack space in this recursive implementation.</p>
+<p><code>rangeSum</code> constructs one scalar output, so output construction is O(1). If a caller materializes the entire logical array by issuing n singleton queries, that separate output operation costs O(n log n) time and O(n) output space. A dedicated traversal that pushes tags can materialize it in O(n) time; that operation is not part of this API.</p>
+<h2 id="9-choosing-among-related-structures">9. Choosing among related structures</h2>
+<table>
+<thead>
+<tr>
+<th>Structure</th>
+<th style="text-align: right;">Build</th>
+<th style="text-align: right;">Update</th>
+<th style="text-align: right;">Range sum</th>
+<th style="text-align: right;">Extra storage</th>
+<th>Choose it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Static prefix sums</td>
+<td style="text-align: right;">O(n)</td>
+<td style="text-align: right;">O(n) after a changed value</td>
+<td style="text-align: right;">O(1)</td>
+<td style="text-align: right;">O(n)</td>
+<td>Data is effectively read-only.</td>
+</tr>
+<tr>
+<td>Fenwick tree in this collection</td>
+<td style="text-align: right;">O(n log n) as implemented</td>
+<td style="text-align: right;">point add O(log n)</td>
+<td style="text-align: right;">O(log n)</td>
+<td style="text-align: right;">O(n)</td>
+<td>You need compact dynamic prefix/range sums.</td>
+</tr>
+<tr>
+<td>Ordinary segment tree</td>
+<td style="text-align: right;">O(n)</td>
+<td style="text-align: right;">point update O(log n)</td>
+<td style="text-align: right;">O(log n)</td>
+<td style="text-align: right;">O(n)</td>
+<td>Aggregates or combinations are more general.</td>
+</tr>
+<tr>
+<td>Lazy segment tree</td>
+<td style="text-align: right;">O(n)</td>
+<td style="text-align: right;">range add O(log n)</td>
+<td style="text-align: right;">O(log n)</td>
+<td style="text-align: right;">O(n)</td>
+<td>Both updates and queries cover ranges.</td>
+</tr>
+</tbody>
+</table>
+<p>Two Fenwick trees can also support range-add/range-sum using a weighted-prefix derivation. That design is compact for sums but less direct to generalize. A lazy segment tree makes interval composition explicit and can be adapted to minima, maxima, assignments or richer node state—provided the node merge, tag application and tag composition are all re-derived together.</p>
+<h2 id="10-boundaries-and-common-failures">10. Boundaries and common failures</h2>
+<ul>
+<li>Forget interval length in <code>apply</code>: the node sum changes by one delta instead of one per element.</li>
+<li>Overwrite <code>lazy[v]</code> for additive updates: an older deferred addition disappears; additive tags must accumulate.</li>
+<li>Push without updating child sums: full-cover child queries return stale aggregates.</li>
+<li>Recurse on partial overlap before pushing: descendants miss older updates.</li>
+<li>Mix inclusive and half-open intervals: boundary elements are skipped or counted twice.</li>
+<li>Use <code>0</code> as the no-overlap identity for min over arbitrary values: sum uses 0, but min needs positive infinity or an optional result.</li>
+<li>Assume the range-assignment tag composes like addition: assignment and addition need tag type/order information.</li>
+<li>Use <code>int</code> for sums, or assume <code>long</code> cannot overflow. The Java Language Specification says integer operators do not signal ordinary overflow.</li>
+<li>Share this mutable object between threads without synchronization: updates and queries are not atomic snapshots.</li>
+</ul>
+<p>Test singleton/full ranges, first and last indices, negative deltas, repeated full-cover updates before a narrow query, invalid ranges, large sums, and randomized operations against an independent ordinary array.</p>
+<h2 id="11-interview-variations-worth-deriving">11. Interview variations worth deriving</h2>
+<ul>
+<li><strong>Range assignment + range sum:</strong> store an optional pending assignment; it overrides older assignment and usually resets/absorbs an addition tag. Composition order matters.</li>
+<li><strong>Range add + range minimum/maximum:</strong> the node aggregate shifts by <code>delta</code>, not <code>delta * length</code>; merge with min/max.</li>
+<li><strong>Affine updates:</strong> represent each tag as <code>x -&gt; ax+b</code>; compose functions in the correct chronological order and update stored sums using interval length.</li>
+<li><strong>First position whose prefix reaches a target:</strong> descend using child sums only when values/frequencies preserve the required monotonicity.</li>
+<li><strong>Dynamic coordinates:</strong> allocate nodes on demand when the coordinate universe is huge but updates are sparse; this changes constant factors and memory behavior.</li>
+<li><strong>Persistent segment tree:</strong> path-copy changed nodes to preserve historical roots. Lazy tags make persistence more delicate because pushing creates additional changed nodes.</li>
+</ul>
+<p>Before coding a variation, state three algebraic pieces: the node merge operation and identity, how a tag transforms a node aggregate, and how a newer tag composes with an older pending tag. Most subtle bugs are mismatches among those three rules.</p>
+<h2 id="sources-and-continuation">Sources and continuation</h2>
+<ul>
+<li>Uploaded <code>Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>, section 9 (SHA-256 <code>86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1</code>): conceptual spine and the eight-element dry run.</li>
+<li><a href="https://dl.acm.org/doi/10.1145/356789.356797">Bentley and Friedman, “Data Structures for Range Searching,” ACM Computing Surveys 11(4), 1979</a>: historical primary literature for hierarchical range-search structures; the guide's array/lazy implementation is teaching material, not copied from the paper.</li>
+<li><a href="https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html#jls-4.2.2">Java Language Specification 17, §4.2.2 Integer Operations</a>: authoritative basis for the signed-integer and overflow boundary.</li>
+</ul>
+<p>Next bounded source section: section 8, Trie / Prefix Tree. It should be compared against any richer canonical trie coverage before publishing; the archive's other sections remain queued rather than implicitly reviewed.</p></article></main><script>document.querySelector("#filter").oninput=e=>{let q=e.target.value.toLowerCase();document.querySelectorAll(".toc li").forEach(li=>li.hidden=!li.textContent.toLowerCase().includes(q))}</script></body></html>

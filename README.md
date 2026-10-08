@@ -57,5 +57,6 @@ The hourly pipeline covers the full technical study collection, including DSA, A
 - [System design fundamentals](study-guides/system-design/) — canonical Markdown and searchable mobile HTML
 - [AI, RAG, CAG and deep learning](study-guides/ai/) — canonical Markdown, retained source figures and searchable mobile HTML
 - [CI/CD, Kubernetes and cloud delivery](study-guides/devops/) — Jenkins, TeamCity, AWS/Azure identity, immutable promotion and searchable mobile HTML
+- [Selected local-project study notes](study-guides/local-project-notes/) — bounded, deduplicated modules from the uploaded archive, with source hashes and validation checkpoints
 
 Queued sources are not automatically complete or published; the inventory distinguishes existing canonical guides, discovered source candidates and sources still to locate.

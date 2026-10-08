@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="600" viewBox="0 0 960 600" role="img" aria-labelledby="title desc">
+  <title id="title">Lazy segment tree after adding ten to indices two through six</title>
+  <desc id="desc">A segment tree for eight values. Fully covered nodes two through three and four through five have pending plus ten tags, while index six is updated directly.</desc>
+  <style>
+    .bg{fill:#f7f9fc}.edge{stroke:#7b8798;stroke-width:2}.node{fill:#fff;stroke:#1f4f7a;stroke-width:2}.lazy{fill:#fff4d6;stroke:#b06b00;stroke-width:3}.changed{fill:#e8f7ee;stroke:#207a45;stroke-width:3}.txt{font:16px system-ui,sans-serif;fill:#172033;text-anchor:middle}.small{font:14px system-ui,sans-serif;fill:#4c596b;text-anchor:middle}.label{font:bold 18px system-ui,sans-serif;fill:#172033}.note{font:15px system-ui,sans-serif;fill:#4c596b}
+  </style>
+  <rect class="bg" width="960" height="600" rx="18"/>
+  <text class="label" x="34" y="38">After rangeAdd(2, 6, +10)</text>
+  <text class="note" x="34" y="64">sum is current at every shown node; amber tags are deferred only to children</text>
+  <g class="edge">
+    <path d="M480 130 L250 200 M480 130 L710 200"/>
+    <path d="M250 250 L135 325 M250 250 L365 325 M710 250 L595 325 M710 250 L825 325"/>
+    <path d="M825 375 L770 455 M825 375 L880 455"/>
+  </g>
+  <g>
+    <rect class="node" x="400" y="88" width="160" height="58" rx="10"/><text class="txt" x="480" y="112">[0,7]</text><text class="small" x="480" y="135">sum 86</text>
+    <rect class="node" x="170" y="196" width="160" height="58" rx="10"/><text class="txt" x="250" y="220">[0,3]</text><text class="small" x="250" y="243">sum 30</text>
+    <rect class="node" x="630" y="196" width="160" height="58" rx="10"/><text class="txt" x="710" y="220">[4,7]</text><text class="small" x="710" y="243">sum 56</text>
+    <rect class="node" x="55" y="320" width="160" height="58" rx="10"/><text class="txt" x="135" y="344">[0,1]</text><text class="small" x="135" y="367">sum 3</text>
+    <rect class="lazy" x="285" y="320" width="160" height="58" rx="10"/><text class="txt" x="365" y="344">[2,3] sum 27</text><text class="small" x="365" y="367">lazy +10</text>
+    <rect class="lazy" x="515" y="320" width="160" height="58" rx="10"/><text class="txt" x="595" y="344">[4,5] sum 32</text><text class="small" x="595" y="367">lazy +10</text>
+    <rect class="node" x="745" y="320" width="160" height="58" rx="10"/><text class="txt" x="825" y="344">[6,7]</text><text class="small" x="825" y="367">sum 24</text>
+    <rect class="changed" x="700" y="450" width="140" height="58" rx="10"/><text class="txt" x="770" y="474">[6,6]</text><text class="small" x="770" y="497">value 16</text>
+    <rect class="node" x="810" y="450" width="140" height="58" rx="10"/><text class="txt" x="880" y="474">[7,7]</text><text class="small" x="880" y="497">value 8</text>
+  </g>
+  <rect class="lazy" x="34" y="535" width="28" height="22" rx="4"/><text class="note" x="74" y="552">full cover: descendants still owe +10</text>
+  <rect class="changed" x="430" y="535" width="28" height="22" rx="4"/><text class="note" x="470" y="552">leaf changed directly at a boundary</text>
+</svg>
