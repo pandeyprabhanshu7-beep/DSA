@@ -67,91 +67,87 @@ Stacks and queues encode which unresolved state should be revisited next. LIFO m
 
 [Index](#navigation-and-index) · [S2 →](#s2-queue-using-circular-array)
 
-### Detailed question understanding
+### Exact problem and API contract
 
-**What is the problem/lesson asking?** Stack Using Array. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Implement an integer **LIFO stack** backed by a fixed-capacity array. Constructor capacity may be zero but not negative. Implement **push(int)**, **pop()**, **peek()**, **size()**, **isEmpty()** without a built-in stack. Push on full throws **IllegalStateException**; pop or peek on empty throws **NoSuchElementException**. These exception choices are part of this guide's API, not universal online-judge rules.
 
-### Three requirement-clarifying examples
+### Four concrete input/output examples
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| # | Operations | Output / behavior |
+|---:|---|---|
+| 1 | capacity 3; push(10), push(20), push(30), peek(), pop(), pop(), push(-7), pop(), pop() | peek=30; pops **30,20,-7,10** |
+| 2 | capacity 0; isEmpty(), push(5), pop() | true; push throws **IllegalStateException**; pop throws **NoSuchElementException** |
+| 3 | capacity 2; push(4), push(4), push(5), size() | third push throws; size remains **2** |
+| 4 | capacity 1; push(-2147483648), peek(), pop(), isEmpty() | peek/pop = **-2147483648**, then true |
 
-### Pattern recognition
+### Recognize pattern; baseline vs optimized approach
 
-**Primary pattern:** LIFO/FIFO invariant
+**Clue:** newest insertion is removed first. A naive array can place newest values at index 0, shifting existing elements on every push and pop (**O(n)**). Instead use the **end of the occupied array prefix** as top; then no element shifts. **Invariant:** 0 ≤ size ≤ capacity; live stack values occupy **data[0..size-1]** in bottom-to-top order; when nonempty the top is **data[size-1]**. Values beyond size are irrelevant.
 
-> **KEY INTUITION —** Choose the representation whose natural endpoint matches the API operation.
+### Mermaid state diagram
 
-### Brute-force / straightforward baseline
+~~~mermaid
+flowchart LR
+  A["data: [10, 20, 30, _]; size=3"] -->|"pop: --size"| B["live: [10,20]; size=2; returned 30"]
+  B -->|"push(40): data[size++]=40"| C["live: [10,20,40]; size=3"]
+~~~
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+### Detailed dry run, capacity 3
 
-### Optimized reasoning
+| Step | Operation | Live prefix, bottom → top | size | Result |
+|---:|---|---|---:|---|
+| 0 | constructor(3) | [] | 0 | — |
+| 1 | push(10) | [10] | 1 | — |
+| 2 | push(20) | [10,20] | 2 | — |
+| 3 | push(30) | [10,20,30] | 3 | — |
+| 4 | peek() | [10,20,30] | 3 | 30 |
+| 5 | pop() | [10,20] | 2 | 30 |
+| 6 | pop() | [10] | 1 | 20 |
+| 7 | push(-7) | [10,-7] | 2 | — |
+| 8 | pop() | [10] | 1 | -7 |
+| 9 | pop() | [] | 0 | 10 |
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+### Java 17 implementation
 
-### Detailed dry run
+~~~java
+import java.util.NoSuchElementException;
 
-Write index/value, stack/queue/deque before, all pops/removals, insertion, and answer after each iteration.
+public final class ArrayStack {
+    private final int[] data;
+    private int size;
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+    public ArrayStack(int capacity) {
+        if (capacity < 0) throw new IllegalArgumentException("capacity must be nonnegative");
+        data = new int[capacity];
+    }
+    public void push(int value) {
+        if (size == data.length) throw new IllegalStateException("stack full");
+        data[size++] = value;
+    }
+    public int pop() {
+        if (size == 0) throw new NoSuchElementException("stack empty");
+        return data[--size];
+    }
+    public int peek() {
+        if (size == 0) throw new NoSuchElementException("stack empty");
+        return data[size - 1];
+    }
+    public int size() { return size; }
+    public boolean isEmpty() { return size == 0; }
+}
+~~~
 
-### Java implementation / template
+**Key lines:** **data[size++] = value** stores in the next free slot then increments the count; **data[--size]** first decreases the count then reads the former top. Using data[size] for peek or pre-incrementing push causes an off-by-one error.
 
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
-```
+### Correctness proof
 
-### Key line to highlight
+Initially size=0, so the live prefix is empty. If a push succeeds, it writes after all previous live values and increments size, making the new value the top. A successful pop decreases size by one and returns precisely the last live value. Peek reads that same value without changing state. By induction, every legal operation preserves the invariant and LIFO ordering.
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+### Complexity, boundaries, and variations
 
-### Correctness checklist
+**push/pop/peek/size/isEmpty:** O(1) worst-case time and O(1) extra space per call. **Constructor:** O(capacity) array initialization and O(capacity) storage. Check capacity 0/negative; full push leaves size unchanged; empty pop/peek; duplicate and extreme int values; reuse a freed slot after pop. A dynamically resized array provides amortized O(1) push but worst-case O(n) when growing. **Common mistakes:** mixing top index with element count, returning -1 as an empty sentinel, or assuming old physical values after pop remain live. **Interview extensions:** geometric resizing, minimum-stack augmentation, array vs linked list locality, and thread-safety.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
-
-### Boundary conditions
-
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
-
-### Complexity — derive it instead of memorizing it
-
-**Primitive operations O(1), total storage O(n) unless an emulation intentionally shifts work.**
-
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
-
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
-
-> **MEMORY TRICK —** NAME THE ENDPOINT INVARIANT.
-
-### Interview follow-ups and variations
-
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+> **Memory trick:** **SIZE IS THE NEXT FREE INDEX; TOP IS SIZE - 1.**
 
 [↑ Back to Index](#navigation-and-index)
 
@@ -694,91 +690,94 @@ EMPTY OUT? FLIP ONCE
 
 [← S4](#s4-queue-using-two-stacks) · [Index](#navigation-and-index) · [S6 →](#s6-queue-using-linked-list)
 
-### Detailed question understanding
+### Exact problem and API contract
 
-**What is the problem/lesson asking?** Stack Using Linked List. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Implement an integer **LIFO stack** using a **singly linked list**, without a fixed capacity. Provide **push(int)**, **pop()**, **peek()**, **size()**, **isEmpty()**. Pop and peek on empty throw **NoSuchElementException**. Each push allocates one node (subject to available memory).
 
-### Three requirement-clarifying examples
+### Four concrete input/output examples
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| # | Operations | Output / behavior |
+|---:|---|---|
+| 1 | push(10), push(20), push(30), peek(), pop(), pop(), pop() | peek=30; pops **30,20,10** |
+| 2 | pop(), peek() on new stack | both throw **NoSuchElementException** |
+| 3 | push(-7), push(-7), size(), pop(), pop() | size=2; pops **-7,-7** |
+| 4 | push(2147483647), pop(), push(5), peek(), isEmpty() | pop=2147483647; peek=5; false |
 
-### Pattern recognition
+### Pattern recognition, baseline, and optimized invariant
 
-**Primary pattern:** LIFO/FIFO invariant
+**Clue:** dynamic size and newest-first removal. A naive singly linked list that pushes at its tail and keeps only a head pointer must scan for the tail's predecessor when popping: O(n). Instead treat **head as top**. Push **prepends** a node, pop **removes head**: both O(1). **Invariant:** following head → next → ... → null visits every live stack value in **top-to-bottom order**; size equals the number of reachable nodes, and head is null exactly when size is zero.
 
-> **KEY INTUITION —** Choose the representation whose natural endpoint matches the API operation.
+### Pointer diagram
 
-### Brute-force / straightforward baseline
+~~~mermaid
+flowchart LR
+  H["head"] --> A["30"] --> B["20"] --> C["10"] --> N["null"]
+  X["pop returns 30"] --> Y["head = old head.next"] --> Z["20 → 10 → null"]
+~~~
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+### Detailed state trace
 
-### Optimized reasoning
+| Step | Operation | Head → tail | size | Result |
+|---:|---|---|---:|---|
+| 0 | initialize | null | 0 | — |
+| 1 | push(10) | 10 → null | 1 | — |
+| 2 | push(20) | 20 → 10 → null | 2 | — |
+| 3 | push(30) | 30 → 20 → 10 → null | 3 | — |
+| 4 | peek() | 30 → 20 → 10 → null | 3 | 30 |
+| 5 | pop() | 20 → 10 → null | 2 | 30 |
+| 6 | pop() | 10 → null | 1 | 20 |
+| 7 | push(-7) | -7 → 10 → null | 2 | — |
+| 8 | pop() | 10 → null | 1 | -7 |
+| 9 | pop() | null | 0 | 10 |
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+### Java 17 implementation
 
-### Detailed dry run
+~~~java
+import java.util.NoSuchElementException;
 
-Write index/value, stack/queue/deque before, all pops/removals, insertion, and answer after each iteration.
+public final class LinkedStack {
+    private static final class Node {
+        final int value;
+        Node next;
+        Node(int value, Node next) {
+            this.value = value;
+            this.next = next;
+        }
+    }
+    private Node head;
+    private int size;
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+    public void push(int value) {
+        head = new Node(value, head);
+        size++;
+    }
+    public int pop() {
+        if (head == null) throw new NoSuchElementException("stack empty");
+        int result = head.value;
+        head = head.next;
+        size--;
+        return result;
+    }
+    public int peek() {
+        if (head == null) throw new NoSuchElementException("stack empty");
+        return head.value;
+    }
+    public int size() { return size; }
+    public boolean isEmpty() { return head == null; }
+}
+~~~
 
-### Java implementation / template
+**Key line:** **head = new Node(value, head)** retains the entire prior chain. On pop, save the value before moving head. The old node becomes garbage-collectible when no longer referenced.
 
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
-```
+### Correctness proof
 
-### Key line to highlight
+Initially head=null and size=0 represent the empty stack. Prepending a node makes the latest value the head while preserving every prior value and its order. Removing head returns exactly that latest value and exposes the next newest node. Peek changes nothing. Updating size by one on push/pop maintains the count. Induction over the operation sequence proves LIFO behavior.
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+### Complexity, boundaries, and follow-ups
 
-### Correctness checklist
+**push:** O(1) time and one O(1)-size node allocation; **pop/peek/size/isEmpty:** O(1) time and O(1) extra space; **n live elements:** O(n) memory. Check empty operations; one-node pop; repeated values; extreme integers; push after empty; memory exhaustion. **Common mistakes:** appending at tail then trying to pop in O(1) with only a singly linked head; dropping the old chain by assigning head without linking; decrementing size without moving head. Compared with S1, a linked stack grows without array resizing but incurs per-node allocations and pointer overhead. **Interview extensions:** generic stack, ArrayDeque comparison, lock-free stack ABA concerns, and why tail removal is not O(1) in a singly linked list without predecessor information.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
-
-### Boundary conditions
-
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
-
-### Complexity — derive it instead of memorizing it
-
-**Primitive operations O(1), total storage O(n) unless an emulation intentionally shifts work.**
-
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
-
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
-
-> **MEMORY TRICK —** NAME THE ENDPOINT INVARIANT.
-
-### Interview follow-ups and variations
-
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+> **Memory trick:** **HEAD IS TOP; PUSH PREPENDS, POP DETACHES.**
 
 [↑ Back to Index](#navigation-and-index)
 
