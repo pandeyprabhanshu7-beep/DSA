@@ -1480,89 +1480,351 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Minimum Window Substring. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given strings `s` and `t`, return the **shortest contiguous substring of s** that contains **every character of t with at least the required multiplicity**.
 
-### Three requirement-clarifying examples
+Important words:
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+- **substring** -> contiguous;
+- **contains t** does **not** mean t must appear in order;
+- duplicates in t matter;
+- uppercase and lowercase are distinct in the canonical problem;
+- if no valid window exists, return `""`.
+
+For example:
+
+```text
+t = "AABC"
+```
+
+A valid window must contain:
+
+```text
+A at least 2 times
+B at least 1 time
+C at least 1 time
+```
+
+A plain set is therefore insufficient.
+
+### Four clarifying examples
+
+| # | s | t | Output | Why |
+|---:|---|---|---|---|
+| 1 | `ADOBECODEBANC` | `ABC` | `BANC` | shortest substring containing A,B,C |
+| 2 | `a` | `a` | `a` | whole source is the minimum valid window |
+| 3 | `a` | `aa` | `""` | multiplicity matters; one a cannot satisfy two required a's |
+| 4 | `AAABBC` | `AABC` | `AABBC` | requires two A's, one B, one C |
+
+The canonical LeetCode formulation guarantees a unique answer for its generated test cases, but the sliding-window technique does not depend on uniqueness.
 
 ### Pattern recognition
 
-**Primary pattern:** Frequency-constrained window
+This is a **variable-size sliding window with frequency constraints**.
 
-> **KEY INTUITION —** Expand until all requirements are satisfied, then shrink while still valid.
+Clues:
 
-### Brute-force / straightforward baseline
+- "smallest / minimum substring";
+- "contains all required characters";
+- required elements may repeat;
+- validity can be updated when one character enters or leaves the window.
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+> **KEY INTUITION —** Expand the right boundary until the window is valid. Once valid, shrink the left boundary **as much as possible**. Every valid state reached during shrinking is a candidate answer.
 
-### Optimized reasoning
+This differs from many **longest** sliding-window problems, where you often shrink only when the window becomes invalid.
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+### Why brute force is expensive
 
-### Detailed dry run
+A direct method can enumerate every substring:
 
-Show the derived lookup key, map before lookup, hit/miss, map after update, and answer after every step.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```text
+start = 0..m-1
+end   = start..m-1
 ```
 
-### Key line to highlight
+There are O(m^2) substrings.
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+If each candidate rescans its characters or all requirements, the cost can become O(m^3) or O(m^2 * alphabet).
 
-### Correctness checklist
+The repeated work is:
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+```text
+Window [L..R] knows almost everything
+Window [L..R+1] needs.
+
+Brute force throws those counts away and recomputes them.
+```
+
+Sliding window preserves the counts incrementally.
+
+### State design
+
+Use:
+
+```text
+need[c]   = required frequency of c in t
+window[c] = current frequency of c in s[left..right]
+
+requiredKinds = number of distinct characters required
+formed        = number of required characters whose current count is sufficient
+```
+
+Window validity is exactly:
+
+```java
+formed == requiredKinds
+```
+
+Why track **kinds**, not total matched characters?
+
+Because a character should become "satisfied" only when its count first reaches the required count. Extra copies do not create extra satisfied categories.
+
+### Detailed dry run — ADOBECODEBANC / ABC
+
+Requirements:
+
+```text
+A:1, B:1, C:1
+requiredKinds = 3
+```
+
+| right | char | left before shrink | formed | Current important counts | Valid? | Action / best |
+|---:|:---:|---:|---:|---|---|---|
+| 0 | A | 0 | 1 | A1 B0 C0 | no | expand |
+| 1 | D | 0 | 1 | A1 B0 C0 | no | expand |
+| 2 | O | 0 | 1 | A1 B0 C0 | no | expand |
+| 3 | B | 0 | 2 | A1 B1 C0 | no | expand |
+| 4 | E | 0 | 2 | A1 B1 C0 | no | expand |
+| 5 | C | 0 | 3 | A1 B1 C1 | yes | record `ADOBEC` length 6 |
+| 5 | — | 1 | 2 | A0 B1 C1 | no | removing A breaks validity; resume expand |
+| 9 | B | 1 | 2 | A0 B2 C1 | no | still missing A |
+| 10 | A | 1 | 3 | A1 B2 C1 | yes | shrink left repeatedly through D,O,B,E,C... |
+| 10 | — | 6 | 2 | A1 B1 C0 | no | removal of old C breaks validity |
+| 12 | C | 6 | 3 | A1 B1 C1 | yes | window `ODEBANC`; shrink |
+| 12 | — | 9 | 3 | A1 B1 C1 | yes | `BANC` length 4 becomes best |
+| 12 | — | 10 | 2 | A1 B0 C1 | no | removing B breaks validity; stop shrinking |
+
+Final answer:
+
+```text
+BANC
+```
+
+### Why the left pointer never needs to move backward
+
+When `right` is fixed and the window is valid, moving `left` rightward is the only way to make that window shorter.
+
+Once removing `s[left]` makes the window invalid, any even larger left boundary with the same right boundary would also be missing at least that required occurrence.
+
+So we must expand `right` again.
+
+This monotonic movement is what gives linear time.
+
+### Java — HashMap version
+
+```java
+import java.util.HashMap;
+import java.util.Map;
+
+class Solution {
+    public String minWindow(String s, String t) {
+        if (s == null || t == null || t.isEmpty() || s.length() < t.length()) {
+            return "";
+        }
+
+        Map<Character, Integer> need = new HashMap<>();
+
+        for (char c : t.toCharArray()) {
+            need.merge(c, 1, Integer::sum);
+        }
+
+        Map<Character, Integer> window = new HashMap<>();
+
+        int requiredKinds = need.size();
+        int formed = 0;
+
+        int bestStart = 0;
+        int bestLength = Integer.MAX_VALUE;
+
+        int left = 0;
+
+        for (int right = 0; right < s.length(); right++) {
+            char added = s.charAt(right);
+
+            if (need.containsKey(added)) {
+                int newCount = window.getOrDefault(added, 0) + 1;
+                window.put(added, newCount);
+
+                if (newCount == need.get(added)) {
+                    formed++;
+                }
+            }
+
+            while (formed == requiredKinds) {
+                int length = right - left + 1;
+
+                if (length < bestLength) {
+                    bestLength = length;
+                    bestStart = left;
+                }
+
+                char removed = s.charAt(left);
+                left++;
+
+                if (need.containsKey(removed)) {
+                    int oldCount = window.get(removed);
+
+                    if (oldCount == need.get(removed)) {
+                        formed--;
+                    }
+
+                    window.put(removed, oldCount - 1);
+                }
+            }
+        }
+
+        return bestLength == Integer.MAX_VALUE
+                ? ""
+                : s.substring(bestStart, bestStart + bestLength);
+    }
+}
+```
+
+### Key lines to highlight
+
+When expanding:
+
+```java
+if (newCount == need.get(added)) {
+    formed++;
+}
+```
+
+Use equality, not `>=`.
+
+If a required A count is 2:
+
+```text
+window A count 1 -> not satisfied
+window A count 2 -> becomes satisfied exactly here
+window A count 3 -> still one satisfied kind, not two
+```
+
+When shrinking:
+
+```java
+if (oldCount == need.get(removed)) {
+    formed--;
+}
+```
+
+The check occurs **before decrementing**.
+
+If we currently have exactly the required number and remove one, that category becomes unsatisfied.
+
+### Correctness reasoning
+
+Maintain the invariant that `window` contains the exact frequencies of required characters inside `s[left..right]`, and `formed` counts how many required character categories currently meet their required frequency.
+
+1. Expanding `right` updates exactly one character count.
+2. When every category is satisfied, the current window is valid.
+3. While valid, shrinking `left` enumerates progressively smaller valid windows with this fixed right endpoint.
+4. The first removal that makes the window invalid proves there is no even smaller valid window ending at this same right endpoint.
+5. Since right visits every source index, every possible optimal right endpoint is considered.
+6. Therefore the globally smallest recorded valid window is optimal.
+
+### Complexity — derive it
+
+Building `need` scans t once:
+
+```text
+O(n)
+```
+
+The right pointer advances from 0 to m-1 once.
+
+The left pointer also advances from 0 to at most m once.
+
+Even though there is a nested `while`, left never moves backward:
+
+```text
+right increments <= m times
+left increments  <= m times
+```
+
+With expected O(1) HashMap operations:
+
+```text
+Time  = O(m + n) expected
+Space = O(k)
+```
+
+where k is the number of distinct required characters (plus their current counts).
+
+For the canonical uppercase/lowercase-English constraint, k is bounded by the alphabet, so an `int[128]` implementation can replace the maps and make auxiliary counting storage constant with a smaller constant factor.
 
 ### Boundary conditions
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+- `s.length() < t.length()` -> impossible;
+- `t = ""` -> this implementation returns `""`; state the convention;
+- required character absent from s -> no valid window, return `""`;
+- duplicate requirements such as `AABC`;
+- mixed case: `A` and `a` are different;
+- irrelevant characters in s should not disturb `formed`;
+- many extra copies of a required character must not over-increment `formed`;
+- best window may begin at index 0 or end at the final character.
 
-### Complexity — derive it instead of memorizing it
+### Common wrong approaches
 
-**O(|s|+|t|) expected; O(k) counts.**
+1. **Use a HashSet instead of counts.**  
+   Fails for duplicate requirements such as t = `AA`.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+2. **Track total matching characters carelessly.**  
+   Extra duplicates can make the counter lie unless updates are precisely bounded.
 
-### Memoization / repeated-work note
+3. **Update the answer only after the shrink loop.**  
+   The best window is discovered **during** shrinking.
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+4. **Decrement formed after decrementing without checking the old exact count.**  
+   Easy off-by-one bug.
 
-> **MEMORY TRICK —** EXPAND UNTIL VALID; SHRINK WHILE VALID.
+5. **Reset counts for every left position.**  
+   Destroys the incremental advantage and returns toward quadratic work.
 
-### Interview follow-ups and variations
+### Direct-address array variation
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+Because the canonical constraints use English letters, an array can replace HashMaps.
+
+The algorithm does not change—only the representation of frequency state changes.
+
+Use this when:
+- alphabet is small and fixed;
+- maximum raw performance matters;
+- you do not need general Unicode/object keys.
+
+Use HashMap when:
+- character/key domain is dynamic or large;
+- you want the technique to generalize to arbitrary tokens.
+
+### Pattern transfer
+
+The same variable-window framework appears in:
+
+- Longest Substring Without Repeating Characters;
+- Longest Substring with At Most K Distinct Characters;
+- Permutation in String;
+- Find All Anagrams in a String;
+- Smallest Window Containing Required Tokens;
+- Minimum Size Subarray Sum — but that version relies on positivity for monotone sum behavior.
+
+Do **not** confuse Minimum Window Substring with **Minimum Window Subsequence**: the latter requires t's characters to appear in order and generally needs different reasoning.
+
+### Memory trick
+
+> **EXPAND TO BECOME VALID. SHRINK TO BECOME MINIMAL.**
+
+And for the map:
+
+> **need says what the target demands; window says what the current substring owns.**
 
 [↑ Back to Index](#navigation-and-index)
 
