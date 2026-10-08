@@ -162,91 +162,105 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 
 [← S1](#s1-stack-using-array) · [Index](#navigation-and-index) · [S3 →](#s3-stack-using-one-queue)
 
-### Detailed question understanding
+### Problem statement and API contract
 
-**What is the problem/lesson asking?** Queue Using Circular Array. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Implement a **fixed-capacity FIFO queue** using a single integer array. The constructor accepts a **positive** capacity. Provide `offer(x)`, `poll()`, `peek()`, `size()` and `isEmpty()`. Offering when full throws `IllegalStateException`; polling/peeking when empty throws `NoSuchElementException`. If a platform uses return-value sentinels, adapt only the error-handling contract, not the circular invariant.
 
-### Three requirement-clarifying examples
+### Four concrete input/output examples
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| # | Setup and operations | Exact output / behavior |
+|---:|---|---|
+| 1 | Capacity 3; `offer(10), offer(20), offer(30), peek(), poll(), offer(40), poll(), poll(), poll()` | `peek=10`; polls return `10,20,30,40` |
+| 2 | Capacity 1; `offer(-7), poll(), offer(11), peek()` | `poll=-7`; `peek=11` |
+| 3 | Capacity 2; `offer(5), offer(5), offer(9)` | Third offer throws `IllegalStateException`; size stays 2 |
+| 4 | Capacity 3; `poll(), peek()` before any offer | Both throw `NoSuchElementException` |
 
-### Pattern recognition
+### Pattern recognition, brute force, and optimization
 
-**Primary pattern:** LIFO/FIFO invariant
+**Clues:** FIFO, bounded capacity, and repeated insertions/removals without shifting. A simple linear array shifts all remaining values left on each poll: correct but **O(n) per poll**. A non-wrapping head/tail scheme eventually exhausts the array despite empty slots. The circular design reuses those slots with modulo arithmetic.
 
-> **KEY INTUITION —** Choose the representation whose natural endpoint matches the API operation.
+Keep `front` = physical index of oldest live element and `size` = count of live elements. For an insertion, the next free index is `(front + size) % capacity`. For removal, return `values[front]` and advance `front = (front + 1) % capacity`. Detect full using `size == capacity`, not `front == rear` (ambiguous between full and empty without extra state).
 
-### Brute-force / straightforward baseline
+### Diagram — physical array versus logical FIFO
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
-
-### Optimized reasoning
-
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
-
-### Detailed dry run
-
-Write index/value, stack/queue/deque before, all pops/removals, insertion, and answer after each iteration.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```mermaid
+flowchart LR
+ A["offer 10,20,30<br/>array [10,20,30]<br/>front=0"] --> B["poll gives 10<br/>front=1"]
+ B --> C["offer 40 writes slot (1+2)%3 = 0<br/>array [40,20,30]"]
+ C --> D["Logical FIFO from front=1<br/>20 → 30 → 40"]
 ```
 
-### Key line to highlight
+**Invariant:** for each `0 <= k < size`, the k-th oldest live element is `values[(front + k) % capacity]`. Also `0 <= front < capacity` and `0 <= size <= capacity`.
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+### Detailed dry run (capacity 3)
 
-### Correctness checklist
+| Action | Return | front | size | Physical array | Logical queue |
+|---|---:|---:|---:|---|---|
+| start | — | 0 | 0 | `[_,_,_]` | `[]` |
+| offer(10) | — | 0 | 1 | `[10,_,_]` | `[10]` |
+| offer(20) | — | 0 | 2 | `[10,20,_]` | `[10,20]` |
+| offer(30) | — | 0 | 3 | `[10,20,30]` | `[10,20,30]` |
+| poll() | 10 | 1 | 2 | `[10,20,30]` | `[20,30]` |
+| offer(40) | — | 1 | 3 | `[40,20,30]` | `[20,30,40]` |
+| poll() | 20 | 2 | 2 | `[40,20,30]` | `[30,40]` |
+| poll() | 30 | 0 | 1 | `[40,20,30]` | `[40]` |
+| poll() | 40 | 1 | 0 | `[40,20,30]` | `[]` |
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+Stale array entries do not count as live data; `size` defines the live segment.
 
-### Boundary conditions
+### Java 17 implementation (standalone source)
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+```java
+import java.util.NoSuchElementException;
 
-### Complexity — derive it instead of memorizing it
+public final class CircularQueue {
+    private final int[] values;
+    private int front = 0, size = 0;
 
-**Primitive operations O(1), total storage O(n) unless an emulation intentionally shifts work.**
+    public CircularQueue(int capacity) {
+        if (capacity <= 0) throw new IllegalArgumentException("capacity must be positive");
+        values = new int[capacity];
+    }
+    public void offer(int value) {
+        if (size == values.length) throw new IllegalStateException("queue full");
+        int rear = (front + size) % values.length; // next free slot
+        values[rear] = value;
+        size++;
+    }
+    public int poll() {
+        if (size == 0) throw new NoSuchElementException("queue empty");
+        int answer = values[front];
+        front = (front + 1) % values.length; // discard exactly the oldest
+        size--;
+        return answer;
+    }
+    public int peek() {
+        if (size == 0) throw new NoSuchElementException("queue empty");
+        return values[front];
+    }
+    public int size() { return size; }
+    public boolean isEmpty() { return size == 0; }
+}
+```
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+### Key lines, correctness proof, complexity
 
-### Memoization / repeated-work note
+**Key lines:** `rear = (front + size) % values.length` identifies the first free circular slot; `front = (front + 1) % values.length` moves to the next oldest without shifting elements.
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+**Proof:** Initially `size=0`, so the invariant holds. If not full, an offer writes at logical offset `size`, after all existing elements; it does not overwrite any live cell. If not empty, poll returns logical offset 0; incrementing `front` makes former offset 1 the new oldest and preserves the relative order of all remaining cells. Thus FIFO and index bounds are maintained by induction. Peek and size queries do not change state.
 
-> **MEMORY TRICK —** NAME THE ENDPOINT INVARIANT.
+**Time:** O(1) per operation (constant arithmetic and array accesses); constructing the backing array is O(C). **Space:** O(C) total for capacity C and O(1) per-operation auxiliary space.
 
-### Interview follow-ups and variations
+### Boundary cases, mistakes, follow-ups
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+- Capacity 1 repeatedly wraps to index 0; duplicates and negative values work without sentinels.
+- `front == rear` alone cannot distinguish empty from full; use `size`.
+- Avoid shifting the array on poll; that destroys O(1) performance.
+- The implementation is **not thread-safe**. For concurrency use appropriate synchronization or a concurrent queue.
+- For theoretically huge Java arrays, `front + size` may overflow `int`; use `front >= values.length - size ? front - (values.length - size) : front + size` when constraints require overflow-safe indexing.
+- **Follow-ups:** dynamically growing circular queue (copy live elements in logical order, reset front to 0), overwrite-oldest ring buffer, deque, and generic queue clearing stale references.
+
+> **MEMORY TRICK —** FRONT = next OUT; FRONT + SIZE = next IN.
 
 [↑ Back to Index](#navigation-and-index)
 
@@ -257,91 +271,101 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 
 [← S2](#s2-queue-using-circular-array) · [Index](#navigation-and-index) · [S4 →](#s4-queue-using-two-stacks)
 
-### Detailed question understanding
+### Problem statement and API contract
 
-**What is the problem/lesson asking?** Stack Using One Queue. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Implement a **LIFO stack using exactly one FIFO queue**, with only O(1) scalar bookkeeping. Support `push(x)`, `pop()`, `top()`, `size()`, `isEmpty()`. An empty `pop` or `top` throws `NoSuchElementException`. You may use Java's `Queue<Integer>` backed by `ArrayDeque`; do not use a second queue or stack to reorder elements.
 
-### Three requirement-clarifying examples
+### Four concrete examples
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| # | Operations | Exact outputs |
+|---:|---|---|
+| 1 | `push(1), push(2), push(3), top(), pop(), top()` | `3,3,2` |
+| 2 | `push(8), pop(), push(9), pop()` | `8,9` |
+| 3 | `push(5), push(5), pop(), pop()` | `5,5` |
+| 4 | `pop(), top()` on a new stack | Both throw `NoSuchElementException` |
 
-### Pattern recognition
+### Recognize the pattern: reverse the access order
 
-**Primary pattern:** LIFO/FIFO invariant
+A queue removes its **oldest** element; a stack removes its **newest**. A baseline uses a second temporary queue to move n−1 elements aside and retrieve the last one, costing O(n) per pop and violating the one-queue restriction.
 
-> **KEY INTUITION —** Choose the representation whose natural endpoint matches the API operation.
+**One-queue strategy:** after enqueueing the new value, rotate exactly the *previous* n elements from the front to the rear. The newest element moves to the front. Thus `push` takes O(n), while `pop` and `top` take O(1).
 
-### Brute-force / straightforward baseline
+### Visual — one queue, front shown on the left
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+```mermaid
+flowchart LR
+ A["Before push(3)<br/>front → [2,1]"] --> B["offer(3)<br/>[2,1,3]"]
+ B --> C["rotate old 2<br/>[1,3,2]"]
+ C --> D["rotate old 1<br/>front → [3,2,1]"]
+ D --> E["pop returns 3<br/>[2,1]"]
+```
 
-### Optimized reasoning
-
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+**Invariant:** from queue **front to rear**, elements are ordered from **stack top to bottom**. Each completed push restores that invariant; transient rotation states need not satisfy it.
 
 ### Detailed dry run
 
-Write index/value, stack/queue/deque before, all pops/removals, insertion, and answer after each iteration.
+| Operation / substep | Queue (front → rear) | Observation |
+|---|---|---|
+| start | `[]` | empty |
+| push(1) | `[1]` | zero rotations |
+| push(2): offer | `[1,2]` | new element temporarily at rear |
+| rotate 1 | `[2,1]` | new top 2 |
+| push(3): offer | `[2,1,3]` | transient |
+| rotate old 2 | `[1,3,2]` | transient |
+| rotate old 1 | `[3,2,1]` | new top 3 |
+| top() | `[3,2,1]` | returns 3, unchanged |
+| pop() | `[2,1]` | returns 3 |
+| push(4): offer + 2 rotations | `[4,2,1]` | top 4 |
+| pop(), pop(), pop() | `[]` | returns 4,2,1 |
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
+### Java 17 implementation (standalone source)
 
 ```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+import java.util.ArrayDeque;
+import java.util.NoSuchElementException;
+import java.util.Queue;
+
+public final class StackWithOneQueue {
+    private final Queue<Integer> q = new ArrayDeque<>();
+
+    public void push(int value) {
+        q.offer(value);
+        int oldCount = q.size() - 1;          // exclude new value
+        for (int i = 0; i < oldCount; i++) {
+            q.offer(q.remove());             // old front moves behind new
+        }
+    }
+    public int pop() {
+        if (q.isEmpty()) throw new NoSuchElementException("stack empty");
+        return q.remove();                   // queue front is stack top
+    }
+    public int top() {
+        if (q.isEmpty()) throw new NoSuchElementException("stack empty");
+        return q.element();
+    }
+    public int size() { return q.size(); }
+    public boolean isEmpty() { return q.isEmpty(); }
+}
 ```
 
-### Key line to highlight
+### Key line, correctness proof and derived complexity
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+**Key line:** `oldCount = q.size() - 1`. Rotating all `q.size()` elements would restore the old front, making the stack incorrect. Rotate **only** the old elements.
 
-### Correctness checklist
+**Proof:** Initially the empty queue matches the empty stack. Assume its front-to-rear order equals stack top-to-bottom. On push, append the new item and rotate each of the n old items to the rear. The new item reaches the front while old items retain their relative order, preserving the invariant. Pop removes the front, exactly the most recently pushed surviving item. Top reads that item without mutation. Therefore all operations implement LIFO.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+**Time:** pushing into n elements performs one enqueue plus n dequeue/enqueue rotations, O(n); pop/top/size/isEmpty are O(1). n pushes from empty take `0+1+...+(n−1)=n(n−1)/2` rotations, **O(n²)** total. **Space:** O(n) in the single underlying queue and O(1) auxiliary bookkeeping.
 
-### Boundary conditions
+### Boundary cases, common errors, variations
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+- Empty stack: throw rather than returning an ambiguous integer sentinel.
+- One element: zero rotations; duplicate values require no special treatment.
+- Never rotate `q.size()` times: it would undo the rearrangement.
+- Do not assume `Queue.remove()` removes the rear: it removes the front.
+- **Alternative trade-off:** O(1) push and O(n) pop by rotating n−1 items just before removing the rear-most old item; useful when pushes greatly outnumber pops.
+- **Interview follow-ups:** stack using two queues; queue using two stacks with amortized O(1) operations; discuss how operation frequency determines the best trade-off.
 
-### Complexity — derive it instead of memorizing it
-
-**Primitive operations O(1), total storage O(n) unless an emulation intentionally shifts work.**
-
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
-
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
-
-> **MEMORY TRICK —** NAME THE ENDPOINT INVARIANT.
-
-### Interview follow-ups and variations
-
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+> **MEMORY TRICK —** Insert newest LAST, rotate OLD behind it, remove newest FIRST.
 
 [↑ Back to Index](#navigation-and-index)
 

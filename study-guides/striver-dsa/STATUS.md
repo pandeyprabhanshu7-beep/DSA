@@ -12,6 +12,8 @@
 
 | Topic/card | Deep Markdown | Matching HTML | Status |
 |---|---:|---:|---|
+| S2 Queue Using Circular Array | ✅ | ✅ | Four concrete examples, circular-state diagram, Java, wrap-around trace, invariant and proof |
+| S3 Stack Using One Queue | ✅ | ✅ | Four examples, queue-rotation diagram, Java, detailed trace, proof and complexity |
 | S4 Queue Using Two Stacks | ✅ | ✅ | Full lazy-transfer solution, four examples, detailed state trace, Java, proof, amortized analysis, boundaries and memory trick |
 | S26 Sliding Window Maximum | ✅ | ✅ | Complete Java, deque proof, detailed trace and boundaries |
 | G-32 Dijkstra — Priority Queue | ✅ | ✅ | Enriched Markdown synchronized into canonical responsive Graph HTML |
@@ -25,7 +27,7 @@
 | H-10 Subarray Sum Equals K | ✅ | ✅ | Prefix-frequency proof, Java and overflow handling |
 | H-16 Minimum Window Substring | ✅ | ✅ | Four examples, brute force, frequency-window invariant, detailed ADOBECODEBANC trace, Java, proof and O(m+n) derivation |
 
-## Completion audit — 2026-10-07 ET
+## Completion audit — 2026-10-07 ET (updated 23:37)
 
 The five canonical Markdown guides and their five responsive HTML reading editions exist in the repository.
 
@@ -34,20 +36,26 @@ Current explicit Java placeholder count:
 | Guide | Cards with placeholder Java |
 |---|---:|
 | Graph | 51 |
-| Stack & Queue | 26 |
+| Stack & Queue | 24 |
 | Linked List | 27 |
 | Trees & BST | 51 |
 | HashMap & Hashing | 26 |
-| **Total** | **181** |
+| **Total** | **179** |
 
-This pass removed two placeholders:
+Previously removed placeholders:
 - S4 Queue Using Two Stacks
 - H-16 Minimum Window Substring
+
+This run removed two more placeholders:
+- S2 Queue Using Circular Array
+- S3 Stack Using One Queue
+
+Java 17 verification: javac compilation and java execution passed explicit examples, capacity-one, wrap-around, full/empty exceptions and 20,000 deterministic randomized paired operations against ArrayDeque reference structures. Matching HTML payload verified equal to canonical Markdown.
 
 All five canonical responsive HTML files have been resynchronized so their embedded Markdown payload now exactly matches the paired canonical Markdown file.
 
 Remaining work:
-1. Replace the **181** remaining Java placeholders with problem-specific code.
+1. Replace the **179** remaining Java placeholders with problem-specific code.
 2. Replace generic examples with concrete 3–4 example sets.
 3. Expand hard-card dry runs into explicit state tables.
 4. Add correctness proofs and boundary-condition reasoning card by card.
@@ -75,5 +83,6 @@ These repository editions preserve the latest retained topic structure and study
 - [x] HTML payload synchronized with Markdown for all five guides
 - [x] S4 Queue Using Two Stacks deepened
 - [x] H-16 Minimum Window Substring deepened
-- [ ] replace remaining 181 Java placeholders
+- [x] S2 Circular Queue and S3 One-Queue Stack deepened and Java-tested
+- [ ] replace remaining 179 Java placeholders
 - [ ] ongoing research-driven dry-run / example / boundary expansion
