@@ -1,0 +1,835 @@
+{
+  "archive_name": "untitled.zip",
+  "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
+  "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
+  "inventory_only_except": [
+    "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 10",
+    "src/README.md excerpt"
+  ],
+  "files": [
+    {
+      "relative_path": "untitled/.gitignore",
+      "bytes": 352,
+      "sha256": "9511bd2c6eb7b27ac78f8a6e9430d6c139e5c2bb53227e1e41e5f14c70f14513",
+      "status": "IGNORED",
+      "headings": [],
+      "reason": "IDE/configuration metadata or code not selected as a teaching source; not published."
+    },
+    {
+      "relative_path": "untitled/.idea/.gitignore",
+      "bytes": 238,
+      "sha256": "4d4bf7821823e4011771702449065544347784ecf4cbde265125a36c0d8e31b0",
+      "status": "IGNORED",
+      "headings": [],
+      "reason": "IDE/configuration metadata or code not selected as a teaching source; not published."
+    },
+    {
+      "relative_path": "untitled/.idea/misc.xml",
+      "bytes": 276,
+      "sha256": "2ab1d1986a550e7198c9f35194d8f9fa284e18cb38c52d0c014a572a9d67adf8",
+      "status": "IGNORED",
+      "headings": [],
+      "reason": "IDE/configuration metadata or code not selected as a teaching source; not published."
+    },
+    {
+      "relative_path": "untitled/.idea/modules.xml",
+      "bytes": 263,
+      "sha256": "15cb7767b02e086fe8d7b5a82195b4b48e409f46e6b3bab68486b8d20a00ac54",
+      "status": "IGNORED",
+      "headings": [],
+      "reason": "IDE/configuration metadata or code not selected as a teaching source; not published."
+    },
+    {
+      "relative_path": "untitled/.idea/Striver_Stack_Queue_FINAL_Deep_Dive (2).md",
+      "bytes": 177914,
+      "sha256": "31e12ac449a560f60f68edbe2fe0bdbb5167e64f93cfbb238f345df6762d9111",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Striver / Take U Forward \u2014 Stack & Queue FINAL Deep-Dive Study Guide",
+        "### Enhanced study method used in this edition",
+        "## Navigation and Index",
+        "### Major Sections",
+        "### Question / Lesson Index",
+        "### Topic / Lab / Extension Index",
+        "## Source strategy",
+        "### Visual policy",
+        "## How to use one problem card",
+        "# Part I \u2014 All 30 Stack & Queue Questions",
+        "## S1. Implement Stack using Array",
+        "### What are you actually asked to solve?",
+        "### Three sample cases \u2014 understand the requirement before the algorithm",
+        "### Picture the data before solving",
+        "### What clues should you notice?"
+      ]
+    },
+    {
+      "relative_path": "untitled/.idea/workspace.xml",
+      "bytes": 4782,
+      "sha256": "abdb4626477987c0bdd882dd48b414657d4f6bbf701c9da099f10f7e328bf1aa",
+      "status": "IGNORED",
+      "headings": [],
+      "reason": "IDE/configuration metadata or code not selected as a teaching source; not published."
+    },
+    {
+      "relative_path": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md",
+      "bytes": 68775,
+      "sha256": "86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1",
+      "status": "IN_PROGRESS",
+      "headings": [
+        "# Advanced Trees - FAANG Mermaid Study Guide",
+        "## Clickable contents",
+        "# How to Use This Guide",
+        "# Table of Contents",
+        "# 1. Tree Mental Model & Taxonomy",
+        "## 1.1 Vocabulary that interviewers expect",
+        "## 1.2 Pattern recognition: traversal without printing",
+        "# 2. Binary Search Tree Core",
+        "## 2.1 BST deletion dry run \u2014 the important 3 cases",
+        "# 3. AVL Tree \u2014 Tight Height Balance",
+        "## 3.1 Large AVL insertion dry run \u2014 triggers LR rotation",
+        "## 3.2 AVL deletion: why it is trickier than insertion",
+        "# 4. Red-Black Tree \u2014 Looser Balance, Cheaper Updates",
+        "## 4.1 Red-Black insertion dry run: 10, 20, 30, 15, 25, 5, 1",
+        "## 4.2 AVL vs Red-Black"
+      ],
+      "completed_sections": [
+        "10. Fenwick Tree"
+      ],
+      "next_section": "9. Segment Tree + Lazy Propagation",
+      "target": "advanced-trees/fenwick-tree.md"
+    },
+    {
+      "relative_path": "untitled/AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md",
+      "bytes": 108786,
+      "sha256": "d302fcc91dfc510ca514962d8fec4229c4ac418c227ca9aafd080552fbc99e08",
+      "status": "QUEUED",
+      "headings": [
+        "# AI, RAG, CAG and Deep Learning - Mermaid Developer Guide",
+        "## Clickable contents",
+        "# How to Use This Guide",
+        "# Table of Contents",
+        "# The AI Landscape",
+        "## 1.1 What an AI developer actually builds",
+        "## 1.2 Deterministic software versus probabilistic software",
+        "# Math You Actually Need",
+        "## 2.1 Scalars, vectors, matrices and tensors",
+        "## 2.2 Dot product, length and cosine similarity",
+        "## 2.3 Probability, logits and softmax",
+        "## 2.4 Derivatives and gradients",
+        "## 2.5 Chain rule dry run",
+        "# Neural Networks: From One Neuron to Depth",
+        "## 3.1 What one neuron can learn"
+      ]
+    },
+    {
+      "relative_path": "untitled/Angular_Interview_Mermaid_Workbook.md",
+      "bytes": 74372,
+      "sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
+      "status": "QUEUED",
+      "headings": [
+        "# Angular Interview Workbook - Mermaid Edition",
+        "## Clickable contents",
+        "# How to Use This Workbook",
+        "## Contents",
+        "# 1. Modern Angular 22 Interview Baseline",
+        "## Q1. What problem does Angular solve, beyond \"it is a frontend framework\"?",
+        "## Q2. What is a standalone component and why did Angular move in that direction?",
+        "### Interview-ready code:",
+        "## Q3. How does Angular bootstrap a modern application?",
+        "### Interview-ready code:",
+        "## Q4. What is AOT compilation and why does template type checking matter?",
+        "## Q5. Explain Angular template binding types.",
+        "### Interview-ready code:",
+        "## Q6. What is the modern built-in control flow syntax?",
+        "### Interview-ready code:"
+      ]
+    },
+    {
+      "relative_path": "untitled/DSA V2/Striver_Graph_DSA_Deep_Study_Guide_Visual.md",
+      "bytes": 69078,
+      "sha256": "dadf11135dbd13c0c97657b296a8800727158a63a5bfc2618f6f07bd998f9f81",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Graph DSA \u2014 Striver / Take U Forward",
+        "## Navigation",
+        "# How to Use This Document",
+        "### Recommended study loop",
+        "# Course Overview and Roadmap",
+        "# Chapter 1 \u2014 Graph Fundamentals and Representation",
+        "## Concept: Graph as a model of relationships  (G-1)",
+        "### 1. What is it?",
+        "### 2. Why do we need it?",
+        "### 3. Core intuition",
+        "### 4. Creator's explanation / series framing",
+        "### 5. Visual explanation",
+        "### 6. Representation in Java",
+        "### 7. Complexity",
+        "### 8. Common mistakes"
+      ]
+    },
+    {
+      "relative_path": "untitled/DSA V2/Striver_Graph_DSA_FINAL_Deep_Dive.md",
+      "bytes": 210786,
+      "sha256": "610a6ce8bafba420b40061f8b31a4a7e8710331823a35545b5a53c9e58bb11da",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Striver / Take U Forward \u2014 Graph DSA FINAL Deep-Dive Study Guide",
+        "## What changed from V2",
+        "## Mandatory modeling pass before choosing an algorithm",
+        "## Source and visual policy",
+        "# Part I \u2014 G-1 to G-56, Fully Integrated",
+        "## G-1. Introduction to Graph \u2014 Types & Conventions",
+        "### First understand the task",
+        "### Three small examples",
+        "### Concrete picture",
+        "### Why this algorithmic idea exists",
+        "### Straightforward thought",
+        "### Key reasoning before code",
+        "### Optimized plan",
+        "### Complexity",
+        "### Traps / edge cases"
+      ]
+    },
+    {
+      "relative_path": "untitled/DSA V2/Striver_Stack_Queue_Deep_Study_Guide_Visual.md",
+      "bytes": 52703,
+      "sha256": "65c8b2ab646c2370fb4e1382a7064841aa46a53541d9f26fbc26bfd488da0a6e",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Striver / Take U Forward \u2014 Stack & Queue Deep Study Guide",
+        "## Course basis",
+        "## Course knowledge map",
+        "## Playlist roadmap",
+        "# Chapter 1 \u2014 Stack & Queue Fundamentals",
+        "## Stack: what problem does it solve?",
+        "### Java preference",
+        "## Queue: FIFO",
+        "## Stack using an array",
+        "## Queue using a circular array",
+        "## Linked-list stack and queue",
+        "## Stack using one Queue",
+        "## Queue using two Stacks",
+        "### Amortized proof",
+        "## Common mistakes"
+      ]
+    },
+    {
+      "relative_path": "untitled/DSA V2/Striver_Stack_Queue_FINAL_Deep_Dive.md",
+      "bytes": 116202,
+      "sha256": "f7b141218f66dc254e103c186efc7282410f73542a1f7ebccac5277c020718bd",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Striver / Take U Forward \u2014 Stack & Queue FINAL Deep-Dive Study Guide",
+        "## Source strategy",
+        "### Visual policy",
+        "## How to use one problem card",
+        "# Part I \u2014 All 30 Stack & Queue Questions",
+        "## S1. Implement Stack using Array",
+        "### What are you actually asked to solve?",
+        "### Three sample cases \u2014 understand the requirement before the algorithm",
+        "### Picture the data before solving",
+        "### What clues should you notice?",
+        "### Straightforward / brute-force thought",
+        "### What repeated work or missing information makes that weak?",
+        "### Optimized reasoning \u2014 in words first",
+        "### Complexity reasoning",
+        "### Edge cases / traps"
+      ]
+    },
+    {
+      "relative_path": "untitled/DSA V2/Take_U_Forward_Graph_Complete_Deep_Guide_v2.md",
+      "bytes": 227185,
+      "sha256": "31e17cb0de9e5637ed9a0f86f29da2f704d485433e603907a6eff6a565190308",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Take U Forward Graph \u2014 Complete Java + Mermaid Deep Guide v2",
+        "## What this expanded edition fixes",
+        "## Java code-reading legend",
+        "## How to study each question",
+        "## Clickable contents",
+        "# Representation foundations",
+        "## 1. Edge array \u2192 adjacency list \u2192 picture",
+        "## 2. Weighted adjacency list",
+        "## 3. Algorithm selection by input properties",
+        "# Take U Forward G\u20111 to G\u201156 sequence map",
+        "# 1. BFS / DFS & Connected Components",
+        "## Q1. DFS Traversal of Graph [EASY]",
+        "### Interview prompt \u2014 exact contract",
+        "### Expected results",
+        "### State/data object and key loop"
+      ]
+    },
+    {
+      "relative_path": "untitled/DSA V2/Take_U_Forward_Stack_Queue_Complete_Deep_Guide_v2.md",
+      "bytes": 130924,
+      "sha256": "feab8335ddf561a24ea3f22fe87796dd19eecbed90eb84bf54bd74a00a0b2eff",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Take U Forward Stack & Queue \u2014 Complete Java + Mermaid Deep Guide v2",
+        "# Contents",
+        "## Direct lesson index",
+        "# How to use this workbook",
+        "## Playlist map",
+        "## Recognition decision tree",
+        "## Source alignment",
+        "# L1. Introduction and Implementations",
+        "## Interview prompt and expected results",
+        "### State object and key loop",
+        "## Actual interview task",
+        "## A. Stack using an array",
+        "## B. Queue using a circular array",
+        "## C. Queue using two stacks",
+        "## D. Stack using one queue"
+      ]
+    },
+    {
+      "relative_path": "untitled/DSA V2/Take_U_Forward_Tree_Verified_Problem_Guide_v3.md",
+      "bytes": 155878,
+      "sha256": "64a33d9164055fb17439dd198b38b3a5eedf4499d83fe960b40e846b89ffd7ed",
+      "status": "QUEUED",
+      "headings": [
+        "# Take U Forward Tree \u2014 Verified Problem Guide v3",
+        "## Verified clickable index",
+        "## Visual atlas",
+        "### Shared sample tree and level-order array",
+        "### Traversal orders on the same nodes",
+        "### Coordinates used by vertical/top/bottom/width questions",
+        "### Parent-map conversion for distance K and burning",
+        "### BST ordering",
+        "## Corrected official lesson guide",
+        "# L-1. Introduction to trees",
+        "## What is the problem actually asking?",
+        "## Verified request and response examples",
+        "## Why this question is commonly misunderstood",
+        "## Recognition, state, and solution",
+        "## Dry-run checkpoints for Example 1"
+      ]
+    },
+    {
+      "relative_path": "untitled/DSA_Arrays_FAANG_Mermaid_Question_Workbook.md",
+      "bytes": 229697,
+      "sha256": "735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda",
+      "status": "QUEUED",
+      "headings": [
+        "# DSA Arrays - FAANG Mermaid Question Workbook",
+        "## Clickable contents",
+        "# Contents / Learning Map",
+        "# 1. Array Mental Model and Invariants",
+        "## What \u201cin-place\u201d really means",
+        "## Subarray vs subsequence vs subset",
+        "# 2. Pattern-Recognition Decision Tree",
+        "## Pattern trigger sheet",
+        "# 3. Java Array Interview Toolkit",
+        "# 4\u201314. Core Array Patterns + 47 Fully Solved Problems",
+        "## 1. Two Sum",
+        "### Question unpacked \u2014 what is required?",
+        "### Basic approach + complexity (keep this short)",
+        "### Optimal solution \u2014 deep reasoning",
+        "### Java \u2014 interview-ready"
+      ]
+    },
+    {
+      "relative_path": "untitled/DSA_Graph_FAANG_Mermaid_Question_Workbook.md",
+      "bytes": 165553,
+      "sha256": "5c70def2e542cefa6407c8ebe61ad2e6949b9138f66d186680fbb158a079e720",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Take U Forward Graph \u2014 Java + Mermaid Deep Guide",
+        "## How to study each question",
+        "## Clickable contents",
+        "# Representation foundations",
+        "## 1. Edge array \u2192 adjacency list \u2192 picture",
+        "## 2. Weighted adjacency list",
+        "## 3. Algorithm selection by input properties",
+        "# Take U Forward G\u20111 to G\u201156 sequence map",
+        "# 1. BFS / DFS & Connected Components",
+        "## Q1. DFS Traversal of Graph [EASY]",
+        "### Problem statement",
+        "### Basic approach and why it changes",
+        "### Boundary conditions people miss",
+        "## Q2. BFS Traversal / Unweighted Distance [EASY]",
+        "### Problem statement"
+      ]
+    },
+    {
+      "relative_path": "untitled/DSA_Tree_FAANG_Mermaid_Question_Workbook.md",
+      "bytes": 95619,
+      "sha256": "a39318cf243823f29813775505e1292d86be83918a93c5e8d7a29995947bdf19",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# DSA Trees - FAANG Mermaid Question Workbook",
+        "## Clickable contents",
+        "# Workbook Map",
+        "# Tree Mental Model: What Does My Function Return?",
+        "# 1. Traversal & BFS Patterns",
+        "## Q1. Iterative Preorder Traversal [EASY]",
+        "## Q2. Iterative Inorder Traversal [EASY]",
+        "## Q3. Postorder Traversal with One Stack [MEDIUM]",
+        "## Q4. Binary Tree Level Order Traversal [EASY]",
+        "## Q5. Binary Tree Zigzag Level Order [MEDIUM]",
+        "## Q6. Right Side View [MEDIUM]",
+        "# 2. Structural Recursion",
+        "## Q7. Maximum Depth of Binary Tree [EASY]",
+        "## Q8. Minimum Depth [EASY]",
+        "## Q9. Balanced Binary Tree [MEDIUM]"
+      ]
+    },
+    {
+      "relative_path": "untitled/JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
+      "bytes": 77677,
+      "sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
+      "status": "QUEUED",
+      "headings": [
+        "# JavaScript, HTML and CSS Interview Workbook - Mermaid Edition",
+        "## Clickable contents",
+        "# How to Use This Workbook",
+        "## Contents",
+        "# 1. JavaScript Execution Model and Fundamentals",
+        "## Q1. What is the difference between var, let, and const?",
+        "### Interview-ready code:",
+        "## Q2. Explain hoisting and the Temporal Dead Zone using an output question.",
+        "### Interview-ready code:",
+        "### Dry run:",
+        "## Q3. What is lexical scope?",
+        "### Interview-ready code:",
+        "## Q4. Why does this loop print 3,3,3 with var but 0,1,2 with let?",
+        "### Interview-ready code:",
+        "### Dry run:"
+      ]
+    },
+    {
+      "relative_path": "untitled/src/00_course_concept_map.mmd",
+      "bytes": 1226,
+      "sha256": "7de4101fb6c5c1a757220ddf935d776b0c82ad3438d682cd867e66d7075af4d4",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/01_graph_representation.mmd",
+      "bytes": 605,
+      "sha256": "b45c7026735248129742a7b7861e3a26fcd321311461112189257ffc11d4336d",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/02_bfs_traversal_dry_run.mmd",
+      "bytes": 571,
+      "sha256": "ce5bd7583cf73f8741cb7c1f3326297ed4902918a838eb013449fc57e05a4e00",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/03_dfs_traversal_recursion.mmd",
+      "bytes": 554,
+      "sha256": "ddc8d3d7f5c6fc0c8d4b49823a0d3ed2fef640ff46fdc3725445c93ca0c201d3",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/04_grid_as_graph_and_multisource_bfs.mmd",
+      "bytes": 562,
+      "sha256": "a2ed45f1fcd4b8ec13df4ffe6dbcbc0932f78fad6677b77c1b5453204cdb5b1d",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/05_cycle_and_bipartite_decision.mmd",
+      "bytes": 724,
+      "sha256": "e953ff7695d6b67b9e716efc77a31155524580c51d59d202e1dbd2eda75289b2",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/06_topological_sort_kahn.mmd",
+      "bytes": 636,
+      "sha256": "510cad2a4d6c41e526025976806d1e65da5a3b1f506f230bc0568e1217d109e1",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/07_shortest_path_algorithm_selector.mmd",
+      "bytes": 725,
+      "sha256": "f518f02c72188aa24eadad4d76991550430fbd3e345c403e82757182e5332c53",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/08_dijkstra_relaxation_dry_run.mmd",
+      "bytes": 678,
+      "sha256": "d561187effa19b1046299bac295b0ac3441c2deef8d47e1523daa5296bd8be25",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/09_bellman_ford.mmd",
+      "bytes": 642,
+      "sha256": "0516f8a5c30192f920ff90f303532a5c6198eeaa7f69f0b42cbab49c50a3aa07",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/10_floyd_warshall.mmd",
+      "bytes": 476,
+      "sha256": "f0e20f5023ea7d9e39b9ad409c5415c3c919346d59570114936b7103c103e069",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/11_mst_prim_vs_kruskal.mmd",
+      "bytes": 650,
+      "sha256": "520eefac4d65d3237d854050d05b0ffafbcf3990e831adc4d4d19693b7957b57",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/12_dsu_path_compression_union_size.mmd",
+      "bytes": 703,
+      "sha256": "09e6f489c53b4c4419191ae686a6c1ad9dcf51713f020311200e807a3fb03e1f",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/13_kosaraju_scc.mmd",
+      "bytes": 586,
+      "sha256": "40a397be812000b56edbd6424dc40b69a58d0ad310959b19672ce0906cf21fc1",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/14_bridges_tarjan_lowlink.mmd",
+      "bytes": 611,
+      "sha256": "e0518c601a5ab571a13226db93c7575a1886426f4b96baef1fe2f0f276d25157",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/15_articulation_points.mmd",
+      "bytes": 610,
+      "sha256": "04eb5e45f914f05d9df4094d5c702679bddbfcd24069483c3fc80d74abc344bb",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/16_pattern_recognition_cheat_map.mmd",
+      "bytes": 982,
+      "sha256": "52ddee09980f02eb6d24258c5da3409925101f676ea19e0051ecca2bbc70df76",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/17_graph_interview_decision_tree.mmd",
+      "bytes": 875,
+      "sha256": "157dfe1079ed7478a560ce9b7c6de8b39b7d5aa0388e1c975ba1070151fe2887",
+      "status": "QUEUED_DIAGRAM_REVIEW",
+      "headings": []
+    },
+    {
+      "relative_path": "untitled/src/ALL_DIAGRAMS.md",
+      "bytes": 13272,
+      "sha256": "a6aa4b878cd60812345d58b4530a02e4a01bb1e0cb96528ec34930e72b1aad54",
+      "status": "SUPPORTING_INDEX",
+      "headings": [
+        "# Graph DSA Mermaid Visual Pack",
+        "## 00 Course Concept Map",
+        "## 01 Graph Representation",
+        "## 02 Bfs Traversal Dry Run",
+        "## 03 Dfs Traversal Recursion",
+        "## 04 Grid As Graph And Multisource Bfs",
+        "## 05 Cycle And Bipartite Decision",
+        "## 06 Topological Sort Kahn",
+        "## 07 Shortest Path Algorithm Selector",
+        "## 08 Dijkstra Relaxation Dry Run",
+        "## 09 Bellman Ford",
+        "## 10 Floyd Warshall",
+        "## 11 Mst Prim Vs Kruskal",
+        "## 12 Dsu Path Compression Union Size",
+        "## 13 Kosaraju Scc"
+      ]
+    },
+    {
+      "relative_path": "untitled/src/Main.java",
+      "bytes": 778,
+      "sha256": "a771485e3bf203e0fd2ee386ca4d2a088c0ba3964b8ab52623413ba4d17e92ae",
+      "status": "IGNORED",
+      "headings": [],
+      "reason": "IDE/configuration metadata or code not selected as a teaching source; not published."
+    },
+    {
+      "relative_path": "untitled/src/README.md",
+      "bytes": 2216,
+      "sha256": "da92fa93f5e8d498b549c98db6bc70a7fcd750dd5ff381c450567bac52feba1a",
+      "status": "SUPPORTING_INDEX",
+      "headings": [
+        "# Striver / Take U Forward Graph DSA \u2014 Mermaid Visual Pack",
+        "## Files",
+        "## How to view",
+        "### Mermaid Live",
+        "### VS Code",
+        "### Markdown / GitHub",
+        "### Export",
+        "## Suggested study order"
+      ]
+    },
+    {
+      "relative_path": "untitled/Striver DSA/HashMap_Hashing_FINAL_Deep_Dive.md",
+      "bytes": 126126,
+      "sha256": "747d224ccf605acadf9728c17bd286a6c1e514cbf2ebb0fe960df4d3cf4c2b5a",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# HashMap & Hashing \u2014 FINAL Deep-Dive Study Guide",
+        "## Navigation and Index",
+        "### Major Sections",
+        "### Question / Lesson Index",
+        "### Topic / Lab / Extension Index",
+        "# 1. Why Hashing Exists",
+        "## The fundamental pipeline",
+        "# 2. Hash Table vs Direct Addressing",
+        "# 3. Bucket Structure and Separate Chaining",
+        "### Collision vs duplicate key",
+        "# 4. `hashCode()` and `equals()` \u2014 the Java Contract",
+        "## Correct custom key example",
+        "## Mutable-key disaster",
+        "# 5. Java `HashMap` Internals \u2014 Current OpenJDK Mental Model",
+        "## Hash spreading"
+      ]
+    },
+    {
+      "relative_path": "untitled/Striver DSA/MASTER_INDEX.md",
+      "bytes": 964,
+      "sha256": "b3ec4455c3d384c82fe959dc3cdc027cf72a4ffbb15c98f1244b0a918e4ea187",
+      "status": "SUPPORTING_INDEX",
+      "headings": [
+        "# DSA Study Library \u2014 IntelliJ-Navigable Master Index",
+        "## IntelliJ navigation tips"
+      ]
+    },
+    {
+      "relative_path": "untitled/Striver DSA/Striver_Graph_DSA_FINAL_Deep_Dive (1).md",
+      "bytes": 253011,
+      "sha256": "ac5fec5b917cbfcec7c298467015e164efcc2db7d91e143622da65aac9a36c5e",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Striver / Take U Forward \u2014 Graph DSA FINAL Deep-Dive Study Guide",
+        "## Navigation and Index",
+        "### Major Sections",
+        "### Question / Lesson Index",
+        "### Topic / Lab / Extension Index",
+        "## What changed from V2",
+        "## Mandatory modeling pass before choosing an algorithm",
+        "## Source and visual policy",
+        "# Part I \u2014 G-1 to G-56, Fully Integrated",
+        "## G-1. Introduction to Graph \u2014 Types & Conventions",
+        "### First understand the task",
+        "### Three small examples",
+        "### Concrete picture",
+        "### Why this algorithmic idea exists",
+        "### Straightforward thought"
+      ]
+    },
+    {
+      "relative_path": "untitled/Striver DSA/Striver_LinkedList_FINAL_Deep_Dive.md",
+      "bytes": 105493,
+      "sha256": "49a57f563efe5e18e96b31916794b066f82cb9c141c7a766cee1302a179cc414",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Linked List \u2014 FINAL Deep-Dive Study Guide",
+        "## Navigation and Index",
+        "### Major Sections",
+        "### Question / Lesson Index",
+        "### Topic / Lab / Extension Index",
+        "## How to read a Linked List question",
+        "## Core Java node types",
+        "# Part I \u2014 The 31 A2Z Questions",
+        "## LL-1. Introduction to Singly Linked List",
+        "### What is the problem really asking?",
+        "### Three requirement examples",
+        "### Straightforward / brute-force thinking",
+        "### Visual / detailed dry run",
+        "### Java implementation",
+        "### Why it works"
+      ]
+    },
+    {
+      "relative_path": "untitled/Striver DSA/Striver_Stack_Queue_FINAL_Deep_Dive (1).md",
+      "bytes": 138535,
+      "sha256": "da142720a96885aa835ea0afb66240edbba8f52a71e6d10b9f96aa7b28eac90d",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Striver / Take U Forward \u2014 Stack & Queue FINAL Deep-Dive Study Guide",
+        "## Navigation and Index",
+        "### Major Sections",
+        "### Question / Lesson Index",
+        "### Topic / Lab / Extension Index",
+        "## Source strategy",
+        "### Visual policy",
+        "## How to use one problem card",
+        "# Part I \u2014 All 30 Stack & Queue Questions",
+        "## S1. Implement Stack using Array",
+        "### What are you actually asked to solve?",
+        "### Three sample cases \u2014 understand the requirement before the algorithm",
+        "### Picture the data before solving",
+        "### What clues should you notice?",
+        "### Straightforward / brute-force thought"
+      ]
+    },
+    {
+      "relative_path": "untitled/Striver DSA/Striver_Trees_BST_FINAL_Deep_Dive.md",
+      "bytes": 159967,
+      "sha256": "1a2bd7db1f1740bd4df797b5fa4692e9ef1c0433abbafa96f0cdc51098483e20",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Trees + Binary Search Trees \u2014 FINAL Deep-Dive Study Guide",
+        "## Navigation and Index",
+        "### Major Sections",
+        "### Question / Lesson Index",
+        "### Topic / Lab / Extension Index",
+        "## The one question to ask before writing recursion",
+        "## Core Java node",
+        "## Tree vocabulary",
+        "# Part I \u2014 Binary Trees (38 A2Z topics)",
+        "## BT-1. Introduction to Trees",
+        "### What is the concept asking you to understand?",
+        "### Three concrete examples",
+        "### Why trees are harder than arrays",
+        "### Memory trick",
+        "### Java representation"
+      ]
+    },
+    {
+      "relative_path": "untitled/SystemDesign/system_design_fundamentals.md",
+      "bytes": 35980,
+      "sha256": "8b2752df0853d73f900dd9e58b71e7593a28d7bd0fef4847ffa5ed4ad250d657",
+      "status": "QUEUED",
+      "headings": [
+        "# System Design Fundamentals \u2014 Principal/Staff Engineer Study Guide",
+        "## How to reason about any system",
+        "# Part 1 \u2014 Core Fundamentals Deep Dive",
+        "## 1. Load Balancers",
+        "### Core Concept & Problem Solved",
+        "### Deep Dive & Architecture Variations",
+        "### Trade-offs",
+        "### Real-World Examples",
+        "## 2. Caching",
+        "### Core Concept & Problem Solved",
+        "### Deep Dive & Architecture Variations",
+        "### Trade-offs",
+        "### Real-World Examples",
+        "## 3. Databases & Storage",
+        "### Core Concept & Problem Solved"
+      ]
+    },
+    {
+      "relative_path": "untitled/SystemDesign/system_design_fundamentals_deep_research.md",
+      "bytes": 44537,
+      "sha256": "74b7843b846f35b7592f481a2588c7bdbc439a720d9e66296b1dbdc0616e5e35",
+      "status": "QUEUED",
+      "headings": [
+        "# System Design Fundamentals \u2014 From Backend Engineer to FAANG/Staff-Level Architect",
+        "## How to use this guide",
+        "### The system-design decision loop",
+        "# Part I \u2014 Thinking Like a Systems Architect",
+        "## 1. Requirements before architecture",
+        "### Functional requirements",
+        "### Non-functional requirements",
+        "### Back-of-the-envelope estimation",
+        "# Part II \u2014 Traffic Entry, DNS, CDN, and Load Balancing",
+        "## 2. DNS is the first routing layer",
+        "### DNS routing strategies",
+        "### Why DNS is not your per-request load balancer",
+        "## 3. Load Balancers",
+        "### Core problem solved",
+        "### L4 vs L7"
+      ]
+    },
+    {
+      "relative_path": "untitled/SystemDesign/top_5_system_design_interview_blueprints.md",
+      "bytes": 34894,
+      "sha256": "17c160461e8bf448af0f330cb7ff5d57d10bf60ee9cf177b20726ed769c19d5b",
+      "status": "QUEUED",
+      "headings": [
+        "# Five FAANG-Level System Design Interviews \u2014 Deep Blueprints and Reasoning",
+        "# 1. Design a Global Video Streaming Platform (Netflix-like)",
+        "## 1.1 Scope",
+        "## 1.2 Capacity thinking",
+        "## 1.3 Architecture",
+        "## 1.4 Separate control plane from data plane",
+        "### Control plane",
+        "### Data plane",
+        "## 1.5 Media preparation pipeline",
+        "### Ingest",
+        "### Encode/transcode",
+        "### Package",
+        "## 1.6 Adaptive bitrate (ABR)",
+        "## 1.7 API design",
+        "## 1.8 Data model"
+      ]
+    },
+    {
+      "relative_path": "untitled/Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
+      "bytes": 164760,
+      "sha256": "91a99f8d6543d0fab411b0caf96c59120f5c9476fb5ebc1357f55d49322050b5",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Take U Forward Graph \u2014 Java + Mermaid Deep Guide",
+        "## How to study each question",
+        "## Clickable contents",
+        "# Representation foundations",
+        "## 1. Edge array \u2192 adjacency list \u2192 picture",
+        "## 2. Weighted adjacency list",
+        "## 3. Algorithm selection by input properties",
+        "# Take U Forward G\u20111 to G\u201156 sequence map",
+        "# 1. BFS / DFS & Connected Components",
+        "## Q1. DFS Traversal of Graph [EASY]",
+        "### Problem statement",
+        "### Basic approach and why it changes",
+        "### Boundary conditions people miss",
+        "## Q2. BFS Traversal / Unweighted Distance [EASY]",
+        "### Problem statement"
+      ]
+    },
+    {
+      "relative_path": "untitled/Take_U_Forward_Stack_Queue_Mermaid_Guide.md",
+      "bytes": 114043,
+      "sha256": "1f913e98ac08c706bb6dd9194651de5f9f4d5eaa205a87fd091e2aa1fe2f03ff",
+      "status": "QUEUED_COMPARE",
+      "headings": [
+        "# Take U Forward Stack & Queue \u2014 Mermaid Java Deep Guide",
+        "# Contents",
+        "# How to use this workbook",
+        "## Playlist map",
+        "## Recognition decision tree",
+        "## Mermaid pattern-recognition map",
+        "## Source alignment",
+        "# L1. Introduction and Implementations",
+        "## Actual interview task",
+        "## A. Stack using an array",
+        "## B. Queue using a circular array",
+        "## C. Queue using two stacks",
+        "## D. Stack using one queue",
+        "## Complexity and edge cases",
+        "# L2. Check for Balanced Parentheses"
+      ]
+    },
+    {
+      "relative_path": "untitled/untitled.iml",
+      "bytes": 433,
+      "sha256": "c08ee29851502ea1fc369dcfd51a269deaef93a03d815ff25fd7e1faf12b7d32",
+      "status": "IGNORED",
+      "headings": [],
+      "reason": "IDE/configuration metadata or code not selected as a teaching source; not published."
+    }
+  ],
+  "next_batch": {
+    "source": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md",
+    "section": "9. Segment Tree + Lazy Propagation",
+    "status": "QUEUED",
+    "estimated_tokens": 12000,
+    "estimate_method": "Conservative heuristic: bounded source/research about 3500 tokens, teaching/code/HTML about 6000, verification/checkpoint reserve about 2500; not account-quota telemetry.",
+    "budget_action": "End first batch after validated push. Next hourly run rechecks source and available runtime limits; resume this section in a bounded batch."
+  },
+  "validation": {
+    "java": "Java 17 compiler module passed; 100000 random updates and 200000 oracle queries passed",
+    "readers": "HTML generated from canonical Markdown with matching SHA256; all local links and fragment targets checked",
+    "diagrams": "SVG XML parsed; browser visual QA not executed"
+  }
+}
