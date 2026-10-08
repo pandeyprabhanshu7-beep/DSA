@@ -53,5 +53,6 @@ The hourly pipeline covers the full technical study collection, including DSA, A
 - [Pipeline rules](study-guides/ENHANCEMENT_PIPELINE.md)
 - [Source inventory](study-guides/SOURCE_INVENTORY.md)
 - [Tracked enrichment queue](study-guides/ENRICHMENT_QUEUE.json)
+- [AWS networking bootcamp](study-guides/aws/networking/) and [continuation status](study-guides/aws/STATUS.md)
 
 Queued sources are not automatically complete or published; the inventory distinguishes existing canonical guides, discovered source candidates and sources still to locate.

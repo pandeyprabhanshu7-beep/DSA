@@ -23,7 +23,16 @@
 </ul>
 </li>
 <li><a href="#9-ports-and-sockets">9. Ports and sockets</a></li>
-<li><a href="#10-mtu-fragmentation-and-the-small-ping-works-app-fails-problem">10. MTU, fragmentation and the “small ping works, app fails” problem</a></li>
+<li><a href="#10-mtu-fragmentation-and-the-small-ping-works-app-fails-problem">10. MTU, fragmentation and the “small ping works, app fails” problem</a><ul>
+<li><a href="#mtu-mss-and-application-data-are-different-sizes">MTU, MSS and application data are different sizes</a></li>
+<li><a href="#what-happens-to-an-oversized-packet">What happens to an oversized packet</a></li>
+<li><a href="#detailed-black-hole-dry-run">Detailed black-hole dry run</a></li>
+<li><a href="#four-concrete-examples">Four concrete examples</a></li>
+<li><a href="#aws-specific-invariant">AWS-specific invariant</a></li>
+<li><a href="#troubleshooting-sequence">Troubleshooting sequence</a></li>
+<li><a href="#invariant-and-common-mistakes">Invariant and common mistakes</a></li>
+</ul>
+</li>
 <li><a href="#11-icmp-is-not-the-ping-protocol-only">11. ICMP is not “the ping protocol only”</a></li>
 <li><a href="#12-layer-oriented-debugging">12. Layer-oriented debugging</a></li>
 <li><a href="#13-legacy-data-center-connection">13. Legacy data-center connection</a></li>
@@ -201,15 +210,125 @@ protocol
 </code></pre>
 <p>This is why thousands of clients can all connect to the same server port 443 while remaining distinct flows.</p>
 <h2 id="10-mtu-fragmentation-and-the-small-ping-works-app-fails-problem">10. MTU, fragmentation and the “small ping works, app fails” problem</h2>
-<p>Each link has a Maximum Transmission Unit (MTU). If a path cannot carry a packet as large as the sender expects, fragmentation or Path MTU Discovery behavior matters. VPN/tunnel headers reduce usable payload size.</p>
-<p>Symptoms of MTU issues can include:</p>
+<p><strong>Link MTU</strong> is the largest IP packet a particular link can carry without link-layer fragmentation. <strong>Path MTU (PMTU)</strong> is the smallest link MTU across the complete source-to-destination path. The sender has to respect the PMTU even when its own interface supports something larger.</p>
+<pre><code class="language-text">host A -- MTU 1500 -- router -- tunnel MTU 1420 -- router -- MTU 1500 -- host B
+                                  ^
+                                  path bottleneck
+
+PMTU(A,B) = min(1500, 1420, 1500) = 1420 bytes
+</code></pre>
+<p>Why tunnels change the number: an outer IP, VPN, GRE or other encapsulation header consumes bytes on the physical link. A 1,500-byte inner packet plus tunnel headers may no longer fit into a 1,500-byte outer frame.</p>
+<h3 id="mtu-mss-and-application-data-are-different-sizes">MTU, MSS and application data are different sizes</h3>
+<p>For a basic IPv4 TCP packet with no IP/TCP options:</p>
+<pre><code class="language-text">interface MTU = 1500 bytes
+IPv4 header   =   20 bytes
+TCP header    =   20 bytes
+TCP MSS       = 1460 bytes of TCP payload
+</code></pre>
+<p>MSS is a TCP payload limit advertised during the handshake; it is not the same field as MTU. TLS and HTTP headers consume additional space inside the TCP byte stream. With IPv6's 40-byte base header, the comparable TCP payload under a 1,500-byte MTU is normally 1,440 bytes before extension headers.</p>
+<h3 id="what-happens-to-an-oversized-packet">What happens to an oversized packet</h3>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Network behavior</th>
+<th>Feedback to sender</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IPv4, DF bit clear</td>
+<td>A router may fragment; the destination reassembles</td>
+<td>Fragments arrive, but fragmentation is operationally fragile</td>
+</tr>
+<tr>
+<td>IPv4, DF bit set</td>
+<td>The constrained device drops the packet</td>
+<td>ICMP Destination Unreachable, fragmentation needed — Type 3, Code 4</td>
+</tr>
+<tr>
+<td>IPv6</td>
+<td>Routers do not fragment in transit; the constrained device drops it</td>
+<td>ICMPv6 Packet Too Big — Type 2; only the source may create IPv6 fragments</td>
+</tr>
+</tbody>
+</table>
+<p>Path MTU Discovery (PMTUD) uses that feedback to lower the sender's packet size. Blocking the required ICMP error messages can create a <strong>PMTU black hole</strong>: the TCP handshake and small requests succeed, but larger packets are repeatedly dropped.</p>
+<h3 id="detailed-black-hole-dry-run">Detailed black-hole dry run</h3>
+<p>Assume the sender's interface MTU is 1,500, a VPN reduces the PMTU to 1,420, and IPv4 packets carry DF:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Step</th>
+<th>Packet/event</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>TCP SYN, about 60 bytes</td>
+<td>Fits; VPN forwards it</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>SYN-ACK and ACK</td>
+<td>Fit; connection becomes established</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>Small HTTP request</td>
+<td>Fits; server receives it</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>Server sends a 1,500-byte IP packet</td>
+<td>VPN cannot carry it and drops it</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td>VPN sends ICMP Type 3/Code 4 with usable MTU</td>
+<td>If delivered, server lowers its PMTU estimate and retransmits smaller packets</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>A NACL/firewall drops that ICMP message</td>
+<td>Server keeps retransmitting oversized packets; user sees a stall or timeout</td>
+</tr>
+</tbody>
+</table>
+<p>This explains the apparently contradictory symptom “port 443 connects, but the page or file transfer hangs.” A successful handshake proves that <strong>small</strong> packets can cross; it does not prove every packet size can cross.</p>
+<h3 id="four-concrete-examples">Four concrete examples</h3>
+<ol>
+<li>A 64-byte <code>ping</code> succeeds, but a Linux IPv4 probe whose total IP size is 1,500 fails across a 1,420-byte VPN path.</li>
+<li>An SSH login works, yet <code>scp</code> stalls when bulk transfer begins because larger segments expose the PMTU problem.</li>
+<li>An HTTPS health check returns a tiny <code>200 OK</code>, but a large certificate chain or response times out.</li>
+<li>Two EC2 instances communicate inside one high-MTU path, while the same payload fails after adding an internet, VPN or inspection hop with a smaller MTU.</li>
+</ol>
+<h3 id="aws-specific-invariant">AWS-specific invariant</h3>
+<p>When VPC hosts have different effective MTUs or communicate through external paths, PMTUD control traffic must be able to return. AWS documents the relevant NACL permissions in both directions: IPv4 fragmentation-needed (ICMP Type 3, Code 4) and IPv6 Packet Too Big (ICMPv6 Type 2). A route and an allowed TCP port are not sufficient if the PMTUD feedback itself is discarded.</p>
+<p>Do not assume every AWS hop has the same MTU. EC2 instance types, Transit Gateway, VPN, Direct Connect, load balancers, appliances and the public internet can place different limits on a path. The PMTU is still the minimum across the actual route.</p>
+<h3 id="troubleshooting-sequence">Troubleshooting sequence</h3>
+<ol>
+<li>Prove DNS, routes, Security Groups/NACLs and the listening port first; MTU should not be the first guess for every timeout.</li>
+<li>Compare tiny traffic with a transfer large enough to fill multiple packets.</li>
+<li>On Linux, <code>tracepath destination</code> can expose an observed PMTU. A controlled IPv4 probe such as <code>ping -M do -s 1472 destination</code> requests a 1,500-byte IP packet (1,472 payload + 8-byte ICMP + 20-byte IPv4 header); reduce the payload until it succeeds.</li>
+<li>Capture traffic at the sender. Repeated retransmissions after large packets, without the expected ICMP error, are stronger evidence than one failed ping.</li>
+<li>Inspect tunnel/inspection overhead and both directions of NACL/firewall policy. Do not “fix” the symptom by randomly shrinking every interface before identifying the narrow hop.</li>
+</ol>
+<h3 id="invariant-and-common-mistakes">Invariant and common mistakes</h3>
+<blockquote>
+<p>Every emitted IP packet must be no larger than the sender's current PMTU estimate; a smaller-MTU hop must either provide usable feedback or the sender needs a conservative fallback.</p>
+</blockquote>
+<p>Common mistakes:</p>
 <ul>
-<li>small requests work but larger transfers stall,</li>
-<li>TLS connections behave strangely,</li>
-<li>VPN-connected applications fail selectively,</li>
-<li>ICMP filtering breaks Path MTU Discovery.</li>
+<li>equating MTU with TCP MSS,</li>
+<li>testing only default-size <code>ping</code>,</li>
+<li>blocking all ICMP because it is mistaken for Echo only,</li>
+<li>assuming IPv6 routers fragment oversized packets,</li>
+<li>counting tunnel headers as application payload,</li>
+<li>changing MTU globally without proving where the bottleneck is.</li>
 </ul>
-<p>Do not make MTU your first guess, but know it exists when basic connectivity works yet larger packets fail.</p>
 <h2 id="11-icmp-is-not-the-ping-protocol-only">11. ICMP is not “the ping protocol only”</h2>
 <p>ICMP supports network control/error messages. <code>ping</code> commonly uses ICMP Echo, but ICMP is also involved in operational behavior such as reporting unreachable destinations and supporting path diagnostics. Blocking all ICMP can create subtle operational problems.</p>
 <h2 id="12-layer-oriented-debugging">12. Layer-oriented debugging</h2>
@@ -283,7 +402,7 @@ Application team   HTTP/API behavior
 <pre><code class="language-bash"># Linux/macOS examples
 ip addr                 # or ifconfig
 ip route                # route table
-a rp -a                 # use: arp -a (remove the space)
+arp -a
 nslookup example.com
 # or dig example.com
 traceroute example.com
@@ -321,6 +440,9 @@ Proof       packet capture/log/flow evidence
 <li>Cloudflare, Network layer: https://www.cloudflare.com/learning/network-layer/what-is-the-network-layer/</li>
 <li>Cloudflare, Router: https://www.cloudflare.com/learning/network-layer/what-is-a-router/</li>
 <li>Cloudflare, Internet overview: https://www.cloudflare.com/learning/network-layer/how-does-the-internet-work/</li>
+<li>AWS, Path MTU Discovery and network ACLs: https://docs.aws.amazon.com/vpc/latest/userguide/path_mtu_discovery.html</li>
+<li>RFC 8200, IPv6 specification: https://www.rfc-editor.org/rfc/rfc8200</li>
+<li>RFC 8201, IPv6 Path MTU Discovery: https://www.rfc-editor.org/rfc/rfc8201</li>
 </ul>
 <hr />
 <p><a href="00-networking-roadmap.html">← Previous</a> · <a href="index.html">Chapter index</a> · <a href="02-home-wifi-to-internet.html">Next →</a></p></article><div class="pager"><a href="00-networking-roadmap.html">← Previous chapter</a><a href="02-home-wifi-to-internet.html">Next chapter →</a></div></main></div><script src="assets/site.js"></script></body></html>

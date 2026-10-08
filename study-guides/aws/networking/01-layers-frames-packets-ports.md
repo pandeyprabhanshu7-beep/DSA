@@ -209,16 +209,89 @@ This is why thousands of clients can all connect to the same server port 443 whi
 
 ## 10. MTU, fragmentation and the “small ping works, app fails” problem
 
-Each link has a Maximum Transmission Unit (MTU). If a path cannot carry a packet as large as the sender expects, fragmentation or Path MTU Discovery behavior matters. VPN/tunnel headers reduce usable payload size.
+**Link MTU** is the largest IP packet a particular link can carry without link-layer fragmentation. **Path MTU (PMTU)** is the smallest link MTU across the complete source-to-destination path. The sender has to respect the PMTU even when its own interface supports something larger.
 
-Symptoms of MTU issues can include:
+```text
+host A -- MTU 1500 -- router -- tunnel MTU 1420 -- router -- MTU 1500 -- host B
+                                  ^
+                                  path bottleneck
 
-- small requests work but larger transfers stall,
-- TLS connections behave strangely,
-- VPN-connected applications fail selectively,
-- ICMP filtering breaks Path MTU Discovery.
+PMTU(A,B) = min(1500, 1420, 1500) = 1420 bytes
+```
 
-Do not make MTU your first guess, but know it exists when basic connectivity works yet larger packets fail.
+Why tunnels change the number: an outer IP, VPN, GRE or other encapsulation header consumes bytes on the physical link. A 1,500-byte inner packet plus tunnel headers may no longer fit into a 1,500-byte outer frame.
+
+### MTU, MSS and application data are different sizes
+
+For a basic IPv4 TCP packet with no IP/TCP options:
+
+```text
+interface MTU = 1500 bytes
+IPv4 header   =   20 bytes
+TCP header    =   20 bytes
+TCP MSS       = 1460 bytes of TCP payload
+```
+
+MSS is a TCP payload limit advertised during the handshake; it is not the same field as MTU. TLS and HTTP headers consume additional space inside the TCP byte stream. With IPv6's 40-byte base header, the comparable TCP payload under a 1,500-byte MTU is normally 1,440 bytes before extension headers.
+
+### What happens to an oversized packet
+
+| Case | Network behavior | Feedback to sender |
+|---|---|---|
+| IPv4, DF bit clear | A router may fragment; the destination reassembles | Fragments arrive, but fragmentation is operationally fragile |
+| IPv4, DF bit set | The constrained device drops the packet | ICMP Destination Unreachable, fragmentation needed — Type 3, Code 4 |
+| IPv6 | Routers do not fragment in transit; the constrained device drops it | ICMPv6 Packet Too Big — Type 2; only the source may create IPv6 fragments |
+
+Path MTU Discovery (PMTUD) uses that feedback to lower the sender's packet size. Blocking the required ICMP error messages can create a **PMTU black hole**: the TCP handshake and small requests succeed, but larger packets are repeatedly dropped.
+
+### Detailed black-hole dry run
+
+Assume the sender's interface MTU is 1,500, a VPN reduces the PMTU to 1,420, and IPv4 packets carry DF:
+
+| Step | Packet/event | Result |
+|---:|---|---|
+| 1 | TCP SYN, about 60 bytes | Fits; VPN forwards it |
+| 2 | SYN-ACK and ACK | Fit; connection becomes established |
+| 3 | Small HTTP request | Fits; server receives it |
+| 4 | Server sends a 1,500-byte IP packet | VPN cannot carry it and drops it |
+| 5 | VPN sends ICMP Type 3/Code 4 with usable MTU | If delivered, server lowers its PMTU estimate and retransmits smaller packets |
+| 6 | A NACL/firewall drops that ICMP message | Server keeps retransmitting oversized packets; user sees a stall or timeout |
+
+This explains the apparently contradictory symptom “port 443 connects, but the page or file transfer hangs.” A successful handshake proves that **small** packets can cross; it does not prove every packet size can cross.
+
+### Four concrete examples
+
+1. A 64-byte `ping` succeeds, but a Linux IPv4 probe whose total IP size is 1,500 fails across a 1,420-byte VPN path.
+2. An SSH login works, yet `scp` stalls when bulk transfer begins because larger segments expose the PMTU problem.
+3. An HTTPS health check returns a tiny `200 OK`, but a large certificate chain or response times out.
+4. Two EC2 instances communicate inside one high-MTU path, while the same payload fails after adding an internet, VPN or inspection hop with a smaller MTU.
+
+### AWS-specific invariant
+
+When VPC hosts have different effective MTUs or communicate through external paths, PMTUD control traffic must be able to return. AWS documents the relevant NACL permissions in both directions: IPv4 fragmentation-needed (ICMP Type 3, Code 4) and IPv6 Packet Too Big (ICMPv6 Type 2). A route and an allowed TCP port are not sufficient if the PMTUD feedback itself is discarded.
+
+Do not assume every AWS hop has the same MTU. EC2 instance types, Transit Gateway, VPN, Direct Connect, load balancers, appliances and the public internet can place different limits on a path. The PMTU is still the minimum across the actual route.
+
+### Troubleshooting sequence
+
+1. Prove DNS, routes, Security Groups/NACLs and the listening port first; MTU should not be the first guess for every timeout.
+2. Compare tiny traffic with a transfer large enough to fill multiple packets.
+3. On Linux, `tracepath destination` can expose an observed PMTU. A controlled IPv4 probe such as `ping -M do -s 1472 destination` requests a 1,500-byte IP packet (1,472 payload + 8-byte ICMP + 20-byte IPv4 header); reduce the payload until it succeeds.
+4. Capture traffic at the sender. Repeated retransmissions after large packets, without the expected ICMP error, are stronger evidence than one failed ping.
+5. Inspect tunnel/inspection overhead and both directions of NACL/firewall policy. Do not “fix” the symptom by randomly shrinking every interface before identifying the narrow hop.
+
+### Invariant and common mistakes
+
+> Every emitted IP packet must be no larger than the sender's current PMTU estimate; a smaller-MTU hop must either provide usable feedback or the sender needs a conservative fallback.
+
+Common mistakes:
+
+- equating MTU with TCP MSS,
+- testing only default-size `ping`,
+- blocking all ICMP because it is mistaken for Echo only,
+- assuming IPv6 routers fragment oversized packets,
+- counting tunnel headers as application payload,
+- changing MTU globally without proving where the bottleneck is.
 
 ## 11. ICMP is not “the ping protocol only”
 
@@ -278,7 +351,7 @@ Run equivalents appropriate for your OS:
 # Linux/macOS examples
 ip addr                 # or ifconfig
 ip route                # route table
-a rp -a                 # use: arp -a (remove the space)
+arp -a
 nslookup example.com
 # or dig example.com
 traceroute example.com
@@ -324,6 +397,9 @@ Proof       packet capture/log/flow evidence
 - Cloudflare, Network layer: https://www.cloudflare.com/learning/network-layer/what-is-the-network-layer/
 - Cloudflare, Router: https://www.cloudflare.com/learning/network-layer/what-is-a-router/
 - Cloudflare, Internet overview: https://www.cloudflare.com/learning/network-layer/how-does-the-internet-work/
+- AWS, Path MTU Discovery and network ACLs: https://docs.aws.amazon.com/vpc/latest/userguide/path_mtu_discovery.html
+- RFC 8200, IPv6 specification: https://www.rfc-editor.org/rfc/rfc8200
+- RFC 8201, IPv6 Path MTU Discovery: https://www.rfc-editor.org/rfc/rfc8201
 
 
 ---

@@ -28,6 +28,13 @@
 </li>
 <li><a href="#15-vlsm-planning-example">15. VLSM planning example</a></li>
 <li><a href="#16-ipv6-key-conceptual-differences">16. IPv6: key conceptual differences</a><ul>
+<li><a href="#the-five-differences-to-remember">The five differences to remember</a></li>
+<li><a href="#address-forms-you-will-see">Address forms you will see</a></li>
+<li><a href="#aws-outbound-only-ipv6-packet-trace">AWS outbound-only IPv6 packet trace</a></li>
+<li><a href="#public-versus-outbound-only-route-patterns">Public versus outbound-only route patterns</a></li>
+<li><a href="#four-concrete-examples">Four concrete examples</a></li>
+<li><a href="#ipv6-packet-size-rule">IPv6 packet-size rule</a></li>
+<li><a href="#common-mistakes">Common mistakes</a></li>
 <li><a href="#important-nat-contrast">Important NAT contrast</a></li>
 </ul>
 </li>
@@ -268,9 +275,137 @@ Ops subnet:   ~20 hosts
 <p>Do not assign arbitrary <code>/24</code>s just because they are easy. Plan growth, AZ duplication, container/pod/ENI consumption, load balancer ENIs, endpoints, and future network connections.</p>
 <p>A cloud subnet can run out of IPs before CPU or storage becomes the bottleneck.</p>
 <h2 id="16-ipv6-key-conceptual-differences">16. IPv6: key conceptual differences</h2>
-<p>IPv6 has a much larger address space and globally unique addressing is common. In AWS, IPv6 addresses are globally unique/public by default in the addressing sense.</p>
-<p>That does <strong>not</strong> mean “open to the Internet.” Route tables and security controls still decide reachability.</p>
-<p>For AWS outbound-only IPv6 from private workloads, an <strong>egress-only Internet Gateway</strong> can allow outbound communication while preventing Internet-initiated IPv6 connections.</p>
+<p>IPv6 uses 128-bit addresses and removes the IPv4 address-conservation reason for NAT. That changes the address model, but it does <strong>not</strong> remove routing or security boundaries.</p>
+<h3 id="the-five-differences-to-remember">The five differences to remember</h3>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>IPv4 mental model</th>
+<th>IPv6 mental model</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Address width</td>
+<td>32 bits</td>
+<td>128 bits</td>
+</tr>
+<tr>
+<td>Local neighbor discovery</td>
+<td>ARP</td>
+<td>Neighbor Discovery over ICMPv6</td>
+</tr>
+<tr>
+<td>Broadcast</td>
+<td>Broadcast exists</td>
+<td>No broadcast; multicast/anycast cover the use cases</td>
+</tr>
+<tr>
+<td>Router fragmentation</td>
+<td>Possible for IPv4 when DF is clear</td>
+<td>Routers never fragment; source handles packet sizing/fragmentation</td>
+</tr>
+<tr>
+<td>Typical AWS internet egress</td>
+<td>Private IPv4 + NAT Gateway</td>
+<td>Globally unique IPv6 + IGW or egress-only IGW; no address-conservation NAT</td>
+</tr>
+</tbody>
+</table>
+<p>An IPv6 address can be globally unique/public <strong>in the addressing sense</strong> while still being unreachable from the internet. Actual reachability requires all of these to agree:</p>
+<pre><code class="language-text">workload has IPv6
+AND subnet/VPC has IPv6 addressing
+AND route table has a matching IPv6 route
+AND gateway/path supports IPv6
+AND Security Group allows the flow
+AND stateless NACL allows request and return traffic
+AND the application listens on IPv6
+</code></pre>
+<p>The invariant is:</p>
+<blockquote>
+<p><strong>An address identifies an endpoint; routes choose a path; policies permit the flow. None of the three substitutes for the others.</strong></p>
+</blockquote>
+<h3 id="address-forms-you-will-see">Address forms you will see</h3>
+<ul>
+<li><strong>Global unicast</strong> — routable beyond the local link when routing and policy permit it. AWS-provided public IPv6 addresses fit this mental category.</li>
+<li><strong>Link-local (<code>fe80::/10</code>)</strong> — used only on the local link; every IPv6-enabled interface normally has one.</li>
+<li><strong>Loopback (<code>::1</code>)</strong> — the local host.</li>
+<li><strong>Unspecified (<code>::</code>)</strong> — “no address,” comparable to <code>0.0.0.0</code> in limited contexts.</li>
+<li><strong>Multicast (<code>ff00::/8</code>)</strong> — one-to-many groups; Neighbor Discovery uses multicast rather than IPv4-style broadcast ARP.</li>
+</ul>
+<p>IPv6 text compresses consecutive zero groups once. For example:</p>
+<pre><code class="language-text">2001:0db8:0000:0000:0000:0000:0000:0025
+2001:db8::25
+</code></pre>
+<p>These are the same address. Do not use textual spelling as an identity check without normalizing it.</p>
+<h3 id="aws-outbound-only-ipv6-packet-trace">AWS outbound-only IPv6 packet trace</h3>
+<p>Assume an instance has <code>2001:db8:1234:1a00::25</code>, the private-subnet route table contains <code>::/0 -&gt; eigw-1234</code>, its Security Group allows outbound TCP 443, and the NACL permits request and return traffic.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Step</th>
+<th>State/packet</th>
+<th>Important observation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>DNS returns an AAAA record for the destination</td>
+<td>An A record proves only IPv4 naming; test AAAA separately</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>Source chooses the IPv6 destination and matches <code>::/0</code></td>
+<td>IPv4 <code>0.0.0.0/0</code> does not match IPv6 traffic</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>Egress-only IGW forwards the outbound flow</td>
+<td>It is stateful and does not translate the source into a shared public address</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>Internet server replies to the instance's IPv6 address</td>
+<td>Return traffic is associated with the initiated flow</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td>Egress-only IGW passes the response back</td>
+<td>An unrelated internet host cannot initiate a new inbound flow through it</td>
+</tr>
+</tbody>
+</table>
+<p>AWS describes an egress-only Internet Gateway as horizontally scaled, redundant and stateful. It is IPv6-only. It has no attached Security Group; control workload traffic with the workload Security Group and subnet NACLs.</p>
+<h3 id="public-versus-outbound-only-route-patterns">Public versus outbound-only route patterns</h3>
+<pre><code class="language-text">Public dual-stack subnet:
+0.0.0.0/0 -&gt; Internet Gateway
+::/0       -&gt; Internet Gateway
+
+Private dual-stack subnet:
+0.0.0.0/0 -&gt; NAT Gateway
+::/0       -&gt; egress-only Internet Gateway
+</code></pre>
+<p>The second pattern is not “IPv6 NAT.” The instance normally keeps its globally unique IPv6 source address; the egress-only gateway supplies a stateful outbound-only boundary.</p>
+<h3 id="four-concrete-examples">Four concrete examples</h3>
+<ol>
+<li><strong>Address but no route:</strong> the instance has IPv6, but the route table lacks <code>::/0</code>; public IPv6 access fails.</li>
+<li><strong>Route but no listener:</strong> routing and policy work, but the Java server binds only to <code>127.0.0.1</code> or an IPv4 socket; IPv6 connection attempts are refused or time out.</li>
+<li><strong>IPv4 works, IPv6 fails:</strong> DNS returns A and AAAA; clients that prefer AAAA expose a missing IPv6 SG/NACL rule while IPv4-only clients remain healthy.</li>
+<li><strong>Outbound succeeds, unsolicited inbound fails:</strong> an instance reaches an external HTTPS service through an egress-only IGW, but an internet scan cannot start a new connection to the instance. That is expected.</li>
+</ol>
+<h3 id="ipv6-packet-size-rule">IPv6 packet-size rule</h3>
+<p>IPv6 routers do not fragment packets. A constrained hop returns ICMPv6 Packet Too Big (Type 2), and the source reduces packet size or performs source fragmentation. Blocking ICMPv6 indiscriminately can therefore break real application traffic, not merely <code>ping</code>.</p>
+<h3 id="common-mistakes">Common mistakes</h3>
+<ul>
+<li>treating “public address” as equivalent to “publicly reachable,”</li>
+<li>adding only an IPv4 default route and expecting it to carry IPv6,</li>
+<li>copying IPv4 NACL rules without IPv6 CIDRs and return-path rules,</li>
+<li>assuming an egress-only IGW performs NAT,</li>
+<li>forgetting AAAA records and IPv6 listener binding during dual-stack testing,</li>
+<li>blocking Neighbor Discovery or Packet Too Big messages as “optional ICMP.”</li>
+</ul>
 <h3 id="important-nat-contrast">Important NAT contrast</h3>
 <pre><code class="language-text">IPv4 private egress: usually NAT Gateway in AWS
 IPv6 private egress: no address-conservation NAT required; use egress-only IGW for outbound-only Internet pattern

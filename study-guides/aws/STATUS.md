@@ -1,19 +1,21 @@
 # AWS Study Guide Enrichment Status
 
-Last pipeline seed: 2026-10-07
+Last enrichment: 2026-10-08 04:33 ET
 
 ## DONE
 
 - [x] Seed `networking/AWS_Networking_Foundations_Bootcamp.md`
 - [x] Seed `networking/AWS_Networking_Foundations_Bootcamp.html`
 - [x] Establish AWS repository structure and scheduler continuation rules
+- [x] Repair the networking diagrams, navigation and generated chapter readers
+- [x] Deepen Path MTU Discovery and IPv6/AWS egress with packet traces and primary references
 
 ## IN_PROGRESS
 
-- [x] Networking visual-assets promotion and link validation.
-  - Current source HTML references 12 educational networking diagrams.
-  - Next run should promote/repair those diagram assets first, then validate every relative image/link path.
-  - After assets are synchronized, deeply review the bootcamp for missing beginner explanations, packet dry-runs, legacy flow, ISP/BGP, firewall, IPv6, MTU, DNS/TCP/TLS and troubleshooting gaps.
+- [ ] Broader factual review of the networking bootcamp.
+  - Diagram and navigation repair is complete.
+  - MTU/PMTUD and IPv6 egress sections are complete for this pass.
+  - Next coherent section: BGP best-path policy, route propagation and failure examples, followed by firewall/ephemeral-port packet traces.
 
 ## TODO — highest priority
 
@@ -38,4 +40,12 @@ If a scheduled run stops because of model/tool/output limits, leave the exact fi
 - All local links and HTML fragment targets on the networking pages resolve; all SVGs parse as XML. One diagram was rasterized and visually inspected.
 - Browser visual QA is pending because this workspace lacks the browser binary; responsive CSS is implemented but is not represented as visually verified.
 
-IN_PROGRESS next: broader factual review of networking chapters, replace remaining text diagrams where useful, then resume master-guide and component-module promotion. The diagrams and navigation repair are complete; the whole AWS course is not complete.
+## MTU and IPv6 enrichment — 2026-10-08
+
+- Replaced the brief MTU note with interface-MTU/PMTU/MSS definitions, IPv4-versus-IPv6 behavior, a PMTU-black-hole packet trace, four failure examples, an AWS NACL invariant, troubleshooting steps and common mistakes.
+- Expanded IPv6 with address/route/policy separation, address forms, Neighbor Discovery and fragmentation differences, public versus outbound-only AWS route patterns, a five-step egress-only-IGW trace, four examples and dual-stack failure modes.
+- Corrected the executable command example from `a rp -a` to `arp -a`.
+- Primary references: AWS VPC PMTUD/NACL guidance, AWS egress-only Internet Gateway documentation, RFC 8200 and RFC 8201.
+- Validation: the authoritative combined Markdown was rebuilt through `build_networking.py`; affected chapter Markdown/HTML and combined HTML were regenerated; local links, fragments, assets, JSON, SVG XML and generator idempotence passed. Browser visual QA remains pending.
+
+IN_PROGRESS next: enrich BGP best-path policy/route propagation and stateful-firewall return-path examples, then resume master-guide and component-module promotion. The whole AWS course is not complete.

@@ -384,16 +384,89 @@ This is why thousands of clients can all connect to the same server port 443 whi
 
 ## 10. MTU, fragmentation and the “small ping works, app fails” problem
 
-Each link has a Maximum Transmission Unit (MTU). If a path cannot carry a packet as large as the sender expects, fragmentation or Path MTU Discovery behavior matters. VPN/tunnel headers reduce usable payload size.
+**Link MTU** is the largest IP packet a particular link can carry without link-layer fragmentation. **Path MTU (PMTU)** is the smallest link MTU across the complete source-to-destination path. The sender has to respect the PMTU even when its own interface supports something larger.
 
-Symptoms of MTU issues can include:
+```text
+host A -- MTU 1500 -- router -- tunnel MTU 1420 -- router -- MTU 1500 -- host B
+                                  ^
+                                  path bottleneck
 
-- small requests work but larger transfers stall,
-- TLS connections behave strangely,
-- VPN-connected applications fail selectively,
-- ICMP filtering breaks Path MTU Discovery.
+PMTU(A,B) = min(1500, 1420, 1500) = 1420 bytes
+```
 
-Do not make MTU your first guess, but know it exists when basic connectivity works yet larger packets fail.
+Why tunnels change the number: an outer IP, VPN, GRE or other encapsulation header consumes bytes on the physical link. A 1,500-byte inner packet plus tunnel headers may no longer fit into a 1,500-byte outer frame.
+
+### MTU, MSS and application data are different sizes
+
+For a basic IPv4 TCP packet with no IP/TCP options:
+
+```text
+interface MTU = 1500 bytes
+IPv4 header   =   20 bytes
+TCP header    =   20 bytes
+TCP MSS       = 1460 bytes of TCP payload
+```
+
+MSS is a TCP payload limit advertised during the handshake; it is not the same field as MTU. TLS and HTTP headers consume additional space inside the TCP byte stream. With IPv6's 40-byte base header, the comparable TCP payload under a 1,500-byte MTU is normally 1,440 bytes before extension headers.
+
+### What happens to an oversized packet
+
+| Case | Network behavior | Feedback to sender |
+|---|---|---|
+| IPv4, DF bit clear | A router may fragment; the destination reassembles | Fragments arrive, but fragmentation is operationally fragile |
+| IPv4, DF bit set | The constrained device drops the packet | ICMP Destination Unreachable, fragmentation needed — Type 3, Code 4 |
+| IPv6 | Routers do not fragment in transit; the constrained device drops it | ICMPv6 Packet Too Big — Type 2; only the source may create IPv6 fragments |
+
+Path MTU Discovery (PMTUD) uses that feedback to lower the sender's packet size. Blocking the required ICMP error messages can create a **PMTU black hole**: the TCP handshake and small requests succeed, but larger packets are repeatedly dropped.
+
+### Detailed black-hole dry run
+
+Assume the sender's interface MTU is 1,500, a VPN reduces the PMTU to 1,420, and IPv4 packets carry DF:
+
+| Step | Packet/event | Result |
+|---:|---|---|
+| 1 | TCP SYN, about 60 bytes | Fits; VPN forwards it |
+| 2 | SYN-ACK and ACK | Fit; connection becomes established |
+| 3 | Small HTTP request | Fits; server receives it |
+| 4 | Server sends a 1,500-byte IP packet | VPN cannot carry it and drops it |
+| 5 | VPN sends ICMP Type 3/Code 4 with usable MTU | If delivered, server lowers its PMTU estimate and retransmits smaller packets |
+| 6 | A NACL/firewall drops that ICMP message | Server keeps retransmitting oversized packets; user sees a stall or timeout |
+
+This explains the apparently contradictory symptom “port 443 connects, but the page or file transfer hangs.” A successful handshake proves that **small** packets can cross; it does not prove every packet size can cross.
+
+### Four concrete examples
+
+1. A 64-byte `ping` succeeds, but a Linux IPv4 probe whose total IP size is 1,500 fails across a 1,420-byte VPN path.
+2. An SSH login works, yet `scp` stalls when bulk transfer begins because larger segments expose the PMTU problem.
+3. An HTTPS health check returns a tiny `200 OK`, but a large certificate chain or response times out.
+4. Two EC2 instances communicate inside one high-MTU path, while the same payload fails after adding an internet, VPN or inspection hop with a smaller MTU.
+
+### AWS-specific invariant
+
+When VPC hosts have different effective MTUs or communicate through external paths, PMTUD control traffic must be able to return. AWS documents the relevant NACL permissions in both directions: IPv4 fragmentation-needed (ICMP Type 3, Code 4) and IPv6 Packet Too Big (ICMPv6 Type 2). A route and an allowed TCP port are not sufficient if the PMTUD feedback itself is discarded.
+
+Do not assume every AWS hop has the same MTU. EC2 instance types, Transit Gateway, VPN, Direct Connect, load balancers, appliances and the public internet can place different limits on a path. The PMTU is still the minimum across the actual route.
+
+### Troubleshooting sequence
+
+1. Prove DNS, routes, Security Groups/NACLs and the listening port first; MTU should not be the first guess for every timeout.
+2. Compare tiny traffic with a transfer large enough to fill multiple packets.
+3. On Linux, `tracepath destination` can expose an observed PMTU. A controlled IPv4 probe such as `ping -M do -s 1472 destination` requests a 1,500-byte IP packet (1,472 payload + 8-byte ICMP + 20-byte IPv4 header); reduce the payload until it succeeds.
+4. Capture traffic at the sender. Repeated retransmissions after large packets, without the expected ICMP error, are stronger evidence than one failed ping.
+5. Inspect tunnel/inspection overhead and both directions of NACL/firewall policy. Do not “fix” the symptom by randomly shrinking every interface before identifying the narrow hop.
+
+### Invariant and common mistakes
+
+> Every emitted IP packet must be no larger than the sender's current PMTU estimate; a smaller-MTU hop must either provide usable feedback or the sender needs a conservative fallback.
+
+Common mistakes:
+
+- equating MTU with TCP MSS,
+- testing only default-size `ping`,
+- blocking all ICMP because it is mistaken for Echo only,
+- assuming IPv6 routers fragment oversized packets,
+- counting tunnel headers as application payload,
+- changing MTU globally without proving where the bottleneck is.
 
 ## 11. ICMP is not “the ping protocol only”
 
@@ -453,7 +526,7 @@ Run equivalents appropriate for your OS:
 # Linux/macOS examples
 ip addr                 # or ifconfig
 ip route                # route table
-a rp -a                 # use: arp -a (remove the space)
+arp -a
 nslookup example.com
 # or dig example.com
 traceroute example.com
@@ -499,6 +572,9 @@ Proof       packet capture/log/flow evidence
 - Cloudflare, Network layer: https://www.cloudflare.com/learning/network-layer/what-is-the-network-layer/
 - Cloudflare, Router: https://www.cloudflare.com/learning/network-layer/what-is-a-router/
 - Cloudflare, Internet overview: https://www.cloudflare.com/learning/network-layer/how-does-the-internet-work/
+- AWS, Path MTU Discovery and network ACLs: https://docs.aws.amazon.com/vpc/latest/userguide/path_mtu_discovery.html
+- RFC 8200, IPv6 specification: https://www.rfc-editor.org/rfc/rfc8200
+- RFC 8201, IPv6 Path MTU Discovery: https://www.rfc-editor.org/rfc/rfc8201
 
 
 ---
@@ -1523,11 +1599,98 @@ A cloud subnet can run out of IPs before CPU or storage becomes the bottleneck.
 
 ## 16. IPv6: key conceptual differences
 
-IPv6 has a much larger address space and globally unique addressing is common. In AWS, IPv6 addresses are globally unique/public by default in the addressing sense.
+IPv6 uses 128-bit addresses and removes the IPv4 address-conservation reason for NAT. That changes the address model, but it does **not** remove routing or security boundaries.
 
-That does **not** mean “open to the Internet.” Route tables and security controls still decide reachability.
+### The five differences to remember
 
-For AWS outbound-only IPv6 from private workloads, an **egress-only Internet Gateway** can allow outbound communication while preventing Internet-initiated IPv6 connections.
+| Concept | IPv4 mental model | IPv6 mental model |
+|---|---|---|
+| Address width | 32 bits | 128 bits |
+| Local neighbor discovery | ARP | Neighbor Discovery over ICMPv6 |
+| Broadcast | Broadcast exists | No broadcast; multicast/anycast cover the use cases |
+| Router fragmentation | Possible for IPv4 when DF is clear | Routers never fragment; source handles packet sizing/fragmentation |
+| Typical AWS internet egress | Private IPv4 + NAT Gateway | Globally unique IPv6 + IGW or egress-only IGW; no address-conservation NAT |
+
+An IPv6 address can be globally unique/public **in the addressing sense** while still being unreachable from the internet. Actual reachability requires all of these to agree:
+
+```text
+workload has IPv6
+AND subnet/VPC has IPv6 addressing
+AND route table has a matching IPv6 route
+AND gateway/path supports IPv6
+AND Security Group allows the flow
+AND stateless NACL allows request and return traffic
+AND the application listens on IPv6
+```
+
+The invariant is:
+
+> **An address identifies an endpoint; routes choose a path; policies permit the flow. None of the three substitutes for the others.**
+
+### Address forms you will see
+
+- **Global unicast** — routable beyond the local link when routing and policy permit it. AWS-provided public IPv6 addresses fit this mental category.
+- **Link-local (`fe80::/10`)** — used only on the local link; every IPv6-enabled interface normally has one.
+- **Loopback (`::1`)** — the local host.
+- **Unspecified (`::`)** — “no address,” comparable to `0.0.0.0` in limited contexts.
+- **Multicast (`ff00::/8`)** — one-to-many groups; Neighbor Discovery uses multicast rather than IPv4-style broadcast ARP.
+
+IPv6 text compresses consecutive zero groups once. For example:
+
+```text
+2001:0db8:0000:0000:0000:0000:0000:0025
+2001:db8::25
+```
+
+These are the same address. Do not use textual spelling as an identity check without normalizing it.
+
+### AWS outbound-only IPv6 packet trace
+
+Assume an instance has `2001:db8:1234:1a00::25`, the private-subnet route table contains `::/0 -> eigw-1234`, its Security Group allows outbound TCP 443, and the NACL permits request and return traffic.
+
+| Step | State/packet | Important observation |
+|---:|---|---|
+| 1 | DNS returns an AAAA record for the destination | An A record proves only IPv4 naming; test AAAA separately |
+| 2 | Source chooses the IPv6 destination and matches `::/0` | IPv4 `0.0.0.0/0` does not match IPv6 traffic |
+| 3 | Egress-only IGW forwards the outbound flow | It is stateful and does not translate the source into a shared public address |
+| 4 | Internet server replies to the instance's IPv6 address | Return traffic is associated with the initiated flow |
+| 5 | Egress-only IGW passes the response back | An unrelated internet host cannot initiate a new inbound flow through it |
+
+AWS describes an egress-only Internet Gateway as horizontally scaled, redundant and stateful. It is IPv6-only. It has no attached Security Group; control workload traffic with the workload Security Group and subnet NACLs.
+
+### Public versus outbound-only route patterns
+
+```text
+Public dual-stack subnet:
+0.0.0.0/0 -> Internet Gateway
+::/0       -> Internet Gateway
+
+Private dual-stack subnet:
+0.0.0.0/0 -> NAT Gateway
+::/0       -> egress-only Internet Gateway
+```
+
+The second pattern is not “IPv6 NAT.” The instance normally keeps its globally unique IPv6 source address; the egress-only gateway supplies a stateful outbound-only boundary.
+
+### Four concrete examples
+
+1. **Address but no route:** the instance has IPv6, but the route table lacks `::/0`; public IPv6 access fails.
+2. **Route but no listener:** routing and policy work, but the Java server binds only to `127.0.0.1` or an IPv4 socket; IPv6 connection attempts are refused or time out.
+3. **IPv4 works, IPv6 fails:** DNS returns A and AAAA; clients that prefer AAAA expose a missing IPv6 SG/NACL rule while IPv4-only clients remain healthy.
+4. **Outbound succeeds, unsolicited inbound fails:** an instance reaches an external HTTPS service through an egress-only IGW, but an internet scan cannot start a new connection to the instance. That is expected.
+
+### IPv6 packet-size rule
+
+IPv6 routers do not fragment packets. A constrained hop returns ICMPv6 Packet Too Big (Type 2), and the source reduces packet size or performs source fragmentation. Blocking ICMPv6 indiscriminately can therefore break real application traffic, not merely `ping`.
+
+### Common mistakes
+
+- treating “public address” as equivalent to “publicly reachable,”
+- adding only an IPv4 default route and expecting it to carry IPv6,
+- copying IPv4 NACL rules without IPv6 CIDRs and return-path rules,
+- assuming an egress-only IGW performs NAT,
+- forgetting AAAA records and IPv6 listener binding during dual-stack testing,
+- blocking Neighbor Discovery or Packet Too Big messages as “optional ICMP.”
 
 ### Important NAT contrast
 
