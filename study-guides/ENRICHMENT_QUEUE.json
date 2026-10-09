@@ -822,7 +822,7 @@
     "validation": "Archive ZIP integrity/traversal and source SHA passed; canonical BT-1/BT-3 placeholders were replaced with definitions, four examples, taxonomy, recursion contracts, DFS event traces, proofs, output-aware complexity, failure modes and primary-source links; Java 17 jdk.compiler module passed 376980 explicit and seeded randomized assertions comparing recursive outputs with independent iterative preorder/inorder/postorder/BFS/height oracles and validating node identity reachability; exact reader payload equality, idempotence, local links/anchors, responsive/search/Mermaid hooks, inline JavaScript and SVG XML checked; live literal-marker placeholder audit 170; browser visual QA not executed.",
     "estimated_next_tokens": 18000,
     "estimate_method": "Tokenizer unavailable. Angular Markdown section 1 lines 155-284 contain 4996 characters, estimated as 1249 tokens by chars/4; add heuristic reserves of 3500 for paired-source comparison/current primary research, 10000 for teaching/code/diagram/HTML, and 3000 for verification/checkpoint, then round conservatively. Not account-quota telemetry.",
-    "last_successful_commit": "5b8d5d4efa32c8720536c4874e6f3f2b11f1fe17",
+    "last_successful_commit": "6c0239b3511f52e3d15005eb45029ca0d43eb7fb",
     "last_processed_at": "2026-10-08T21:29:34-04:00",
     "next_batch_decision": "One bounded source section deepened two canonical cards. Remaining runtime budget is not exposed, so stop before reading Angular content and rotate to that unpromoted frontend source on a later run."
   }
