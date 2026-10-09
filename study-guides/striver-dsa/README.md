@@ -14,7 +14,7 @@ Canonical interview-study guides live here. Each topic keeps one latest Markdown
 
 Graph also contains a focused [Bellman–Ford Markdown deep dive](graph-dsa/markdown/bellman-ford-deep-dive.md) with a matching [HTML reader](graph-dsa/html/bellman-ford-deep-dive.html).
 
-The Trees & BST guide includes compiled companions for [plain BST insertion/deletion](trees-bst/java/BstIntSet.java) and its [independent oracle harness](trees-bst/java/BstIntSetCheck.java).
+The Trees & BST guide includes compiled companions for [plain BST insertion/deletion](trees-bst/java/BstIntSet.java) and its [oracle harness](trees-bst/java/BstIntSetCheck.java), plus [DFS processing moments](trees-bst/java/TreeTraversalMoments.java) and their [independent iterative-oracle checks](trees-bst/java/TreeTraversalMomentsCheck.java).
 
 ## How to study
 

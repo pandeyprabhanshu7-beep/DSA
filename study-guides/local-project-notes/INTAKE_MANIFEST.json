@@ -13,6 +13,7 @@
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 4",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 3",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 2",
+    "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 1",
     "src/README.md excerpt"
   ],
   "files": [
@@ -110,11 +111,12 @@
         "10. Fenwick Tree",
         "4. Red-Black Tree",
         "3. AVL Tree",
-        "2. Binary Search Tree Core"
+        "2. Binary Search Tree Core",
+        "1. Tree Mental Model & Taxonomy"
       ],
-      "next_section": "1. Tree Mental Model & Taxonomy",
-      "processed_range": "lines 197-271 (inclusive section boundary in materialized source)",
-      "target": "../striver-dsa/trees-bst/markdown/Striver_Trees_BST_FINAL_Deep_Dive.md (BST-6 and BST-7)"
+      "next_section": "Core sections 1-10 complete; supplementary sections 11-15 remain inventory-only",
+      "processed_range": "lines 24-196 (bounded read including navigation/context and section 1)",
+      "target": "../striver-dsa/trees-bst/markdown/Striver_Trees_BST_FINAL_Deep_Dive.md (BT-1 and BT-3)"
     },
     {
       "relative_path": "untitled/AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md",
@@ -838,17 +840,17 @@
     }
   ],
   "next_batch": {
-    "source": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md",
-    "section": "1. Tree Mental Model & Taxonomy",
+    "source": "untitled/Angular_Interview_Mermaid_Workbook.md plus Angular_Interview_Workbook.docx comparison",
+    "section": "1. Modern Angular 22 Interview Baseline (Markdown lines 155-284)",
     "status": "QUEUED",
-    "estimated_tokens": 16000,
-    "estimate_method": "Tokenizer unavailable. Lines 24-196 are 8610 characters, estimated at 2153 tokens by chars/4; add heuristic reserves of 2500 for comparison/research, 8000 for teaching/code/diagram/HTML, and 2500 for verification/checkpoint work, then round conservatively. This is not account-quota telemetry.",
-    "budget_action": "End this batch after one bounded source section because remaining runtime budget is not exposed. A later hourly run should compare section 1 with the canonical introductory tree/traversal cards before merging only distinct improvements."
+    "estimated_tokens": 18000,
+    "estimate_method": "Tokenizer unavailable. The bounded Markdown section is 4996 characters, estimated at 1249 tokens by chars/4; add heuristic reserves of 3500 for paired-source comparison/current primary research, 10000 for teaching/code/diagram/HTML, and 3000 for verification/checkpoint work, then round conservatively. This is not account-quota telemetry.",
+    "budget_action": "Stop after this validated advanced-tree section because remaining runtime budget is not exposed. A later run should resolve both Angular sources, read only the bounded first section, and preserve the richer edition."
   },
   "validation": {
-    "java": "Java 17 jdk.compiler module compiled BstIntSet and its independent harness; BstIntSetCheck passed 456423 assertions covering the source examples, empty/duplicate/missing/extreme keys, 1000 shuffled insert/delete permutations and 200000 seeded mixed operations against TreeSet with repeated ordering, reachability and size validation.",
-    "readers": "Canonical Trees/BST reader rebuilt from Markdown; restored its missing marked.parse render step and repaired one stale top anchor; exact embedded payload equality, idempotence, local links, fragment targets and responsive/search/Mermaid hooks checked",
-    "diagrams": "The added Mermaid deletion tree is embedded in the canonical payload; concept-map SVG XML parsed; browser visual QA not executed",
-    "last_processed_at": "2026-10-08T19:32:04-04:00"
+    "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
+    "readers": "Canonical Trees/BST reader rebuilt from Markdown; exact embedded payload equality, idempotence, local links, fragment targets and responsive/search/Mermaid hooks checked",
+    "diagrams": "The taxonomy mindmap and DFS processing-moment flow are embedded in the canonical payload; concept-map SVG XML parsed; browser visual QA not executed",
+    "last_processed_at": "2026-10-08T21:29:34-04:00"
   }
 }

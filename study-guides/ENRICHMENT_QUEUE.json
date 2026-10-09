@@ -639,7 +639,7 @@
         "Angular_Interview_Workbook.docx"
       ],
       "last_processed_at": null,
-      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "next_action": "Resolve both sources, then read and compare only section 1 (Modern Angular 22 Interview Baseline, Markdown lines 155-284) before creating the first bounded canonical Markdown/HTML section.",
       "priority": 15
     },
     {
@@ -773,7 +773,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Read bounded advanced-trees section 1 (Tree Mental Model & Taxonomy), compare it with canonical introductory tree/traversal cards, and merge only distinct improvements into the richer canonical target.",
+    "next_action": "Core advanced-tree sections 1-10 are processed. Rotate fairly to the accessible unpromoted Angular Markdown/DOCX pair and read only section 1 (Modern Angular 22 Interview Baseline) before promotion.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -815,14 +815,15 @@
       "Advanced trees section 5: B-Tree Insertion and Deletion",
       "Advanced trees section 4: Red-Black Tree Insertion and Deletion",
       "Advanced trees section 3: AVL Tree Insertion and Deletion",
-      "Advanced trees section 2: Binary Search Tree Core (merged into canonical BST-6 and BST-7)"
+      "Advanced trees section 2: Binary Search Tree Core (merged into canonical BST-6 and BST-7)",
+      "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)"
     ],
-    "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 197-271; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; merged into canonical BST-6 and BST-7 rather than creating a duplicate module",
-    "validation": "Archive ZIP integrity/traversal and source SHA passed; canonical BST-6/BST-7 placeholders were replaced with explicit contracts, examples, invariants, traces, proof, complexity, trade-offs and corrected code; Java 17 jdk.compiler module passed 456423 source-shaped, boundary, permutation and seeded mixed-operation assertions against TreeSet with repeated ordering/reachability/size validation; restored the reader's missing marked.parse render step and repaired one stale top anchor; exact payload equality, idempotence, local links/anchors, responsive/search/Mermaid hooks and SVG XML checked; live literal-marker placeholder audit 172; browser visual QA not executed.",
-    "estimated_next_tokens": 16000,
-    "estimate_method": "Tokenizer unavailable. Section 1 lines 24-196 contain 8610 characters, estimated as 2153 tokens by chars/4; add heuristic reserves of 2500 comparison/research, 8000 teaching/code/diagram/HTML, and 2500 verification/checkpoint, then round conservatively. Not account-quota telemetry.",
+    "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
+    "validation": "Archive ZIP integrity/traversal and source SHA passed; canonical BT-1/BT-3 placeholders were replaced with definitions, four examples, taxonomy, recursion contracts, DFS event traces, proofs, output-aware complexity, failure modes and primary-source links; Java 17 jdk.compiler module passed 376980 explicit and seeded randomized assertions comparing recursive outputs with independent iterative preorder/inorder/postorder/BFS/height oracles and validating node identity reachability; exact reader payload equality, idempotence, local links/anchors, responsive/search/Mermaid hooks, inline JavaScript and SVG XML checked; live literal-marker placeholder audit 170; browser visual QA not executed.",
+    "estimated_next_tokens": 18000,
+    "estimate_method": "Tokenizer unavailable. Angular Markdown section 1 lines 155-284 contain 4996 characters, estimated as 1249 tokens by chars/4; add heuristic reserves of 3500 for paired-source comparison/current primary research, 10000 for teaching/code/diagram/HTML, and 3000 for verification/checkpoint, then round conservatively. Not account-quota telemetry.",
     "last_successful_commit": "5b8d5d4efa32c8720536c4874e6f3f2b11f1fe17",
-    "last_processed_at": "2026-10-08T19:32:04-04:00",
-    "next_batch_decision": "One bounded section completed. Remaining runtime budget is not exposed, so stop before reading section 1 content and continue it on a later hourly run."
+    "last_processed_at": "2026-10-08T21:29:34-04:00",
+    "next_batch_decision": "One bounded source section deepened two canonical cards. Remaining runtime budget is not exposed, so stop before reading Angular content and rotate to that unpromoted frontend source on a later run."
   }
 }

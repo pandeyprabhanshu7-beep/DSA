@@ -30,12 +30,14 @@
 | LL-28 Reverse Nodes in Groups of K | ✅ | ✅ | Complete Java, ten-node trace, identity and remainder semantics |
 | BT-13 Maximum Depth / Height | ✅ | ✅ | DFS/BFS baselines, postorder proof and deep examples |
 | BT-16 Maximum Path Sum | ✅ | ✅ | Gain/candidate distinction and all-negative handling |
+| BT-1 Introduction to Trees | ✅ | ✅ | Four structural examples, exact vocabulary, taxonomy, recursion contracts, proof template and complexity |
+| BT-3 DFS Processing Moments | ✅ | ✅ | Pre/in/post event model, six-node trace, Java, proof, output costs and iterative-oracle checks |
 | BST-6 Insert into a BST | ✅ | ✅ | Strict-set contract, four examples, path invariant, Java, trace, proof and height-sensitive complexity |
 | BST-7 Delete a Node from BST | ✅ | ✅ | Three structural cases, four-operation trace, corrected Java, successor proof, boundaries and trade-offs |
 | H-10 Subarray Sum Equals K | ✅ | ✅ | Prefix-frequency proof, Java and overflow handling |
 | H-16 Minimum Window Substring | ✅ | ✅ | Four examples, brute force, frequency-window invariant, detailed ADOBECODEBANC trace, Java, proof and O(m+n) derivation |
 
-## Completion audit — 2026-10-08 ET (updated 19:32)
+## Completion audit — 2026-10-08 ET (updated 21:29)
 
 The five canonical Markdown guides and their five responsive HTML reading editions exist in the repository.
 
@@ -46,9 +48,9 @@ Current explicit Java placeholder count:
 | Graph | 51 |
 | Stack & Queue | 18 |
 | Linked List | 27 |
-| Trees & BST | 49 |
+| Trees & BST | 47 |
 | HashMap & Hashing | 27 |
-| **Total** | **172** |
+| **Total** | **170** |
 
 Previously removed placeholders:
 - S4 Queue Using Two Stacks
@@ -81,7 +83,7 @@ S6/S8 verification: Java sources compiled with javac --release 17 and executed o
 All five canonical responsive HTML files have been resynchronized so their embedded Markdown payload now exactly matches the paired canonical Markdown file.
 
 Remaining work:
-1. Replace the **172** remaining Java placeholders with problem-specific code.
+1. Replace the **170** remaining Java placeholders with problem-specific code.
 2. Replace generic examples with concrete 3–4 example sets.
 3. Expand hard-card dry runs into explicit state tables.
 4. Add correctness proofs and boundary-condition reasoning card by card.
@@ -111,7 +113,7 @@ These repository editions preserve the latest retained topic structure and study
 - [x] H-16 Minimum Window Substring deepened
 - [x] S2 Circular Queue and S3 One-Queue Stack deepened and Java-tested
 - [x] S1 Array Stack and S5 Linked Stack deepened and Java-tested
-- [ ] replace remaining 172 Java placeholders
+- [ ] replace remaining 170 Java placeholders
 - [ ] ongoing research-driven dry-run / example / boundary expansion
 
 
@@ -137,3 +139,9 @@ This literal-marker count is a backlog indicator, not certification that all oth
 BST-6 insertion and BST-7 deletion now have concrete contracts, four examples each, explicit invariants and traces, corrected Java, correctness proofs, height-sensitive complexity, boundary cases and interview variations. `BstIntSetCheck` passed 456,423 assertions, including 1,000 shuffled insert/delete permutations and 200,000 seeded mixed operations against `TreeSet` with repeated structural validation. The canonical HTML embeds the exact Markdown payload; this pass also restored its missing Markdown render step and repaired one stale top anchor.
 
 Fresh literal-marker audit after these two cards: Graph 51, Stack & Queue 18, Linked List 27, Trees & BST 49, HashMap & Hashing 27; **total 172**.
+
+## Tree foundations enrichment — 2026-10-08 ET
+
+BT-1 and BT-3 now explain precise tree vocabulary, family invariants, recursion contracts and the three meaningful DFS processing moments. `TreeTraversalMomentsCheck` passed 376,980 assertions across empty/singleton/branched/skewed examples and 10,000 seeded random trees compared with independent iterative preorder, inorder, postorder, BFS and height oracles.
+
+Fresh literal-marker audit after these cards: Graph 51, Stack & Queue 18, Linked List 27, Trees & BST 47, HashMap & Hashing 27; **total 170**.

@@ -93,89 +93,150 @@ The highest-value tree question is: what does dfs(node) return to its parent? In
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Introduction to Trees. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+A tree is either empty, or one root plus zero or more **subtrees**. In the data-structure sense, we normally start at a root and distinguish child positions; in the graph sense, a tree is connected and acyclic. Those views are related but not identical: a binary node with only a left child differs from one with only a right child even though their unlabelled graph shapes match.
 
-### Three requirement-clarifying examples
+Before solving a tree problem, write four things: the node state, the child relation, the invariant, and the recursive contract. “Use a tree” is not an algorithm—the family-specific invariant is what permits useful pruning or aggregation.
+
+### Four structures that separate commonly confused terms
 
 | # | Input / setup | Output / observation | Why it matters |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | no root | empty tree; height `-1` under the edge convention | gives a clean leaf recurrence: `1 + max(-1,-1) = 0` |
+| 2 | one root `A` | `A` is root and leaf; depth `0`, height `0` | a leaf need not be at a positive depth |
+| 3 | `A→(B,C)`, `B→(D,E)` | full and complete, but not perfect | `C` is a shallower leaf, so leaves are not on one level |
+| 4 | `A→(B,C)`, `B→(D,null)` | complete but not full | the last level is left-filled, but `B` has exactly one child |
+
+Here `X→(L,R)` denotes the ordered left and right child slots. Always state whether height counts **edges** (used here) or **nodes**; both conventions exist.
 
 ### Pattern recognition
 
-**Primary pattern:** Recursion contract
+**Primary pattern:** Recursive structure + family invariant
 
 > **KEY INTUITION —** Before coding, state exactly what dfs(node) returns upward or what context is passed downward.
 
-### Brute-force / straightforward baseline
+### Tree-family decision map
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+```mermaid
+mindmap
+  root((Tree need))
+    Ordered keys
+      BST
+      AVL / Red-Black
+    Priority
+      Heap
+    Prefix
+      Trie
+    Range
+      Segment / Fenwick
+    Storage pages
+      B-Tree / B+ Tree
+```
 
-### Optimized reasoning
+| Family | Defining invariant | What it enables | Typical trigger |
+|---|---|---|---|
+| BST | every left key `< node <` every right key | ordered search, predecessor/successor | dynamic ordered set/map |
+| AVL / red-black | BST order plus a height/color balance rule | worst-case logarithmic path length | ordered updates and queries |
+| binary heap | complete shape plus parent priority | inspect/remove min or max | scheduling, top K, streaming frontier |
+| trie | path labels form a prefix | prefix navigation | dictionary/autocomplete |
+| segment/Fenwick tree | stored nodes/buckets summarize ranges | queries with updates | sums, min/max, frequencies |
+| B-tree / B+ tree | high fan-out and bounded node occupancy | fewer page transfers | database/storage indexes |
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+No family is universally “best.” A heap gives fast minimum access but not arbitrary ordered search; a BST orders keys but does not automatically remain shallow; a trie trades memory for prefix steps.
 
-### Detailed dry run
+### Vocabulary with testable definitions
 
-Annotate recursive return values or the BFS queue after each level. Separate information returned upward from answers scored locally.
+| Term | Edge-based meaning used here | Frequent mistake |
+|---|---|---|
+| depth of `x` | edges from root to `x` | confusing it with subtree height |
+| height of `x` | longest downward edge path from `x` to a leaf | mixing edge/node conventions inside one recurrence |
+| leaf | node with no children | assuming all leaves share a level |
+| full binary tree | every node has 0 or 2 children | treating “full” as “every level filled” |
+| complete binary tree | all earlier levels full; final level filled left to right | confusing it with perfect |
+| perfect binary tree | every internal node has 2 children and all leaves share a level | forgetting both requirements |
+| balanced tree | satisfies a named balance invariant that bounds height | deciding by appearance |
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+### The recursion contract is the real design step
 
-### Java implementation / template
+For a method `solve(node)`, say exactly what it returns for the subtree rooted at `node`. Examples:
+
+- `height(node)` returns the longest downward edge count.
+- `validate(node, low, high)` returns whether every subtree key stays inside inherited bounds.
+- `summarize(node)` returns the minimum, maximum, size and validity its parent needs.
+
+The null result must make the parent formula correct. For edge height, null is `-1`; for node count, null is `0`; for a sum, null is `0`. These are identities chosen from the contract, not values to memorize blindly.
+
+### Dry run — height by edges
+
+For `A→(B,C)` and `B→(D,E)`:
+
+| Return step | Left / right result | Returned height |
+|---|---|---:|
+| null children of `D`, `E`, `C` | `-1, -1` | each leaf returns `0` |
+| `B` | `D=0`, `E=0` | `1` |
+| `A` | `B=1`, `C=0` | `2` |
+
+The parent never needs to rescan a child subtree; each child returns exactly one reusable summary.
+
+### Java representation and contract
 
 ```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+static final class Node {
+    final int value;
+    Node left, right;
+    Node(int value) { this.value = value; }
+}
+
+// Contract: height in edges; empty=-1 and leaf=0.
+static int height(Node node) {
+    if (node == null) return -1;
+    return 1 + Math.max(height(node.left), height(node.right));
+}
 ```
+
+The compiled companion and its oracle harness are [`TreeTraversalMoments.java`](../java/TreeTraversalMoments.java) and [`TreeTraversalMomentsCheck.java`](../java/TreeTraversalMomentsCheck.java).
 
 ### Key line to highlight
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+`return 1 + Math.max(height(node.left), height(node.right));` is the contract in code: the longest child path plus the edge from this node. Using a sum would count both branches rather than one path.
 
 ### Correctness checklist
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+Structural induction matches the recursive definition of a tree. The empty-tree base returns the defined identity. Assume each child call correctly summarizes its subtree; combining those summaries with the current node therefore gives the correct result for the larger tree. This proof template powers size, height, balance, diameter and most subtree-DP solutions.
 
 ### Boundary conditions
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+- Empty tree versus a null child inside a non-empty tree.
+- Ordered left/right slots versus an unordered graph-tree view.
+- Duplicate values do not mean duplicate node identities.
+- A shared child or back-edge makes the object a DAG/cyclic graph, not a tree; naive recursion may double-count or loop.
+- A chain has `h=n-1`; deep recursion can exhaust the Java stack.
+- Aggregated sums/counts may require `long` even when node values are `int`.
 
 ### Complexity — derive it instead of memorizing it
 
-**Full traversal O(n); recursion O(h), BFS frontier O(w).**
+Representing `n` nodes takes **`O(n)` storage**. A full DFS/BFS visits each node and child link once: **`O(n)` time**. Recursive DFS uses **`O(h)` call-stack space**; BFS uses **`O(w)` queue space**, where `w` is maximum width. If a traversal returns a list of all values, output construction is an additional **`O(n)` space** and `O(n)` writes.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+### Common errors and trade-offs
 
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+- Saying “balanced” without naming the AVL, red-black, weight or other invariant.
+- Claiming every BST operation is `O(log n)`; an ordinary BST can become a chain.
+- Mixing height in nodes and edges between code, examples and constraints.
+- Adding memoization to a proper one-pass tree: distinct subtrees do not overlap. Memoization matters when the structure is actually a DAG or repeated queries reuse cached metadata.
+- Choosing a specialized tree before stating the required operations and workload.
 
 > **MEMORY TRICK —** WHAT DOES THIS CALL PROMISE ITS PARENT?
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. Given operations and workload, choose between a hash table, BST, heap, trie and range tree.
+2. Detect whether pointer objects form a proper tree when cycles/shared children are possible.
+3. Convert an n-ary recursive contract to a binary-tree contract.
+4. Cache subtree size/height for repeated queries; explain which updates must repair metadata.
+5. Replace recursion with an explicit stack when `h` may be too large.
+
+### Sources and teaching boundary
+
+NIST defines a data-structure tree recursively as empty or a root with zero or more subtrees and separately notes the connected, undirected, acyclic graph meaning: [NIST DADS — tree](https://xlinux.nist.gov/dads/HTML/tree.html). The four examples, family decision table, contract identities, proof template and interview guidance above are added teaching explanations derived from the bounded local source.
 
 [↑ Back to Index](#navigation-and-index)
 
@@ -283,89 +344,120 @@ Memoization is useful only when the same logical state can be solved repeatedly.
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Tree Traversal — One DFS Frame, Three Processing Moments. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given a binary tree, understand **when meaningful work occurs inside one DFS call**. Each non-null frame has three moments: enter before the left child, resume between left and right, and exit after the right child. Recording the node at those moments yields preorder, inorder and postorder without changing the recursive skeleton.
 
-### Three requirement-clarifying examples
+This is more useful than memorizing three print functions. Real problems replace “record the value” with propagate bounds, combine child summaries, serialize, evaluate, clone or mutate.
+
+### Four requirement-clarifying examples
 
 | # | Input / setup | Output / observation | Why it matters |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | empty tree | all three orders are `[]` | null creates no event |
+| 2 | singleton `7` | all three orders are `[7]` | one frame reaches all moments |
+| 3 | sample `1→(2,3)`, `2→(4,5)`, `3→(null,6)` | pre `1,2,4,5,3,6`; in `4,2,5,1,3,6`; post `4,5,2,6,3,1` | same nodes, different work timing |
+| 4 | right chain `1→2→3→4` | pre/in `1,2,3,4`; post `4,3,2,1` | shape can make orders coincide |
 
 ### Pattern recognition
 
-**Primary pattern:** Recursion contract
+**Primary pattern:** DFS call-frame state
 
 > **KEY INTUITION —** Before coding, state exactly what dfs(node) returns upward or what context is passed downward.
 
-### Brute-force / straightforward baseline
+### The one-frame model
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+```mermaid
+flowchart TD
+    A["Enter node: preorder work"] --> B["Solve left subtree"]
+    B --> C["Resume: inorder work"]
+    C --> D["Solve right subtree"]
+    D --> E["Exit node: postorder work"]
+```
+
+Running three separate traversals is correct but repeats the same pointer walk. One call can expose all three moments. Do not force BFS into this model: level order uses a queue because “same distance from root” is horizontal state, not a DFS return moment.
 
 ### Optimized reasoning
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+**Call-frame invariant:** when `collect(node)` begins, none of `node`'s subtree events have been emitted. After the left call, every left-subtree event is complete and no right-subtree event has occurred. After the right call, both child subtrees are complete, so the frame can emit its exit event and return.
 
-### Detailed dry run
+The call stack stores the suspended node and the next instruction to execute. An iterative one-stack solution makes that hidden state explicit as `(node, phase)`.
 
-Annotate recursive return values or the BFS queue after each level. Separate information returned upward from answers scored locally.
+### Detailed event dry run
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+For the six-node sample, the event stream begins:
 
-### Java implementation / template
+| Step | Frame event | Preorder | Inorder | Postorder |
+|---:|---|---|---|---|
+| 1 | enter `1` | `1` | — | — |
+| 2 | enter `2`, enter `4` | `1,2,4` | — | — |
+| 3 | `4` between/exit | unchanged | `4` | `4` |
+| 4 | `2` between; visit/finish `5` | `…,5` | `4,2,5` | `4,5` |
+| 5 | exit `2`; `1` between | unchanged | `4,2,5,1` | `4,5,2` |
+| 6 | visit `3`, then `6`; unwind | `1,2,4,5,3,6` | `4,2,5,1,3,6` | `4,5,2,6,3,1` |
+
+“Return from left” is the central state transition: it moves the parent frame from phase 1 to phase 2 without revisiting the left subtree.
+
+### Java — all three DFS orders in one walk
 
 ```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+static void collect(
+        Node node,
+        List<Integer> preorder,
+        List<Integer> inorder,
+        List<Integer> postorder) {
+    if (node == null) return;
+
+    preorder.add(node.value);              // enter
+    collect(node.left, preorder, inorder, postorder);
+    inorder.add(node.value);               // between children
+    collect(node.right, preorder, inorder, postorder);
+    postorder.add(node.value);             // exit
+}
 ```
+
+Complete Java 17 code, including BFS and edge-height conventions, is in [`TreeTraversalMoments.java`](../java/TreeTraversalMoments.java). The independent test harness compares it with separate iterative traversals: [`TreeTraversalMomentsCheck.java`](../java/TreeTraversalMomentsCheck.java).
 
 ### Key line to highlight
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+`inorder.add(node.value)` must occur **after** the left call and **before** the right call. Moving it across either call changes which subtree is complete when the node is emitted.
 
 ### Correctness checklist
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+Use induction on subtree size. Null emits no values, which is correct. Assume both child calls emit their required orders. The current call emits its node before both child sequences for preorder, between them for inorder, and after them for postorder. Therefore each output has the defining order and contains every subtree node exactly once.
 
 ### Boundary conditions
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+- Null must return before dereferencing or appending.
+- Duplicate values are separate visits; compare node identity when identity matters.
+- A skewed tree makes call depth `n`; Oracle documents `StackOverflowError` for excessively deep recursion.
+- A cycle/shared child violates the tree precondition and can loop or duplicate output.
+- If the consumer can stream results, a visitor/callback avoids storing output lists.
+- Mutating child pointers during traversal can skip, duplicate or reorder future visits.
 
 ### Complexity — derive it instead of memorizing it
 
-**Full traversal O(n); recursion O(h), BFS frontier O(w).**
+Each of `n` nodes creates one frame and three constant-time append events: **`O(n)` traversal time**. Constructing three length-`n` lists performs `3n` writes and uses **`O(n)` output space**; Big-O remains `O(n)`. The recursion stack uses **`O(h)` auxiliary space**, from `O(log n)` for a shallow balanced shape to `O(n)` for a chain. BFS remains `O(n)` time with `O(w)` queue space.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+### Common errors and trade-offs
 
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+- Describing traversal only by print placement instead of meaningful work timing.
+- Calling inorder “sorted” for every binary tree; it is sorted only when the BST ordering invariant holds.
+- Claiming recursive DFS is `O(1)` space because no explicit stack was allocated.
+- Using three complete passes when one stateful pass is required, or combining passes when early stopping would make a dedicated traversal cheaper.
+- Using recursion on adversarially deep input without considering an explicit stack.
 
 > **MEMORY TRICK —** WHAT DOES THIS CALL PROMISE ITS PARENT?
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. Implement the three orders with one explicit stack of `(node, phase)` frames.
+2. Stop an inorder traversal at the kth BST visit without constructing the full list.
+3. Explain why subtree height, diameter and balance are naturally postorder.
+4. Explain why serialization with null markers is usually preorder or level order.
+5. Add a visitor callback and support early termination.
+
+### Sources and teaching boundary
+
+The order definitions match NIST DADS: [preorder](https://xlinux.nist.gov/dads/HTML/preorderTraversal.html), [inorder](https://xlinux.nist.gov/dads/HTML/inorderTraversal.html), and [postorder](https://xlinux.nist.gov/dads/HTML/postorderTraversal.html). Oracle defines [`StackOverflowError`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/StackOverflowError.html) as the failure caused by excessively deep recursion. The three-list implementation, event table, invariant, proof and randomized checks are added teaching material.
 
 [↑ Back to Index](#navigation-and-index)
 
