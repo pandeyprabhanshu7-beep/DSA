@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "6c0239b3511f52e3d15005eb45029ca0d43eb7fb",
+  "last_successful_commit": "451cbab815f8aa565feb8093e8a8343c87bbf53f",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -858,7 +858,10 @@
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
     "processed": "Q1–Q6",
-    "status": "CONTENT_PREPARED_FOR_COMMIT",
-    "validation": "6 sections, 4 original Mermaid diagrams, 4 code examples, HTML embedded Markdown equality verified in JavaScript; not Angular CLI compiled or browser-tested"
+    "status": "PUBLISHED",
+    "validation": "6 sections, 4 original Mermaid diagrams, 4 code examples, HTML embedded Markdown equality verified in JavaScript; not Angular CLI compiled or browser-tested",
+    "content_commit": "451cbab815f8aa565feb8093e8a8343c87bbf53f",
+    "estimated_next_tokens": 15000,
+    "estimate_method": "Heuristic from source size + explanation/examples/diagrams+HTML+validation/checkpoint, not actual quota percentage"
   }
 }

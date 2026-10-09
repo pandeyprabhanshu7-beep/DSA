@@ -655,7 +655,8 @@
         "retrieval": "Both source texts read in ChatGPT Library 2026-10-09",
         "baseline_main_head": "7953f6234430bace52b8aa87e747fe52c11409ba"
       },
-      "validation": "6 sections, 4 original Mermaid diagrams, 4 code examples, HTML embedded Markdown equality verified in JavaScript; not Angular CLI compiled or browser-tested"
+      "validation": "6 sections, 4 original Mermaid diagrams, 4 code examples, HTML embedded Markdown equality verified in JavaScript; not Angular CLI compiled or browser-tested",
+      "last_successful_commit": "451cbab815f8aa565feb8093e8a8343c87bbf53f"
     },
     {
       "id": "javascript-html-css",
