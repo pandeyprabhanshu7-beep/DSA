@@ -218,7 +218,9 @@
       "version_id": null,
       "modified_at": "2026-09-08T00:10:00.775386Z",
       "size_bytes": 74372,
-      "status": "DISCOVERED"
+      "status": "READY",
+      "last_read_at": "2026-10-09",
+      "selection": "Q1–Q6 content read and compared; fuller content remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
@@ -338,7 +340,9 @@
       "version_id": null,
       "modified_at": "2026-08-31T14:40:43.673563Z",
       "size_bytes": 62355,
-      "status": "DISCOVERED"
+      "status": "READY",
+      "last_read_at": "2026-10-09",
+      "selection": "Q1–Q6 content read and compared; fuller content remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Workbook.docx",
@@ -632,15 +636,26 @@
       "id": "angular",
       "domain": "Frontend",
       "canonical_target": "study-guides/frontend/angular/",
-      "target_exists": false,
-      "status": "DISCOVERED",
+      "target_exists": true,
+      "status": "IN_PROGRESS",
       "source_names": [
         "Angular_Interview_Mermaid_Workbook.md",
         "Angular_Interview_Workbook.docx"
       ],
-      "last_processed_at": null,
-      "next_action": "Resolve both sources, then read and compare only section 1 (Modern Angular 22 Interview Baseline, Markdown lines 155-284) before creating the first bounded canonical Markdown/HTML section.",
-      "priority": 15
+      "last_processed_at": "2026-10-09",
+      "next_action": "Compare Angular Markdown+DOCX source section 2 Q7–Q13 (lifecycle and communication); enrich existing guide.md and rebuild matching guide.html.",
+      "priority": 15,
+      "processed_sections": [
+        "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)"
+      ],
+      "source_revision": {
+        "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
+        "source_markdown_lines": "155-284",
+        "source_docx": "Angular_Interview_Workbook.docx pages 3–5",
+        "retrieval": "Both source texts read in ChatGPT Library 2026-10-09",
+        "baseline_main_head": "7953f6234430bace52b8aa87e747fe52c11409ba"
+      },
+      "validation": "6 sections, 4 original Mermaid diagrams, 4 code examples, HTML embedded Markdown equality verified in JavaScript; not Angular CLI compiled or browser-tested"
     },
     {
       "id": "javascript-html-css",

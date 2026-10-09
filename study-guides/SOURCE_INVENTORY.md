@@ -18,7 +18,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | database-caching-java | System design/data | DISCOVERED | `study-guides/databases/caching-java/` | database_internals_caching_java_master_guide.md |
 | cicd-cloud-kubernetes | DevOps/backend | PROMOTED | `study-guides/devops/cicd/` | cicd_aws_azure_teamcity_jenkins_guide.html<br>ai_cicd_spring_python_guides_complete.zip |
 | spring-ai-python-api | DevOps/backend | DISCOVERED | `study-guides/backend/spring-ai-python/` | ai_cicd_spring_python_guides_complete.zip<br>spring_ai_python_api_interview_guide.html |
-| angular | Frontend | DISCOVERED | `study-guides/frontend/angular/` | Angular_Interview_Mermaid_Workbook.md<br>Angular_Interview_Workbook.docx |
+| angular | Frontend | IN_PROGRESS | `study-guides/frontend/angular/` | Angular_Interview_Mermaid_Workbook.md<br>Angular_Interview_Workbook.docx |
 | javascript-html-css | Frontend | DISCOVERED | `study-guides/frontend/javascript-html-css/` | JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md<br>JavaScript_HTML_CSS_Interview_Workbook.docx |
 | aws-networking | AWS/cloud | PROMOTED | `study-guides/aws/networking/` | Repository source or earlier analysis; locate as needed |
 | aws-master-course | AWS/cloud | NEEDS_SOURCE | `study-guides/aws/` | Repository source or earlier analysis; locate as needed |
@@ -91,3 +91,6 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 
 See [pipeline rules](ENHANCEMENT_PIPELINE.md) and [machine-readable queue](ENRICHMENT_QUEUE.json).
 
+
+
+Angular Q1–Q6 canonical notes are tracked at [frontend/angular](frontend/angular/); other Angular workbook sections are not yet imported (2026-10-09).
