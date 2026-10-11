@@ -664,7 +664,7 @@
         "baseline_main_head": "2cc988b7cbee13835b51acd020550664504a60c7"
       },
       "validation": "Q38-Q42 add standalone lazy-route and guard/resolver contracts, four-example families, chunk/navigation/interceptor/cancellation traces, ordered functional interceptor code, layered error translation, stale-request and server-rollback boundaries, invariants and derived network/render costs; deterministic builder and exact 128169-character HTML embedded-Markdown equality passed with 43 unique anchors, 69 balanced fenced blocks and 22 total Mermaid diagrams; inline JavaScript syntax and JSON checks passed; live DSA literal-marker audit 170; Angular/TypeScript/RxJS compile and browser visual QA were not executed because those packages are absent.",
-      "last_successful_commit": "ac2997c1a33c8db77b287f40ffec730f4dfac4cb"
+      "last_successful_commit": "1d59fab949f8898a43145c2c44d53f76ecd1bd7e"
     },
     {
       "id": "javascript-html-css",
@@ -846,7 +846,7 @@
     "validation": "Angular Q38-Q42 were compared in both actual source texts and enriched with lazy-route and guard/resolver requirements, four-example families, chunk/navigation/interceptor/cancellation traces, ordered functional interceptor code, layered error ownership, stale-request and server-rollback boundaries, three Mermaid diagrams, invariants and derived costs; deterministic reader generation, exact 128169-character payload equality, 43 anchors, 69 balanced fences, 22 Mermaid diagrams, inline JavaScript, JSON and live 170-marker DSA placeholder audit passed; Angular/TypeScript/RxJS compile and browser visual QA were not executed because those packages are absent.",
     "estimated_next_tokens": 11000,
     "estimate_method": "Heuristic only: Q43-Q44 occupy the state-management subsection before deferrable views begin at Q45 (Markdown lines 979-1036; DOCX extracted lines 635-668); reserve ~1500 tokens for paired source intake, ~2500 primary research, ~5000 teaching/code/diagram/HTML and ~2000 validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "ac2997c1a33c8db77b287f40ffec730f4dfac4cb",
+    "last_successful_commit": "1d59fab949f8898a43145c2c44d53f76ecd1bd7e",
     "last_processed_at": "2026-10-11T09:46:48-04:00",
     "next_batch_decision": "Q38-Q42 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q43-Q44 and retain the conservative one-section checkpoint."
   }
