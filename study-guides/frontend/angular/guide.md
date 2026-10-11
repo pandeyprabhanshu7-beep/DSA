@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q50)
+# Angular 22 — Interview Foundations (Q1–Q51)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q50 (Q50 is lines 1123–1135) with the corresponding `Angular_Interview_Workbook.docx` text (Q50 is extracted lines 733–740). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis and large-application dependency boundaries, with diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q51 (Q51 is lines 1136–1143) with the corresponding `Angular_Interview_Workbook.docx` text (Q51 is extracted lines 741–747). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries and pragmatic container/presentational ownership, with diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -54,6 +54,7 @@
 - [Q48: Slow-list diagnosis](#q48)
 - [Q49: ExpressionChangedAfterItHasBeenChecked](#q49)
 - [Q50: Large-application structure](#q50)
+- [Q51: Smart vs presentational components](#q51)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -3038,22 +3039,235 @@ To migrate a type-bucket application safely: choose one frequently changed featu
 
 **Interview variations:** modular monolith vs micro-frontends; standalone route boundaries; route/provider lifetime; facades versus direct services; monorepo ownership; when to extract a library; primary versus secondary entry points; DTO/domain mapping; design-system governance; dependency-cycle prevention; affected builds; strangler migration from type folders; measuring chunk and team-boundary costs.
 
+<a id="q51"></a>
+## Q51. Are smart and presentational components still useful?
+
+**Requirement:** Explain the pattern without treating two labels as mandatory Angular types. A **container/orchestration component** coordinates feature state, routing, data access and user intentions. A **presentational component** receives the data needed to render and reports semantic events. The useful idea is an ownership boundary—not a suffix, folder or rule that every component must be split in two.
+
+Signals, standalone components and `inject()` reduce wiring, but they do not answer who owns state, who may start I/O, or whether a component can be reused without a feature injector. Split when the boundary makes the public contract clearer, permits reuse, isolates volatile orchestration or enables focused tests. Keep a cohesive component whole when a split only forwards every property and event.
+
+| Situation | Recommended ownership | Why |
+|---|---|---|
+| Routed order list coordinates loading, filters and navigation | Container/page injects the facade and router | Feature workflow and route lifetime belong here |
+| Order card appears in list, search and dashboard | Presentational card takes a view model and emits `selected` | Reusable without API/store/router dependencies |
+| One date picker owns only its open/closed and focused-day state | Keep local UI state inside the picker | “Presentational” does not mean stateless |
+| Tiny page used once with one query and no reusable subtree | Keep one cohesive component initially | Avoid a pass-through component pair |
+
+### Modern ownership model
+
+```mermaid
+flowchart TD
+  Route["Route / feature boundary"] --> Page["Container page"]
+  Page --> Facade["Facade or use case"]
+  Page --> Card["Presentational component"]
+  Facade --> Page
+  Card --> Page
+```
+
+The two return arrows represent different contracts: the facade exposes feature state to the page, while the card emits a user intention such as `selected(orderId)`. The card does not call the facade, navigate or decide which HTTP endpoint to use. It may still own hover, focus, expanded/collapsed or draft-input state that exists only for its view.
+
+### Example 1 — a narrow presentational contract
+
+```typescript
+import {ChangeDetectionStrategy, Component, computed, input, output} from '@angular/core';
+
+export interface OrderCardVm {
+  readonly id: string;
+  readonly customerName: string;
+  readonly totalCents: number;
+  readonly statusLabel: string;
+}
+
+@Component({
+  selector: 'app-order-card',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <article>
+      <h3>{{ order().customerName }}</h3>
+      <p>{{ totalLabel() }} · {{ order().statusLabel }}</p>
+      <button type="button" (click)="selectOrder()">Open order</button>
+    </article>
+  `,
+})
+export class OrderCardComponent {
+  readonly order = input.required<OrderCardVm>();
+  readonly selected = output<string>();
+  protected readonly totalLabel = computed(() =>
+    new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'})
+      .format(this.order().totalCents / 100),
+  );
+
+  protected selectOrder(): void {
+    this.selected.emit(this.order().id);
+  }
+}
+```
+
+The input is the complete render contract and the output describes meaning, not DOM mechanics. Prefer `selected` or `orderOpened` over `buttonClicked`. The child does not mutate the input or expose its button element. For a hot list, avoid constructing `Intl.NumberFormat` per recomputation—inject or share a formatter, or use a pipe; the inline form keeps the ownership example self-contained.
+
+### Example 2 — the container composes state and effects
+
+```typescript
+import {ChangeDetectionStrategy, Component, computed, inject} from '@angular/core';
+import {Router} from '@angular/router';
+import {OrderCardComponent, OrderCardVm} from '../ui-order-card/order-card';
+import {OrdersFacade} from '../application/orders-facade';
+
+@Component({
+  selector: 'app-order-list-page',
+  imports: [OrderCardComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @if (loading()) {
+      <p role="status">Loading orders…</p>
+    } @else if (cards().length === 0) {
+      <p>No orders found.</p>
+    } @else {
+      @for (card of cards(); track card.id) {
+        <app-order-card [order]="card" (selected)="openOrder($event)" />
+      }
+    }
+  `,
+})
+export default class OrderListPage {
+  private readonly facade = inject(OrdersFacade);
+  private readonly router = inject(Router);
+
+  protected readonly loading = this.facade.loading;
+  protected readonly cards = computed<readonly OrderCardVm[]>(() =>
+    this.facade.rows().map(order => ({
+      id: order.id,
+      customerName: order.customerName,
+      totalCents: order.totalCents,
+      statusLabel: order.status.toUpperCase(),
+    })),
+  );
+
+  protected openOrder(id: string): void {
+    void this.router.navigate(['/orders', id]);
+  }
+}
+```
+
+The page owns navigation and converts domain state into a render-focused view model. Mapping here is appropriate while it is page-specific; move it to a pure presenter function when multiple pages need the same projection or the mapping deserves direct tests. Do not create a facade solely so that the page never injects a service—the facade must hide a meaningful workflow or state boundary.
+
+### Example 3 — a reusable component can own local state
+
+```typescript
+import {Component, input, output, signal} from '@angular/core';
+
+@Component({
+  selector: 'app-filter-panel',
+  template: `
+    <button type="button" [attr.aria-expanded]="expanded()" (click)="toggle()">
+      Filters
+    </button>
+    @if (expanded()) {
+      <label>
+        Query
+        <input [value]="query()" (input)="queryChanged.emit(readValue($event))" />
+      </label>
+    }
+  `,
+})
+export class FilterPanelComponent {
+  readonly query = input('');
+  readonly queryChanged = output<string>();
+  protected readonly expanded = signal(false);
+
+  protected toggle(): void {
+    this.expanded.update(value => !value);
+  }
+
+  protected readValue(event: Event): string {
+    return (event.target as HTMLInputElement).value;
+  }
+}
+```
+
+`expanded` is ephemeral visual state, so forcing it into a global store would weaken ownership. The parent owns the search query because it affects data selection and URL/filter behavior; the child reports edits. If the component is a form control, a `model()` contract or ControlValueAccessor may be more natural than a separate input/output pair. Use two-way state only for a genuine shared value, not for commands such as “save order.”
+
+### Example 4 — know when not to split
+
+Suppose `AccountAvatarComponent` is used once, injects a small current-user service and renders eight lines of markup. Creating `AccountAvatarContainer` plus `AccountAvatarView` would add an input, output, extra selector and duplicate tests without establishing reuse or isolating volatile logic. Keep it cohesive. Extract the view later if a second consumer, Storybook/design-system requirement, complex orchestration or independent ownership appears.
+
+### Click-to-effect dry run
+
+For the order-card example:
+
+1. The facade publishes two domain orders; the page's `computed` maps them to two immutable card view models.
+2. `@for` tracks each card by `id`, so reorder/refresh preserves the correct component identity.
+3. The user clicks “Open order” in card B.
+4. Card B emits only `selected('B')`; it does not know the route.
+5. The page handles the semantic event and navigates to `/orders/B`.
+6. A different parent could handle the same event by opening a dialog or selecting a dashboard row without changing the card.
+
+This is the substitution test for a presentation boundary: can another parent supply valid inputs and interpret outputs without recreating hidden providers or route context?
+
+### Invariants and decision test
+
+- **Input invariant:** inputs are sufficient to render every externally controlled state, including loading-disabled or selected appearance where relevant.
+- **Event invariant:** outputs report semantic user intentions; the child does not perform feature navigation, global mutation or transport calls behind the parent's back.
+- **Locality invariant:** transient view state stays local. Shared feature/server state lives at the nearest common owner.
+- **Dependency invariant:** a reusable presentation component does not inject a feature facade/store merely for convenience. Domain-neutral services such as accessibility helpers can be legitimate.
+- **Purity invariant:** transforming inputs to display values is deterministic; I/O and cross-feature effects remain in orchestration/application boundaries.
+- **Pragmatism invariant:** every split must improve at least one of reuse, test isolation, ownership, readability or change containment.
+
+Ask four questions before splitting: (1) Will the view have another consumer? (2) Do data/effect dependencies change for different hosts? (3) Can the child contract be expressed with a small set of values and events? (4) Will separate tests exercise meaningful behavior rather than forwarding? A “yes” to none is a strong signal to keep one component.
+
+### Costs and trade-offs
+
+For n visible cards, mapping to view models costs O(n) time and O(n) output space; rendering still depends on the affected views and DOM. A `computed` avoids remapping while its signal dependencies are unchanged, but a changed rows reference recomputes the projection. Component separation does not automatically improve runtime speed: it adds instances and bindings, while OnPush and stable identities can reduce unrelated checks. Measure before claiming a performance win.
+
+Architecturally, a narrow contract reduces the number of feature dependencies a reusable child can reach. The trade-off is interface surface: I inputs plus O outputs must be named, documented and evolved. If a child needs twenty pass-through properties, prefer a cohesive typed view model, content projection or reconsider the boundary; do not hide coupling by injecting global state.
+
+### Tests and failure boundaries
+
+```typescript
+import {TestBed} from '@angular/core/testing';
+
+it('emits the semantic order id', () => {
+  const fixture = TestBed.createComponent(OrderCardComponent);
+  fixture.componentRef.setInput('order', {
+    id: 'B',
+    customerName: 'Ada',
+    totalCents: 2599,
+    statusLabel: 'SUBMITTED',
+  } satisfies OrderCardVm);
+  const selected: string[] = [];
+  fixture.componentInstance.selected.subscribe(id => selected.push(id));
+
+  fixture.detectChanges();
+  fixture.nativeElement.querySelector('button').click();
+
+  expect(selected).toEqual(['B']);
+});
+```
+
+Test the presentation component's rendered contract and semantic events with no router or HTTP mock. Test the container with a fake facade/router for mapping, empty/loading/error states and event orchestration. Also test changed input, repeated click policy, keyboard interaction, removed rows, duplicate IDs, error states, localization and destruction. A child unit test cannot prove the page wired every input/output correctly, so retain one composition test.
+
+**Common wrong approaches:** interpreting “presentational” as zero local state; injecting a global store into every leaf; wrapping every component in a container; passing raw API DTOs to UI; outputs named after DOM events; a child navigating directly despite a reusable contract; twenty scalar pass-through inputs; mutating an input object; using `model()` for commands; asserting private methods instead of rendered behavior; and assuming Signals remove ownership decisions.
+
+**Interview variations:** container/presentational vs feature/UI terminology; smart components with Signals; local vs feature vs global state; input/output vs `model()`; facade usefulness; OnPush; view-model mapping; content projection; design-system boundaries; component harnesses; when to merge an over-split pair; and when a routed page should remain cohesive.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
+
+Keep the reusable order card behind a readonly view-model input and semantic `selected` output; let it own only local view state while the page owns navigation, feature state and effects.
 
 Place `/orders/:id` behind one public orders feature entry point. Keep order domain rules independent of Angular UI and concrete HTTP code, map DTOs in data access, inject the repository port at route composition, expose workflow state through a route-scoped facade, and prove import rules reject reverse/deep dependencies. Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and prevent synchronous child initialization from rewriting an already-checked parent binding; demonstrate the NG0100 trace and repair the ownership rather than adding a timer. Cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: forbidden import direction, deep import, dependency cycle, malformed DTO, route-provider teardown, lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, unauthorized API access despite a bypassed guard, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, child-after-view parent mutation, impure binding getter, DOM measurement in browser and SSR, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q50. This pass was bounded to Markdown lines 1123–1135 and DOCX extracted lines 733–740 for Q50; the two sources contained the same feature-first large-application structure question and advice. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q51. This pass was bounded to Markdown lines 1136–1143 and DOCX extracted lines 741–747 for Q51; the two sources contained the same advice that the labels are optional while separating state/data orchestration from reusable UI can still improve testing and reuse. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, browser screenshot or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-11): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
 - Official Angular lifecycle-stability material (reviewed 2026-10-11): [NG0100 error encyclopedia](https://angular.dev/errors/NG0100), [component lifecycle](https://angular.dev/guide/components/lifecycle), and [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
-- Official Angular application-structure material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
+- Official Angular application-structure and component-contract material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [signals](https://angular.dev/guide/signals), [services and DI](https://angular.dev/guide/di/creating-and-using-services), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q51 (whether smart/presentational components remain useful) in both sources, starting at Markdown line 1136 and DOCX extracted line 741; resolve the section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q52 (testing Angular components) in both sources, starting at Markdown line 1151 and DOCX extracted line 751; resolve the section end before reading it and keep extending this one canonical guide.
 
