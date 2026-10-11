@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q37)
+# Angular 22 — Interview Foundations (Q1–Q42)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q37 (Q35–Q37 are lines 831–883) with the corresponding `Angular_Interview_Workbook.docx` text (Q35–Q37 are extracted lines 535–563). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state and subscription traces, modern signal/resource, forms and DI APIs, zoneless migration guidance, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q42 (Q38–Q42 are lines 884–978) with the corresponding `Angular_Interview_Workbook.docx` text (Q38–Q42 are extracted lines 564–634). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, zoneless migration guidance, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -41,6 +41,11 @@
 - [Q35: Reactive vs template-driven forms](#q35)
 - [Q36: Signal Forms](#q36)
 - [Q37: Sync vs async validators](#q37)
+- [Q38: Standalone lazy routing](#q38)
+- [Q39: Guard vs resolver](#q39)
+- [Q40: HTTP interceptors](#q40)
+- [Q41: HTTP error ownership](#q41)
+- [Q42: Cancel stale HTTP requests](#q42)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -1859,17 +1864,347 @@ sequenceDiagram
 
 **Cost:** synchronous validation costs the sum of invoked rules, commonly O(v) for v constant-time validators plus any scan such as O(L) for a length/pattern over L characters. Async validation adds network latency, backend work and one retained pending subscription. Angular skips that expense when sync validation fails. A database uniqueness index is typically O(log n) lookup or implementation-specific, but the only correctness guarantee comes from the atomic server-side constraint, not the preliminary client query.
 
+## Routing and HTTP request boundaries
+
+Routing decides **which feature should exist now**; HTTP decides **which remote state that feature can observe or mutate**. Lazy loading, guards, resolvers, interceptors and RxJS cancellation each solve a different boundary. Combining them indiscriminately creates slow navigation, leaked credentials or hidden error behavior.
+
+<a id="q38"></a>
+## Q38. How does lazy-loaded routing work in standalone Angular?
+
+**Requirement:** keep the landing shell small, load an admin feature only when its URL is matched, and preserve a clear feature boundary. A direct `component` reference is eager. `loadComponent` loads one standalone component, while `loadChildren` loads a child route configuration. Both loader functions normally use the JavaScript `import()` boundary that the build system turns into a separate chunk.
+
+```typescript
+import {Routes} from '@angular/router';
+
+export const routes: Routes = [
+  {
+    path: '',
+    pathMatch: 'full',
+    loadComponent: () => import('./home/home.page')
+      .then(module => module.HomePage)
+  },
+  {
+    path: 'admin',
+    loadChildren: () => import('./admin/admin.routes')
+      .then(module => module.ADMIN_ROUTES)
+  },
+  {
+    path: '**',
+    loadComponent: () => import('./not-found/not-found.page')
+      .then(module => module.NotFoundPage)
+  }
+];
+```
+
+```typescript
+// admin/admin.routes.ts
+import {Routes} from '@angular/router';
+
+export const ADMIN_ROUTES: Routes = [
+  {
+    path: '',
+    loadComponent: () => import('./admin-dashboard.page')
+      .then(module => module.AdminDashboardPage)
+  },
+  {
+    path: 'users/:id',
+    loadComponent: () => import('./user-admin.page')
+      .then(module => module.UserAdminPage)
+  }
+];
+```
+
+### First-navigation trace
+
+```mermaid
+sequenceDiagram
+ participant U as User
+ participant R as Router
+ participant B as Browser
+ participant A as Angular
+ U->>R: navigate /admin/users/42
+ R->>R: match admin route
+ R->>B: import admin route chunk
+ B-->>R: ADMIN_ROUTES
+ R->>B: import user page chunk
+ B-->>R: component class
+ R->>A: run guards/resolvers and activate
+ A-->>U: render user admin page
+```
+
+**Four examples:** the primary landing page may be eager when immediate paint matters; a rarely visited admin area should usually be lazy; a small settings page can use `loadComponent`; a larger billing feature with several nested screens can use `loadChildren` so its routes and providers remain grouped.
+
+**What lazy loading does not do:** it does not authorize the route, hide secrets already shipped elsewhere, or guarantee a faster transition. It moves code out of the initial bundle and introduces a later chunk request. Route-level providers and the loader's injection context can scope dependencies, but backend authorization still protects data and mutations.
+
+**Invariants and errors:** route order is significant, so put specific routes before `**`; exported names in `.then(...)` must match the module; avoid accidental eager imports of the same feature from root code; and handle chunk-load failure with navigation error policy and deployment-compatible caching. A stale HTML document that references removed hashed chunks is a deployment/versioning problem, not a reason to disable lazy loading.
+
+**Cost and trade-off:** the initial JavaScript download/parse cost drops by the bytes moved into lazy chunks. First navigation then pays a network round trip plus transfer, parse and initialization for those chunks. Route matching is proportional to the candidate configuration examined, while rendering remains proportional to produced view output. Excessive nested lazy boundaries can create a request waterfall; choose boundaries around meaningful features and measure real bundle and navigation timings.
+
+<a id="q39"></a>
+## Q39. Guard vs resolver
+
+**Requirement:** redirect unauthenticated users before entering `/orders/:id`, then obtain the order required by the page. A **guard decides whether or how navigation may proceed**. A **resolver obtains required route data before activation**. Neither substitutes for backend authorization.
+
+```typescript
+import {inject} from '@angular/core';
+import {
+  CanActivateFn, ResolveFn, Router, Routes
+} from '@angular/router';
+import {Observable} from 'rxjs';
+
+type Order = Readonly<{id: string; status: string; totalCents: number}>;
+
+export const signedInGuard: CanActivateFn = (_route, state) => {
+  const session = inject(SessionService);
+  const router = inject(Router);
+  return session.isSignedIn()
+    ? true
+    : router.createUrlTree(['/sign-in'], {queryParams: {returnUrl: state.url}});
+};
+
+export const orderResolver: ResolveFn<Order> = route => {
+  const orders = inject(OrderService);
+  const id = route.paramMap.get('id');
+  if (id === null) throw new Error('Route contract requires id');
+  return orders.get(id);
+};
+
+export const orderRoutes: Routes = [
+  {
+    path: 'orders/:id',
+    canActivate: [signedInGuard],
+    resolve: {order: orderResolver},
+    loadComponent: () => import('./order.page').then(m => m.OrderPage)
+  }
+];
+```
+
+With `provideRouter(routes, withComponentInputBinding())`, the component can declare `order = input.required<Order>()`; otherwise it can read `ActivatedRoute.data`. The router waits for the resolver's result before activation. That makes resolvers suitable for essential first-render data but poor for optional or slow secondary panels that should load progressively.
+
+| Scenario | Correct tool | Expected behavior |
+|---|---|---|
+| Not signed in | `CanActivate` | return a `UrlTree`/`RedirectCommand` to sign-in |
+| Unsaved editor | `CanDeactivate` | ask whether leaving is allowed |
+| Feature-flagged route variants | `CanMatch` | `false` tries another matching route |
+| Order required to render page | `ResolveFn<Order>` | load before component activation |
+
+**Return contracts:** guards may return a boolean, redirect object, Promise or Observable; the router uses the first async result and unsubscribes. Return a redirect rather than returning `false` and imperatively calling `navigate`. Multiple asynchronous guards in one array may start concurrently, so one guard must not depend on another guard's side effect. Resolvers can also return synchronous values, Promises or Observables; define an error/redirect policy so failed required data does not produce an unexplained navigation failure.
+
+**Navigation invariant:** activation occurs only after route matching and the required guard/resolver phase succeeds. A guard protects user experience, not the API. The server must validate the token, tenant, role and resource ownership on every protected request.
+
+**Cost:** a synchronous guard is typically O(1). Remote guards/resolvers add network latency to the critical navigation path; several independent requests can run concurrently, but the slowest required one determines readiness. Resolved data occupies O(d) memory for payload size d and rendering it costs at least O(d) or O(number of displayed records). Prefer route resources or component-level loading for non-blocking data.
+
+<a id="q40"></a>
+## Q40. How do `HttpClient` interceptors work?
+
+**Requirement:** attach a bearer token only to the trusted API origin, add a correlation ID, and preserve predictable ordering. Functional interceptors are request/response middleware registered with `withInterceptors`. Requests travel through them in listed order; response events unwind through the same nested chain in reverse.
+
+```typescript
+import {inject} from '@angular/core';
+import {
+  HttpInterceptorFn, provideHttpClient, withInterceptors
+} from '@angular/common/http';
+import {finalize} from 'rxjs';
+
+const API_ORIGIN = 'https://api.example.com';
+
+export const correlationInterceptor: HttpInterceptorFn = (request, next) => {
+  const requestId = crypto.randomUUID();
+  const tagged = request.clone({
+    setHeaders: {'X-Request-ID': requestId}
+  });
+  const startedAt = performance.now();
+  return next(tagged).pipe(
+    finalize(() => console.debug(requestId, performance.now() - startedAt))
+  );
+};
+
+export const authInterceptor: HttpInterceptorFn = (request, next) => {
+  const token = inject(SessionService).accessToken();
+  const trusted = request.url.startsWith('/api/') ||
+    request.url.startsWith(`${API_ORIGIN}/`);
+  const authenticated = token && trusted
+    ? request.clone({setHeaders: {Authorization: `Bearer ${token}`}})
+    : request;
+  return next(authenticated);
+};
+
+export const httpProviders = provideHttpClient(
+  withInterceptors([correlationInterceptor, authInterceptor])
+);
+```
+
+```mermaid
+sequenceDiagram
+ participant C as Caller
+ participant I1 as Correlation
+ participant I2 as Auth
+ participant B as Backend
+ C->>I1: original request
+ I1->>I2: cloned + request ID
+ I2->>B: cloned + trusted auth
+ B-->>I2: response/error
+ I2-->>I1: response/error
+ I1-->>C: finalize timing
+```
+
+**Four uses:** auth headers scoped to trusted origins; correlation IDs and timing; bounded retry for explicitly safe/idempotent operations; short-lived GET caching with a clear invalidation key. A loading indicator is also possible, but concurrent requests require a reference count rather than a single boolean.
+
+**Immutability invariant:** `HttpRequest`, `HttpHeaders` and `HttpParams` use immutable-style updates. Clone to change them and pass exactly one request to `next` unless deliberate fan-out is the contract. Bodies are not deeply immutable, so mutating an object body in place can break idempotence when retries re-enter the chain.
+
+**Security and retry boundaries:** do not send credentials to every absolute URL; allowlist trusted origins. Do not blindly retry non-idempotent POST/payment operations. Prevent token-refresh recursion by excluding the refresh endpoint and coordinating concurrent 401s. An interceptor is cross-cutting infrastructure, not the place for order-specific UI copy.
+
+**Cost:** with i interceptors, chain traversal is O(i) around the underlying network request, plus the work each interceptor performs. Cloning headers is small but not free; deep body copies would be O(body size) and are normally unnecessary. Cache memory is O(total retained response bytes), so define capacity, lifetime, key identity and mutation invalidation.
+
+<a id="q41"></a>
+## Q41. Where should HTTP error handling live?
+
+**Requirement:** place each decision in the lowest layer with enough context to make it correctly, while preserving a useful error for the next layer.
+
+| Layer | Owns | Example |
+|---|---|---|
+| Interceptor | transport-wide mechanics | correlation, one coordinated refresh, telemetry, safe retry policy |
+| Domain service | API-to-domain translation | map 404 order to `OrderNotFound`, validate payload shape |
+| Component/facade | user workflow and presentation | retry button, inline message, route fallback |
+| Global handler | truly unexpected failures | last-resort logging and recovery shell |
+
+```typescript
+import {HttpClient, HttpErrorResponse} from '@angular/common/http';
+import {inject, Injectable} from '@angular/core';
+import {catchError, Observable, throwError} from 'rxjs';
+
+export class OrderNotFound extends Error {
+  constructor(readonly orderId: string, options?: ErrorOptions) {
+    super(`Order ${orderId} was not found`, options);
+  }
+}
+
+@Injectable({providedIn: 'root'})
+export class OrderService {
+  private readonly http = inject(HttpClient);
+
+  get(id: string): Observable<Order> {
+    return this.http.get<Order>(`/api/orders/${encodeURIComponent(id)}`).pipe(
+      catchError((error: unknown) => {
+        if (error instanceof HttpErrorResponse && error.status === 404) {
+          return throwError(() => new OrderNotFound(id, {cause: error}));
+        }
+        return throwError(() => error);
+      })
+    );
+  }
+}
+```
+
+**Four cases:** status 401 may trigger one application-wide session refresh or sign-out policy; status 404 for a known order becomes a domain error in `OrderService`; status 409 on Save belongs to the editor workflow and may restore field/form errors; status 0 can represent a network/connection failure and should offer retry or offline guidance rather than pretending the server rejected the domain command.
+
+**Error-translation invariant:** one layer translates only what it understands, preserves the cause, and rethrows unknown failures. Returning `EMPTY` from a broad interceptor silently converts “failed” into “completed with no value” and can leave callers waiting for state that never arrives. Likewise, retry belongs behind an explicit safety policy: retry transient reads with bounds/backoff, not validation failures or unprotected mutations.
+
+**Boundary details:** `HttpClient` reports network, timeout and backend failures through `HttpErrorResponse`; backend status and body require separate interpretation. Error bodies are untrusted input. A global toast for every failure causes duplicates and exposes transport details; let the component decide whether the current workflow needs inline feedback, navigation, a retry affordance or silence.
+
+**Cost:** translating an error is O(1) aside from logging/serialization. With r retries, network/backend work can approach O(r) times one request and total latency accumulates across attempts and backoff. Logging full bodies costs O(payload bytes) and may leak secrets, so use structured redaction and size limits.
+
+<a id="q42"></a>
+## Q42. How do you cancel stale HTTP requests in Angular?
+
+**Requirement:** a typeahead should display only the newest query result, avoid a request per raw key event, and cancel the previous in-flight subscription when a newer normalized query supersedes it. `switchMap` expresses exactly that **latest-wins** policy.
+
+```typescript
+import {AsyncPipe} from '@angular/common';
+import {HttpClient} from '@angular/common/http';
+import {Component, inject} from '@angular/core';
+import {FormControl, ReactiveFormsModule} from '@angular/forms';
+import {
+  catchError, debounceTime, distinctUntilChanged, map, of,
+  startWith, switchMap
+} from 'rxjs';
+
+type SearchResult = Readonly<{id: string; title: string}>;
+type SearchState =
+  | {kind: 'idle'}
+  | {kind: 'loading'; query: string}
+  | {kind: 'ready'; query: string; items: readonly SearchResult[]}
+  | {kind: 'error'; query: string; message: string};
+
+@Component({
+  selector: 'app-search',
+  imports: [AsyncPipe, ReactiveFormsModule],
+  template: `
+    <label>Search <input [formControl]="query"></label>
+    @if (state$ | async; as state) {
+      @switch (state.kind) {
+        @case ('idle') { <p>Enter at least two characters.</p> }
+        @case ('loading') { <p>Searching for {{ state.query }}…</p> }
+        @case ('ready') {
+          <ul>@for (item of state.items; track item.id) { <li>{{ item.title }}</li> }</ul>
+        }
+        @case ('error') { <p role="alert">{{ state.message }}</p> }
+      }
+    }
+  `
+})
+export class SearchComponent {
+  private readonly http = inject(HttpClient);
+  readonly query = new FormControl('', {nonNullable: true});
+
+  readonly state$ = this.query.valueChanges.pipe(
+    map(value => value.trim()),
+    debounceTime(250),
+    distinctUntilChanged(),
+    switchMap(query => {
+      if (query.length < 2) return of<SearchState>({kind: 'idle'});
+      return this.http.get<readonly SearchResult[]>('/api/search', {
+        params: {q: query}
+      }).pipe(
+        map(items => ({kind: 'ready', query, items}) as const),
+        startWith({kind: 'loading', query} as const),
+        catchError(() => of<SearchState>({
+          kind: 'error', query, message: 'Search is temporarily unavailable.'
+        }))
+      );
+    }),
+    startWith<SearchState>({kind: 'idle'})
+  );
+}
+```
+
+### A→AB stale-request trace
+
+```mermaid
+sequenceDiagram
+ participant U as User
+ participant S as switchMap
+ participant A as GET q=a
+ participant AB as GET q=ab
+ U->>S: normalized "a"
+ S->>A: subscribe
+ U->>S: normalized "ab"
+ S--xA: unsubscribe / abort in progress
+ S->>AB: subscribe
+ A--xS: late result cannot reach view
+ AB-->>S: newest result
+ S-->>U: render q=ab
+```
+
+**Four policies:** search/typeahead uses `switchMap` because only the latest read matters; Save button spam often uses `exhaustMap` because the first mutation must finish; queued writes may use `concatMap`; independent telemetry or bulk reads may use bounded `mergeMap`. Operator choice is a business concurrency decision, not a style preference.
+
+**Cancellation invariant:** after a newer outer value arrives, the previous inner subscription cannot emit to this chain. Angular aborts an in-progress `HttpClient` request when that subscription is removed, so work and bandwidth may be saved. However, cancellation is not transaction rollback: the server may already have received or completed the operation. Do not use `switchMap` for a mutation whose effects must be observed unless the API supplies idempotency/transaction semantics and the product explicitly wants latest-wins behavior.
+
+**Ownership and errors:** `AsyncPipe` owns the outer subscription and disposes it when the view is destroyed. If code subscribes imperatively, bind the lifetime with `takeUntilDestroyed` or another explicit owner. Put `catchError` inside the inner request when one failed search should not kill future searches. Debouncing reduces request frequency; `distinctUntilChanged` suppresses adjacent equivalent normalized values.
+
+**Cost:** normalization is O(L) for query length L; each accepted query creates at most one active inner request, so retained request state is O(1) plus response data. Rendering k results costs O(k) time and DOM/state. Debouncing changes request count and latency, not the asymptotic output cost. The server still needs rate limits, indexed search, bounded result sizes and authorization.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
-Design `/orders` as a lazy route, resolve an application-wide HTTP service by DI, and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Test: two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list, removed selection, A→B request race, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401 response, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, and SSR work registered with `PendingTasks`. Do **not** claim route guards or client validation enforce backend authorization/integrity.
+Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Test: lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, unauthorized API access despite a bypassed guard, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list, removed selection, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q37. This pass was bounded to Markdown lines 831–883 and DOCX extracted lines 535–563 for Q35–Q37; the two sources contained the same three questions. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q42. This pass was bounded to Markdown lines 884–978 and DOCX extracted lines 564–634 for Q38–Q42; the two sources contained the same five questions. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, browser screenshot or live server call was executed** during this source-comparison pass.
-- Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
+- Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q38–Q42 (standalone lazy routing, guards/resolvers, interceptors, error ownership and stale-request cancellation) in both sources; keep extending this one canonical guide.
+- **Next:** continue with bounded Q43–Q44 (service + signals versus NgRx and a signal feature store) in both sources: Markdown lines 979–1036 and DOCX extracted lines 635–668; keep extending this one canonical guide.
 

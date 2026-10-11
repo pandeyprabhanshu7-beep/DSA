@@ -643,7 +643,7 @@
         "Angular_Interview_Workbook.docx"
       ],
       "last_processed_at": "2026-10-11",
-      "next_action": "Continue with bounded Angular Q38–Q42: standalone lazy routing, guards/resolvers, interceptor composition, error ownership and stale-request cancellation from both sources; enrich the existing canonical guide.md and rebuild guide.html.",
+      "next_action": "Continue with bounded Angular Q43–Q44: service + signals versus NgRx and a signal feature store from both sources; enrich the existing canonical guide.md and rebuild guide.html.",
       "priority": 15,
       "processed_sections": [
         "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)",
@@ -653,16 +653,17 @@
         "Dependency injection, provider recipes and host metadata: Q23–Q27 (hierarchical lookup, injection contexts, four provider forms, multi-provider plugins and accessible host bindings)",
         "RxJS asynchronous flows: Q28–Q32 (Observable contracts, Subject families, flattening/concurrency policies, combineLatest/forkJoin and lifecycle-owned teardown)",
         "RxJS sharing and template consumption: Q33–Q34 (cold/hot producer relationships, share/shareReplay reset and cache boundaries, AsyncPipe identity switching and view-owned teardown)",
-        "Forms and validation: Q35–Q37 (Reactive versus template-driven ownership, Signal Forms schema/state, synchronous and finite asynchronous validator contracts)"
+        "Forms and validation: Q35–Q37 (Reactive versus template-driven ownership, Signal Forms schema/state, synchronous and finite asynchronous validator contracts)",
+        "Routing and HTTP boundaries: Q38–Q42 (lazy chunks, guards/resolvers, functional interceptor ordering, layered error ownership and stale-request cancellation)"
       ],
       "source_revision": {
         "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
-        "source_markdown_lines": "831-883 for Q35-Q37; earlier Q1-Q34 retained",
-        "source_docx": "Angular_Interview_Workbook.docx extracted lines 535-563 for Q35-Q37",
+        "source_markdown_lines": "884-978 for Q38-Q42; earlier Q1-Q37 retained",
+        "source_docx": "Angular_Interview_Workbook.docx extracted lines 564-634 for Q38-Q42",
         "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-11",
-        "baseline_main_head": "b90cf5107eda9faa75bf46657c1dc32750618729"
+        "baseline_main_head": "2cc988b7cbee13835b51acd020550664504a60c7"
       },
-      "validation": "Q35-Q37 add form-architecture trade-offs, four-example families, explicit command and validation-state traces, typed Reactive and Signal Forms code, finite async-validator and server-authority boundaries, invariants and derived validation/output costs; deterministic builder and exact 109337-character HTML embedded-Markdown equality passed with 38 unique anchors, 60 balanced fenced blocks and 19 total Mermaid diagrams; inline JavaScript syntax and JSON checks passed; live DSA literal-marker audit 170; Angular/RxJS compile and browser visual QA were not executed because those packages are absent.",
+      "validation": "Q38-Q42 add standalone lazy-route and guard/resolver contracts, four-example families, chunk/navigation/interceptor/cancellation traces, ordered functional interceptor code, layered error translation, stale-request and server-rollback boundaries, invariants and derived network/render costs; deterministic builder and exact 128169-character HTML embedded-Markdown equality passed with 43 unique anchors, 69 balanced fenced blocks and 22 total Mermaid diagrams; inline JavaScript syntax and JSON checks passed; live DSA literal-marker audit 170; Angular/TypeScript/RxJS compile and browser visual QA were not executed because those packages are absent.",
       "last_successful_commit": "ac2997c1a33c8db77b287f40ffec730f4dfac4cb"
     },
     {
@@ -796,7 +797,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q37 are processed. Continue with bounded Angular routing/HTTP Q38-Q42.",
+    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q42 are processed. Continue with bounded Angular state management Q43-Q44.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -842,11 +843,11 @@
       "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)"
     ],
     "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
-    "validation": "Angular Q35-Q37 were compared in both actual source texts and enriched with form-architecture requirements, four-example families, explicit command and validation-state traces, typed Reactive and Signal Forms code, finite async-validator and server-authority boundaries, two Mermaid diagrams, invariants and derived costs; deterministic reader generation, exact 109337-character payload equality, 38 anchors, 60 balanced fences, 19 Mermaid diagrams, inline JavaScript, JSON and live 170-marker DSA placeholder audit passed; Angular/RxJS compile and browser visual QA were not executed because those packages are absent.",
-    "estimated_next_tokens": 14000,
-    "estimate_method": "Heuristic only: Q38-Q42 occupy the routing/HTTP remainder before section 7 (Markdown lines 884-978; DOCX extracted lines 564-634); reserve ~2000 tokens for paired source intake, ~3000 primary research, ~6500 teaching/code/diagram/HTML and ~2500 validation/checkpoint. This is not account-quota telemetry.",
+    "validation": "Angular Q38-Q42 were compared in both actual source texts and enriched with lazy-route and guard/resolver requirements, four-example families, chunk/navigation/interceptor/cancellation traces, ordered functional interceptor code, layered error ownership, stale-request and server-rollback boundaries, three Mermaid diagrams, invariants and derived costs; deterministic reader generation, exact 128169-character payload equality, 43 anchors, 69 balanced fences, 22 Mermaid diagrams, inline JavaScript, JSON and live 170-marker DSA placeholder audit passed; Angular/TypeScript/RxJS compile and browser visual QA were not executed because those packages are absent.",
+    "estimated_next_tokens": 11000,
+    "estimate_method": "Heuristic only: Q43-Q44 occupy the state-management subsection before deferrable views begin at Q45 (Markdown lines 979-1036; DOCX extracted lines 635-668); reserve ~1500 tokens for paired source intake, ~2500 primary research, ~5000 teaching/code/diagram/HTML and ~2000 validation/checkpoint. This is not account-quota telemetry.",
     "last_successful_commit": "ac2997c1a33c8db77b287f40ffec730f4dfac4cb",
-    "last_processed_at": "2026-10-11T08:51:01-04:00",
-    "next_batch_decision": "Q35-Q37 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q38-Q42 and retain the conservative one-section checkpoint."
+    "last_processed_at": "2026-10-11T09:46:48-04:00",
+    "next_batch_decision": "Q38-Q42 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q43-Q44 and retain the conservative one-section checkpoint."
   }
 }

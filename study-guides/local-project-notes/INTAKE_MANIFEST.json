@@ -14,7 +14,7 @@
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 3",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 2",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 1",
-    "Angular_Interview_Mermaid_Workbook.md Q1-Q37",
+    "Angular_Interview_Mermaid_Workbook.md Q1-Q42",
     "src/README.md excerpt"
   ],
   "files": [
@@ -842,27 +842,27 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "Angular Router and HTTP: bounded Q38–Q42",
+    "section": "Angular state management: bounded Q43–Q44",
     "status": "QUEUED",
-    "estimated_tokens": 14000,
-    "estimate_method": "Heuristic only: Q38-Q42 occupy the routing/HTTP remainder before section 7 (Markdown lines 884-978; DOCX extracted lines 564-634); ~2000 paired source intake, ~3000 primary documentation, ~6500 teaching/code/diagram/HTML and ~2500 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 11000,
+    "estimate_method": "Heuristic only: Q43-Q44 occupy the state-management subsection before deferrable views begin at Q45 (Markdown lines 979-1036; DOCX extracted lines 635-668); ~1500 paired source intake, ~2500 primary documentation, ~5000 teaching/code/diagram/HTML and ~2000 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
     "readers": "Canonical Trees/BST reader rebuilt from Markdown; exact embedded payload equality, idempotence, local links, fragment targets and responsive/search/Mermaid hooks checked",
     "diagrams": "The taxonomy mindmap and DFS processing-moment flow are embedded in the canonical payload; concept-map SVG XML parsed; browser visual QA not executed",
-    "last_processed_at": "2026-10-11T08:51:01-04:00"
+    "last_processed_at": "2026-10-11T09:46:48-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-11",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q37; latest bounded source ranges are Markdown lines 831-883 and DOCX extracted lines 535-563 for Q35-Q37",
+    "processed": "Q1–Q42; latest bounded source ranges are Markdown lines 884-978 and DOCX extracted lines 564-634 for Q38-Q42",
     "status": "PUBLISHED",
-    "validation": "Q35-Q37 add form-architecture trade-offs, explicit command and validation-state traces, typed Reactive and Signal Forms code, finite async-validator and server-authority boundaries; deterministic builder and exact 109337-character HTML embedded-Markdown equality passed with 38 unique anchors, 60 balanced fenced blocks and 19 Mermaid diagrams; inline JavaScript and JSON passed; live DSA literal-marker audit 170; not Angular/RxJS compiled or browser-tested because those packages are absent",
+    "validation": "Q38-Q42 add lazy-route and guard/resolver contracts, chunk/navigation/interceptor/cancellation traces, ordered functional interceptor code, layered error translation, stale-request and server-rollback boundaries; deterministic builder and exact 128169-character HTML embedded-Markdown equality passed with 43 unique anchors, 69 balanced fenced blocks and 22 Mermaid diagrams; inline JavaScript and JSON passed; live DSA literal-marker audit 170; not Angular/TypeScript/RxJS compiled or browser-tested because those packages are absent",
     "content_commit": "ac2997c1a33c8db77b287f40ffec730f4dfac4cb",
-    "estimated_next_tokens": 14000,
-    "estimate_method": "Heuristic from the Q38-Q42 routing/HTTP source range plus paired source intake, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "estimated_next_tokens": 11000,
+    "estimate_method": "Heuristic from the Q43-Q44 state-management source range plus paired source intake, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
