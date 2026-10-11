@@ -665,7 +665,7 @@
         "baseline_main_head": "7d66e1ce65328fcad489990e0538c4f42eb038d8"
       },
       "validation": "Q43-Q44 add ownership decision rules, four scenario families, service/signals/NgRx comparison, route-scoped signal-store code, state-machine and dry-run traces, invariants, failure boundaries and derived costs; deterministic builder and exact 141948-character HTML embedded-Markdown equality passed with 45 unique anchors, 73 balanced fenced blocks and 24 total Mermaid diagrams; inline JavaScript syntax, JSON and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript/RxJS compile and browser visual QA were not executed because those packages are absent.",
-      "last_successful_commit": "1d59fab949f8898a43145c2c44d53f76ecd1bd7e"
+      "last_successful_commit": "c5af9b9437d8acb83dd0f79cda14466c24ebce65"
     },
     {
       "id": "javascript-html-css",
@@ -847,7 +847,7 @@
     "validation": "Angular Q43-Q44 were compared in both actual source texts and enriched with ownership decision rules, service/signals/NgRx trade-offs, four-example families, a route-scoped signal store, state-machine and dry-run traces, single-flight save behavior, invariants and derived costs; deterministic reader generation, exact 141948-character payload equality, 45 anchors, 73 balanced fences, 24 Mermaid diagrams, inline JavaScript, JSON, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript/RxJS compile and browser visual QA were not executed because those packages are absent.",
     "estimated_next_tokens": 12000,
     "estimate_method": "Heuristic only: Q45-Q47 occupy the defer/rendering/hydration subsection before performance-list Q48 (Markdown lines 1037-1086; DOCX extracted lines 669-706); reserve ~1500 tokens for paired source intake, ~3000 primary research, ~5500 teaching/code/diagram/HTML and ~2000 validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "1d59fab949f8898a43145c2c44d53f76ecd1bd7e",
+    "last_successful_commit": "c5af9b9437d8acb83dd0f79cda14466c24ebce65",
     "last_processed_at": "2026-10-11T12:00:10-04:00",
     "next_batch_decision": "Q43-Q44 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q45-Q47 and retain the conservative one-section checkpoint."
   }
