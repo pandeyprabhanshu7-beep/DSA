@@ -841,10 +841,10 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "2. Components, Lifecycle and Communication: Q7–Q13",
+    "section": "3. Signals, Change Detection and Zoneless Angular: Q14–Q20",
     "status": "QUEUED",
-    "estimated_tokens": 15000,
-    "estimate_method": "Heuristic only: ~2000 bounded source, ~3000 primary documentation, ~7500 teaching/diagram/output and ~2500 validation+checkpoint; no weekly/hourly quota telemetry.",
+    "estimated_tokens": 16000,
+    "estimate_method": "Heuristic only: Q14-Q20 span Markdown lines 430-555 (126 lines); ~2000 bounded source, ~3000 primary documentation, ~8000 teaching/code/diagram/HTML and ~3000 validation+checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
@@ -854,14 +854,14 @@
     "last_processed_at": "2026-10-08T21:29:34-04:00"
   },
   "angular_intake_checkpoint": {
-    "last_processed_at": "2026-10-09",
+    "last_processed_at": "2026-10-11",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q6",
+    "processed": "Q1–Q13; latest bounded source ranges are Markdown lines 298-429 and DOCX extracted lines 161-251 for Q7-Q13",
     "status": "PUBLISHED",
-    "validation": "6 sections, 4 original Mermaid diagrams, 4 code examples, HTML embedded Markdown equality verified in JavaScript; not Angular CLI compiled or browser-tested",
+    "validation": "Q7-Q13 add seven TypeScript examples, two HTML examples, two original Mermaid diagrams and detailed lifecycle/event/projection traces; deterministic builder and exact HTML embedded-Markdown equality passed with 14 unique explicit anchors and 6 total Mermaid diagrams; inline JavaScript parsed; live DSA literal-marker audit 170; not Angular CLI compiled or browser-tested because Angular packages are absent",
     "content_commit": "451cbab815f8aa565feb8093e8a8343c87bbf53f",
-    "estimated_next_tokens": 15000,
-    "estimate_method": "Heuristic from source size + explanation/examples/diagrams+HTML+validation/checkpoint, not actual quota percentage"
+    "estimated_next_tokens": 16000,
+    "estimate_method": "Heuristic from Q14-Q20 source-line count plus primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
