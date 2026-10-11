@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q22)
+# Angular 22 — Interview Foundations (Q1–Q27)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q22 (Q21–Q22 are lines 556–584) with the corresponding `Angular_Interview_Workbook.docx` text (Q21–Q22 are extracted lines 354–380). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state traces, modern signal/resource APIs, zoneless migration guidance, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q27 (Q23–Q27 are lines 587–691) with the corresponding `Angular_Interview_Workbook.docx` text (Q23–Q27 are extracted lines 381–446). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state traces, modern signal/resource and DI APIs, zoneless migration guidance, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -26,6 +26,11 @@
 - [Q20: OnPush today](#q20)
 - [Q21: Zoneless Angular](#q21)
 - [Q22: ChangeDetectorRef](#q22)
+- [Q23: Dependency injection](#q23)
+- [Q24: inject vs constructor injection](#q24)
+- [Q25: Provider recipes](#q25)
+- [Q26: Multi providers](#q26)
+- [Q27: Host metadata](#q27)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -916,16 +921,309 @@ This pattern is advanced: it trades freshness for fewer checks and requires expl
 
 **Invariant:** manual checking has a named owner, a documented freshness contract and a cleanup path. **Cost:** `markForCheck` is O(h) at most conceptually for dirty propagation through h ancestors, while `detectChanges()` costs O(v + w) for bindings/views v checked and DOM writes w; framework details may vary, so profile actual work.
 
+<a id="q23"></a>
+## Q23. How Angular dependency injection resolves a token
+
+**Requirement:** give every editor subtree an isolated draft session while sharing one application-wide API client, then explain exactly which instance a nested component receives.
+
+Dependency injection separates **what a consumer asks for** from **how and where the value is produced**:
+
+| Term | Meaning | Example |
+|---|---|---|
+| Token | Runtime lookup key | `UserApi` or `InjectionToken<AppConfig>` |
+| Provider | Recipe associated with a token | `{provide: API_URL, useValue: '/api'}` |
+| Injector | Registry/cache that resolves recipes | application, route or element injector |
+| Injection site | Code requesting the token | `inject(UserApi)` in a component |
+
+```typescript
+import {Component, Injectable, inject} from '@angular/core';
+
+@Injectable({providedIn: 'root'})
+export class UserApi {
+  readonly instanceId = crypto.randomUUID();
+}
+
+@Injectable()
+export class DraftSession {
+  readonly instanceId = crypto.randomUUID();
+}
+
+@Component({
+  selector: 'app-editor',
+  providers: [DraftSession],
+  template: `<p>Editor session: {{ draft.instanceId }}</p>`
+})
+export class Editor {
+  readonly api = inject(UserApi);
+  readonly draft = inject(DraftSession);
+}
+```
+
+Each `Editor` element gets an element-injector `DraftSession`; descendants that do not override the token see that nearest session. Both editors still fall back to the root environment injector for the same `UserApi` instance. Angular destroys the component-scoped service when that component instance is destroyed.
+
+```mermaid
+flowchart TD
+ R["Root EnvironmentInjector<br/>UserApi A"]
+ R --> E1["Editor 1 ElementInjector<br/>DraftSession X"]
+ R --> E2["Editor 2 ElementInjector<br/>DraftSession Y"]
+ E1 --> T1["Toolbar 1 asks for both"]
+ E2 --> T2["Toolbar 2 asks for both"]
+```
+
+### Resolution trace
+
+For Toolbar 1 requesting `DraftSession`: current element has no provider → parent Editor 1 element has X → return X and stop. For `UserApi`: no element injector has it → retry through the environment-injector hierarchy → root has A → return A. If no injector provides a required token, resolution reaches the null boundary and throws.
+
+**Four scenarios:**
+
+1. Two `Editor` instances receive different `DraftSession` IDs but the same `UserApi` ID.
+2. A route-level provider supplies one feature instance to that route's components, guards and resolvers.
+3. `inject(DraftSession, {self: true, optional: true})` returns `null` if the current element itself does not provide it, even if a parent does.
+4. `inject(DraftSession, {skipSelf: true})` begins at the parent; `host` limits the upward search to the host boundary.
+
+**Invariant:** provider placement intentionally defines visibility, lifetime and sharing. A component provider is not an application singleton. Avoid storing global truth in a service that is accidentally re-provided by every component.
+
+**Cost model:** resolution walks a bounded injector ancestry, conceptually O(h) for h searched levels; after a provider creates a value, normal repeated lookups use the injector's cached instance. Construction cost belongs to the dependency graph itself, and component-scoped providers trade isolation for more live instances. Treat this as a reasoning model, not a framework implementation guarantee.
+
+**Common errors:** using an interface as a token (interfaces disappear at runtime), re-providing a state service unintentionally, assuming a route guard is a security boundary, or injecting an optional value without handling `null`.
+
+<a id="q24"></a>
+## Q24. `inject()` vs constructor injection
+
+**Requirement:** choose an injection form for a class, a functional guard and a provider factory, and identify a call that is too late.
+
+Both forms use the same injector. The important distinction is **syntax and injection context**, not lifetime or speed.
+
+| Situation | Good form | Why |
+|---|---|---|
+| Class with explicit public dependencies | constructor parameters | dependencies are visible in the signature |
+| Private field dependency | field `inject()` | concise and strongly typed |
+| Functional guard/interceptor | `inject()` | no class constructor exists |
+| Provider or token factory | `inject()` or declared `deps` | factory executes in an injection context |
+
+```typescript
+import {Component, Injectable, InjectionToken, inject} from '@angular/core';
+import {CanActivateFn, Router} from '@angular/router';
+
+@Injectable({providedIn: 'root'})
+class AuthService {
+  isLoggedIn() { return true; }
+}
+
+@Component({selector: 'app-profile', template: 'Profile'})
+class Profile {
+  // Legal: Angular is constructing the component.
+  private readonly auth = inject(AuthService);
+
+  constructor(private readonly router: Router) {}
+
+  // Illegal: calling inject(AuthService) here would be too late.
+  save() { /* use this.auth and this.router */ }
+}
+
+export const authGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  return auth.isLoggedIn() || router.parseUrl('/login');
+};
+
+export const START_TIME = new InjectionToken<number>('start time', {
+  providedIn: 'root',
+  factory: () => Date.now()
+});
+```
+
+### Context trace
+
+Angular enters an injection context → begins constructing `Profile` → evaluates field initializers → runs the constructor → leaves the context. Therefore the field and constructor work, but a later click calling `save()` cannot start a fresh `inject()` lookup. A provider factory and functional guard are invoked by Angular inside their own contexts.
+
+`runInInjectionContext(injector, fn)` can establish a context for a synchronous function, but `inject()` must occur before an `await`; the context does not automatically flow into later asynchronous callbacks.
+
+**Four scenarios:** a field initializer succeeds; a constructor parameter succeeds; a functional route guard succeeds; a lifecycle method that calls `inject()` throws an injection-context error. Capture dependencies up front and use the captured value later.
+
+**Invariant:** every `inject()` call executes synchronously inside a valid injection context. **Trade-off:** constructor injection advertises dependencies at the class boundary; `inject()` improves functional composition and avoids parameter-decorator friction. Use a consistent project convention without claiming one changes provider scope.
+
+**Testing boundary:** test a function that calls `inject()` through Angular's injection test context, or refactor its decision logic into a pure function and pass dependencies explicitly. Instantiating such a class with `new` bypasses Angular's context.
+
+<a id="q25"></a>
+## Q25. `useClass`, `useValue`, `useFactory` and `useExisting`
+
+**Requirement:** configure an API client, replace logging in production and keep a deprecated token as an alias without creating a second logger.
+
+```typescript
+import {InjectionToken, Provider, inject} from '@angular/core';
+
+export interface AppConfig {
+  apiUrl: string;
+  production: boolean;
+}
+
+export const APP_CONFIG =
+  new InjectionToken<Readonly<AppConfig>>('app config');
+
+abstract class Logger { abstract log(message: string): void; }
+class ConsoleLogger extends Logger {
+  log(message: string) { console.log(message); }
+}
+class SilentLogger extends Logger {
+  log(_message: string) {}
+}
+
+class ApiClient {
+  constructor(readonly baseUrl: string, readonly logger: Logger) {}
+}
+
+export const LEGACY_LOGGER = new InjectionToken<Logger>('legacy logger');
+
+export const APP_PROVIDERS: Provider[] = [
+  {
+    provide: APP_CONFIG,
+    useValue: Object.freeze({apiUrl: '/api', production: true})
+  },
+  {
+    provide: Logger,
+    useFactory: () =>
+      inject(APP_CONFIG).production ? new SilentLogger() : new ConsoleLogger()
+  },
+  {
+    provide: ApiClient,
+    useFactory: () => new ApiClient(
+      inject(APP_CONFIG).apiUrl,
+      inject(Logger)
+    )
+  },
+  {provide: LEGACY_LOGGER, useExisting: Logger}
+];
+```
+
+| Recipe | Injector returns | Typical use | Important boundary |
+|---|---|---|---|
+| `useClass` | instance of the named class | swap an implementation | this recipe creates/caches its own instance |
+| `useValue` | exact supplied value | immutable configuration or test fake | do not mutate shared config |
+| `useFactory` | factory result | derive from other dependencies | factory must stay in an injection context |
+| `useExisting` | value already resolved for another token | rename/alias a token | identity is shared |
+
+**Four examples:** replace `Logger` with `ConsoleLogger` using `useClass`; provide a frozen configuration with `useValue`; create `ApiClient` from configuration with `useFactory`; resolve `LEGACY_LOGGER` and `Logger` to the same object with `useExisting`.
+
+**Identity dry run:** resolve `Logger` → factory creates instance L and the injector caches it → resolve `LEGACY_LOGGER` → alias asks for `Logger` → returns L. Replacing the alias with `{provide: LEGACY_LOGGER, useClass: SilentLogger}` would create a different instance.
+
+**Invariant:** one token has one unambiguous recipe at a given injector unless it is deliberately a multi token. Use an `InjectionToken<T>` for interfaces and primitive/config values because TypeScript types do not survive at runtime.
+
+**Failure modes:** exposing a mutable `useValue` object as global state, creating side effects in factories, confusing `useClass` with aliasing, or reading browser globals in a factory during SSR. **Cost:** the injector normally evaluates a recipe once per providing injector and caches the result; factory/construction work is therefore paid per scoped instance. Application behavior inside the result has its own cost.
+
+<a id="q26"></a>
+## Q26. Multi providers as a plugin seam
+
+**Requirement:** let independent features contribute audit hooks without any feature replacing another registration.
+
+```typescript
+import {Injectable, InjectionToken, Provider, inject} from '@angular/core';
+
+type AuditEvent = Readonly<{actor: string; action: string}>;
+interface AuditHook { record(event: AuditEvent): void; }
+
+export const AUDIT_HOOKS =
+  new InjectionToken<readonly AuditHook[]>('audit hooks');
+
+@Injectable()
+class SecurityAudit implements AuditHook {
+  record(event: AuditEvent) { console.log('security', event.action); }
+}
+
+@Injectable()
+class MetricsAudit implements AuditHook {
+  record(event: AuditEvent) { console.log('metric', event.actor); }
+}
+
+export const AUDIT_PROVIDERS: Provider[] = [
+  {provide: AUDIT_HOOKS, useClass: SecurityAudit, multi: true},
+  {provide: AUDIT_HOOKS, useClass: MetricsAudit, multi: true}
+];
+
+@Injectable()
+export class AuditRunner {
+  private readonly hooks =
+    inject(AUDIT_HOOKS, {optional: true}) ?? [];
+
+  record(event: AuditEvent) {
+    for (const hook of this.hooks) hook.record(event);
+  }
+}
+```
+
+Without `multi: true`, later registration for the same token replaces or conflicts with the intended single recipe. With it, resolving the token returns an array containing all contributions registered as multi providers in that injector.
+
+**Four scenarios:** two hooks both run once; one hook can be replaced with a `useValue` test spy while retaining `multi: true`; no registration produces `null` here and the runner chooses `[]`; registering the same hook twice produces two entries—multi providers do not deduplicate.
+
+**Execution trace:** injector encounters two multi recipes → creates/caches one contribution per recipe → token resolves to `[SecurityAudit, MetricsAudit]` → runner iterates in the resulting order → both observe the immutable event. Keep ordering requirements explicit; avoid correctness that depends on incidental assembly order across separately owned provider arrays.
+
+**Invariant:** every provider for a multi token uses `multi: true`, and consumers expect an array. Do not mix a regular provider and multi providers for the same token at one injector.
+
+**Trade-offs and cost:** the pattern decouples plugin authors from the runner, but hides the final set of contributors and permits duplicates. First resolution constructs p contributions; dispatch costs O(p + Σworkᵢ) time and O(p) cached references for p hooks. A hook failure policy must be deliberate: fail fast, isolate each hook with error handling, or run asynchronously with an explicit delivery contract.
+
+<a id="q27"></a>
+## Q27. Host metadata vs `HostBinding` and `HostListener`
+
+**Requirement:** build a reusable pressed-state directive whose CSS class, ARIA state, pointer events and keyboard behavior stay synchronized.
+
+Angular still supports both decorators, but the current API documentation says to prefer the directive/component `host` property; `HostBinding` and `HostListener` remain for backwards compatibility.
+
+```typescript
+import {Directive, signal} from '@angular/core';
+
+@Directive({
+  selector: 'button[appPressState]',
+  host: {
+    '[class.is-active]': 'active()',
+    '[attr.aria-pressed]': 'active()',
+    '(click)': 'toggle()'
+  }
+})
+export class PressState {
+  readonly active = signal(false);
+
+  toggle() {
+    this.active.update(value => !value);
+  }
+
+}
+```
+
+```html
+<button appPressState type="button">Pin report</button>
+```
+
+### Event-to-host trace
+
+```mermaid
+sequenceDiagram
+ participant U as User
+ participant H as Host listener
+ participant S as active signal
+ participant D as Host element
+ U->>H: native click activation
+ H->>S: toggle()
+ S-->>D: class + aria-pressed update
+```
+
+**Four examples:** a pointer click toggles class and ARIA state; Enter activates the native button and produces the click; Space activates it with the browser's native button semantics; programmatic `active.set(false)` updates both host bindings on the next synchronization. Restricting the selector to a native button preserves focus and activation semantics better than inventing a clickable `div`. Do not add redundant keydown toggles to a native button or one keyboard action can toggle twice.
+
+**Host binding vs listener:** `'[class.is-active]': 'active()'` reads directive state during view synchronization; `'(click)': 'toggle()'` invokes behavior when the host emits an event. Prefixes such as `window:` create global listeners and require especially careful ownership; prefer a local host event when it solves the problem.
+
+**Invariant:** visible styling and semantic state derive from the same source of truth. **Boundaries:** host metadata does not sanitize application logic, and a directive should not call browser-only globals during server rendering. Use host bindings or renderer abstractions instead of arbitrary DOM mutation when possible.
+
+**Common errors:** mouse-only interaction, adding button semantics to an unfocusable element, duplicating a native button's keyboard activation, calling a signal without `()` in the host expression, or registering broad global listeners unnecessarily. If a custom non-button widget is truly required, implement the complete WAI-ARIA keyboard/focus pattern instead of copying only one key handler. **Cost:** listener dispatch is O(1) plus handler work; each notification checks the affected view bindings, while actual style/attribute writes occur only when values differ.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
-Design `/orders` as a lazy route, resolve an HTTP service by DI, and expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded requests. Add a legacy SDK callback and explain whether to adapt it to a signal or call `markForCheck`. Test: empty list, reordered list, removed selection, A→B request race, 401 response, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, and SSR work registered with `PendingTasks`. Do **not** claim route guards enforce authorization.
+Design `/orders` as a lazy route, resolve an application-wide HTTP service by DI, and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded requests. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Test: two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list, removed selection, A→B request race, 401 response, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, host keyboard behavior, and SSR work registered with `PendingTasks`. Do **not** claim route guards enforce authorization.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q22. This pass was bounded to Markdown lines 556–584 and DOCX extracted lines 354–380 for Q21–Q22; the two sources contained the same two questions. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q27. This pass was bounded to Markdown lines 587–691 and DOCX extracted lines 381–446 for Q23–Q27; the two sources contained the same five questions. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, browser screenshot or live server call was executed** during this source-comparison pass.
-- Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
+- Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** enrich the bounded Dependency Injection section Q23–Q27 in both sources; keep extending this one canonical guide.
+- **Next:** enrich the bounded RxJS and Asynchronous Flows section Q28–Q32 in both sources; keep extending this one canonical guide.
 
