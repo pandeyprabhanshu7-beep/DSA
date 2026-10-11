@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q27)
+# Angular 22 — Interview Foundations (Q1–Q32)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q27 (Q23–Q27 are lines 587–691) with the corresponding `Angular_Interview_Workbook.docx` text (Q23–Q27 are extracted lines 381–446). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state traces, modern signal/resource and DI APIs, zoneless migration guidance, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q32 (Q28–Q32 are lines 709–799) with the corresponding `Angular_Interview_Workbook.docx` text (Q28–Q32 are extracted lines 448–514). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state and subscription traces, modern signal/resource and DI APIs, zoneless migration guidance, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -31,6 +31,11 @@
 - [Q25: Provider recipes](#q25)
 - [Q26: Multi providers](#q26)
 - [Q27: Host metadata](#q27)
+- [Q28: Observable vs Promise](#q28)
+- [Q29: Subject families](#q29)
+- [Q30: Higher-order mapping](#q30)
+- [Q31: combineLatest vs forkJoin](#q31)
+- [Q32: Subscription ownership](#q32)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -1214,16 +1219,285 @@ sequenceDiagram
 
 **Common errors:** mouse-only interaction, adding button semantics to an unfocusable element, duplicating a native button's keyboard activation, calling a signal without `()` in the host expression, or registering broad global listeners unnecessarily. If a custom non-button widget is truly required, implement the complete WAI-ARIA keyboard/focus pattern instead of copying only one key handler. **Cost:** listener dispatch is O(1) plus handler work; each notification checks the affected view bindings, while actual style/attribute writes occur only when values differ.
 
+## RxJS and asynchronous flows
+
+The important interview question is rarely “Which operator name do you remember?” It is “Who starts the work, what happens when a newer value arrives, when does the result become available, and who owns teardown?”
+
+<a id="q28"></a>
+## Q28. Observable vs Promise
+
+**Requirement:** choose the abstraction from the contract, not from syntax. A Promise represents one eventual fulfillment or rejection. An Observable can represent zero, one or many notifications over time, has explicit completion/error channels, composes through operators, and runs only according to the producer's subscription contract.
+
+| Dimension | Promise | Observable |
+|---|---|---|
+| Result count | One settlement | Zero to many `next` values, then optional completion or error |
+| Start | Executor starts when the Promise is constructed | Commonly lazy, but an Observable may wrap a hot producer already running |
+| Consumer | `await` / `then` | `subscribe`, `AsyncPipe`, signal interop or an operator chain |
+| Cancellation | No built-in cancellation of the Promise itself; the underlying API may accept `AbortSignal` | Unsubscribe tears down that subscription; what the producer can cancel depends on its implementation |
+| Composition | Promise combinators | Time-, concurrency- and cancellation-aware RxJS operators |
+
+Angular `HttpClient` returns **cold Observables**: no request is sent until subscription, and each subscription creates a separate request. The generic `get<User>()` is a TypeScript assertion, not runtime validation of untrusted JSON.
+
+```typescript
+import {HttpClient} from '@angular/common/http';
+import {Observable} from 'rxjs';
+
+type User = Readonly<{id: number; name: string}>;
+
+class UserApi {
+  constructor(private readonly http: HttpClient) {}
+
+  user(id: number): Observable<User> {
+    return this.http.get<User>(`/api/users/${id}`);
+  }
+}
+```
+
+**Four examples:** `await dialog.open()` fits one eventual choice; a route-parameter stream can emit on every navigation; a WebSocket can emit until disconnected; `HttpClient.get` normally emits one response and completes, but two subscriptions send two requests.
+
+### Subscription trace
+
+```mermaid
+sequenceDiagram
+ participant C as Component
+ participant O as HTTP Observable
+ participant B as Backend
+ C->>O: subscribe A
+ O->>B: request A
+ C->>O: subscribe B
+ O->>B: request B
+ B-->>O: response A
+ O-->>C: next + complete A
+ B-->>O: response B
+ O-->>C: next + complete B
+```
+
+**Cancellation boundary:** unsubscribing can abort an in-flight client request when the producer supports teardown, preventing an obsolete response from updating the UI. It cannot promise that a server has not already processed a mutation. Use idempotency keys, conditional writes or server-side transaction rules where “undo the request” matters.
+
+**Invariants and cost:** after an error or completion, that subscription receives no more values. Creating a pipeline is usually O(k) references for k operators; each notification performs the relevant operator work. Retaining emitted collections costs their size. Do not claim “Observable is faster”; choose it when stream semantics, composition or ownership are required.
+
+<a id="q29"></a>
+## Q29. Subject vs BehaviorSubject vs ReplaySubject
+
+**Requirement:** identify whether a subscriber needs only future events, one current state value, or bounded history.
+
+| Type | New subscriber receives immediately | Initial value | Good fit | Main hazard |
+|---|---|---|---|---|
+| `Subject<T>` | Nothing until the next `next` | No | commands/events bridging imperative code | late subscribers miss earlier events |
+| `BehaviorSubject<T>` | latest value | Yes | current state for RxJS consumers | invented sentinel seeds and public mutation |
+| `ReplaySubject<T>(n)` | up to the last n values | No | bounded late-subscriber history | unbounded buffer/time window retains memory |
+
+```typescript
+import {BehaviorSubject, Observable, ReplaySubject, Subject} from 'rxjs';
+
+class UploadCoordinator {
+  private readonly cancelSubject = new Subject<void>();
+  readonly cancel$ = this.cancelSubject.asObservable();
+
+  private readonly statusSubject = new BehaviorSubject<'idle' | 'busy'>('idle');
+  readonly status$ = this.statusSubject.asObservable();
+
+  private readonly logSubject = new ReplaySubject<string>(3);
+  readonly recentLog$ = this.logSubject.asObservable();
+
+  cancel() { this.cancelSubject.next(); }
+  begin() { this.statusSubject.next('busy'); }
+  log(line: string) { this.logSubject.next(line); }
+}
+```
+
+**State trace:** write log entries A, B, C, D before observer X subscribes → `ReplaySubject(3)` replays B, C, D → a later E is delivered live. A `BehaviorSubject('idle')` immediately gives a new observer the latest `'idle'` or `'busy'`; a plain Subject gives neither history nor a current value.
+
+**Four examples:** click telemetry uses a Subject; authentication state with a genuine initial “unknown” union can use a BehaviorSubject; a three-line diagnostic panel can use `ReplaySubject(3)`; synchronous component-local derived UI state is often simpler as `signal` + `computed` rather than a public Subject.
+
+**Invariant:** expose the read side (`Observable`) and keep `next` private so one owner controls writes. A Subject is also an Observer and an Observable, but that does not make it a safe shared mutable store. **Cost:** one emission fans out in O(s) time to s active subscribers. BehaviorSubject retains O(1) values; `ReplaySubject(n)` retains O(n) values plus subscriber bookkeeping. Use an explicit finite buffer and, when appropriate, a time window.
+
+**Common errors:** using an empty string as a fake BehaviorSubject seed; reaching for `getValue()` everywhere; assuming a Subject replays the last event; leaving `ReplaySubject()` unbounded; using a Subject where a cold Observable factory would preserve isolation.
+
+<a id="q30"></a>
+## Q30. `switchMap`, `mergeMap`, `concatMap` and `exhaustMap`
+
+**Requirement:** map each outer value to an inner Observable and state the concurrency policy.
+
+| Operator | When a new outer value arrives | Ordering/concurrency | Typical scenario |
+|---|---|---|---|
+| `switchMap` | unsubscribe previous inner, subscribe newest | latest wins; old result cannot flow through that subscription | typeahead/read keyed by current selection |
+| `mergeMap` | subscribe to another inner | concurrent; completion order may differ | independent reads with a deliberate concurrency limit |
+| `concatMap` | queue until current inner completes | one at a time; preserves source order | ordered writes |
+| `exhaustMap` | ignore it while current inner is active | first wins until completion | suppress duplicate submit/login clicks |
+
+```typescript
+import {Component, inject} from '@angular/core';
+import {HttpClient} from '@angular/common/http';
+import {
+  catchError, debounceTime, distinctUntilChanged, map, of, Subject, switchMap
+} from 'rxjs';
+
+type SearchState =
+  | {kind: 'ready'; items: readonly string[]}
+  | {kind: 'error'; message: string};
+
+@Component({selector: 'app-search-results', template: ''})
+export class SearchResults {
+  private readonly http = inject(HttpClient);
+  private readonly terms = new Subject<string>();
+
+  readonly state$ = this.terms.pipe(
+    map(term => term.trim()),
+    debounceTime(250),
+    distinctUntilChanged(),
+    switchMap(term =>
+      this.http.get<readonly string[]>('/api/search', {params: {q: term}}).pipe(
+        map(items => ({kind: 'ready', items}) as const),
+        catchError(() => of({
+          kind: 'error',
+          message: 'Search failed'
+        } as const))
+      )
+    )
+  );
+
+  search(term: string) { this.terms.next(term); }
+}
+```
+
+### Latest-wins dry run
+
+```mermaid
+sequenceDiagram
+ participant U as User
+ participant S as switchMap
+ participant A as Request A
+ participant B as Request B
+ U->>S: term A
+ S->>A: subscribe
+ U->>S: term B
+ S--xA: unsubscribe A
+ S->>B: subscribe
+ B-->>S: result B
+ S-->>U: display B
+```
+
+For outer values A, B, C arriving while A is active:
+
+- `switchMap`: A is unsubscribed; then B may be unsubscribed; C is the active result.
+- `mergeMap`: A, B and C may all run; emissions arrive in actual completion order.
+- `concatMap`: B and C wait; results are processed A, B, C.
+- `exhaustMap`: B and C are ignored if A remains active.
+
+**Four choices:** search suggestions → switchMap; prefetch independent product details → mergeMap with a bounded concurrency argument; save ordered audit records → concatMap; login button → exhaustMap plus disabled/loading UI.
+
+**Mutation trap:** “unsubscribe” is not “roll back the server.” `switchMap` is excellent for obsolete reads, but it may hide a response while a POST has already taken effect. Ordered mutation, deduplication and idempotency require an explicit server/client contract.
+
+**Invariants and cost:** the operator controls active inner subscriptions, not the remote system's transaction state. With m outer values, work still includes every inner actually started. `mergeMap` can retain O(c) active inners for concurrency c; unbounded c risks sockets and memory. `concatMap` can retain an O(q) queue when arrivals outpace completion. `exhaustMap` bounds the active inner to one but discards outer values by design.
+
+<a id="q31"></a>
+## Q31. `combineLatest` vs `forkJoin`
+
+**Requirement:** distinguish “recompute whenever any live input changes” from “wait for every finite task and collect final results.”
+
+| Question | `combineLatest` | `forkJoin` |
+|---|---|---|
+| First emission | after every input has emitted at least once | after every input completes with a final value |
+| Later emissions | whenever an input emits, using latest values | exactly one combined emission, then complete |
+| Non-completing input | normal for a live stream | prevents the combined result from arriving |
+| Common fit | filters, route state, UI preferences | parallel finite HTTP reads |
+
+```typescript
+import {combineLatest, forkJoin, map, startWith} from 'rxjs';
+
+const visibleOrders$ = combineLatest([
+  orders$,
+  searchTerm$.pipe(startWith('')),
+  status$.pipe(startWith<'all' | 'open' | 'closed'>('all'))
+]).pipe(
+  map(([orders, term, status]) =>
+    orders.filter(order =>
+      order.title.includes(term) &&
+      (status === 'all' || order.status === status)
+    )
+  )
+);
+
+const dashboard$ = forkJoin({
+  profile: http.get<Profile>('/api/profile'),
+  permissions: http.get<readonly string[]>('/api/permissions'),
+  notices: http.get<readonly Notice[]>('/api/notices')
+});
+```
+
+**Dry run:** orders emits O1, term has not emitted, status emits “all” → `combineLatest` waits. Term emits `bug` → output uses [O1, `bug`, `all`]. Status emits `open` → output recomputes with O1 and the same term. In the dashboard, profile finishes at 30 ms, notices at 60 ms and permissions at 90 ms → `forkJoin` emits once at 90 ms using each final value.
+
+**Four examples:** live table filters use combineLatest; route params plus cached preferences use combineLatest after each has a seed/emission; three HttpClient GETs use forkJoin; a WebSocket inside forkJoin is a bug unless it is intentionally made finite (for example with `take(1)`).
+
+**Error boundary:** either combinator errors if an input error is uncaught. Catching outside `forkJoin` commonly replaces the whole result. If partial data is valid, catch and map an error inside each source to an explicit result union; do not silently turn errors into ambiguous empty arrays.
+
+**Invariants and cost:** `combineLatest` stores one latest value per input, O(k) references for k sources, and downstream recomputation costs whatever the projection does—O(n) here for filtering n orders. `forkJoin` stores final values until all inputs complete, O(k) references plus the retained payloads. Neither operator makes network requests by itself; subscribing to the composed cold HTTP Observable starts its sources.
+
+<a id="q32"></a>
+## Q32. Prevent subscription leaks through ownership
+
+**Requirement:** every long-lived subscription has an owner, an intended lifetime and a teardown path. Prefer declarative consumption where possible.
+
+1. In templates, `AsyncPipe` subscribes, exposes the latest value, marks the component for checking, switches when the bound reference changes and unsubscribes when the view is destroyed.
+2. In imperative Angular code, `takeUntilDestroyed()` completes the pipeline when the owning destruction context is destroyed.
+3. Finite streams such as ordinary `HttpClient` requests normally complete, but repeated subscriptions can still duplicate work, and cancellation still matters when the owner disappears.
+4. Application-lifetime subscriptions in root services can be intentional; “long lived” is not identical to “leak.”
+
+```typescript
+import {Component, DestroyRef, inject} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {ActivatedRoute} from '@angular/router';
+import {distinctUntilChanged, map} from 'rxjs';
+
+@Component({selector: 'app-order-page', template: ''})
+export class OrderPage {
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
+
+  constructor() {
+    this.route.paramMap.pipe(
+      map(params => params.get('id')),
+      distinctUntilChanged(),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(id => {
+      if (id !== null) this.load(id);
+    });
+  }
+
+  private load(_id: string) {}
+}
+```
+
+When called in an injection context, `takeUntilDestroyed()` can infer the `DestroyRef`; passing it explicitly makes ownership visible and is required when the operator is assembled outside such a context.
+
+| Subscription owner | Intended lifetime | Preferred teardown |
+|---|---|---|
+| template view | while the view exists or source reference remains | `AsyncPipe` |
+| component/directive imperative logic | instance lifetime | `takeUntilDestroyed` |
+| one finite HTTP read | until response/error or owner no longer needs it | completion plus owner cancellation when appropriate |
+| root service connection | application lifetime | explicit application/disconnect policy |
+| dynamically replaced child/session | that child/session only | bind teardown to that exact child/session |
+
+**Leak trace:** enter route → component subscribes to a global interval → leave route without teardown → component remains reachable through the observer → re-enter five times → five observers perform the same update. With lifecycle teardown, each destroyed component is removed before the next instance subscribes.
+
+**Four examples:** show `users$ | async` in a template; bind route params with `takeUntilDestroyed`; use `switchMap` to replace an obsolete request and still bind the outer subscription to the owner; deliberately keep a root telemetry connection while the application runs and expose a tested disconnect method.
+
+**Boundaries and mistakes:** cleanup also includes event listeners, timers, observers, sockets and third-party callbacks. Avoid nested subscriptions; compose them so errors and teardown have one path. Do not reuse one destroyed notifier for future component instances, and do not assume garbage collection can reclaim an object still referenced by a live producer.
+
+**Cost:** a leak converts per-instance state O(s) into O(r·s) retained state after r recreations and multiplies event work by the number of stale observers. Correct teardown keeps live subscriber count proportional to current owners.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
-Design `/orders` as a lazy route, resolve an application-wide HTTP service by DI, and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded requests. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Test: two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list, removed selection, A→B request race, 401 response, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, host keyboard behavior, and SSR work registered with `PendingTasks`. Do **not** claim route guards enforce authorization.
+Design `/orders` as a lazy route, resolve an application-wide HTTP service by DI, and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Bind template streams with `AsyncPipe` and imperative route streams with `takeUntilDestroyed`. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Test: two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list, removed selection, A→B request race, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, 401 response, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, and SSR work registered with `PendingTasks`. Do **not** claim route guards enforce authorization.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q27. This pass was bounded to Markdown lines 587–691 and DOCX extracted lines 381–446 for Q23–Q27; the two sources contained the same five questions. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q32. This pass was bounded to Markdown lines 709–799 and DOCX extracted lines 448–514 for Q28–Q32; the two sources contained the same five questions. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, browser screenshot or live server call was executed** during this source-comparison pass.
-- Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
+- Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
+- Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), and [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin).
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** enrich the bounded RxJS and Asynchronous Flows section Q28–Q32 in both sources; keep extending this one canonical guide.
+- **Next:** finish the bounded RxJS section with Q33–Q34 (cold vs hot Observables and `AsyncPipe`) in both sources; keep extending this one canonical guide.
 

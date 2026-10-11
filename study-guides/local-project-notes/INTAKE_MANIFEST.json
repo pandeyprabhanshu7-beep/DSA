@@ -14,6 +14,7 @@
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 3",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 2",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 1",
+    "Angular_Interview_Mermaid_Workbook.md Q1-Q32",
     "src/README.md excerpt"
   ],
   "files": [
@@ -122,7 +123,7 @@
       "relative_path": "untitled/AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md",
       "bytes": 108786,
       "sha256": "d302fcc91dfc510ca514962d8fec4229c4ac418c227ca9aafd080552fbc99e08",
-      "status": "QUEUED",
+      "status": "IN_PROGRESS",
       "headings": [
         "# AI, RAG, CAG and Deep Learning - Mermaid Developer Guide",
         "## Clickable contents",
@@ -841,10 +842,10 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "Angular RxJS and Asynchronous Flows: bounded Q28–Q32",
+    "section": "Angular RxJS and Asynchronous Flows: bounded Q33–Q34",
     "status": "QUEUED",
-    "estimated_tokens": 15000,
-    "estimate_method": "Heuristic only: Q28-Q32 begin at the Q28 anchor on Markdown line 709 and DOCX extracted line 448; ~2500 paired source intake, ~3500 primary documentation, ~7000 teaching/code/diagram/HTML and ~2000 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 9000,
+    "estimate_method": "Heuristic only: Q33-Q34 are the short remainder of the RxJS section beginning at Markdown line 800 and DOCX extracted line 515; ~1000 paired source intake, ~2000 primary documentation, ~4000 teaching/code/diagram/HTML and ~2000 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
@@ -857,11 +858,11 @@
     "last_processed_at": "2026-10-11",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q27; latest bounded source ranges are Markdown lines 587-691 and DOCX extracted lines 381-446 for Q23-Q27",
+    "processed": "Q1–Q32; latest bounded source ranges are Markdown lines 709-799 and DOCX extracted lines 448-514 for Q28-Q32",
     "status": "PUBLISHED",
-    "validation": "Q23-Q27 add hierarchical injector and injection-context traces, four provider recipes with identity semantics, a typed multi-provider plugin seam, accessible host metadata, scenario families, invariants and two original Mermaid diagrams; deterministic builder and exact 67406-character HTML embedded-Markdown equality passed with 28 unique anchors, 44 balanced fenced blocks and 13 total Mermaid diagrams; inline JavaScript parsed; live DSA literal-marker audit 170; not Angular CLI compiled or browser-tested because Angular packages are absent",
+    "validation": "Q28-Q32 add Observable/Promise contracts, bounded Subject histories, flattening-operator concurrency/cancellation traces, combineLatest/forkJoin emission boundaries and lifecycle-owned teardown; deterministic builder and exact 84309-character HTML embedded-Markdown equality passed with 33 unique anchors, 51 balanced fenced blocks and 15 Mermaid diagrams; inline JavaScript and JSON passed; live DSA literal-marker audit 170; not Angular CLI compiled or browser-tested because Angular packages are absent",
     "content_commit": "349c842d56a6a983740cc39c41408432a9680ab6",
-    "estimated_next_tokens": 15000,
-    "estimate_method": "Heuristic from the Q28-Q32 RxJS section boundary plus paired source intake, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "estimated_next_tokens": 9000,
+    "estimate_method": "Heuristic from the short Q33-Q34 source remainder plus paired source intake, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
