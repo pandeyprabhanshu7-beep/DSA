@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "d8bf4d4b485d1691797d40979afb669f96781441",
+  "last_successful_commit": "00c3c2cb9d1f68bd7b89e4282da8f80d13f96120",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -859,9 +859,9 @@
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
     "processed": "Q1–Q51; latest bounded source ranges are Markdown lines 1136-1143 and DOCX extracted lines 741-747 for Q51",
-    "status": "VALIDATED_PENDING_PUBLISH",
+    "status": "PUBLISHED",
     "validation": "Q51 adds pragmatic container/presentational ownership, four scenarios, typed view-model input and semantic output examples, local signal state, click-to-effect trace, invariants, split/merge decisions, derived costs and contract tests; deterministic builder and exact 205284-character payload equality passed with 52 unique anchors, 99 balanced fences and 31 Mermaid diagrams; inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker audit passed; not Angular/TypeScript compiled, browser-route-executed or visually tested because those packages are absent",
-    "content_commit": "d8bf4d4b485d1691797d40979afb669f96781441",
+    "content_commit": "00c3c2cb9d1f68bd7b89e4282da8f80d13f96120",
     "estimated_next_tokens": 9000,
     "estimate_method": "Heuristic from bounded Q52 starting at Markdown line 1151 and DOCX extracted line 751 plus paired source range resolution, primary testing research, explanation/examples/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
