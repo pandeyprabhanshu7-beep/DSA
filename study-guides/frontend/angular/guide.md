@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q34)
+# Angular 22 — Interview Foundations (Q1–Q37)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q34 (Q33–Q34 are lines 800–830) with the corresponding `Angular_Interview_Workbook.docx` text (Q33–Q34 are extracted lines 515–534). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state and subscription traces, modern signal/resource and DI APIs, zoneless migration guidance, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q37 (Q35–Q37 are lines 831–883) with the corresponding `Angular_Interview_Workbook.docx` text (Q35–Q37 are extracted lines 535–563). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state and subscription traces, modern signal/resource, forms and DI APIs, zoneless migration guidance, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -38,6 +38,9 @@
 - [Q32: Subscription ownership](#q32)
 - [Q33: Cold vs hot Observables](#q33)
 - [Q34: AsyncPipe lifecycle](#q34)
+- [Q35: Reactive vs template-driven forms](#q35)
+- [Q36: Signal Forms](#q36)
+- [Q37: Sync vs async validators](#q37)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -1632,17 +1635,241 @@ sequenceDiagram
 
 **Cost:** each pipe occurrence retains O(1) subscription/bookkeeping state plus the latest referenced value; an emission marks its owning view and causes the relevant change-detection/render work. With p separate pipe occurrences, subscription overhead is O(p), and a cold source may repeat upstream cost p times. Rendering a list of n emitted records still requires O(n) output work and DOM/state proportional to what is rendered. Interview follow-ups include aliasing, OnPush/zoneless notifications, error-state modeling, SSR timing, multiple pipe occurrences and when signal interop is preferable.
 
+## Forms, validation and submission
+
+A form is not merely a collection of inputs. It is a state machine containing a typed value, validity, disabled state, interaction state (`pristine`/`dirty`, `untouched`/`touched`), possible asynchronous work and a submission policy. The form approach determines where that model lives and how explicitly code can inspect it.
+
+<a id="q35"></a>
+## Q35. Reactive Forms vs template-driven forms
+
+**Requirement:** choose from the size, dynamism, test strategy and ownership of the form—not from a slogan that one style is always better.
+
+| Dimension | Reactive Forms | Template-driven forms |
+|---|---|---|
+| Form model | explicit controls/groups created in TypeScript | implicit controls created by `NgModel`/template directives |
+| Data flow | synchronous access to the control model | template directives synchronize mutable component data asynchronously |
+| Validation | validator functions attached to controls | attributes/directives in the template |
+| Testing | model can be exercised without rendering the template | usually requires template rendering and change-detection stabilization |
+| Best fit | typed, nested, dynamic or heavily validated workflows | small, stable forms with simple rules |
+
+```typescript
+import {Component, inject} from '@angular/core';
+import {FormBuilder, ReactiveFormsModule, Validators} from '@angular/forms';
+
+type ProfileCommand = Readonly<{
+  displayName: string;
+  notificationEmail: string;
+  marketingAllowed: boolean;
+}>;
+
+@Component({
+  selector: 'app-profile-form',
+  imports: [ReactiveFormsModule],
+  template: `
+    <form [formGroup]="profile" (ngSubmit)="save()">
+      <label>Display name <input formControlName="displayName"></label>
+      <label>Email <input type="email" formControlName="notificationEmail"></label>
+      <label><input type="checkbox" formControlName="marketingAllowed"> Marketing</label>
+      <button type="submit" [disabled]="profile.invalid">Save</button>
+    </form>
+  `
+})
+export class ProfileFormComponent {
+  private readonly fb = inject(FormBuilder).nonNullable;
+
+  readonly profile = this.fb.group({
+    displayName: ['', [Validators.required, Validators.maxLength(80)]],
+    notificationEmail: ['', [Validators.required, Validators.email]],
+    marketingAllowed: false
+  });
+
+  save(): void {
+    if (this.profile.invalid) {
+      this.profile.markAllAsTouched();
+      return;
+    }
+    const command: ProfileCommand = this.profile.getRawValue();
+    // Send command through a service; the server validates it again.
+    void command;
+  }
+}
+```
+
+`nonNullable` prevents these controls from acquiring `null` merely because `reset()` was called; `getRawValue()` includes disabled controls, while `value` omits disabled descendants. That distinction matters when building commands—disabled UI is not authorization and must not decide what the server accepts.
+
+### Input-to-command trace
+
+```mermaid
+flowchart TD
+ I["Native input event"] --> CVA["ControlValueAccessor"]
+ CVA --> C["Typed FormControl"]
+ C --> V["Sync then async validation"]
+ V --> G["FormGroup status/value"]
+ G --> S{"Valid submit?"}
+ S -->|"yes"| CMD["Explicit command"]
+ S -->|"no"| ERR["Touched error UI"]
+```
+
+**Four choices:** a newsletter email field can be template-driven; a checkout with address groups and conditional delivery controls favors Reactive Forms; a questionnaire with add/remove rows needs `FormArray` or another explicit dynamic model; a small legacy screen should normally keep its consistent existing approach unless migration has a measured payoff.
+
+**Invariants:** the control tree shape matches the submitted domain shape or has an explicit mapping; one owner decides when controls are added/removed; and server validation remains authoritative. `setValue` requires the complete group shape, while `patchValue` allows a subset—using `patchValue` everywhere can hide missing fields. A checkbox disabled in the browser is not a security boundary.
+
+**Common errors:** mixing `ngModel` and reactive directives on the same field, forgetting to import `FormsModule` or `ReactiveFormsModule`, reading `value` when disabled fields are intentionally required, mutating the backing object without updating controls, showing errors before interaction, and embedding business submission logic inside a template.
+
+**Cost:** a changed control evaluates its attached validators and propagates status through its ancestors. With v validators and tree height h, local bookkeeping is approximately O(v + h), excluding validator work and rendering. Rendering or serializing n controls is at least O(n). Dynamic conditional sections can retain substantial values, subscriptions and DOM, so remove or disable them according to the domain contract rather than only hiding their elements.
+
+<a id="q36"></a>
+## Q36. What are Signal Forms, and when should you adopt them?
+
+**Requirement:** explain the current Angular API and a migration decision. Signal Forms build a form tree over a writable signal model, bind fields with `FormField`, centralize rules in a schema and expose field state through signals such as `value`, `touched`, `invalid`, `errors` and `pending`. Current Angular documentation requires Angular 21+ and imports the API from `@angular/forms/signals`.
+
+```typescript
+import {Component, signal} from '@angular/core';
+import {
+  email, form, FormField, minLength, required
+} from '@angular/forms/signals';
+
+type Registration = {
+  email: string;
+  password: string;
+};
+
+@Component({
+  selector: 'app-registration',
+  imports: [FormField],
+  template: `
+    <form novalidate (submit)="onSubmit($event)">
+      <label>Email <input type="email" [formField]="registrationForm.email"></label>
+      @if (registrationForm.email().touched() && registrationForm.email().invalid()) {
+        <ul>
+          @for (error of registrationForm.email().errors(); track error) {
+            <li>{{ error.message }}</li>
+          }
+        </ul>
+      }
+      <label>Password <input type="password" [formField]="registrationForm.password"></label>
+      <button type="submit" [disabled]="registrationForm().invalid()">Register</button>
+    </form>
+  `
+})
+export class RegistrationComponent {
+  readonly registrationModel = signal<Registration>({email: '', password: ''});
+
+  readonly registrationForm = form(this.registrationModel, path => {
+    required(path.email, {message: 'Email is required'});
+    email(path.email, {message: 'Enter a valid email address'});
+    required(path.password, {message: 'Password is required'});
+    minLength(path.password, 12, {message: 'Use at least 12 characters'});
+  });
+
+  onSubmit(event: SubmitEvent): void {
+    event.preventDefault();
+    if (this.registrationForm().invalid()) return;
+    const command: Registration = this.registrationModel();
+    // Send command through a service; the server validates it again.
+    void command;
+  }
+}
+```
+
+**How it works:** create a typed signal model → `form()` builds a field tree and binds schema rules once → `[formField]` synchronizes the field and native control → a user edit updates the model signal → validation updates field-state signals → the template rerenders only the state it reads. Validation and submission are still different concerns; a disabled button does not replace a guarded submit handler or server enforcement.
+
+**Four decisions:** choose Signal Forms for a new signal-first feature; keep mature Reactive Forms when libraries, custom controls and tests already depend on them; prototype a migration at a feature boundary rather than rewriting the whole application; use template-driven forms for genuinely small stable screens where the new abstraction would add no value.
+
+**Migration trade-offs:** Signal Forms reduce manual synchronization and provide typed schema paths, but the API and ecosystem are newer than Reactive Forms. Inventory custom `ControlValueAccessor` components, cross-field rules, dynamic arrays, test helpers and third-party UI integrations before migrating. Do not keep two writable sources of truth—for example, a signal model plus a separately mutated DTO.
+
+**State invariant:** the writable signal is the value source of truth, while the form tree owns interaction and validation state. Schema rules must remain deterministic for the values they read. Field errors are presentation hints, not trusted business authorization.
+
+**Cost:** changing one field triggers its dependent schema rules and consumers; the exact graph cost depends on dependencies rather than the total application size. A form with n rendered fields still needs O(n) field/view state. Error rendering costs O(e) for e exposed errors. Compare measured bundle, rendering, validation and migration costs rather than claiming signals make all forms automatically faster.
+
+<a id="q37"></a>
+## Q37. Synchronous vs asynchronous validators
+
+**Requirement:** a validator returns `null` when valid or a structured error when invalid. A synchronous `ValidatorFn` returns immediately. An `AsyncValidatorFn` returns a finite Promise or Observable of `ValidationErrors | null`. Angular runs async validators only after synchronous validators pass, and a control remains `PENDING` until async validation completes.
+
+```typescript
+import {inject, Injectable} from '@angular/core';
+import {
+  AbstractControl, AsyncValidatorFn, FormControl,
+  ValidationErrors, ValidatorFn, Validators
+} from '@angular/forms';
+import {HttpClient} from '@angular/common/http';
+import {catchError, map, Observable, of, take} from 'rxjs';
+
+export const trimmedMinLength = (minimum: number): ValidatorFn =>
+  (control: AbstractControl): ValidationErrors | null => {
+    const value = String(control.value ?? '').trim();
+    return value.length >= minimum
+      ? null
+      : {trimmedMinLength: {minimum, actual: value.length}};
+  };
+
+@Injectable({providedIn: 'root'})
+export class UsernameApi {
+  private readonly http = inject(HttpClient);
+
+  isTaken(username: string): Observable<boolean> {
+    return this.http.get<boolean>('/api/usernames/taken', {params: {username}});
+  }
+}
+
+export const uniqueUsername = (api: UsernameApi): AsyncValidatorFn =>
+  (control: AbstractControl): Observable<ValidationErrors | null> =>
+    api.isTaken(String(control.value ?? '').trim()).pipe(
+      map(taken => taken ? {usernameTaken: true} : null),
+      // Product decision: unavailable validation blocks submission explicitly.
+      catchError(() => of({validationUnavailable: true})),
+      take(1)
+    );
+
+export const usernameControl = (api: UsernameApi) => new FormControl('', {
+  nonNullable: true,
+  validators: [Validators.required, trimmedMinLength(3)],
+  asyncValidators: [uniqueUsername(api)],
+  updateOn: 'blur'
+});
+```
+
+### Validation state trace
+
+```mermaid
+sequenceDiagram
+ participant U as User
+ participant C as FormControl
+ participant V as Validators
+ participant API as Server
+ U->>C: blur value "asha"
+ C->>V: run required + length
+ V-->>C: null, sync valid
+ C->>C: status PENDING
+ C->>API: uniqueness request
+ API-->>C: taken = true
+ C->>C: errors usernameTaken; status INVALID
+```
+
+**Four examples:** `required` is synchronous; a pure cross-field rule such as “end date is not before start date” is synchronous on the group; username uniqueness is asynchronous and server-backed; checking whether a value already present in an in-memory set is synchronous even if the business concept sounds “remote.” Choose by where the answer lives, not by the rule's name.
+
+**Why `updateOn: 'blur'`:** the default is validation after each value change. A remote call for every keystroke wastes backend capacity and produces flickering states. `blur` is suitable when the user should finish one field first; `submit` is suitable when validation can wait. For typeahead-style feedback, build an explicitly debounced/cancelled design rather than hiding timers inside an unpredictable validator.
+
+**Finite-result invariant:** an Observable validator must complete; otherwise the control can remain `PENDING`. Map every success path to either `null` or an error object and make the failure policy explicit. “Network error means valid” improves availability but may permit a bad value; “network error blocks submission” is safer but can prevent progress. The product and threat model decide.
+
+**Server boundary:** client validation improves feedback and reduces obvious bad requests. It cannot guarantee uniqueness under concurrency: two clients can both see “available” and race. Enforce the unique constraint in the database/server transaction and map a conflict response back to a field/form error.
+
+**Common errors:** returning `true`/`false` instead of `null`/an error map; attaching a group rule to the wrong control; never completing an async Observable; issuing HTTP on every keypress; swallowing transport failure without a documented policy; displaying errors before `dirty` or `touched`; and assuming a temporarily valid UI authorizes submission.
+
+**Cost:** synchronous validation costs the sum of invoked rules, commonly O(v) for v constant-time validators plus any scan such as O(L) for a length/pattern over L characters. Async validation adds network latency, backend work and one retained pending subscription. Angular skips that expense when sync validation fails. A database uniqueness index is typically O(log n) lookup or implementation-specific, but the only correctness guarantee comes from the atomic server-side constraint, not the preliminary client query.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
-Design `/orders` as a lazy route, resolve an application-wide HTTP service by DI, and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Test: two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list, removed selection, A→B request race, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, 401 response, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, and SSR work registered with `PendingTasks`. Do **not** claim route guards enforce authorization.
+Design `/orders` as a lazy route, resolve an application-wide HTTP service by DI, and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Test: two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list, removed selection, A→B request race, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401 response, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, and SSR work registered with `PendingTasks`. Do **not** claim route guards or client validation enforce backend authorization/integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q34. This pass was bounded to Markdown lines 800–830 and DOCX extracted lines 515–534 for Q33–Q34; the two sources contained the same two questions. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q37. This pass was bounded to Markdown lines 831–883 and DOCX extracted lines 535–563 for Q35–Q37; the two sources contained the same three questions. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, browser screenshot or live server call was executed** during this source-comparison pass.
-- Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
+- Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with the bounded forms section beginning at Q35 in both sources; keep extending this one canonical guide.
+- **Next:** continue with bounded Q38–Q42 (standalone lazy routing, guards/resolvers, interceptors, error ownership and stale-request cancellation) in both sources; keep extending this one canonical guide.
 
