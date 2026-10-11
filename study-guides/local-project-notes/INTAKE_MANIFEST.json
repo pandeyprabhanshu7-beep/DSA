@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "d96ed732cda9cb564df8a71144b3ad30e2de7387",
+  "last_successful_commit": "a1aa84047f976ba84501ada1cdefced21662111e",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -859,9 +859,9 @@
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
     "processed": "Q1–Q49; latest bounded source ranges are Markdown lines 1109-1122 and DOCX extracted lines 722-732 for Q49",
-    "status": "VALIDATED_PENDING_PUBLISH",
+    "status": "PUBLISHED",
     "validation": "Q49 adds the NG0100 development verification contract, parent-child feedback trace, four root-cause families, ownership/lifecycle repairs, pure signal derivation, afterNextRender boundaries, invariants, costs and regression tests; deterministic builder and exact 178461-character payload equality passed with 50 unique anchors, 88 balanced fences and 29 Mermaid diagrams; inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker audit passed; not Angular/TypeScript compiled, SSR-executed or browser-tested because those packages are absent",
-    "content_commit": "d96ed732cda9cb564df8a71144b3ad30e2de7387",
+    "content_commit": "a1aa84047f976ba84501ada1cdefced21662111e",
     "estimated_next_tokens": 9000,
     "estimate_method": "Heuristic from the Q50 large-application structure source range plus paired source intake, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
   }

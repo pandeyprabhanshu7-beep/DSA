@@ -668,7 +668,7 @@
         "baseline_main_head": "4fc27a76f860e2f1d52cb698251b822ac265a02b"
       },
       "validation": "Q49 adds the NG0100 development-mode stability contract, a parent-child feedback trace, four root-cause families, ownership and lifecycle repairs, pure signal derivation, browser-only afterNextRender guidance, invariants, cost analysis and regression tests; deterministic builder and exact 178461-character HTML embedded-Markdown equality passed with 50 unique anchors, 88 balanced fenced blocks and 29 total Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript compilation, SSR execution and browser visual QA were not executed because those packages are absent.",
-      "last_successful_commit": "d96ed732cda9cb564df8a71144b3ad30e2de7387"
+      "last_successful_commit": "a1aa84047f976ba84501ada1cdefced21662111e"
     },
     {
       "id": "javascript-html-css",
@@ -850,7 +850,7 @@
     "validation": "Angular Q49 was compared in both actual source texts and enriched with the NG0100 development verification contract, parent-child feedback trace, four root-cause families, ownership/lifecycle repairs, pure signal derivation, afterNextRender boundaries, invariants, costs and regression tests; deterministic reader generation, exact 178461-character payload equality, 50 anchors, 88 balanced fences, 29 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript compilation, SSR execution and browser visual QA were not executed because those packages are absent.",
     "estimated_next_tokens": 9000,
     "estimate_method": "Heuristic only: Q50 is the bounded large-application structure section before Q51 (Markdown lines 1123-1135; DOCX extracted lines 733-740); reserve ~700 tokens for paired source intake, ~2500 primary research, ~4000 teaching/code/diagram/HTML and ~1800 validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "d96ed732cda9cb564df8a71144b3ad30e2de7387",
+    "last_successful_commit": "a1aa84047f976ba84501ada1cdefced21662111e",
     "last_processed_at": "2026-10-11T15:06:47-04:00",
     "next_batch_decision": "Q49 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q50 and retain the conservative one-section checkpoint."
   }
