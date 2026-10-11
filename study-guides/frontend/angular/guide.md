@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q13)
+# Angular 22 — Interview Foundations (Q1–Q20)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q13 (Q7–Q13 are lines 298–429) with the corresponding `Angular_Interview_Workbook.docx` text (Q7–Q13 are extracted lines 161–251). The paired sources agree; this edition adds explicit contracts, four scenario families, lifecycle/event traces, modern signal APIs, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q20 (Q14–Q20 are lines 430–555) with the corresponding `Angular_Interview_Workbook.docx` text (Q14–Q20 are extracted lines 252–353). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state traces, modern signal/resource APIs, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -17,6 +17,13 @@
 - [Q11: Content projection](#q11)
 - [Q12: Directive vs component](#q12)
 - [Q13: Pure vs impure pipes](#q13)
+- [Q14: Angular signals](#q14)
+- [Q15: signal vs computed vs effect](#q15)
+- [Q16: Dynamic dependency tracking](#q16)
+- [Q17: linkedSignal](#q17)
+- [Q18: resource and httpResource](#q18)
+- [Q19: Change detection](#q19)
+- [Q20: OnPush today](#q20)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -504,16 +511,297 @@ A pipe is pure by default. Angular re-executes it when a primitive input changes
 
 **Invariant:** `transform` is deterministic and side-effect free for the same inputs. **Never:** start HTTP calls, mutate application state, or hide subscriptions in a pipe. Extract reusable transformation logic into a standalone function for services/non-template callers rather than injecting the pipe class. **Follow-ups:** AsyncPipe ownership, memoized `computed`, immutable data, pipe arguments and operator precedence.
 
+<a id="q14"></a>
+## Q14. What is an Angular signal?
+
+**Requirement:** hold a counter as component-owned state, expose it read-only, and derive a value without storing a second mutable copy.
+
+```typescript
+import {computed, signal} from '@angular/core';
+
+export class Counter {
+  private readonly countState = signal(0);
+  readonly count = this.countState.asReadonly();
+  readonly doubled = computed(() => this.count() * 2);
+
+  increment() { this.countState.update(value => value + 1); }
+  reset() { this.countState.set(0); }
+}
+```
+
+A signal is a value wrapper that notifies tracked consumers when its value changes. Call it to read: `count()`. A writable signal adds `set` and `update`; `asReadonly()` removes that write API from consumers, but does **not** deep-freeze an object held inside it.
+
+**Four examples:** a boolean controls a panel; a number drives a counter; a new immutable order object updates an order view; setting the same primitive again produces no downstream change under the default `Object.is` equality. For arrays and objects, replace rather than mutate when consumers depend on a new reference:
+
+```typescript
+readonly names = signal<readonly string[]>(['Asha']);
+
+addRavi() {
+  this.names.update(current => [...current, 'Ravi']); // new reference
+}
+```
+
+**State trace:** read in a template → Angular records the template consumer → `set`/`update` produces a non-equal value → dependents are invalidated and the view is marked for synchronization → the next render reads the current value. Signals do not themselves make a mutable object immutable.
+
+```mermaid
+flowchart LR
+ W["Writable signal"] -->|"read"| C["computed / template"]
+ U["set or update"] --> W
+ W -->|"invalidate"| C
+ C --> R["next render"]
+```
+
+**Invariant:** one owner writes the state; consumers read it. **Cost:** reading or writing the signal container is conceptually O(1); a copied array update is O(n) time and O(n) space; rendering and each dependent derivation add their own work. **Common errors:** forgetting `()`, changing a nested property in place, using a signal as a security boundary, or promising that a write immediately mutates the DOM synchronously.
+
+<a id="q15"></a>
+## Q15. `signal` vs `computed` vs `effect`
+
+**Requirement:** represent editable price and quantity, derive a total, and synchronize only the finished total to a non-reactive browser API.
+
+```typescript
+import {computed, effect, signal} from '@angular/core';
+
+export class Basket {
+  readonly price = signal(25);
+  readonly quantity = signal(2);
+  readonly total = computed(() => this.price() * this.quantity());
+
+  constructor() {
+    effect(() => localStorage.setItem('basket-total', String(this.total())));
+  }
+}
+```
+
+| Primitive | Owns writable state? | Cached derivation? | Intended job |
+|---|---:|---:|---|
+| `signal` | Yes | No | source state |
+| `computed` | No | Yes, lazy and memoized | pure derived state |
+| `effect` | No | No returned state | synchronize with a non-reactive API |
+
+**Examples:** `quantity.set(3)` owns a new fact; `total()` derives `75`; a filtered list belongs in `computed`; logging, storage, a canvas or another imperative boundary can justify an `effect`. Do not use an effect to copy `total()` into another signal—two mutable representations can disagree.
+
+**Trace:** first `total()` read runs the computation and caches 50 → a second read returns the cache → `quantity.set(3)` invalidates the cache → the next read computes 75 → the effect observes its dependency and eventually synchronizes `"75"`. Dependencies are determined by signal reads during the reactive execution.
+
+**Invariant:** computed functions are pure and return the entire derived value; effects own only their external side effect and cleanup. A signal read after an `await` is outside the original synchronous tracking context, so capture tracked inputs before the async boundary. **Cost:** if derivation work is O(n), each invalidated-and-read computation is O(n), but repeated reads before invalidation are O(1); output construction still costs O(L) for L output units.
+
+<a id="q16"></a>
+## Q16. How dynamic dependency tracking works
+
+**Requirement:** do not refilter a list while its results are hidden, but resume tracking when the panel becomes visible.
+
+```typescript
+import {computed, signal} from '@angular/core';
+
+type Product = Readonly<{name: string}>;
+
+export class SearchState {
+  readonly visible = signal(false);
+  readonly query = signal('');
+  readonly products = signal<readonly Product[]>([]);
+
+  readonly matches = computed(() => {
+    if (!this.visible()) return [];
+    const needle = this.query().trim().toLowerCase();
+    return this.products().filter(p => p.name.toLowerCase().includes(needle));
+  });
+}
+```
+
+Angular tracks only signals actually read during the current reactive execution. The dependency set can add and remove edges on later executions.
+
+| Step | State/change | Signals read by `matches` | Result |
+|---:|---|---|---|
+| 1 | read with `visible=false` | `visible` | `[]` cached |
+| 2 | `query.set('cam')` | none rerun | cached result stays valid |
+| 3 | `visible.set(true)` then read | `visible`, `query`, `products` | matching products |
+| 4 | replace products | same three on next read | result recomputed |
+| 5 | hide and read | `visible` only | query/products edges removed |
+
+```mermaid
+stateDiagram-v2
+ [*] --> Hidden
+ Hidden --> Visible: visible=true
+ Visible --> Visible: query/products change
+ Visible --> Hidden: visible=false
+ Hidden --> Hidden: query change ignored
+```
+
+**Four examples:** a hidden expensive chart stops depending on samples; a selected account adds an account-details dependency; changing an unexecuted branch's signal does not invalidate the computed; `untracked` can intentionally read incidental data without adding an edge. **Boundary:** tracking is synchronous; a signal read only after `await` does not become a dependency of the original reactive context.
+
+**Correctness invariant:** after every execution, the recorded dependencies are exactly the producers read on that execution. **Cost:** rebuilding the edge set is O(d) for d tracked reads; filtering n products costs O(n) time and O(k) result space for k matches, including constructing the output array.
+
+<a id="q17"></a>
+## Q17. When to use `linkedSignal`
+
+**Requirement:** let a user override a selected shipping method, retain it when still valid, and fall back when server options change.
+
+```typescript
+import {linkedSignal, signal} from '@angular/core';
+
+type Method = Readonly<{id: number; label: string}>;
+
+export class ShippingPicker {
+  readonly methods = signal<readonly Method[]>([
+    {id: 1, label: 'Ground'},
+    {id: 2, label: 'Air'}
+  ]);
+
+  readonly selected = linkedSignal<readonly Method[], Method | undefined>({
+    source: this.methods,
+    computation: (next, previous) =>
+      next.find(method => method.id === previous?.value?.id) ?? next[0]
+  });
+
+  choose(method: Method) { this.selected.set(method); }
+}
+```
+
+Unlike `computed`, a linked signal is writable. Unlike an independent `signal`, it recomputes from a source relationship. Here is the dry run:
+
+| Action | Methods | Selected | Why |
+|---|---|---|---|
+| initialize | Ground, Air | Ground | first valid default |
+| user chooses Air | Ground, Air | Air | local write allowed |
+| server adds Sea | Ground, Air, Sea | Air | previous ID remains valid |
+| server removes Air | Ground, Sea | Ground | fallback restores invariant |
+
+**Examples:** valid selection in changing options; editable draft derived from the current record; unit view linked to a canonical value; resettable pagination linked to filters. Use `computed` if callers must never override the result, and a plain signal if no source relationship exists.
+
+**Invariant:** `selected()` is either `undefined` for no options or belongs to the current option set. **Cost:** the `find` reconciliation is O(n) time and O(1) extra space; indexing methods by ID could make lookup expected O(1) at O(n) index space. **Common errors:** preserving an object by stale reference rather than stable ID, assuming `linkedSignal` is two-way persistence, or using it for every writable value.
+
+<a id="q18"></a>
+## Q18. `resource` and `httpResource`
+
+**Requirement:** fetch a user reactively from a signal ID, cancel obsolete work, and render loading, error and value states without reading a failed value.
+
+```typescript
+import {computed, input} from '@angular/core';
+import {httpResource} from '@angular/common/http';
+
+type User = Readonly<{id: string; name: string}>;
+
+export class UserPanel {
+  readonly userId = input.required<string>();
+  readonly user = httpResource<User>(() => `/api/users/${this.userId()}`);
+  readonly heading = computed(() =>
+    this.user.hasValue() ? `User: ${this.user.value().name}` : 'User');
+}
+```
+
+```html
+@if (user.hasValue()) {
+  <h2>{{ heading() }}</h2>
+} @else if (user.error()) {
+  <p role="alert">Could not load this user.</p>
+} @else if (user.isLoading()) {
+  <p>Loading…</p>
+}
+```
+
+`resource` connects reactive params to a general async loader; the loader receives an `AbortSignal`. `httpResource` is an eager reactive wrapper over `HttpClient`, including interceptor support. A dependency change starts a new request and cancels an outstanding one. A plain `HttpClient` observable is cold and starts on subscription.
+
+```mermaid
+sequenceDiagram
+ participant ID as userId signal
+ participant HR as httpResource
+ participant API as HTTP API
+ participant UI as Template
+ ID->>HR: set A
+ HR->>API: GET /A
+ ID->>HR: set B
+ HR-->>API: cancel A
+ HR->>API: GET /B
+ API-->>HR: B response
+ HR->>UI: value notification
+```
+
+**Four examples:** reactive GET by ID; general `resource` loader for non-HTTP async work; an RxJS pipeline for debouncing and multi-source event orchestration; direct `HttpClient.post` for a mutation. Avoid `httpResource` for POST/PUT mutations, and guard `value()` with `hasValue()` because reading a resource value in an error state throws.
+
+**Invariant:** only the latest active parameter set may publish its result; every UI path distinguishes idle/loading/value/error as needed. **Cost:** client bookkeeping is O(1) per active request plus the response and parsed object size O(b) for b bytes; network latency and server work dominate; rendering r returned records costs at least O(r) time and output space. **Testing:** exercise success, error, rapid A→B changes, empty response, teardown and interceptor behavior.
+
+<a id="q19"></a>
+## Q19. Change detection at a high level
+
+**Requirement:** explain how a click that updates a template-read signal reaches the DOM in a zoneless Angular 22 application.
+
+1. A bound listener runs for the click.
+2. Application code writes the signal.
+3. The signal invalidates tracked consumers; Angular knows the template view needs synchronization.
+4. Angular schedules change detection from the framework notification.
+5. The view reevaluates affected bindings and applies necessary DOM changes.
+
+```typescript
+import {Component, signal} from '@angular/core';
+
+@Component({
+  selector: 'app-votes',
+  template: `<button (click)="upvote()">{{ votes() }} votes</button>`
+})
+export class Votes {
+  readonly votes = signal(0);
+  upvote() { this.votes.update(v => v + 1); }
+}
+```
+
+The modern mental model is **notification-driven synchronization**, not “ZoneJS always scans because anything async happened.” Zoneless is the default in Angular 21+. Useful notifications include a template-read signal update, a bound template/host listener, `ComponentRef.setInput`, attaching a dirty view, and `ChangeDetectorRef.markForCheck` (which `AsyncPipe` invokes).
+
+| Scenario | Notification present? | Expected result |
+|---|---:|---|
+| bound click updates template signal | Yes | view refresh scheduled |
+| `AsyncPipe` receives value | Yes | marks view for check |
+| external callback changes plain field only | Not necessarily | stale view risk |
+| external callback sets template signal | Yes | view refresh scheduled |
+
+**Invariant:** every state transition visible to a template must flow through an Angular-recognized notification. Zoneless does not mean “no change detection”; it removes ZoneJS patching as the trigger mechanism. **Cost:** a check costs roughly the evaluated binding/subtree work plus DOM writes; Big-O is application-specific. Use profiling before adding manual change-detector calls. **Errors:** mutating a plain field in an unintegrated callback, confusing detection with browser painting, or calling `detectChanges()` everywhere and masking missing notifications.
+
+<a id="q20"></a>
+## Q20. What `OnPush` means today
+
+**Requirement:** make a row component safe for immutable inputs and signal state, and explain every normal path that can cause it to be checked.
+
+```typescript
+import {ChangeDetectionStrategy, Component, input, signal} from '@angular/core';
+
+type Order = Readonly<{id: string; total: number}>;
+
+@Component({
+  selector: 'app-order-row',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <button (click)="expanded.update(v => !v)">{{ order().id }}</button>
+    @if (expanded()) { <span>{{ order().total }}</span> }`
+})
+export class OrderRow {
+  readonly order = input.required<Order>();
+  readonly expanded = signal(false);
+}
+```
+
+In Angular 22, `OnPush` is the default component strategy. It lets Angular skip a subtree lacking a relevant notification. New bound inputs are compared with `Object.is`; an event handled in the subtree causes relevant checks; a template-read signal update marks the component; `AsyncPipe`/`markForCheck` and framework input/view APIs also provide notifications. Therefore “OnPush only reacts to new `@Input` references” is incomplete.
+
+```mermaid
+flowchart TD
+ N{"Relevant notification?"}
+ N -->|"new input / subtree event"| C["Check subtree"]
+ N -->|"signal / AsyncPipe / markForCheck"| C
+ N -->|"none"| S["Skip subtree"]
+ C --> D["Patch changed DOM"]
+```
+
+**Four examples:** replacing `order` checks the row; mutating the same object can leave a stale binding because its identity did not change; clicking the row checks its subtree and ancestors as required; a signal read by its template marks it when updated. An unrelated event outside an unmarked OnPush subtree permits that subtree to be skipped.
+
+**Invariant:** parent-owned input values are replaced immutably, and every internal visible update emits a recognized notification. **Trade-off:** skipping can reduce work in large trees, but does not make an expensive checked template cheap. Memoize expensive pure derivations, track list items by stable identity, and measure. **Complexity:** if a full tree has V binding views but only an affected subtree has S, skipping may reduce binding work from O(V) toward O(S); actual cost depends on ancestors, events, dirty views and DOM updates, so this is a model—not a fixed guarantee.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
-Design `/orders` as a lazy route, resolve an HTTP service by DI, display loading/error/empty states, filter n returned orders in O(n) time and O(n) extra space, and track visible rows by immutable IDs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel a pending request on destruction. Test: empty list, reordered list, missing projected title, late response after navigation, 401 response, malformed backend payload, and a pure pipe receiving both a mutated and replaced array. Do **not** claim route guards enforce authorization.
+Design `/orders` as a lazy route, resolve an HTTP service by DI, and expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded requests. Test: empty list, reordered list, removed selection, A→B request race, 401 response, malformed payload, same-reference input mutation, and signal update from an external callback. Do **not** claim route guards enforce authorization.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q13. Q7–Q13 were bounded to Markdown lines 298–429 and DOCX extracted lines 161–251; both contained the same seven questions. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
-- Code snippets and traces were checked conceptually against the linked official docs. **No Angular CLI/Node integration compile, browser screenshot or live server call was executed** during this source-comparison pass.
-- Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [zoneless](https://angular.dev/guide/zoneless).
+- Both **actual Library source texts** were inspected for Q1–Q20. This pass was bounded to Markdown lines 430–555 and DOCX extracted lines 252–353 for Q14–Q20; the two sources contained the same seven questions. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, browser screenshot or live server call was executed** during this source-comparison pass.
+- Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless).
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** read and enrich Q14–Q20, signals and change detection, from both sources; keep this one canonical guide.
+- **Next:** begin at Q21 (`What does zoneless mean in Angular 21?`) in both sources, identify its bounded section boundary, and keep enriching this one canonical guide.
 
