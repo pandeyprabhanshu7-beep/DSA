@@ -660,7 +660,7 @@
         "baseline_main_head": "56288c237c3fd3683ba7821c09e23305862706be"
       },
       "validation": "Q23-Q27 add hierarchical injector and injection-context traces, four provider recipes with identity semantics, a typed multi-provider plugin seam, accessible host metadata, scenario families, invariants and two original Mermaid diagrams; deterministic builder and exact 67406-character HTML embedded-Markdown equality passed with 28 unique anchors, 44 balanced fenced blocks and 13 total Mermaid diagrams; inline JavaScript syntax, JSON and git diff checks passed; live DSA literal-marker audit 170; Angular CLI compile and browser visual QA were not executed because Angular packages are not present.",
-      "last_successful_commit": "8f9629e26d3ecd39dd3ce71a84f04bf3f36a49a5"
+      "last_successful_commit": "349c842d56a6a983740cc39c41408432a9680ab6"
     },
     {
       "id": "javascript-html-css",
