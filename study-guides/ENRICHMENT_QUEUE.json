@@ -220,7 +220,7 @@
       "size_bytes": 74372,
       "status": "READY",
       "last_read_at": "2026-10-11",
-      "selection": "Q1–Q20 content read and compared; Q21 onward remains unpromoted"
+      "selection": "Q1–Q22 content read and compared; Q23 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
@@ -342,7 +342,7 @@
       "size_bytes": 62355,
       "status": "READY",
       "last_read_at": "2026-10-11",
-      "selection": "Q1–Q20 content read and compared; Q21 onward remains unpromoted"
+      "selection": "Q1–Q22 content read and compared; Q23 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Workbook.docx",
@@ -643,21 +643,22 @@
         "Angular_Interview_Workbook.docx"
       ],
       "last_processed_at": "2026-10-11",
-      "next_action": "Begin at Angular Q21 ('What does zoneless mean in Angular 21?') in both sources, identify its bounded section boundary, then enrich the existing canonical guide.md and rebuild guide.html.",
+      "next_action": "Compare Angular Markdown+DOCX Dependency Injection section Q23–Q27, enrich the existing canonical guide.md and rebuild guide.html.",
       "priority": 15,
       "processed_sections": [
         "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)",
         "Components, lifecycle and communication: Q7–Q13 (lifecycle phases, constructor vs ngOnInit, input/output/model ownership, view/content queries, projection, directives and pipe purity)",
-        "Signals and change detection: Q14–Q20 (writable/computed/effect, dynamic dependencies, linkedSignal, resource/httpResource, zoneless notification model and OnPush)"
+        "Signals and change detection: Q14–Q20 (writable/computed/effect, dynamic dependencies, linkedSignal, resource/httpResource, zoneless notification model and OnPush)",
+        "Zoneless migration and manual view control: Q21–Q22 (notification paths, migration audit, ChangeDetectorRef mark/detach/detect/reattach boundaries)"
       ],
       "source_revision": {
         "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
-        "source_markdown_lines": "430-555 for Q14-Q20; earlier Q1-Q13 retained",
-        "source_docx": "Angular_Interview_Workbook.docx extracted lines 252-353 for Q14-Q20",
+        "source_markdown_lines": "556-584 for Q21-Q22; earlier Q1-Q20 retained",
+        "source_docx": "Angular_Interview_Workbook.docx extracted lines 354-380 for Q21-Q22",
         "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-11",
-        "baseline_main_head": "679cb5be029b07cb706b73855133a96b904146ab"
+        "baseline_main_head": "bd3c4ce387f14ee412d57d103ee181f98907d939"
       },
-      "validation": "Q14-Q20 add signal ownership and dependency invariants, four-example families, linkedSignal and request state traces, TypeScript/HTML examples and four original Mermaid diagrams; deterministic builder and exact 44324-character HTML embedded-Markdown equality passed with 21 unique anchors, 32 balanced fenced blocks and 10 total Mermaid diagrams; inline JavaScript syntax, JSON and git diff checks passed; live DSA literal-marker audit 170; Angular CLI compile and browser visual QA were not executed because Angular packages are not present.",
+      "validation": "Q21-Q22 add zoneless migration requirements, four-scenario families, notification and migration traces, ChangeDetectorRef examples, ownership/cleanup invariants and one original Mermaid diagram; deterministic builder and exact 51300-character HTML embedded-Markdown equality passed with 23 unique anchors, 36 balanced fenced blocks and 11 total Mermaid diagrams; inline JavaScript syntax, JSON and git diff checks passed; live DSA literal-marker audit 170; Angular CLI compile and browser visual QA were not executed because Angular packages are not present.",
       "last_successful_commit": "403fb60bec77d40760363d968f50839a6e13e8b0"
     },
     {
@@ -791,7 +792,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q20 are processed. Continue the accessible Angular pair at Q21, first identifying the next bounded section boundary without bulk-reading the remaining source.",
+    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q22 are processed. Continue the accessible Angular pair with the bounded Dependency Injection section Q23-Q27.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -838,10 +839,10 @@
     ],
     "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
     "validation": "Archive ZIP integrity/traversal and source SHA passed; canonical BT-1/BT-3 placeholders were replaced with definitions, four examples, taxonomy, recursion contracts, DFS event traces, proofs, output-aware complexity, failure modes and primary-source links; Java 17 jdk.compiler module passed 376980 explicit and seeded randomized assertions comparing recursive outputs with independent iterative preorder/inorder/postorder/BFS/height oracles and validating node identity reachability; exact reader payload equality, idempotence, local links/anchors, responsive/search/Mermaid hooks, inline JavaScript and SVG XML checked; live literal-marker placeholder audit 170; browser visual QA not executed.",
-    "estimated_next_tokens": 12000,
-    "estimate_method": "Heuristic only: begin at Markdown line 556 / DOCX extracted line 354, then bound the next source section before reading it; reserve ~1500 tokens for paired source intake, ~2500 primary research, ~6000 teaching/code/diagram/HTML and ~2000 validation/checkpoint. This is not account-quota telemetry.",
+    "estimated_next_tokens": 14000,
+    "estimate_method": "Heuristic only: Q23-Q27 begin at the Dependency Injection section around Markdown line 587 / DOCX extracted line 381; reserve ~2000 tokens for paired source intake, ~3000 primary research, ~7000 teaching/code/diagram/HTML and ~2000 validation/checkpoint. This is not account-quota telemetry.",
     "last_successful_commit": "6c0239b3511f52e3d15005eb45029ca0d43eb7fb",
     "last_processed_at": "2026-10-08T21:29:34-04:00",
-    "next_batch_decision": "Q14-Q20 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before reading Q21 and retain the conservative one-section checkpoint."
+    "next_batch_decision": "Q21-Q22 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before enriching Q23-Q27 and retain the conservative one-section checkpoint."
   }
 }

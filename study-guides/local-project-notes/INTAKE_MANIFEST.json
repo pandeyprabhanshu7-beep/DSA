@@ -841,10 +841,10 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "Next Angular source starts at Q21 ('What does zoneless mean in Angular 21?'); identify its bounded section boundary before reading",
+    "section": "Angular Dependency Injection, Directives and Pipes: bounded Q23–Q27",
     "status": "QUEUED",
-    "estimated_tokens": 12000,
-    "estimate_method": "Heuristic only: begin at Markdown line 556 / DOCX extracted line 354, bound the next section before reading; ~1500 paired source intake, ~2500 primary documentation, ~6000 teaching/code/diagram/HTML and ~2000 validation+checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 14000,
+    "estimate_method": "Heuristic only: Q23-Q27 begin around Markdown line 587 / DOCX extracted line 381; ~2000 paired source intake, ~3000 primary documentation, ~7000 teaching/code/diagram/HTML and ~2000 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
@@ -857,11 +857,11 @@
     "last_processed_at": "2026-10-11",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q20; latest bounded source ranges are Markdown lines 430-555 and DOCX extracted lines 252-353 for Q14-Q20",
+    "processed": "Q1–Q22; latest bounded source ranges are Markdown lines 556-584 and DOCX extracted lines 354-380 for Q21-Q22",
     "status": "PUBLISHED",
-    "validation": "Q14-Q20 add signal ownership/dependency invariants, four-example families, TypeScript/HTML examples, linkedSignal and request/change-detection traces, and four original Mermaid diagrams; deterministic builder and exact 44324-character HTML embedded-Markdown equality passed with 21 unique anchors, 32 balanced fenced blocks and 10 total Mermaid diagrams; inline JavaScript parsed; live DSA literal-marker audit 170; not Angular CLI compiled or browser-tested because Angular packages are absent",
+    "validation": "Q21-Q22 add zoneless migration requirements, four-scenario families, notification and migration traces, ChangeDetectorRef examples, ownership/cleanup invariants and one original Mermaid diagram; deterministic builder and exact 51300-character HTML embedded-Markdown equality passed with 23 unique anchors, 36 balanced fenced blocks and 11 total Mermaid diagrams; inline JavaScript parsed; live DSA literal-marker audit 170; not Angular CLI compiled or browser-tested because Angular packages are absent",
     "content_commit": "403fb60bec77d40760363d968f50839a6e13e8b0",
-    "estimated_next_tokens": 12000,
-    "estimate_method": "Heuristic from next start lines plus bounded-source discovery, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "estimated_next_tokens": 14000,
+    "estimate_method": "Heuristic from Q23-Q27 section size plus primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }

@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q20)
+# Angular 22 — Interview Foundations (Q1–Q22)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q20 (Q14–Q20 are lines 430–555) with the corresponding `Angular_Interview_Workbook.docx` text (Q14–Q20 are extracted lines 252–353). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state traces, modern signal/resource APIs, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q22 (Q21–Q22 are lines 556–584) with the corresponding `Angular_Interview_Workbook.docx` text (Q21–Q22 are extracted lines 354–380). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state traces, modern signal/resource APIs, zoneless migration guidance, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -24,6 +24,8 @@
 - [Q18: resource and httpResource](#q18)
 - [Q19: Change detection](#q19)
 - [Q20: OnPush today](#q20)
+- [Q21: Zoneless Angular](#q21)
+- [Q22: ChangeDetectorRef](#q22)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -792,16 +794,138 @@ flowchart TD
 
 **Invariant:** parent-owned input values are replaced immutably, and every internal visible update emits a recognized notification. **Trade-off:** skipping can reduce work in large trees, but does not make an expensive checked template cheap. Memoize expensive pure derivations, track list items by stable identity, and measure. **Complexity:** if a full tree has V binding views but only an affected subtree has S, skipping may reduce binding work from O(V) toward O(S); actual cost depends on ancestors, events, dirty views and DOM updates, so this is a model—not a fixed guarantee.
 
+<a id="q21"></a>
+## Q21. What zoneless means in Angular 21+
+
+**Requirement:** migrate an application from ZoneJS without losing updates from timers, third-party callbacks, forms, or server-side rendering.
+
+Zoneless Angular still performs change detection. The difference is **how Angular learns that a view may need synchronization**. ZoneJS patched browser async APIs and treated many tasks as possible state changes. Zoneless Angular relies on explicit framework notifications: template-read signal writes, bound listeners, input updates, `AsyncPipe`/`markForCheck`, and attaching a dirty view. Zoneless is the default from Angular 21 onward; an application can still opt back into zone-based scheduling with `provideZoneChangeDetection`.
+
+```typescript
+import {Component, signal} from '@angular/core';
+
+@Component({
+  selector: 'app-clock',
+  template: `<p>Ticks: {{ ticks() }}</p>`
+})
+export class Clock {
+  readonly ticks = signal(0);
+  private readonly timer = setInterval(
+    () => this.ticks.update(value => value + 1),
+    1000
+  );
+
+  ngOnDestroy() { clearInterval(this.timer); }
+}
+```
+
+The timer itself is not a notification; the write to a signal consumed by the template is. Compare that with a plain field changed by an unintegrated callback: the value can change while no view synchronization is scheduled.
+
+```mermaid
+flowchart TD
+ A["Async callback"] --> M{"Visible state update"}
+ M -->|"template signal / input / listener"| N["Angular notification"]
+ M -->|"plain field only"| X["No guaranteed schedule"]
+ N --> C["Change detection"]
+ C --> D["DOM patch"]
+```
+
+### Migration trace
+
+| Step | Check | Failure signal | Repair |
+|---:|---|---|---|
+| 1 | Remove `zone.js` and `zone.js/testing` from build/test polyfills | app still bundles ZoneJS | remove dependency/imports |
+| 2 | Audit visible state writes | callback changes a plain field with no notification | use a template-read signal or `markForCheck()` |
+| 3 | Replace `NgZone.onStable` timing | post-render work never runs | use `afterNextRender`/`afterEveryRender` |
+| 4 | Audit SSR work | HTML serializes before custom async work finishes | register work with `PendingTasks` |
+| 5 | Test like production | forced `detectChanges()` hides missing notification | wait for stability and assert rendered output |
+
+**Four scenarios:** a template signal updated by `setTimeout` schedules rendering; an `AsyncPipe` emission calls `markForCheck`; `FormControl.setValue` changes form state but may need a signal/mark when a template depends on unnotified reactive-form state; custom SSR work must participate in `PendingTasks`. `NgZone.run` and `runOutsideAngular` can remain for library compatibility—they are not proof that ZoneJS is active.
+
+**Invariant:** every user-visible state transition has a recognized notification path. **Benefits:** fewer speculative synchronizations, no async-API monkey patching, smaller payload/startup overhead, and clearer native stack traces. **Boundary:** zoneless does not guarantee a fast app; expensive bindings, large DOM updates and excessive notifications remain expensive.
+
+**Cost model:** let A be all async tasks and U be tasks that actually cause visible updates. Zone-based scheduling can react to work closer to A; notification-driven scheduling aims toward U, but each scheduled check still costs the checked views/bindings plus DOM writes. Measure rather than claiming a fixed Big-O improvement.
+
+<a id="q22"></a>
+## Q22. When to use `ChangeDetectorRef`
+
+**Requirement:** integrate a callback that updates a plain field, and distinguish scheduling a normal future check from forcing a local synchronous check.
+
+```typescript
+import {ChangeDetectionStrategy, ChangeDetectorRef, Component} from '@angular/core';
+
+interface LegacyMap {
+  onZoom(listener: (zoom: number) => void): () => void;
+}
+
+@Component({
+  selector: 'app-map-status',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<p>Zoom: {{ zoom }}</p>`
+})
+export class MapStatus {
+  zoom = 1;
+  private removeListener?: () => void;
+
+  constructor(private readonly cdr: ChangeDetectorRef) {}
+
+  connect(map: LegacyMap) {
+    this.removeListener = map.onZoom(next => {
+      this.zoom = next;
+      this.cdr.markForCheck();
+    });
+  }
+
+  ngOnDestroy() { this.removeListener?.(); }
+}
+```
+
+`markForCheck()` marks the view dirty so Angular includes it in a scheduled synchronization; it does not immediately run the component's check in the callback. Prefer a signal when it cleanly represents the state, but `markForCheck` is appropriate at an imperative integration boundary.
+
+| Method | Meaning | Appropriate example | Main risk |
+|---|---|---|---|
+| `markForCheck()` | mark view dirty for a normal check | legacy callback changes a plain field | forgetting cleanup/ownership |
+| `detach()` | remove view from the change-detection tree | measured, high-frequency read-only display | stale UI |
+| `detectChanges()` | synchronously check this view and children | intentionally detached view at a controlled cadence | re-entrancy and hidden design defects |
+| `reattach()` | return detached view to normal checking | resume a paused live panel | assuming it retroactively renders |
+
+### Controlled local checking
+
+```typescript
+import {ChangeDetectorRef, inject} from '@angular/core';
+
+export class DenseTelemetry {
+  private readonly cdr = inject(ChangeDetectorRef);
+  private refreshId?: ReturnType<typeof setInterval>;
+
+  start() {
+    this.cdr.detach();
+    this.refreshId = setInterval(() => this.cdr.detectChanges(), 250);
+  }
+
+  stop() {
+    if (this.refreshId !== undefined) clearInterval(this.refreshId);
+    this.cdr.reattach();
+  }
+}
+```
+
+This pattern is advanced: it trades freshness for fewer checks and requires explicit teardown. A signal update can mark a detached view dirty, but the detached view is still skipped until it is locally checked or reattached.
+
+**Four examples:** mark an OnPush view after a non-Angular SDK callback; detach a telemetry panel and refresh four times per second; reattach when a paused tab becomes active; use `afterNextRender`, not an arbitrary `detectChanges()`, for work that must wait for rendered DOM. **Avoid:** calling `detectChanges()` in ordinary setters, lifecycle hooks or every subscription merely to silence `ExpressionChangedAfterItHasBeenCheckedError`.
+
+**Invariant:** manual checking has a named owner, a documented freshness contract and a cleanup path. **Cost:** `markForCheck` is O(h) at most conceptually for dirty propagation through h ancestors, while `detectChanges()` costs O(v + w) for bindings/views v checked and DOM writes w; framework details may vary, so profile actual work.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
-Design `/orders` as a lazy route, resolve an HTTP service by DI, and expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded requests. Test: empty list, reordered list, removed selection, A→B request race, 401 response, malformed payload, same-reference input mutation, and signal update from an external callback. Do **not** claim route guards enforce authorization.
+Design `/orders` as a lazy route, resolve an HTTP service by DI, and expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded requests. Add a legacy SDK callback and explain whether to adapt it to a signal or call `markForCheck`. Test: empty list, reordered list, removed selection, A→B request race, 401 response, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, and SSR work registered with `PendingTasks`. Do **not** claim route guards enforce authorization.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q20. This pass was bounded to Markdown lines 430–555 and DOCX extracted lines 252–353 for Q14–Q20; the two sources contained the same seven questions. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q22. This pass was bounded to Markdown lines 556–584 and DOCX extracted lines 354–380 for Q21–Q22; the two sources contained the same two questions. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, browser screenshot or live server call was executed** during this source-comparison pass.
-- Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless).
+- Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** begin at Q21 (`What does zoneless mean in Angular 21?`) in both sources, identify its bounded section boundary, and keep enriching this one canonical guide.
+- **Next:** enrich the bounded Dependency Injection section Q23–Q27 in both sources; keep extending this one canonical guide.
 
