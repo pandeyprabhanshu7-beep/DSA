@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "6a6c977b2b519a1f4e124ab10fd0ae1e54cdce4d",
+  "last_successful_commit": "403fb60bec77d40760363d968f50839a6e13e8b0",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -860,7 +860,7 @@
     "processed": "Q1–Q20; latest bounded source ranges are Markdown lines 430-555 and DOCX extracted lines 252-353 for Q14-Q20",
     "status": "PUBLISHED",
     "validation": "Q14-Q20 add signal ownership/dependency invariants, four-example families, TypeScript/HTML examples, linkedSignal and request/change-detection traces, and four original Mermaid diagrams; deterministic builder and exact 44324-character HTML embedded-Markdown equality passed with 21 unique anchors, 32 balanced fenced blocks and 10 total Mermaid diagrams; inline JavaScript parsed; live DSA literal-marker audit 170; not Angular CLI compiled or browser-tested because Angular packages are absent",
-    "content_commit": "6a6c977b2b519a1f4e124ab10fd0ae1e54cdce4d",
+    "content_commit": "403fb60bec77d40760363d968f50839a6e13e8b0",
     "estimated_next_tokens": 12000,
     "estimate_method": "Heuristic from next start lines plus bounded-source discovery, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
   }

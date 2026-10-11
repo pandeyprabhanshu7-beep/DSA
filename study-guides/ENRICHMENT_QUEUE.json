@@ -658,7 +658,7 @@
         "baseline_main_head": "679cb5be029b07cb706b73855133a96b904146ab"
       },
       "validation": "Q14-Q20 add signal ownership and dependency invariants, four-example families, linkedSignal and request state traces, TypeScript/HTML examples and four original Mermaid diagrams; deterministic builder and exact 44324-character HTML embedded-Markdown equality passed with 21 unique anchors, 32 balanced fenced blocks and 10 total Mermaid diagrams; inline JavaScript syntax, JSON and git diff checks passed; live DSA literal-marker audit 170; Angular CLI compile and browser visual QA were not executed because Angular packages are not present.",
-      "last_successful_commit": "6a6c977b2b519a1f4e124ab10fd0ae1e54cdce4d"
+      "last_successful_commit": "403fb60bec77d40760363d968f50839a6e13e8b0"
     },
     {
       "id": "javascript-html-css",
