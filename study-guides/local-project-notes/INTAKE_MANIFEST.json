@@ -842,10 +842,10 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "Angular state management: bounded Q43–Q44",
+    "section": "Angular rendering: bounded Q45–Q47",
     "status": "QUEUED",
-    "estimated_tokens": 11000,
-    "estimate_method": "Heuristic only: Q43-Q44 occupy the state-management subsection before deferrable views begin at Q45 (Markdown lines 979-1036; DOCX extracted lines 635-668); ~1500 paired source intake, ~2500 primary documentation, ~5000 teaching/code/diagram/HTML and ~2000 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 12000,
+    "estimate_method": "Heuristic only: Q45-Q47 occupy the defer/rendering/hydration subsection before performance-list Q48 (Markdown lines 1037-1086; DOCX extracted lines 669-706); ~1500 paired source intake, ~3000 primary documentation, ~5500 teaching/code/diagram/HTML and ~2000 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
@@ -855,14 +855,14 @@
     "last_processed_at": "2026-10-11T09:46:48-04:00"
   },
   "angular_intake_checkpoint": {
-    "last_processed_at": "2026-10-11",
+    "last_processed_at": "2026-10-11T12:00:10-04:00",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q42; latest bounded source ranges are Markdown lines 884-978 and DOCX extracted lines 564-634 for Q38-Q42",
+    "processed": "Q1–Q44; latest bounded source ranges are Markdown lines 979-1036 and DOCX extracted lines 635-668 for Q43-Q44",
     "status": "PUBLISHED",
-    "validation": "Q38-Q42 add lazy-route and guard/resolver contracts, chunk/navigation/interceptor/cancellation traces, ordered functional interceptor code, layered error translation, stale-request and server-rollback boundaries; deterministic builder and exact 128169-character HTML embedded-Markdown equality passed with 43 unique anchors, 69 balanced fenced blocks and 22 Mermaid diagrams; inline JavaScript and JSON passed; live DSA literal-marker audit 170; not Angular/TypeScript/RxJS compiled or browser-tested because those packages are absent",
+    "validation": "Q43-Q44 add ownership decision rules, service/signals/NgRx comparison, route-scoped signal-store code, state-machine and dry-run traces, failure boundaries and derived costs; deterministic builder and exact 141948-character payload equality passed with 45 unique anchors, 73 balanced fences and 24 Mermaid diagrams; inline JavaScript, JSON, selected-file diff and live 170-marker audit passed; not Angular/TypeScript/RxJS compiled or browser-tested because those packages are absent",
     "content_commit": "1d59fab949f8898a43145c2c44d53f76ecd1bd7e",
-    "estimated_next_tokens": 11000,
-    "estimate_method": "Heuristic from the Q43-Q44 state-management source range plus paired source intake, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "estimated_next_tokens": 12000,
+    "estimate_method": "Heuristic from the Q45-Q47 defer/rendering/hydration source range plus paired source intake, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
