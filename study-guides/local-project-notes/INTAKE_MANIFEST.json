@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "90def97f12b4052f1cf840c71950e9adf095649c",
+  "last_successful_commit": "8858cd3991ddbea272b73be38f17147b925ea016",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -861,7 +861,7 @@
     "processed": "Q1–Q34; latest bounded source ranges are Markdown lines 800-830 and DOCX extracted lines 515-534 for Q33-Q34",
     "status": "PUBLISHED",
     "validation": "Q33-Q34 add cold/hot producer contracts, shared-request and AsyncPipe reference-switch traces, bounded replay/reset/invalidation guidance and lifecycle-owned template consumption; deterministic builder and exact 94825-character HTML embedded-Markdown equality passed with 35 unique anchors, 55 balanced fenced blocks and 17 Mermaid diagrams; inline JavaScript and JSON passed; live DSA literal-marker audit 170; not Angular/RxJS compiled or browser-tested because those packages are absent",
-    "content_commit": "90def97f12b4052f1cf840c71950e9adf095649c",
+    "content_commit": "8858cd3991ddbea272b73be38f17147b925ea016",
     "estimated_next_tokens": 10000,
     "estimate_method": "Heuristic from the Q35-Q37 forms-only source range plus paired source intake, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
