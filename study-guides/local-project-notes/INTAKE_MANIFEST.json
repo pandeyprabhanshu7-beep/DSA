@@ -842,10 +842,10 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "Angular rendering: bounded Q45–Q47",
+    "section": "Angular performance: bounded Q48 slow-list optimization",
     "status": "QUEUED",
-    "estimated_tokens": 12000,
-    "estimate_method": "Heuristic only: Q45-Q47 occupy the defer/rendering/hydration subsection before performance-list Q48 (Markdown lines 1037-1086; DOCX extracted lines 669-706); ~1500 paired source intake, ~3000 primary documentation, ~5500 teaching/code/diagram/HTML and ~2000 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 9000,
+    "estimate_method": "Heuristic only: Q48 is the bounded slow-list optimization section before Q49 (Markdown lines 1087-1108; DOCX extracted lines 707-721); ~800 paired source intake, ~2500 primary documentation, ~4000 teaching/code/diagram/HTML and ~1700 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
@@ -855,14 +855,14 @@
     "last_processed_at": "2026-10-11T09:46:48-04:00"
   },
   "angular_intake_checkpoint": {
-    "last_processed_at": "2026-10-11T12:00:10-04:00",
+    "last_processed_at": "2026-10-11T12:21:42-04:00",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q44; latest bounded source ranges are Markdown lines 979-1036 and DOCX extracted lines 635-668 for Q43-Q44",
+    "processed": "Q1–Q47; latest bounded source ranges are Markdown lines 1037-1086 and DOCX extracted lines 669-706 for Q45-Q47",
     "status": "PUBLISHED",
-    "validation": "Q43-Q44 add ownership decision rules, service/signals/NgRx comparison, route-scoped signal-store code, state-machine and dry-run traces, failure boundaries and derived costs; deterministic builder and exact 141948-character payload equality passed with 45 unique anchors, 73 balanced fences and 24 Mermaid diagrams; inline JavaScript, JSON, selected-file diff and live 170-marker audit passed; not Angular/TypeScript/RxJS compiled or browser-tested because those packages are absent",
+    "validation": "Q45-Q47 add defer compiler constraints and trigger states, per-route CSR/SSR/prerender decisions, hydration and incremental-hydration traces, Angular 22 deprecation guidance, failure boundaries and derived costs; deterministic builder and exact 157011-character payload equality passed with 48 unique anchors, 80 balanced fences and 27 Mermaid diagrams; inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker audit passed; not Angular/TypeScript compiled, SSR-executed or browser-tested because those packages are absent",
     "content_commit": "c5af9b9437d8acb83dd0f79cda14466c24ebce65",
-    "estimated_next_tokens": 12000,
-    "estimate_method": "Heuristic from the Q45-Q47 defer/rendering/hydration source range plus paired source intake, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "estimated_next_tokens": 9000,
+    "estimate_method": "Heuristic from the Q48 slow-list source range plus paired source intake, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
