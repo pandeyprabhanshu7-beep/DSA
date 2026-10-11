@@ -220,7 +220,7 @@
       "size_bytes": 74372,
       "status": "READY",
       "last_read_at": "2026-10-11",
-      "selection": "Q1–Q51 content read and compared; Q52 onward remains unpromoted"
+      "selection": "Q1–Q52 content read and compared; Q53 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
@@ -342,7 +342,7 @@
       "size_bytes": 62355,
       "status": "READY",
       "last_read_at": "2026-10-11",
-      "selection": "Q1–Q51 content read and compared; Q52 onward remains unpromoted"
+      "selection": "Q1–Q52 content read and compared; Q53 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Workbook.docx",
@@ -643,7 +643,7 @@
         "Angular_Interview_Workbook.docx"
       ],
       "last_processed_at": "2026-10-11",
-      "next_action": "Continue with bounded Angular Q52 on testing Angular components; the source begins at Markdown line 1151 and DOCX extracted line 751. Resolve the bounded section end before reading, enrich guide.md and rebuild guide.html.",
+      "next_action": "Continue with bounded Angular Q53 on testing HTTP code; the source begins at Markdown line 1165 and DOCX extracted line 762. Resolve the bounded section end before reading, enrich guide.md and rebuild guide.html.",
       "priority": 15,
       "processed_sections": [
         "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)",
@@ -660,16 +660,17 @@
         "List performance: Q48 (measurement workflow, stable identity, memoized derivation, OnPush boundaries, CDK virtualization, reconciliation trace and derived costs)",
         "Lifecycle stability: Q49 (NG0100 development verification, parent-child feedback trace, four root-cause families, ownership fixes, afterNextRender boundary and regression tests)",
         "Large-application architecture: Q50 (feature-first structure, dependency direction, lazy route entry point, ports/adapters, facade boundary, design-system and monorepo ownership)",
-        "Component ownership: Q51 (pragmatic container/presentational boundaries, typed view-model inputs, semantic outputs, local UI state, orchestration and split/merge decisions)"
+        "Component ownership: Q51 (pragmatic container/presentational boundaries, typed view-model inputs, semantic outputs, local UI state, orchestration and split/merge decisions)",
+        "Component testing: Q52 (contract-first test boundaries, rendered inputs, semantic outputs, DOM events, dependency state transitions, scheduler ownership and browser escalation)"
       ],
       "source_revision": {
         "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
-        "source_markdown_lines": "1136-1143 for Q51; earlier Q1-Q50 retained",
-        "source_docx": "Angular_Interview_Workbook.docx extracted lines 741-747 for Q51",
+        "source_markdown_lines": "1151-1162 for Q52; earlier Q1-Q51 retained",
+        "source_docx": "Angular_Interview_Workbook.docx extracted lines 751-758 for Q52",
         "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-11",
-        "baseline_main_head": "add0eb7eb151a42039e1b8ad2c1af4ac712c932c"
+        "baseline_main_head": "2de5ee33dc8f05274e2728f932ebf9a682456fd7"
       },
-      "validation": "Q51 adds pragmatic container/presentational ownership, four scenarios, typed view-model input and semantic output examples, local signal state, click-to-effect trace, invariants, split/merge decisions, derived costs and contract tests; deterministic builder and exact 205284-character HTML embedded-Markdown equality passed with 52 unique anchors, 99 balanced fenced blocks and 31 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript compilation, browser route execution and visual QA were not executed because those packages are absent.",
+      "validation": "Q52 adds contract-first test boundaries, a four-level test matrix, TestBed/Vitest input-output and DOM-event examples, dependency-state traversal, real-browser escalation, render trace, invariants, scheduler ownership, derived fixture costs and failure guidance; deterministic builder and exact 219058-character HTML embedded-Markdown equality passed with 53 unique anchors, 103 balanced fenced blocks and 32 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those packages are absent.",
       "last_successful_commit": "00c3c2cb9d1f68bd7b89e4282da8f80d13f96120"
     },
     {
@@ -803,7 +804,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q51 are processed. Continue with bounded Angular Q52 on testing Angular components, starting at Markdown line 1151 and DOCX extracted line 751; resolve the section end before reading.",
+    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q52 are processed. Continue with bounded Angular Q53 on testing HTTP code, starting at Markdown line 1165 and DOCX extracted line 762; resolve the section end before reading.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -849,11 +850,11 @@
       "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)"
     ],
     "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
-    "validation": "Angular Q51 was compared in both actual source texts and enriched with pragmatic container/presentational ownership, four scenarios, typed view-model input and semantic output examples, local signal state, a click-to-effect trace, invariants, split/merge decisions, derived costs and contract tests; deterministic reader generation, exact 205284-character payload equality, 52 anchors, 99 balanced fences, 31 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript compilation, browser route execution and visual QA were not executed because those packages are absent.",
-    "estimated_next_tokens": 9000,
-    "estimate_method": "Heuristic only: bounded Q52 begins at Markdown line 1151 and DOCX extracted line 751; reserve ~700 tokens for paired source intake/range resolution, ~2500 primary testing documentation, ~4000 teaching/code/diagram/HTML and ~1800 validation/checkpoint. This is not account-quota telemetry.",
+    "validation": "Angular Q52 was compared in both actual source texts and enriched with contract-first test boundaries, a four-level test matrix, TestBed/Vitest input-output and DOM-event examples, dependency-state traversal, real-browser escalation, render trace, invariants, scheduler ownership, derived fixture costs and failure guidance; deterministic reader generation, exact 219058-character payload equality, 53 anchors, 103 balanced fences, 32 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those packages are absent.",
+    "estimated_next_tokens": 9500,
+    "estimate_method": "Heuristic only: bounded Q53 begins at Markdown line 1165 and DOCX extracted line 762; reserve ~700 tokens for paired source intake/range resolution, ~2200 primary HTTP-testing documentation, ~4700 teaching/code/diagram/HTML and ~1900 validation/checkpoint. This is not account-quota telemetry.",
     "last_successful_commit": "00c3c2cb9d1f68bd7b89e4282da8f80d13f96120",
-    "last_processed_at": "2026-10-11T17:27:24-04:00",
-    "next_batch_decision": "Q51 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q52 and retain the conservative one-section checkpoint."
+    "last_processed_at": "2026-10-11T18:21:03-04:00",
+    "next_batch_decision": "Q52 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q53 and retain the conservative one-section checkpoint."
   }
 }

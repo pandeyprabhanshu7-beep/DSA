@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q51)
+# Angular 22 — Interview Foundations (Q1–Q52)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q51 (Q51 is lines 1136–1143) with the corresponding `Angular_Interview_Workbook.docx` text (Q51 is extracted lines 741–747). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries and pragmatic container/presentational ownership, with diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q52 (Q52 is lines 1151–1162) with the corresponding `Angular_Interview_Workbook.docx` text (Q52 is extracted lines 751–758). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership and behavior-focused component testing, with diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -55,6 +55,7 @@
 - [Q49: ExpressionChangedAfterItHasBeenChecked](#q49)
 - [Q50: Large-application structure](#q50)
 - [Q51: Smart vs presentational components](#q51)
+- [Q52: Component testing](#q52)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -3250,24 +3251,219 @@ Test the presentation component's rendered contract and semantic events with no 
 
 **Interview variations:** container/presentational vs feature/UI terminology; smart components with Signals; local vs feature vs global state; input/output vs `model()`; facade usefulness; OnPush; view-model mapping; content projection; design-system boundaries; component harnesses; when to merge an over-split pair; and when a routed page should remain cohesive.
 
+<a id="q52"></a>
+## Q52. What should you test in Angular components?
+
+**Requirement:** Test the component's observable contract: what it renders for meaningful inputs and dependency states, how a user can interact with it, what semantic outputs or effects follow, and how it moves between states. A component combines a class and template, so a class-only test cannot prove that a binding, event handler, accessibility attribute or child composition works. Conversely, a DOM fixture is unnecessary for a pure projection function.
+
+Current Angular CLI projects use Vitest with `jsdom` by default, while `TestBed` creates Angular-aware fixtures. These solve different concerns: Vitest supplies the runner, assertions, spies and timer control; `TestBed` supplies dependency injection, component creation, metadata overrides and Angular rendering. A test should choose the smallest environment that can observe the promised behavior.
+
+| Contract to protect | Smallest useful test | Avoid |
+|---|---|---|
+| Pure view-model projection or validation rule | Plain TypeScript unit test | Booting `TestBed` for a deterministic function |
+| Input → rendered DOM and user action → output | Focused `TestBed` component test | Calling the click handler directly |
+| Loading, empty, ready and error states from a dependency | Fixture plus controlled fake at the owned service/facade boundary | Real network, global store or router by accident |
+| Focus, layout, overlays, browser APIs or full navigation | Browser component/integration test or Angular harness | Assuming `jsdom` proves layout or browser behavior |
+
+### Contract-first test loop
+
+```mermaid
+flowchart TD
+  A["Arrange inputs and fakes"] --> C["Create fixture"]
+  C --> I["Interact through DOM"]
+  I --> S["Settle owned scheduler"]
+  S --> O["Observe DOM, output or effect"]
+```
+
+The important direction is outside-in. Set inputs as a parent would, trigger an element as a user would, settle the scheduler that the component actually uses, then assert public evidence. Private fields, helper methods and the exact number of internal signal recomputations are refactoring details unless they are themselves a supported API.
+
+### Example 1 — input, rendering and semantic output
+
+This test reuses `OrderCardComponent` from Q51. It verifies three public facts together: the parent can supply the required input, Angular renders it, and the button emits the order ID.
+
+```typescript
+import {TestBed} from '@angular/core/testing';
+import {describe, expect, it, vi} from 'vitest';
+import {OrderCardComponent, OrderCardVm} from './order-card';
+
+describe('OrderCardComponent', () => {
+  it('renders an order and emits its id when opened', async () => {
+    const fixture = TestBed.createComponent(OrderCardComponent);
+    const order: OrderCardVm = {
+      id: 'B',
+      customerName: 'Ada',
+      totalCents: 2599,
+      statusLabel: 'SUBMITTED',
+    };
+    const selected = vi.fn<(id: string) => void>();
+    fixture.componentInstance.selected.subscribe(selected);
+
+    fixture.componentRef.setInput('order', order);
+    await fixture.whenStable();
+
+    const host: HTMLElement = fixture.nativeElement;
+    expect(host.querySelector('h3')?.textContent).toContain('Ada');
+    expect(host.textContent).toContain('$25.99');
+
+    host.querySelector('button')!.click();
+    expect(selected).toHaveBeenCalledOnce();
+    expect(selected).toHaveBeenCalledWith('B');
+  });
+});
+```
+
+`componentRef.setInput` follows the Angular input path; assigning an internal backing field would bypass input transforms and lifecycle semantics. Clicking the button proves the template is wired. Calling `selectOrder()` directly would miss a broken `(click)` binding and couple the test to a protected method.
+
+### Example 2 — local state and a real DOM event
+
+The Q51 filter panel owns expanded/collapsed state but reports query edits. The test changes the DOM property **and dispatches `input`**; changing `HTMLInputElement.value` alone does not notify Angular.
+
+```typescript
+import {TestBed} from '@angular/core/testing';
+import {expect, it, vi} from 'vitest';
+import {FilterPanelComponent} from './filter-panel';
+
+it('reveals the field and reports the entered query', async () => {
+  const fixture = TestBed.createComponent(FilterPanelComponent);
+  const changed = vi.fn<(query: string) => void>();
+  fixture.componentInstance.queryChanged.subscribe(changed);
+  fixture.componentRef.setInput('query', 'old');
+  await fixture.whenStable();
+
+  const host: HTMLElement = fixture.nativeElement;
+  const toggle = host.querySelector('button')!;
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+  toggle.click();
+  await fixture.whenStable();
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+
+  const input = host.querySelector('input')!;
+  expect(input.value).toBe('old');
+  input.value = 'priority';
+  input.dispatchEvent(new Event('input'));
+
+  expect(changed).toHaveBeenCalledWith('priority');
+});
+```
+
+This protects behavior without asserting that the component uses a `signal`, the name of that signal, or its `toggle()` implementation. An accessibility regression in `aria-expanded` is observable and worth testing; a rename of a private helper is not.
+
+### Example 3 — drive dependency states with a controlled fake
+
+For the Q51 order-list page, replace the route-scoped facade and router at their public boundaries. Mutable test signals let one fixture traverse loading → empty → ready; a router spy verifies orchestration without starting real navigation.
+
+```typescript
+import {signal} from '@angular/core';
+import {TestBed} from '@angular/core/testing';
+import {Router} from '@angular/router';
+import {describe, expect, it, vi} from 'vitest';
+import OrderListPage from './order-list-page';
+import {OrdersFacade} from '../application/orders-facade';
+
+describe('OrderListPage', () => {
+  it('renders dependency states and navigates for the selected order', async () => {
+    interface OrderRow {
+      readonly id: string;
+      readonly customerName: string;
+      readonly totalCents: number;
+      readonly status: string;
+    }
+    const loading = signal(true);
+    const rows = signal<readonly OrderRow[]>([]);
+    const navigate = vi.fn().mockResolvedValue(true);
+
+    TestBed.configureTestingModule({
+      providers: [
+        {provide: OrdersFacade, useValue: {loading, rows}},
+        {provide: Router, useValue: {navigate}},
+      ],
+    });
+    const fixture = TestBed.createComponent(OrderListPage);
+    await fixture.whenStable();
+    const host: HTMLElement = fixture.nativeElement;
+    expect(host.querySelector('[role="status"]')?.textContent).toContain('Loading');
+
+    loading.set(false);
+    await fixture.whenStable();
+    expect(host.textContent).toContain('No orders found');
+
+    rows.set([{
+      id: 'B', customerName: 'Ada', totalCents: 2599, status: 'submitted',
+    }]);
+    await fixture.whenStable();
+    host.querySelector('app-order-card button')!.click();
+    expect(navigate).toHaveBeenCalledWith(['/orders', 'B']);
+  });
+});
+```
+
+In the repository, import the real domain row type rather than redeclaring the small shape shown here. Add an error-state assertion when the page owns error presentation. If HTTP request shape belongs to `OrdersFacade`, test it in the facade/service spec with HTTP testing utilities rather than repeating transport assertions in the component spec.
+
+### Example 4 — choose a real browser when emulation is insufficient
+
+Suppose a menu promises: opening moves focus to its first option, ArrowDown changes the active option, Escape closes it, and focus returns to the trigger. A fast `TestBed` test can protect semantic attributes and emitted actions, but `jsdom` does not prove layout, scrolling, computed styles or every native focus interaction. Keep the behavior contract in a browser component test or a reusable component harness, and retain at least one application-level integration test for the parent wiring. The correct test boundary follows the promise, not a target percentage of “unit” tests.
+
+### Step-by-step render trace
+
+For Example 1:
+
+1. `TestBed.createComponent` constructs the component and host element but does not synchronously guarantee the bound DOM is current.
+2. `setInput('order', order)` supplies the value through Angular's input contract before the first settled render.
+3. `await fixture.whenStable()` lets Angular complete the scheduled render; the heading and formatted total become observable.
+4. The DOM button receives a click and invokes the template binding.
+5. `OutputEmitterRef` synchronously notifies the test subscriber with `'B'`.
+6. No additional stabilization is required for that output assertion; a subsequent DOM change would require settling rendering before inspecting the DOM.
+
+### Invariants and scheduler ownership
+
+- **Observable-behavior invariant:** assert DOM, accessibility state, outputs or calls to an owned dependency—not private implementation choreography.
+- **Input invariant:** use `componentRef.setInput`, a host component or signal `inputBinding`; do not mutate a hidden input field.
+- **Interaction invariant:** dispatch the browser event Angular listens for. Property assignment without `dispatchEvent` is not user input.
+- **State invariant:** cover meaningful loading, empty, ready, error, disabled and retry states that the component owns; do not multiply tests for equivalent branches.
+- **Isolation invariant:** fake the nearest owned boundary. A component test generally fakes a facade/service; a service test owns URL, method, body and header assertions.
+- **Scheduler invariant:** settle the mechanism that created pending work. Use `fixture.whenStable()` for Angular-scheduled rendering and Vitest fake timers for code that actually uses timers; restore fake timers after the test.
+- **Realism invariant:** DOM emulation is not proof of layout, animation, focus, scrolling or browser-only APIs. Escalate those promises to a real browser.
+
+Avoid arbitrary sleeps. They make a test slower without proving which work completed. Also avoid mixing several timer systems in one test unless the component truly owns them and the order is explicit: run the controlled timers, then wait for Angular to stabilize, then assert.
+
+### Correctness and cost model
+
+A contract test is correct when every assertion follows from a user- or parent-visible requirement and the arranged boundary controls all nondeterministic inputs. It is robust under an internal refactor that preserves the same contract and fails when rendering, event wiring, state selection or effect delegation breaks.
+
+Let D be the rendered descendant count, B the number of bindings checked, and E the number of dispatched interactions. Fixture creation plus the initial render is at least O(B + D) time and O(D) DOM space. A selector may scan up to O(D); E interactions add their application work and affected rendering. Recreating a large fixture in every assertion therefore has real cost, but sharing mutable fixtures across tests leaks order dependence. Prefer a small focused fixture per test or per isolated setup, and move deterministic transformations into plain O(1)/O(n) TypeScript tests.
+
+Browser tests add process startup, page navigation and rendering costs, so reserve them for browser contracts rather than duplicating every unit assertion. Coverage can reveal unexecuted code; it cannot prove meaningful assertions, correct accessibility or complete state combinations.
+
+### Failure boundaries and interview checklist
+
+Test: required and changed inputs; visible output; semantic output payload; keyboard and pointer interactions; accessible name/state; loading/empty/ready/error; dependency success/failure; repeated or disabled actions; teardown of subscriptions/timers; parent composition; and browser-only behavior where promised. Prefer role, label, stable test ID or component harness locators over CSS classes used only for styling.
+
+**Common wrong approaches:** only asserting “should create”; testing every private method; calling handlers instead of interacting with the DOM; setting `input.value` without an event; inspecting DOM before stabilization; real network or navigation; over-mocking until the template cannot fail; `NO_ERRORS_SCHEMA` hiding misspelled elements/inputs; snapshots as the only behavioral evidence; arbitrary sleeps; fake timers not restored; asserting framework internals; and treating 100% line coverage as correctness.
+
+**Interview variations:** plain class test vs `TestBed`; Vitest vs Angular testing utilities; `fixture.whenStable()` vs controlled timers; host component vs `setInput`; service fake vs HTTP testing controller; shallow vs integrated component test; component harnesses; router testing; Signals and zoneless rendering; accessibility tests; browser mode; flaky-test diagnosis; coverage trade-offs; and testing deferred content.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
 Keep the reusable order card behind a readonly view-model input and semantic `selected` output; let it own only local view state while the page owns navigation, feature state and effects.
 
+Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly.
+
 Place `/orders/:id` behind one public orders feature entry point. Keep order domain rules independent of Angular UI and concrete HTTP code, map DTOs in data access, inject the repository port at route composition, expose workflow state through a route-scoped facade, and prove import rules reject reverse/deep dependencies. Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and prevent synchronous child initialization from rewriting an already-checked parent binding; demonstrate the NG0100 trace and repair the ownership rather than adding a timer. Cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: forbidden import direction, deep import, dependency cycle, malformed DTO, route-provider teardown, lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, unauthorized API access despite a bypassed guard, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, child-after-view parent mutation, impure binding getter, DOM measurement in browser and SSR, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q51. This pass was bounded to Markdown lines 1136–1143 and DOCX extracted lines 741–747 for Q51; the two sources contained the same advice that the labels are optional while separating state/data orchestration from reusable UI can still improve testing and reuse. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
-- Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, browser screenshot or live server call was executed** during this source-comparison pass.
+- Both **actual Library source texts** were inspected for Q1–Q52. This pass was bounded to Markdown lines 1151–1162 and DOCX extracted lines 751–758 for Q52; the two sources contained the same advice to test rendered behavior, interaction, input/output contracts, state transitions and dependency integration without coupling to private choreography. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest execution, browser screenshot or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-11): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
 - Official Angular lifecycle-stability material (reviewed 2026-10-11): [NG0100 error encyclopedia](https://angular.dev/errors/NG0100), [component lifecycle](https://angular.dev/guide/components/lifecycle), and [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular application-structure and component-contract material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [signals](https://angular.dev/guide/signals), [services and DI](https://angular.dev/guide/di/creating-and-using-services), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
+- Official Angular testing material (reviewed 2026-10-11): [testing overview and Vitest setup](https://angular.dev/guide/testing), [component-testing basics](https://angular.dev/guide/testing/components-basics), [component-testing scenarios](https://angular.dev/guide/testing/components-scenarios), [testing utility APIs](https://angular.dev/guide/testing/utility-apis), [component harnesses](https://angular.dev/guide/testing/component-harnesses-overview), and [migrating from Karma to Vitest](https://angular.dev/guide/testing/migrating-to-vitest).
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q52 (testing Angular components) in both sources, starting at Markdown line 1151 and DOCX extracted line 751; resolve the section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q53 (testing HTTP code) in both sources, starting at Markdown line 1165 and DOCX extracted line 762; resolve the section end before reading it and keep extending this one canonical guide.
 
