@@ -643,7 +643,7 @@
         "Angular_Interview_Workbook.docx"
       ],
       "last_processed_at": "2026-10-11",
-      "next_action": "Finish the Angular RxJS section with bounded Q33–Q34 (cold vs hot Observable and AsyncPipe) from both sources; enrich the existing canonical guide.md and rebuild guide.html.",
+      "next_action": "Continue with the bounded Angular forms subsection Q35–Q37 (Reactive Forms vs template-driven forms, Signal Forms and validators) from both sources; enrich the existing canonical guide.md and rebuild guide.html.",
       "priority": 15,
       "processed_sections": [
         "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)",
@@ -651,16 +651,17 @@
         "Signals and change detection: Q14–Q20 (writable/computed/effect, dynamic dependencies, linkedSignal, resource/httpResource, zoneless notification model and OnPush)",
         "Zoneless migration and manual view control: Q21–Q22 (notification paths, migration audit, ChangeDetectorRef mark/detach/detect/reattach boundaries)",
         "Dependency injection, provider recipes and host metadata: Q23–Q27 (hierarchical lookup, injection contexts, four provider forms, multi-provider plugins and accessible host bindings)",
-        "RxJS asynchronous flows: Q28–Q32 (Observable contracts, Subject families, flattening/concurrency policies, combineLatest/forkJoin and lifecycle-owned teardown)"
+        "RxJS asynchronous flows: Q28–Q32 (Observable contracts, Subject families, flattening/concurrency policies, combineLatest/forkJoin and lifecycle-owned teardown)",
+        "RxJS sharing and template consumption: Q33–Q34 (cold/hot producer relationships, share/shareReplay reset and cache boundaries, AsyncPipe identity switching and view-owned teardown)"
       ],
       "source_revision": {
         "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
-        "source_markdown_lines": "709-799 for Q28-Q32; earlier Q1-Q27 retained",
-        "source_docx": "Angular_Interview_Workbook.docx extracted lines 448-514 for Q28-Q32",
+        "source_markdown_lines": "800-830 for Q33-Q34; earlier Q1-Q32 retained",
+        "source_docx": "Angular_Interview_Workbook.docx extracted lines 515-534 for Q33-Q34",
         "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-11",
-        "baseline_main_head": "a9383b0af7675d0478fe342452d541acdf165977"
+        "baseline_main_head": "9cf045afc283a5a0e41171f767e20fbd601bdce3"
       },
-      "validation": "Q28-Q32 add Observable/Promise contracts, bounded Subject histories, flattening-operator concurrency and cancellation traces, combineLatest/forkJoin emission boundaries, lifecycle ownership, four-example families, costs and two original Mermaid diagrams; deterministic builder and exact 84309-character HTML embedded-Markdown equality passed with 33 unique anchors, 51 balanced fenced blocks and 15 total Mermaid diagrams; inline JavaScript syntax and JSON checks passed; live DSA literal-marker audit 170; Angular CLI compile and browser visual QA were not executed because Angular packages are not present.",
+      "validation": "Q33-Q34 add cold/hot producer contracts, four-example families, shared-request and AsyncPipe reference-switch traces, bounded replay/reset/invalidation guidance, TypeScript, invariants and derived subscription/output costs; deterministic builder and exact 94825-character HTML embedded-Markdown equality passed with 35 unique anchors, 55 balanced fenced blocks and 17 total Mermaid diagrams; inline JavaScript syntax and JSON checks passed; live DSA literal-marker audit 170; Angular/RxJS compile and browser visual QA were not executed because those packages are absent.",
       "last_successful_commit": "90def97f12b4052f1cf840c71950e9adf095649c"
     },
     {
@@ -794,7 +795,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q32 are processed. Finish the Angular RxJS section with the bounded Q33-Q34 pair.",
+    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q34 are processed. Continue with the bounded Angular forms subsection Q35-Q37.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -840,11 +841,11 @@
       "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)"
     ],
     "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
-    "validation": "Angular Q28-Q32 were compared in both actual source texts and enriched with requirements, four-example families, subscription/concurrency/state traces, TypeScript, two Mermaid diagrams, invariants, boundaries and derived costs; deterministic reader generation, exact 84309-character payload equality, 33 anchors, 51 balanced fences, 15 Mermaid diagrams, inline JavaScript, JSON and live 170-marker DSA placeholder audit passed; Angular CLI compile and browser visual QA were not executed because Angular packages are absent.",
-    "estimated_next_tokens": 9000,
-    "estimate_method": "Heuristic only: Q33-Q34 occupy the short remainder of the RxJS source section; reserve ~1000 tokens for paired source intake, ~2000 primary research, ~4000 teaching/code/diagram/HTML and ~2000 validation/checkpoint. This is not account-quota telemetry.",
+    "validation": "Angular Q33-Q34 were compared in both actual source texts and enriched with requirements, four-example families, shared-producer/cache and AsyncPipe reference-switch traces, TypeScript, two Mermaid diagrams, invariants, boundaries and derived costs; deterministic reader generation, exact 94825-character payload equality, 35 anchors, 55 balanced fences, 17 Mermaid diagrams, inline JavaScript, JSON and live 170-marker DSA placeholder audit passed; Angular/RxJS compile and browser visual QA were not executed because those packages are absent.",
+    "estimated_next_tokens": 10000,
+    "estimate_method": "Heuristic only: Q35-Q37 occupy the forms-only portion before routing begins at Q38 (Markdown lines 831-883; DOCX extracted lines 535-563); reserve ~1500 tokens for paired source intake, ~2000 primary research, ~4500 teaching/code/diagram/HTML and ~2000 validation/checkpoint. This is not account-quota telemetry.",
     "last_successful_commit": "90def97f12b4052f1cf840c71950e9adf095649c",
-    "last_processed_at": "2026-10-08T21:29:34-04:00",
-    "next_batch_decision": "Q28-Q32 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q33-Q34 and retain the conservative one-section checkpoint."
+    "last_processed_at": "2026-10-11T07:23:43-04:00",
+    "next_batch_decision": "Q33-Q34 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q35-Q37 and retain the conservative one-section checkpoint."
   }
 }
