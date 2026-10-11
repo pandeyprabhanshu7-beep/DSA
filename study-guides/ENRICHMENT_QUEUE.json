@@ -659,7 +659,7 @@
         "baseline_main_head": "bd3c4ce387f14ee412d57d103ee181f98907d939"
       },
       "validation": "Q21-Q22 add zoneless migration requirements, four-scenario families, notification and migration traces, ChangeDetectorRef examples, ownership/cleanup invariants and one original Mermaid diagram; deterministic builder and exact 51300-character HTML embedded-Markdown equality passed with 23 unique anchors, 36 balanced fenced blocks and 11 total Mermaid diagrams; inline JavaScript syntax, JSON and git diff checks passed; live DSA literal-marker audit 170; Angular CLI compile and browser visual QA were not executed because Angular packages are not present.",
-      "last_successful_commit": "403fb60bec77d40760363d968f50839a6e13e8b0"
+      "last_successful_commit": "8f9629e26d3ecd39dd3ce71a84f04bf3f36a49a5"
     },
     {
       "id": "javascript-html-css",
