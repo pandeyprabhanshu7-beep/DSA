@@ -220,7 +220,7 @@
       "size_bytes": 74372,
       "status": "READY",
       "last_read_at": "2026-10-11",
-      "selection": "Q1–Q32 content read and compared; Q33 onward remains unpromoted"
+      "selection": "Q1–Q48 content read and compared; Q49 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
@@ -342,7 +342,7 @@
       "size_bytes": 62355,
       "status": "READY",
       "last_read_at": "2026-10-11",
-      "selection": "Q1–Q32 content read and compared; Q33 onward remains unpromoted"
+      "selection": "Q1–Q48 content read and compared; Q49 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Workbook.docx",
@@ -643,7 +643,7 @@
         "Angular_Interview_Workbook.docx"
       ],
       "last_processed_at": "2026-10-11",
-      "next_action": "Continue with bounded Angular Q48: optimizing a slow Angular list from both sources; enrich the existing canonical guide.md and rebuild guide.html.",
+      "next_action": "Continue with bounded Angular Q49: explain the conceptual cause of ExpressionChangedAfterItHasBeenChecked-style issues from both sources; enrich the existing canonical guide.md and rebuild guide.html.",
       "priority": 15,
       "processed_sections": [
         "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)",
@@ -656,16 +656,17 @@
         "Forms and validation: Q35–Q37 (Reactive versus template-driven ownership, Signal Forms schema/state, synchronous and finite asynchronous validator contracts)",
         "Routing and HTTP boundaries: Q38–Q42 (lazy chunks, guards/resolvers, functional interceptor ordering, layered error ownership and stale-request cancellation)",
         "Feature state ownership: Q43–Q44 (service + signals versus NgRx decisions, route-scoped signal store, atomic transitions and save concurrency)",
-        "Rendering and hydration: Q45–Q47 (deferrable-view triggers, per-route CSR/SSR/prerendering, DOM reuse, event replay and incremental hydration)"
+        "Rendering and hydration: Q45–Q47 (deferrable-view triggers, per-route CSR/SSR/prerendering, DOM reuse, event replay and incremental hydration)",
+        "List performance: Q48 (measurement workflow, stable identity, memoized derivation, OnPush boundaries, CDK virtualization, reconciliation trace and derived costs)"
       ],
       "source_revision": {
         "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
-        "source_markdown_lines": "1037-1086 for Q45-Q47; earlier Q1-Q44 retained",
-        "source_docx": "Angular_Interview_Workbook.docx extracted lines 669-706 for Q45-Q47",
+        "source_markdown_lines": "1087-1108 for Q48; earlier Q1-Q47 retained",
+        "source_docx": "Angular_Interview_Workbook.docx extracted lines 707-721 for Q48",
         "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-11",
-        "baseline_main_head": "7d641f7e116b9ceeabed2d8d5ff9addd23bcc2b3"
+        "baseline_main_head": "d92563b03c28c963a7ae0c8acc467b6f95b57ff6"
       },
-      "validation": "Q45-Q47 add defer compiler constraints and trigger states, four route-rendering decisions, hydration/incremental-hydration traces, Angular 22 deprecation guidance, invariants, failure boundaries and derived cost models; deterministic builder and exact 157011-character HTML embedded-Markdown equality passed with 48 unique anchors, 80 balanced fenced blocks and 27 total Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript compilation, SSR execution and browser visual QA were not executed because those packages are absent.",
+      "validation": "Q48 adds a measurement-first diagnosis workflow, stable-key reconciliation trace, memoized derivation, Angular 22 OnPush boundaries, fixed-size CDK virtualization, four scenarios, invariants, derived CPU/memory/DOM costs, failure modes and a regression-test plan; deterministic builder and exact 167700-character HTML embedded-Markdown equality passed with 49 unique anchors, 83 balanced fenced blocks and 28 total Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript compilation, browser profiling and visual QA were not executed because those packages are absent.",
       "last_successful_commit": "4c38ccb4e81edb02647e684bb79645c4cc3fd63b"
     },
     {
@@ -799,7 +800,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q47 are processed. Continue with bounded Angular list-performance Q48.",
+    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q48 are processed. Continue with bounded Angular lifecycle-error Q49.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -845,11 +846,11 @@
       "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)"
     ],
     "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
-    "validation": "Angular Q45-Q47 were compared in both actual source texts and enriched with defer compiler constraints and trigger states, four render-mode decisions, hydration and incremental-hydration traces, Angular 22 deprecation guidance, invariants, failure boundaries and derived cost models; deterministic reader generation, exact 157011-character payload equality, 48 anchors, 80 balanced fences, 27 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript compilation, SSR execution and browser visual QA were not executed because those packages are absent.",
+    "validation": "Angular Q48 was compared in both actual source texts and enriched with a measurement-first workflow, stable identity, memoized derivation, Angular 22 OnPush boundaries, CDK virtualization, four scenarios, a reconciliation trace, derived costs, failure modes and regression tests; deterministic reader generation, exact 167700-character payload equality, 49 anchors, 83 balanced fences, 28 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript compilation, browser profiling and visual QA were not executed because those packages are absent.",
     "estimated_next_tokens": 9000,
-    "estimate_method": "Heuristic only: Q48 is the bounded slow-list optimization section before Q49 (Markdown lines 1087-1108; DOCX extracted lines 707-721); reserve ~800 tokens for paired source intake, ~2500 primary research, ~4000 teaching/code/diagram/HTML and ~1700 validation/checkpoint. This is not account-quota telemetry.",
+    "estimate_method": "Heuristic only: Q49 is the bounded ExpressionChangedAfterItHasBeenChecked conceptual section before Q50 (Markdown lines 1109-1122; DOCX extracted lines 722-732); reserve ~700 tokens for paired source intake, ~2500 primary research, ~4000 teaching/code/diagram/HTML and ~1800 validation/checkpoint. This is not account-quota telemetry.",
     "last_successful_commit": "4c38ccb4e81edb02647e684bb79645c4cc3fd63b",
-    "last_processed_at": "2026-10-11T12:21:42-04:00",
-    "next_batch_decision": "Q45-Q47 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q48 and retain the conservative one-section checkpoint."
+    "last_processed_at": "2026-10-11T13:30:26-04:00",
+    "next_batch_decision": "Q48 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q49 and retain the conservative one-section checkpoint."
   }
 }

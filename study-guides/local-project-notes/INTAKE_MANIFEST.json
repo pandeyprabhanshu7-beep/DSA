@@ -14,7 +14,7 @@
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 3",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 2",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 1",
-    "Angular_Interview_Mermaid_Workbook.md Q1-Q42",
+    "Angular_Interview_Mermaid_Workbook.md Q1-Q48",
     "src/README.md excerpt"
   ],
   "files": [
@@ -842,27 +842,27 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "Angular performance: bounded Q48 slow-list optimization",
+    "section": "Angular lifecycle: bounded Q49 ExpressionChangedAfterItHasBeenChecked conceptual model",
     "status": "QUEUED",
     "estimated_tokens": 9000,
-    "estimate_method": "Heuristic only: Q48 is the bounded slow-list optimization section before Q49 (Markdown lines 1087-1108; DOCX extracted lines 707-721); ~800 paired source intake, ~2500 primary documentation, ~4000 teaching/code/diagram/HTML and ~1700 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimate_method": "Heuristic only: Q49 is the bounded ExpressionChangedAfterItHasBeenChecked conceptual section before Q50 (Markdown lines 1109-1122; DOCX extracted lines 722-732); ~700 paired source intake, ~2500 primary documentation, ~4000 teaching/code/diagram/HTML and ~1800 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "readers": "Canonical Trees/BST reader rebuilt from Markdown; exact embedded payload equality, idempotence, local links, fragment targets and responsive/search/Mermaid hooks checked",
-    "diagrams": "The taxonomy mindmap and DFS processing-moment flow are embedded in the canonical payload; concept-map SVG XML parsed; browser visual QA not executed",
-    "last_processed_at": "2026-10-11T09:46:48-04:00"
+    "readers": "Canonical Angular reader rebuilt from Markdown; exact 167700-character embedded payload equality, 49 unique anchors, 83 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked",
+    "diagrams": "The Q48 measurement-to-remediation decision flow is embedded in the canonical payload; 28 Mermaid diagrams total; browser visual QA not executed",
+    "last_processed_at": "2026-10-11T13:30:26-04:00"
   },
   "angular_intake_checkpoint": {
-    "last_processed_at": "2026-10-11T12:21:42-04:00",
+    "last_processed_at": "2026-10-11T13:30:26-04:00",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q47; latest bounded source ranges are Markdown lines 1037-1086 and DOCX extracted lines 669-706 for Q45-Q47",
-    "status": "PUBLISHED",
-    "validation": "Q45-Q47 add defer compiler constraints and trigger states, per-route CSR/SSR/prerender decisions, hydration and incremental-hydration traces, Angular 22 deprecation guidance, failure boundaries and derived costs; deterministic builder and exact 157011-character payload equality passed with 48 unique anchors, 80 balanced fences and 27 Mermaid diagrams; inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker audit passed; not Angular/TypeScript compiled, SSR-executed or browser-tested because those packages are absent",
+    "processed": "Q1–Q48; latest bounded source ranges are Markdown lines 1087-1108 and DOCX extracted lines 707-721 for Q48",
+    "status": "VALIDATED_PENDING_PUBLISH",
+    "validation": "Q48 adds a measurement-first diagnosis workflow, stable-key reconciliation trace, memoized derivation, Angular 22 OnPush boundaries, fixed-size CDK virtualization, four scenarios, invariants, derived costs, failure modes and regression tests; deterministic builder and exact 167700-character payload equality passed with 49 unique anchors, 83 balanced fences and 28 Mermaid diagrams; inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker audit passed; not Angular/TypeScript compiled, browser-profiled or visually tested because those packages are absent",
     "content_commit": "4c38ccb4e81edb02647e684bb79645c4cc3fd63b",
     "estimated_next_tokens": 9000,
-    "estimate_method": "Heuristic from the Q48 slow-list source range plus paired source intake, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "estimate_method": "Heuristic from the Q49 ExpressionChangedAfterItHasBeenChecked source range plus paired source intake, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }

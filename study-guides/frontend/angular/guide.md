@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q47)
+# Angular 22 — Interview Foundations (Q1–Q48)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q47 (Q45–Q47 are lines 1037–1086) with the corresponding `Angular_Interview_Workbook.docx` text (Q45–Q47 are extracted lines 669–706). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering and hydration guidance, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q48 (Q48 is lines 1087–1108) with the corresponding `Angular_Interview_Workbook.docx` text (Q48 is extracted lines 707–721). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration and measured list-performance guidance, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -2538,19 +2538,158 @@ sequenceDiagram
 
 **Interview variations:** event replay; `hydrate on viewport/interaction/idle/timer`; `hydrate when`; `hydrate never`; nested boundaries; transfer cache; DOM mismatch debugging; SSR without hydration; partial/island architecture.
 
+<a id="q48"></a>
+## Q48. How would you diagnose and optimize a slow Angular list?
+
+**Requirement:** improve a measured user interaction without changing which records appear, their order, row-local state, focus behavior or accessibility. Treat “the list is slow” as a hypothesis: first identify whether time is spent deriving data, checking components, reconciling DOM, laying out/painting too many nodes, fetching data or running row work.
+
+Angular DevTools records change-detection cycles and identifies expensive components/directives; a browser performance trace adds scripting, layout, paint and frame timing. Reproduce one named interaction with production-sized data, capture a baseline, change one cause, then repeat the same trace. A smaller development data set or a faster warm-cache run is not a valid comparison.
+
+```mermaid
+flowchart TD
+ A["Reproduce and profile"] --> B{"Where is time spent?"}
+ B -->|derive/check| C["Memoize state; narrow notifications"]
+ B -->|DOM reconcile| D["Stable unique track key"]
+ B -->|layout/paint| E["Paginate or virtualize"]
+ B -->|row work| F["Simplify, split or defer noncritical work"]
+ C --> G["Repeat trace and correctness tests"]
+ D --> G
+ E --> G
+ F --> G
+```
+
+### First fix identity and repeated derivation
+
+```typescript
+import {ChangeDetectionStrategy, Component, computed, signal} from '@angular/core';
+
+type Product = Readonly<{id: string; name: string; priceCents: number}>;
+
+@Component({
+  selector: 'app-product-list',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <label>
+      Filter
+      <input [value]="query()"
+             (input)="query.set($any($event.target).value)" />
+    </label>
+
+    <p aria-live="polite">{{ visibleProducts().length }} results</p>
+    <ul>
+      @for (product of visibleProducts(); track product.id) {
+        <li>{{ product.name }} — {{ product.priceCents }} cents</li>
+      } @empty {
+        <li>No matching products</li>
+      }
+    </ul>
+  `
+})
+export class ProductListComponent {
+  readonly products = signal<readonly Product[]>([]);
+  readonly query = signal('');
+
+  readonly visibleProducts = computed(() => {
+    const needle = this.query().trim().toLocaleLowerCase();
+    return this.products()
+      .filter(product => product.name.toLocaleLowerCase().includes(needle))
+      .sort((a, b) => a.name.localeCompare(b.name)); // filter() made a new array
+  });
+
+  replaceProduct(changed: Product): void {
+    this.products.update(items =>
+      items.map(item => item.id === changed.id ? changed : item));
+  }
+}
+```
+
+The `computed` value reruns only when `products` or `query` changes; it does not allocate a fresh filtered/sorted array every time an unrelated binding is checked. `track product.id` maps logical records to views, so Angular can move and update existing row views instead of treating a reorder as unrelated DOM. The key must be unique among current siblings and stable for that record's lifetime. `$index` is safe only for a static collection whose insertion, removal and reorder semantics cannot change; tracking by object identity loses reuse when a server refresh creates new objects.
+
+Angular 22 uses `OnPush` by default. That reduces checks for unaffected subtrees, but it is not a substitute for stable identity or bounded DOM. An OnPush child is eligible to be checked when it receives a new bound input or an event occurs in its subtree; mutating an input object while retaining the same reference can therefore leave stale UI. Prefer immutable replacement as above. Signals read by the template provide targeted notifications; do not add manual `detectChanges()` calls until a trace and ownership contract justify them.
+
+### When the DOM itself is the bottleneck, virtualize
+
+```typescript
+import {Component, computed, signal} from '@angular/core';
+import {ScrollingModule} from '@angular/cdk/scrolling';
+
+type Product = Readonly<{id: string; name: string; priceCents: number}>;
+
+@Component({
+  selector: 'app-virtual-products',
+  standalone: true,
+  imports: [ScrollingModule],
+  styles: [`.viewport { height: 440px; } .row { height: 44px; }`],
+  template: `
+    <cdk-virtual-scroll-viewport class="viewport" itemSize="44"
+                                 minBufferPx="220" maxBufferPx="440">
+      <div class="row"
+           *cdkVirtualFor="let product of visibleProducts();
+                           trackBy: trackById; templateCacheSize: 20">
+        {{ product.name }} — {{ product.priceCents }} cents
+      </div>
+    </cdk-virtual-scroll-viewport>
+  `
+})
+export class VirtualProductsComponent {
+  readonly products = signal<readonly Product[]>([]);
+  readonly visibleProducts = computed(() => this.products());
+  readonly trackById = (_index: number, product: Product): string => product.id;
+}
+```
+
+The fixed-size CDK strategy gives the scroll container the full logical height while rendering a viewport-sized window plus buffers. `*cdkVirtualFor` can recycle cached views, and its `trackBy` index refers to the data source—not merely the rendered window. Here the declared 44 px row height must match the measured row box. Variable-height rows, sticky/table semantics, focus across recycled views, screen-reader navigation, printing and browser find all need explicit product testing; server pagination may be a better boundary when clients should not receive the full data set.
+
+### Four concrete scenarios
+
+| Scenario | Correct move | Observable result |
+|---|---|---|
+| Replace 10,000 API objects but preserve IDs | `track product.id` | Existing row views are reused and bindings update; row state is not attached to array position. |
+| Sort `[A#7, B#2, C#9]` to `[C#9, A#7, B#2]` | Track IDs, never `$index` | DOM/view identity moves `9, 7, 2`; focused or stateful row `#7` remains record `#7`. |
+| Filter and sort after typing | One `computed` derivation | One derivation per dependency change, rather than one new array per template evaluation. |
+| Display 100,000 fixed-height records in a 440 px viewport | `itemSize=44` plus measured buffers | Roughly the visible ten rows plus buffered rows exist as rendered views, not 100,000 row elements. |
+
+### Identity dry run
+
+Start with keys `[7, 2, 9]` and three existing views `V7, V2, V9`. The next server response contains new object references in key order `[9, 7, 4]`.
+
+| Reconciliation step | Key | Correct action | Why |
+|---:|---:|---|---|
+| 1 | 9 | Move/rebind `V9` to index 0 | Stable key 9 already owns a view. |
+| 2 | 7 | Move/rebind `V7` to index 1 | Stable key 7 already owns a view. |
+| 3 | 4 | Create `V4` at index 2 | Key 4 is new. |
+| finish | 2 | Destroy `V2` | Key 2 no longer exists. |
+
+Tracking by `$index` would instead reuse the old index-zero view for record 9 and the old index-one view for record 7. Text may look correct after rebinding, but input values, selection, animation or child-local state can follow the position rather than the record—the worst kind of “fast” result because it is semantically wrong.
+
+### Invariants, costs and boundaries
+
+- **Identity invariant:** each displayed record has one stable, unique key; never silently change key meaning between refreshes.
+- **Derivation invariant:** filtering/sorting is pure and owned outside the template. If source size is `n` and `m` records survive, filtering is O(n), sorting is O(m log m), and constructing the result costs O(m) space; memoization avoids paying again while dependencies are unchanged, not the first cost.
+- **DOM invariant:** without virtualization the list has O(m) row views. With a fixed-size viewport it has O(v + b) rendered views for visible count `v` and buffer count `b`, while the client-side source and filtered result can still consume O(n) and O(m) memory.
+- **Reconciliation cost:** even with stable keys Angular must inspect the collection, so a refresh is generally O(m) diff work; the gain is minimizing expensive create/destroy and preserving correct view identity, not making every refresh O(1).
+- **Server boundary:** for unbounded data, combine server filtering/sorting with cursor pagination or a windowed data source. Virtualizing a million already-downloaded objects only solves DOM pressure.
+
+**Common errors:** invoking `filter()`, `sort()` or a heavy formatter directly from the template; using an impure pipe; tracking a reorderable list by `$index`; mutating an OnPush input in place; subscribing once per row to the same source; stacking nested full lists; rendering hidden rows instead of removing/virtualizing them; guessing `itemSize`; retaining subscriptions in a custom data source after `disconnect`; adding `@defer` to every row while still creating the same huge DOM; and claiming OnPush alone fixes layout or paint.
+
+**Verification plan:** preserve a production-sized fixture and the same CPU/network conditions; record Angular and browser traces for initial render, append, middle deletion, reorder and filter typing; assert unique keys; spy on row construction/destruction to prove reuse; place focus and editable state in a row before reorder; test empty/singleton/duplicate-key rejection; scroll from first to last record and back; verify keyboard and screen-reader behavior; compare result order with an independent filter/sort oracle; and set a regression budget for change-detection time, long tasks, rendered row count and interaction latency. This guide's code was inspected, but not Angular-compiled or browser-profiled in this environment.
+
+**Interview variations:** `@for track` versus legacy `*ngFor trackBy`; Signals versus `AsyncPipe`; zoneless notification sources; Web Workers for CPU-heavy pure transforms; incremental/server pagination; custom `DataSource`; view-cache memory; variable-height virtualization; CDK table integration; preserving selection/focus; performance budgets.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
-Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, unauthorized API access despite a bypassed guard, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list, removed selection, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
+Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, unauthorized API access despite a bypassed guard, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q47. This pass was bounded to Markdown lines 1037–1086 and DOCX extracted lines 669–706 for Q45–Q47; the two sources contained the same three questions. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q48. This pass was bounded to Markdown lines 1087–1108 and DOCX extracted lines 707–721 for Q48; the two sources contained the same slow-list question and advice. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, browser screenshot or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
+- Official Angular performance material (reviewed 2026-10-11): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q48 (optimizing a slow Angular list) in both sources: Markdown lines 1087–1108 and DOCX extracted lines 707–721; keep extending this one canonical guide.
+- **Next:** continue with bounded Q49 (the conceptual cause of `ExpressionChangedAfterItHasBeenChecked`-style issues) in both sources: Markdown lines 1109–1122 and DOCX extracted lines beginning at 722; keep extending this one canonical guide.
 
