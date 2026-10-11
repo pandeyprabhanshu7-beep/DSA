@@ -667,7 +667,7 @@
         "baseline_main_head": "d92563b03c28c963a7ae0c8acc467b6f95b57ff6"
       },
       "validation": "Q48 adds a measurement-first diagnosis workflow, stable-key reconciliation trace, memoized derivation, Angular 22 OnPush boundaries, fixed-size CDK virtualization, four scenarios, invariants, derived CPU/memory/DOM costs, failure modes and a regression-test plan; deterministic builder and exact 167700-character HTML embedded-Markdown equality passed with 49 unique anchors, 83 balanced fenced blocks and 28 total Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript compilation, browser profiling and visual QA were not executed because those packages are absent.",
-      "last_successful_commit": "4c38ccb4e81edb02647e684bb79645c4cc3fd63b"
+      "last_successful_commit": "d96ed732cda9cb564df8a71144b3ad30e2de7387"
     },
     {
       "id": "javascript-html-css",
@@ -849,7 +849,7 @@
     "validation": "Angular Q48 was compared in both actual source texts and enriched with a measurement-first workflow, stable identity, memoized derivation, Angular 22 OnPush boundaries, CDK virtualization, four scenarios, a reconciliation trace, derived costs, failure modes and regression tests; deterministic reader generation, exact 167700-character payload equality, 49 anchors, 83 balanced fences, 28 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript compilation, browser profiling and visual QA were not executed because those packages are absent.",
     "estimated_next_tokens": 9000,
     "estimate_method": "Heuristic only: Q49 is the bounded ExpressionChangedAfterItHasBeenChecked conceptual section before Q50 (Markdown lines 1109-1122; DOCX extracted lines 722-732); reserve ~700 tokens for paired source intake, ~2500 primary research, ~4000 teaching/code/diagram/HTML and ~1800 validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "4c38ccb4e81edb02647e684bb79645c4cc3fd63b",
+    "last_successful_commit": "d96ed732cda9cb564df8a71144b3ad30e2de7387",
     "last_processed_at": "2026-10-11T13:30:26-04:00",
     "next_batch_decision": "Q48 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q49 and retain the conservative one-section checkpoint."
   }
