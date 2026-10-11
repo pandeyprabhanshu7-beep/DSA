@@ -661,7 +661,7 @@
         "baseline_main_head": "a9383b0af7675d0478fe342452d541acdf165977"
       },
       "validation": "Q28-Q32 add Observable/Promise contracts, bounded Subject histories, flattening-operator concurrency and cancellation traces, combineLatest/forkJoin emission boundaries, lifecycle ownership, four-example families, costs and two original Mermaid diagrams; deterministic builder and exact 84309-character HTML embedded-Markdown equality passed with 33 unique anchors, 51 balanced fenced blocks and 15 total Mermaid diagrams; inline JavaScript syntax and JSON checks passed; live DSA literal-marker audit 170; Angular CLI compile and browser visual QA were not executed because Angular packages are not present.",
-      "last_successful_commit": "349c842d56a6a983740cc39c41408432a9680ab6"
+      "last_successful_commit": "90def97f12b4052f1cf840c71950e9adf095649c"
     },
     {
       "id": "javascript-html-css",
@@ -843,7 +843,7 @@
     "validation": "Angular Q28-Q32 were compared in both actual source texts and enriched with requirements, four-example families, subscription/concurrency/state traces, TypeScript, two Mermaid diagrams, invariants, boundaries and derived costs; deterministic reader generation, exact 84309-character payload equality, 33 anchors, 51 balanced fences, 15 Mermaid diagrams, inline JavaScript, JSON and live 170-marker DSA placeholder audit passed; Angular CLI compile and browser visual QA were not executed because Angular packages are absent.",
     "estimated_next_tokens": 9000,
     "estimate_method": "Heuristic only: Q33-Q34 occupy the short remainder of the RxJS source section; reserve ~1000 tokens for paired source intake, ~2000 primary research, ~4000 teaching/code/diagram/HTML and ~2000 validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "6c0239b3511f52e3d15005eb45029ca0d43eb7fb",
+    "last_successful_commit": "90def97f12b4052f1cf840c71950e9adf095649c",
     "last_processed_at": "2026-10-08T21:29:34-04:00",
     "next_batch_decision": "Q28-Q32 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q33-Q34 and retain the conservative one-section checkpoint."
   }
