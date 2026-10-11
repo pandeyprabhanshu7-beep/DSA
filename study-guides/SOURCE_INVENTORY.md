@@ -53,7 +53,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md | 2026-09-08T00:10:00.856206Z | PROMOTED — canonical AI foundations/RAG/CAG base |
 | DSA_Graph_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.813753Z | DISCOVERED |
 | Advanced_Trees_FAANG_Mermaid_Study_Guide.md | 2026-09-08T00:10:00.813395Z | CORE PROCESSED — sections 3–10 promoted as focused modules; sections 1–2 merged into canonical Trees/BST cards; supplementary sections 11–15 remain inventory-only |
-| Angular_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.775386Z | IN PROGRESS — Q1–Q49 compared/promoted; next bounded application-structure section Q50 spans lines 1123–1135 before Q51 |
+| Angular_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.775386Z | IN PROGRESS — Q1–Q50 compared/promoted; next bounded Q51 on smart/presentational components starts at line 1136 |
 | JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.753196Z | DISCOVERED |
 | DSA_Tree_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.743385Z | DISCOVERED |
 | DSA_Arrays_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.740223Z | DISCOVERED |
@@ -66,7 +66,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | Stack_Queue_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T05:33:07.971008Z | DISCOVERED |
 | DSA_Arrays_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T01:55:56.718502Z | DISCOVERED |
 | AI_RAG_CAG_Deep_Learning_Developer_Guide.docx | 2026-09-02T04:40:53.490553Z | READY — compared; two useful original figures retained |
-| Angular_Interview_Workbook.docx | 2026-08-31T14:40:43.673563Z | IN PROGRESS — Q1–Q49 compared/promoted; next bounded application-structure section Q50 spans extracted lines 733–740 before Q51 |
+| Angular_Interview_Workbook.docx | 2026-08-31T14:40:43.673563Z | IN PROGRESS — Q1–Q50 compared/promoted; next bounded Q51 on smart/presentational components starts at extracted line 741 |
 | JavaScript_HTML_CSS_Interview_Workbook.docx | 2026-08-31T14:40:39.905787Z | DISCOVERED |
 | DSA_Graph_FAANG_Question_Workbook.docx | 2026-08-30T07:02:49.102302Z | DISCOVERED |
 | DSA_Tree_FAANG_Question_Workbook.docx | 2026-08-30T07:02:48.410227Z | DISCOVERED |
@@ -84,7 +84,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 - The AI-platform illustrated edition may hold useful material missing from a later master guide. Compare content; merge the best coverage in place.
 - Database internals, caching and Java connectivity are a distinct source, and arrays, advanced trees and frontend guides are newly enrolled topics.
 - The uploaded advanced-trees guide's core sections 1–10 are processed under [local project notes](local-project-notes/): Fenwick, lazy segment tree, trie, heap, B+ tree, B-tree, Red-Black Tree and AVL Tree are focused modules, while sections 1–2 improved canonical BT-1/BT-3 and BST-6/BST-7 in place. Supplementary sections 11–15 remain inventory-only rather than being treated as reviewed content.
-- Angular intake is in progress through Q49 from the paired Markdown/DOCX sources. Continue with only bounded Q50 on structuring a large Angular application; metadata discovery is not content import.
+- Angular intake is in progress through Q50 from the paired Markdown/DOCX sources. Continue with only bounded Q51 on whether smart/presentational component boundaries remain useful; metadata discovery is not content import.
 - AI projects keep their code in existing repositories. Enroll technical explanations, setup, architecture and lessons here.
 - Missing AWS master-guide, cloud-comparison and Java/security source bytes remain NEEDS_SOURCE. Known topics are queued without pretending they were imported.
 - No personal resumes or unrelated private documents are enrolled. Source identifiers are retrieval references, not credentials.
@@ -93,5 +93,5 @@ See [pipeline rules](ENHANCEMENT_PIPELINE.md) and [machine-readable queue](ENRIC
 
 
 
-Angular Q1–Q49 canonical notes are tracked at [frontend/angular](frontend/angular/). Q49 was reconciled from both workbooks on 2026-10-11; Q50 onward remains unprocessed.
+Angular Q1–Q50 canonical notes are tracked at [frontend/angular](frontend/angular/). Q50 was reconciled from both workbooks on 2026-10-11; Q51 onward remains unprocessed.
 

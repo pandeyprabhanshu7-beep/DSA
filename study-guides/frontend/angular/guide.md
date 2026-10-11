@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q49)
+# Angular 22 — Interview Foundations (Q1–Q50)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q49 (Q49 is lines 1109–1122) with the corresponding `Angular_Interview_Workbook.docx` text (Q49 is extracted lines 722–732). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance and lifecycle-stability diagnosis, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q50 (Q50 is lines 1123–1135) with the corresponding `Angular_Interview_Workbook.docx` text (Q50 is extracted lines 733–740). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis and large-application dependency boundaries, with diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -51,6 +51,9 @@
 - [Q45: Deferrable views](#q45)
 - [Q46: CSR vs SSR vs prerendering](#q46)
 - [Q47: Hydration and incremental hydration](#q47)
+- [Q48: Slow-list diagnosis](#q48)
+- [Q49: ExpressionChangedAfterItHasBeenChecked](#q49)
+- [Q50: Large-application structure](#q50)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -2830,21 +2833,227 @@ Also test the original failing parent/child order, later input replacement, a re
 
 **Interview variations:** dev-mode verification; parent/child feedback; lifecycle ordering; signal effects; impure getters; OnPush and zoneless behavior; DOM measurement; `afterNextRender` phases; SSR absence; hydration timing; testing with `ComponentFixture`; why timers hide rather than repair the issue.
 
+<a id="q50"></a>
+## Q50. How should a large Angular application be structured?
+
+**Requirement:** Design boundaries that let several teams add features without turning every change into an application-wide edit. The organizing unit is a **business capability** such as orders or billing—not a technical bucket such as `components`, `services` or `models`. A boundary should state what it owns, what it exports and which direction dependencies may cross.
+
+### Start with one deployable application, then earn extraction
+
+Do not confuse a large codebase with a need for dozens of publishable packages. Begin with feature folders inside the application. Extract a workspace library when code has a stable consumer-facing API, is used by multiple projects, needs independent ownership or benefits from an enforced build boundary. A folder move alone does not create architecture; import rules and deliberately small public APIs do.
+
+```text
+src/app/
+├── shell/                         # composition root, top-level layout and routes
+├── orders/                        # one business feature
+│   ├── feature-order-list/        # routed/container UI
+│   ├── feature-order-edit/
+│   ├── ui-order-card/             # order-specific presentation
+│   ├── data-access/               # HTTP adapter + DTO mapping
+│   ├── application/               # facade/use cases and feature state
+│   ├── domain/                    # Order, rules, ports; no Angular UI imports
+│   └── orders.routes.ts           # public route composition
+├── billing/
+├── design-system/                 # domain-neutral visual primitives
+└── platform/                      # auth, telemetry, runtime configuration
+```
+
+Names describe responsibility rather than prescribe an exact folder template. A small feature may keep five cohesive files together; split only when navigation, ownership or dependency control improves. `core`, `common`, `shared`, `helpers` and `utils` are warning labels unless each has a narrow, documented purpose.
+
+### Dependency rule
+
+```mermaid
+flowchart TD
+  Shell["Shell and route composition"] --> Feature["Orders feature UI"]
+  Feature --> App["Application facade / use cases"]
+  App --> Domain["Domain model and ports"]
+  Data["HTTP and storage adapters"] --> Domain
+  Shell --> Data
+  Feature --> DS["Design-system primitives"]
+```
+
+The arrows mean “may import.” Domain code must not import feature components, router configuration or concrete HTTP adapters. The shell is the composition root: it connects ports to adapters and composes routes. A feature may use domain-neutral design-system primitives, while the design system must not know what an `Order`, `Claim` or `Invoice` is. This direction prevents a reusable-looking button library from quietly depending on half the application.
+
+| Scenario | Boundary decision | Expected result |
+|---|---|---|
+| Orders page used only by one app | Keep it under `orders/`; lazy-load its routes | One cohesive feature, no premature package |
+| Button, dialog and spacing tokens used by three apps | Extract a design-system library with accessibility and visual tests | Domain-neutral public UI API |
+| REST payload changes but business model should not | Map `OrderDto` inside `orders/data-access` | Transport churn does not leak into templates |
+| Two teams edit checkout every week | Give checkout an owned entry point and import constraints | Smaller review surface and explicit contract |
+
+### Example 1 — the route is the feature entry point
+
+```typescript
+// app.routes.ts — composition, not feature implementation
+import {Routes} from '@angular/router';
+
+export const APP_ROUTES: Routes = [
+  {path: '', loadComponent: () => import('./home/home-page')},
+  {
+    path: 'orders',
+    loadChildren: () => import('./orders/orders.routes'),
+  },
+];
+
+// orders/orders.routes.ts — the bounded public entry point
+import {Routes} from '@angular/router';
+import {provideOrdersApi} from './data-access/provide-orders-api';
+
+export default [
+  {
+    path: '',
+    providers: [provideOrdersApi()],
+    children: [
+      {path: '', loadComponent: () => import('./feature-order-list/order-list-page')},
+      {path: ':id', loadComponent: () => import('./feature-order-edit/order-edit-page')},
+    ],
+  },
+] satisfies Routes;
+```
+
+`loadChildren` makes the feature route file a chunk boundary; nested pages can remain separate chunks. Route-scoped providers also give each loaded feature tree a lifecycle boundary. Do not lazy-load every tiny component: excessive nested boundaries add requests and navigation waterfalls. Keep the primary landing path eager when that improves first paint, and measure the production bundle and navigation trace.
+
+### Example 2 — typed port, adapter and mapping boundary
+
+```typescript
+// orders/domain/order.ts
+export type OrderStatus = 'draft' | 'submitted' | 'fulfilled';
+export interface Order { readonly id: string; readonly totalCents: number; readonly status: OrderStatus; }
+
+// orders/domain/orders-repository.ts
+import {InjectionToken} from '@angular/core';
+import {Observable} from 'rxjs';
+import {Order} from './order';
+
+export interface OrdersRepository { list(): Observable<readonly Order[]>; }
+export const ORDERS_REPOSITORY = new InjectionToken<OrdersRepository>('ORDERS_REPOSITORY');
+
+// orders/data-access/http-orders-repository.ts
+import {inject, Injectable} from '@angular/core';
+import {HttpClient} from '@angular/common/http';
+import {map} from 'rxjs';
+import {Order, OrderStatus} from '../domain/order';
+import {OrdersRepository} from '../domain/orders-repository';
+
+interface OrderDto { id: string; total_minor: number; state: string; }
+
+@Injectable()
+export class HttpOrdersRepository implements OrdersRepository {
+  private readonly http = inject(HttpClient);
+
+  list() {
+    return this.http.get<readonly OrderDto[]>('/api/orders').pipe(
+      map(rows => rows.map(toOrder)),
+    );
+  }
+}
+
+function toOrder(dto: OrderDto): Order {
+  const allowed = new Set<OrderStatus>(['draft', 'submitted', 'fulfilled']);
+  if (!allowed.has(dto.state as OrderStatus)) throw new Error(`Unknown order state: ${dto.state}`);
+  return {id: dto.id, totalCents: dto.total_minor, status: dto.state as OrderStatus};
+}
+```
+
+The adapter owns protocol names, validation and mapping; components consume the domain shape. Compile-time types do not validate untrusted JSON, so a production adapter needs schema validation where the boundary risk warrants it. Do not add interfaces merely to imitate another language—add a port when substitution, testing or dependency inversion has concrete value.
+
+### Example 3 — a facade is a feature API, not a second backend
+
+```typescript
+import {computed, inject, Injectable, signal} from '@angular/core';
+import {finalize} from 'rxjs';
+import {ORDERS_REPOSITORY} from '../domain/orders-repository';
+import {Order} from '../domain/order';
+
+@Injectable()
+export class OrdersFacade {
+  private readonly repository = inject(ORDERS_REPOSITORY);
+  private readonly rowsState = signal<readonly Order[]>([]);
+  private readonly loadingState = signal(false);
+
+  readonly rows = this.rowsState.asReadonly();
+  readonly loading = this.loadingState.asReadonly();
+  readonly submittedCount = computed(() =>
+    this.rowsState().filter(order => order.status === 'submitted').length,
+  );
+
+  refresh(): void {
+    if (this.loadingState()) return;
+    this.loadingState.set(true);
+    this.repository.list().pipe(finalize(() => this.loadingState.set(false)))
+      .subscribe({next: rows => this.rowsState.set(rows)});
+  }
+}
+```
+
+The facade exposes feature vocabulary (`refresh`, `submittedCount`) and hides where state and transport live. It is useful when several feature components coordinate the same workflow. For a single small component, injecting a focused service directly may be clearer. A facade that only renames every service method one-for-one is ceremony, not a boundary.
+
+### Example 4 — public APIs and monorepo ownership
+
+If the design system becomes a workspace library, expose only supported entry points:
+
+```typescript
+// projects/design-system/src/public-api.ts
+export {ButtonComponent} from './lib/button/button';
+export {DialogComponent} from './lib/dialog/dialog';
+export {provideDesignSystem} from './lib/provide-design-system';
+```
+
+Consumers import from `@company/design-system`, never from `projects/design-system/src/lib/...`. Deep imports couple callers to private layout and make refactoring or packaging unsafe. Secondary entry points such as `@company/design-system/button` are appropriate only when they are deliberate public contracts or chunk boundaries. A monorepo provides shared versioning and tooling, but it does **not** make every project mutually importable: CODEOWNERS, lint/module-boundary rules, dependency graphs and CI affected-project checks enforce the intended ownership.
+
+### Request and dependency dry run
+
+For navigation to `/orders/42`:
+
+1. The root router matches `orders` and downloads `orders.routes` if its chunk is absent.
+2. The route injector installs the concrete repository provider for this feature tree.
+3. The edit page asks for `OrdersFacade`; DI follows the configured token to `HttpOrdersRepository`.
+4. The adapter fetches `/api/orders/42`, validates/maps the DTO and emits a domain `Order`.
+5. The facade performs the workflow transition; the component renders readonly state through the design system.
+6. Leaving the feature destroys route-scoped providers and view-owned subscriptions. Application-singleton platform services remain.
+
+The important trace is not folder traversal—it is dependency resolution and data ownership. No domain file imports the router, the concrete adapter or a UI component.
+
+### Enforceable invariants
+
+- **Feature cohesion:** code that changes for one business capability is colocated unless a real shared contract exists.
+- **Acyclic direction:** shell composes; feature UI calls application/domain APIs; infrastructure implements domain ports. Reverse imports and cycles fail CI.
+- **Small public surface:** consumers see an entry point, not internal paths. Moving a private file should not require unrelated feature edits.
+- **Transport isolation:** DTOs, headers, endpoints and retry policy stop at data-access boundaries; domain models do not pretend raw JSON is trusted.
+- **UI neutrality:** design-system code accepts visual/interaction data and emits events; it does not fetch orders or inject feature stores.
+- **State locality:** keep state at the narrowest lifetime that needs it—component, route feature or application—not automatically global.
+- **Team alignment:** a boundary has an owner and review policy; an ownerless “shared” library becomes a change bottleneck.
+
+### Cost model and trade-offs
+
+Let F be feature boundaries, E allowed dependency edges, C consumers of a public API and Δ the files affected by a change. Runtime Big-O usually does not improve merely because folders are reorganized. Architecture aims to keep review/build impact closer to the affected subgraph rather than all projects. A clean feature change should touch O(|Δ|) cohesive files; changing a stable public contract may require O(C) migrations. Static dependency checks walk roughly O(F + E). Lazy loading reduces initial JavaScript by the deferred chunk sizes but adds a later request, parse and initialization cost. More libraries add build graph nodes, API/version work and possible duplicate dependencies; use measurements and ownership needs, not package count, as the success metric.
+
+### Tests, migration and failure boundaries
+
+Test behavior at each boundary: pure domain rules without TestBed; adapter mapping with malformed/unknown DTOs; facade transitions with a fake repository; routed components with provider overrides; public entry points with a production build. Add an import-boundary rule that rejects `domain -> data-access`, feature-to-feature private imports, and design-system-to-domain imports. Run a cycle detector and build every published entry point.
+
+To migrate a type-bucket application safely: choose one frequently changed feature, map its current imports, define its entry point, move code without behavior changes, introduce DTO mapping, redirect callers to the entry point, add boundary checks, then repeat. Do not stop all delivery for a “big-bang clean architecture” rewrite.
+
+**Common wrong approaches:** global `components/services/models` folders; a `SharedModule` or `common` barrel exporting everything; one global store for all transient state; domain models equal to API DTOs; deep imports into another feature; circular facades; one library per class; extracting code before a second real consumer; putting feature-aware widgets into the design system; assuming lazy loading is always faster; and calling a repository layout a micro-frontend architecture.
+
+**Interview variations:** modular monolith vs micro-frontends; standalone route boundaries; route/provider lifetime; facades versus direct services; monorepo ownership; when to extract a library; primary versus secondary entry points; DTO/domain mapping; design-system governance; dependency-cycle prevention; affected builds; strangler migration from type folders; measuring chunk and team-boundary costs.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
-Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and prevent synchronous child initialization from rewriting an already-checked parent binding; demonstrate the NG0100 trace and repair the ownership rather than adding a timer. Cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, unauthorized API access despite a bypassed guard, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, child-after-view parent mutation, impure binding getter, DOM measurement in browser and SSR, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
+Place `/orders/:id` behind one public orders feature entry point. Keep order domain rules independent of Angular UI and concrete HTTP code, map DTOs in data access, inject the repository port at route composition, expose workflow state through a route-scoped facade, and prove import rules reject reverse/deep dependencies. Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and prevent synchronous child initialization from rewriting an already-checked parent binding; demonstrate the NG0100 trace and repair the ownership rather than adding a timer. Cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: forbidden import direction, deep import, dependency cycle, malformed DTO, route-provider teardown, lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, unauthorized API access despite a bypassed guard, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, child-after-view parent mutation, impure binding getter, DOM measurement in browser and SSR, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q49. This pass was bounded to Markdown lines 1109–1122 and DOCX extracted lines 722–732 for Q49; the two sources contained the same lifecycle-stability question and advice. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q50. This pass was bounded to Markdown lines 1123–1135 and DOCX extracted lines 733–740 for Q50; the two sources contained the same feature-first large-application structure question and advice. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, browser screenshot or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-11): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
 - Official Angular lifecycle-stability material (reviewed 2026-10-11): [NG0100 error encyclopedia](https://angular.dev/errors/NG0100), [component lifecycle](https://angular.dev/guide/components/lifecycle), and [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
+- Official Angular application-structure material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q50 (structuring a large Angular application) in both sources: Markdown lines 1123–1135 and DOCX extracted lines 733–740; keep extending this one canonical guide.
+- **Next:** continue with bounded Q51 (whether smart/presentational components remain useful) in both sources, starting at Markdown line 1136 and DOCX extracted line 741; resolve the section end before reading it and keep extending this one canonical guide.
 

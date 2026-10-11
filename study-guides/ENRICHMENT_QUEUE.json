@@ -220,7 +220,7 @@
       "size_bytes": 74372,
       "status": "READY",
       "last_read_at": "2026-10-11",
-      "selection": "Q1–Q49 content read and compared; Q50 onward remains unpromoted"
+      "selection": "Q1–Q50 content read and compared; Q51 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
@@ -342,7 +342,7 @@
       "size_bytes": 62355,
       "status": "READY",
       "last_read_at": "2026-10-11",
-      "selection": "Q1–Q49 content read and compared; Q50 onward remains unpromoted"
+      "selection": "Q1–Q50 content read and compared; Q51 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Workbook.docx",
@@ -643,7 +643,7 @@
         "Angular_Interview_Workbook.docx"
       ],
       "last_processed_at": "2026-10-11",
-      "next_action": "Continue with bounded Angular Q50: structure a large Angular application from both sources; enrich the existing canonical guide.md and rebuild guide.html.",
+      "next_action": "Continue with bounded Angular Q51: decide whether smart/presentational components remain useful; the source begins at Markdown line 1136 and DOCX extracted line 741. Resolve the bounded section end before reading, enrich guide.md and rebuild guide.html.",
       "priority": 15,
       "processed_sections": [
         "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)",
@@ -658,16 +658,17 @@
         "Feature state ownership: Q43–Q44 (service + signals versus NgRx decisions, route-scoped signal store, atomic transitions and save concurrency)",
         "Rendering and hydration: Q45–Q47 (deferrable-view triggers, per-route CSR/SSR/prerendering, DOM reuse, event replay and incremental hydration)",
         "List performance: Q48 (measurement workflow, stable identity, memoized derivation, OnPush boundaries, CDK virtualization, reconciliation trace and derived costs)",
-        "Lifecycle stability: Q49 (NG0100 development verification, parent-child feedback trace, four root-cause families, ownership fixes, afterNextRender boundary and regression tests)"
+        "Lifecycle stability: Q49 (NG0100 development verification, parent-child feedback trace, four root-cause families, ownership fixes, afterNextRender boundary and regression tests)",
+        "Large-application architecture: Q50 (feature-first structure, dependency direction, lazy route entry point, ports/adapters, facade boundary, design-system and monorepo ownership)"
       ],
       "source_revision": {
         "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
-        "source_markdown_lines": "1109-1122 for Q49; earlier Q1-Q48 retained",
-        "source_docx": "Angular_Interview_Workbook.docx extracted lines 722-732 for Q49",
+        "source_markdown_lines": "1123-1135 for Q50; earlier Q1-Q49 retained",
+        "source_docx": "Angular_Interview_Workbook.docx extracted lines 733-740 for Q50",
         "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-11",
-        "baseline_main_head": "4fc27a76f860e2f1d52cb698251b822ac265a02b"
+        "baseline_main_head": "704853019d8a3430d66830d26ab6c88b05cc458b"
       },
-      "validation": "Q49 adds the NG0100 development-mode stability contract, a parent-child feedback trace, four root-cause families, ownership and lifecycle repairs, pure signal derivation, browser-only afterNextRender guidance, invariants, cost analysis and regression tests; deterministic builder and exact 178461-character HTML embedded-Markdown equality passed with 50 unique anchors, 88 balanced fenced blocks and 29 total Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript compilation, SSR execution and browser visual QA were not executed because those packages are absent.",
+      "validation": "Q50 adds feature-first structure, explicit import direction, lazy route composition, typed port/HTTP adapter mapping, facade decisions, four scenarios, monorepo/public-API guidance, request trace, invariants, costs, migration and boundary tests; deterministic builder and exact 192792-character HTML embedded-Markdown equality passed with 51 unique anchors, 94 balanced fenced blocks and 30 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript compilation, browser route execution and visual QA were not executed because those packages are absent.",
       "last_successful_commit": "a1aa84047f976ba84501ada1cdefced21662111e"
     },
     {
@@ -801,7 +802,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q49 are processed. Continue with bounded Angular application-structure Q50.",
+    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q50 are processed. Continue with bounded Angular Q51 on smart/presentational component boundaries, starting at Markdown line 1136 and DOCX extracted line 741.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -847,11 +848,11 @@
       "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)"
     ],
     "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
-    "validation": "Angular Q49 was compared in both actual source texts and enriched with the NG0100 development verification contract, parent-child feedback trace, four root-cause families, ownership/lifecycle repairs, pure signal derivation, afterNextRender boundaries, invariants, costs and regression tests; deterministic reader generation, exact 178461-character payload equality, 50 anchors, 88 balanced fences, 29 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript compilation, SSR execution and browser visual QA were not executed because those packages are absent.",
-    "estimated_next_tokens": 9000,
-    "estimate_method": "Heuristic only: Q50 is the bounded large-application structure section before Q51 (Markdown lines 1123-1135; DOCX extracted lines 733-740); reserve ~700 tokens for paired source intake, ~2500 primary research, ~4000 teaching/code/diagram/HTML and ~1800 validation/checkpoint. This is not account-quota telemetry.",
+    "validation": "Angular Q50 was compared in both actual source texts and enriched with feature-first structure, explicit dependency direction, a lazy route entry point, typed port/adapter mapping, facade decisions, four scenarios, monorepo/public-API governance, request trace, invariants, costs, migration and boundary tests; deterministic reader generation, exact 192792-character payload equality, 51 anchors, 94 balanced fences, 30 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript compilation, browser route execution and visual QA were not executed because those packages are absent.",
+    "estimated_next_tokens": 8000,
+    "estimate_method": "Heuristic only: bounded Q51 begins at Markdown line 1136 and DOCX extracted line 741; reserve ~600 tokens for paired source intake/range resolution, ~2200 primary research, ~3500 teaching/code/diagram/HTML and ~1700 validation/checkpoint. This is not account-quota telemetry.",
     "last_successful_commit": "a1aa84047f976ba84501ada1cdefced21662111e",
-    "last_processed_at": "2026-10-11T15:06:47-04:00",
-    "next_batch_decision": "Q49 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q50 and retain the conservative one-section checkpoint."
+    "last_processed_at": "2026-10-11T16:38:01-04:00",
+    "next_batch_decision": "Q50 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q51 and retain the conservative one-section checkpoint."
   }
 }

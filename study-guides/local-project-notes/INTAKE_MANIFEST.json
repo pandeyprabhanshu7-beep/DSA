@@ -14,7 +14,7 @@
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 3",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 2",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 1",
-    "Angular_Interview_Mermaid_Workbook.md Q1-Q49",
+    "Angular_Interview_Mermaid_Workbook.md Q1-Q50",
     "src/README.md excerpt"
   ],
   "files": [
@@ -842,27 +842,27 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "Angular architecture: bounded Q50 large-application structure",
+    "section": "Angular architecture: bounded Q51 smart/presentational component boundaries",
     "status": "QUEUED",
-    "estimated_tokens": 9000,
-    "estimate_method": "Heuristic only: Q50 is the bounded large-application structure section before Q51 (Markdown lines 1123-1135; DOCX extracted lines 733-740); ~700 paired source intake, ~2500 primary documentation, ~4000 teaching/code/diagram/HTML and ~1800 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 8000,
+    "estimate_method": "Heuristic only: Q51 begins at Markdown line 1136 and DOCX extracted line 741; ~600 paired source intake/range resolution, ~2200 primary documentation, ~3500 teaching/code/diagram/HTML and ~1700 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "readers": "Canonical Angular reader rebuilt from Markdown; exact 178461-character embedded payload equality, 50 unique anchors, 88 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked",
-    "diagrams": "The Q49 parent-child NG0100 verification trace is embedded in the canonical payload; 29 Mermaid diagrams total; browser visual QA not executed",
-    "last_processed_at": "2026-10-11T15:06:47-04:00"
+    "readers": "Canonical Angular reader rebuilt from Markdown; exact 192792-character embedded payload equality, 51 unique anchors, 94 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked",
+    "diagrams": "The Q50 dependency-direction graph is embedded in the canonical payload; 30 Mermaid diagrams total; browser visual QA not executed",
+    "last_processed_at": "2026-10-11T16:38:01-04:00"
   },
   "angular_intake_checkpoint": {
-    "last_processed_at": "2026-10-11T15:06:47-04:00",
+    "last_processed_at": "2026-10-11T16:38:01-04:00",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q49; latest bounded source ranges are Markdown lines 1109-1122 and DOCX extracted lines 722-732 for Q49",
-    "status": "PUBLISHED",
-    "validation": "Q49 adds the NG0100 development verification contract, parent-child feedback trace, four root-cause families, ownership/lifecycle repairs, pure signal derivation, afterNextRender boundaries, invariants, costs and regression tests; deterministic builder and exact 178461-character payload equality passed with 50 unique anchors, 88 balanced fences and 29 Mermaid diagrams; inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker audit passed; not Angular/TypeScript compiled, SSR-executed or browser-tested because those packages are absent",
+    "processed": "Q1–Q50; latest bounded source ranges are Markdown lines 1123-1135 and DOCX extracted lines 733-740 for Q50",
+    "status": "VALIDATED_PENDING_PUBLISH",
+    "validation": "Q50 adds feature-first structure, explicit dependency direction, lazy route composition, typed port/HTTP adapter mapping, facade decisions, four scenarios, monorepo/public-API guidance, request trace, invariants, costs, migration and boundary tests; deterministic builder and exact 192792-character payload equality passed with 51 unique anchors, 94 balanced fences and 30 Mermaid diagrams; inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker audit passed; not Angular/TypeScript compiled, browser-route-executed or visually tested because those packages are absent",
     "content_commit": "a1aa84047f976ba84501ada1cdefced21662111e",
-    "estimated_next_tokens": 9000,
-    "estimate_method": "Heuristic from the Q50 large-application structure source range plus paired source intake, primary research, explanation/examples/diagrams/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "estimated_next_tokens": 8000,
+    "estimate_method": "Heuristic from bounded Q51 starting at Markdown line 1136 and DOCX extracted line 741 plus paired source range resolution, primary research, explanation/examples/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
