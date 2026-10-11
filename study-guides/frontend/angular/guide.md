@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q48)
+# Angular 22 — Interview Foundations (Q1–Q49)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q48 (Q48 is lines 1087–1108) with the corresponding `Angular_Interview_Workbook.docx` text (Q48 is extracted lines 707–721). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration and measured list-performance guidance, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q49 (Q49 is lines 1109–1122) with the corresponding `Angular_Interview_Workbook.docx` text (Q49 is extracted lines 722–732). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance and lifecycle-stability diagnosis, diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -2676,20 +2676,175 @@ Tracking by `$index` would instead reuse the old index-zero view for record 9 an
 
 **Interview variations:** `@for track` versus legacy `*ngFor trackBy`; Signals versus `AsyncPipe`; zoneless notification sources; Web Workers for CPU-heavy pure transforms; incremental/server pagination; custom `DataSource`; view-cache memory; variable-height virtualization; CDK table integration; preserving selection/focus; performance budgets.
 
+<a id="q49"></a>
+## Q49. What conceptually causes `ExpressionChangedAfterItHasBeenCheckedError`?
+
+**Requirement:** find the bound value that changed during one Angular checking traversal, identify who wrote it and why the write happened too late, then repair state ownership or lifecycle timing. Do not merely silence the development diagnostic.
+
+Angular walks the component tree from top to bottom and checks each component once per traversal. In development mode it performs an additional verification after change detection; if a template binding no longer has the value just observed, Angular reports `NG0100`. Production mode does not throw this extra-check error, but removing the warning does not make an unstable state flow correct. The UI could otherwise depend on traversal order, flicker, show stale parent data or enter a feedback loop.
+
+### Minimal failing trace
+
+```typescript
+import {AfterViewInit, Component, EventEmitter, Output} from '@angular/core';
+
+@Component({
+  selector: 'app-child',
+  template: `Ready`,
+})
+export class ChildComponent implements AfterViewInit {
+  @Output() ready = new EventEmitter<void>();
+
+  ngAfterViewInit(): void {
+    this.ready.emit(); // synchronous write back into an already-checked parent
+  }
+}
+
+@Component({
+  selector: 'app-parent',
+  imports: [ChildComponent],
+  template: `
+    <p>Child ready: {{ childReady }}</p>
+    <app-child (ready)="childReady = true" />
+  `,
+})
+export class ParentComponent {
+  childReady = false;
+}
+```
+
+```mermaid
+sequenceDiagram
+ participant A as Angular
+ participant P as Parent binding
+ participant C as Child hook
+ A->>P: check childReady = false
+ A->>C: create/check child
+ C->>P: synchronous ready sets true
+ A->>P: development verification reads true
+ P-->>A: false != true; NG0100
+```
+
+The problem is not that `true` is illegal. It is that the child changes an ancestor binding after that ancestor was already checked in the same traversal. A later independent user event or HTTP completion may legitimately change state and schedule a new traversal; the error concerns a value that failed to remain stable across the completed check and its development verification.
+
+### Repair the ownership, not the symptom
+
+For the example above, if readiness means “the child exists,” the parent already owns enough information and should initialize `childReady` before its template check. If readiness represents a real user action or a genuinely later asynchronous completion, the child may emit then; that event starts from the correct semantic boundary. Do not invent asynchrony solely to evade the verification.
+
+```typescript
+import {Component, computed, input} from '@angular/core';
+
+@Component({
+  selector: 'app-profile-heading',
+  template: `<h2>{{ heading() }}</h2>`,
+})
+export class ProfileHeadingComponent {
+  readonly first = input.required<string>();
+  readonly last = input.required<string>();
+  readonly heading = computed(() => `${this.first()} ${this.last()}`.trim());
+}
+```
+
+Here the heading is a pure derivation of inputs rather than a field assigned in `ngAfterViewInit`. `ngOnChanges` or `ngOnInit` is also appropriate for imperative initialization based on inputs because those hooks run before the component's own template is checked. Prefer a `computed` value when the state is purely derived and should stay synchronized for later input changes.
+
+### Four root-cause families
+
+| Symptom | Unstable write | Principled repair | Why it is stable |
+|---|---|---|---|
+| Parent shows `loading=false`, child initialization flips it to `true` | Child synchronously mutates/emits into an already-checked ancestor | Parent owns initial loading state; later request events update it | The first observed parent value is already authoritative. |
+| `ngAfterViewInit` assigns a field derived only from inputs | Initialization occurs after the view was checked | Use `computed`, `ngOnChanges` or `ngOnInit` | Derivation exists before the template consumes it. |
+| `{{ nextSequence() }}` increments a counter, or a getter returns `Date.now()`/`Math.random()` | Reading the binding itself changes or produces a new value | Make template reads pure; snapshot on an explicit event/state transition | Repeated reads of unchanged state return the same value. |
+| Layout measurement is required before positioning a third-party widget | View hook reads DOM and immediately rewrites a bound value mid-traversal | Use `afterNextRender` with explicit write/read phases and a browser/SSR policy | DOM work occurs after rendering rather than during the tree walk. |
+
+### DOM-dependent work with a render callback
+
+```typescript
+import {
+  Component, ElementRef, afterNextRender, signal, viewChild
+} from '@angular/core';
+
+@Component({
+  selector: 'app-measured-panel',
+  template: `
+    <section #panel class="panel">Account summary</section>
+    <p>Measured height: {{ heightPx() ?? 'pending' }}</p>
+  `,
+})
+export class MeasuredPanelComponent {
+  readonly panel = viewChild.required<ElementRef<HTMLElement>>('panel');
+  readonly heightPx = signal<number | null>(null);
+
+  constructor() {
+    afterNextRender({
+      read: () => {
+        const next = Math.round(
+          this.panel().nativeElement.getBoundingClientRect().height
+        );
+        if (next !== this.heightPx()) this.heightPx.set(next);
+      },
+    });
+  }
+}
+```
+
+`afterNextRender` must be registered in an injection context, normally the constructor. It runs once after the next application render, on browser platforms only; it does not run during SSR or build-time prerendering. Therefore `null` is a real initial/SSR state, not an impossible branch. Use render callbacks for actual DOM integration, not as a generic queue for ordinary business state. For layout work, separate writes from reads when both are needed; this reduces layout thrashing. Angular also warns that hydration may not be complete before every callback, so direct DOM integration still needs hydration-specific testing.
+
+### Debugging workflow
+
+1. **Read the old/new values and component named by NG0100.** Follow source-mapped stack frames to the template binding; the last framework frame is rarely the real owner.
+2. **Reproduce with one development-mode `detectChanges` path.** Production absence is not evidence of correctness.
+3. **Find the first write, not the final read.** Search output handlers, child service initialization, impure getters/methods, effects and `ngAfterContentInit`/`Checked` or `ngAfterViewInit`/`Checked` hooks.
+4. **Classify the state.** Is it input-derived, parent-owned, event-owned, async-resource state or DOM measurement?
+5. **Move it to the semantic owner/time.** Use `computed`; initialize in the constructor/field, `ngOnChanges` or `ngOnInit`; respond to the real later event; or use a browser-only render callback for DOM work.
+6. **Prove stability and behavior.** Re-run the exact path, assert the intended UI, and ensure there is no extra render loop, stale SSR state or lost interaction.
+
+### Stability invariants and costs
+
+- **Check invariant:** once Angular has observed a binding during a traversal, application code must not make that binding produce a different value before verification completes.
+- **Purity invariant:** evaluating a template expression with unchanged inputs has no side effect and returns a stable result. Memoization is an optimization; purity is the correctness requirement.
+- **Ownership invariant:** data flows down as inputs; semantic events flow up. A child should not synchronously initialize parent-owned display state during its after-view hook.
+- **Lifecycle invariant:** content/view `Init` and `Checked` hooks may inspect initialized queries, but they are too late to rewrite state already bound in that traversal. `Checked` hooks are also frequent and must not become a hidden scheduler.
+- **Render invariant:** `afterNextRender` is browser-only DOM coordination. A server-rendered value must not depend exclusively on it.
+
+The development verification adds diagnostic work proportional to the bindings Angular rechecks. Moving a pure O(1) derivation to `computed` does not make the first calculation free, but it prevents repeated work while dependencies are unchanged. An arbitrary `setTimeout`, `Promise.resolve`, `detectChanges()` or application tick can add another traversal—roughly O(B) binding work for B visited bindings—and may turn one ownership bug into extra frames or a loop. Use such scheduling only when the domain truly defines a later event, not as an NG0100 eraser.
+
+### Tests and failure boundaries
+
+```typescript
+import {TestBed} from '@angular/core/testing';
+
+it('keeps the first checked heading stable', () => {
+  const fixture = TestBed.createComponent(ProfileHeadingComponent);
+  fixture.componentRef.setInput('first', 'Ada');
+  fixture.componentRef.setInput('last', 'Lovelace');
+
+  expect(() => fixture.detectChanges()).not.toThrow();
+  expect(fixture.nativeElement.textContent).toContain('Ada Lovelace');
+  expect(() => fixture.detectChanges()).not.toThrow();
+});
+```
+
+Also test the original failing parent/child order, later input replacement, a real click/HTTP completion, repeated getter evaluation, server rendering where render callbacks do not run, hydration, and component destruction before delayed external callbacks. Keep the negative test while refactoring: it should demonstrate NG0100 before the repair, then the behavioral assertion should replace reliance on the error text.
+
+**Common wrong fixes:** wrapping every write in `setTimeout(..., 0)`; calling `detectChanges()` from `ngAfterViewChecked`; switching to production mode; ignoring a child-to-parent initialization cycle; moving side effects into a getter; assuming Signals prohibit unstable writes; using `afterNextRender` for ordinary input derivation; or confusing NG0100 with hydration mismatch, an OnPush notification bug or a changed JavaScript object whose bound expression still evaluates identically.
+
+**Interview variations:** dev-mode verification; parent/child feedback; lifecycle ordering; signal effects; impure getters; OnPush and zoneless behavior; DOM measurement; `afterNextRender` phases; SSR absence; hydration timing; testing with `ComponentFixture`; why timers hide rather than repair the issue.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
-Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, unauthorized API access despite a bypassed guard, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
+Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and prevent synchronous child initialization from rewriting an already-checked parent binding; demonstrate the NG0100 trace and repair the ownership rather than adding a timer. Cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, unauthorized API access despite a bypassed guard, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, child-after-view parent mutation, impure binding getter, DOM measurement in browser and SSR, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q48. This pass was bounded to Markdown lines 1087–1108 and DOCX extracted lines 707–721 for Q48; the two sources contained the same slow-list question and advice. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q49. This pass was bounded to Markdown lines 1109–1122 and DOCX extracted lines 722–732 for Q49; the two sources contained the same lifecycle-stability question and advice. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, browser screenshot or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-11): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
+- Official Angular lifecycle-stability material (reviewed 2026-10-11): [NG0100 error encyclopedia](https://angular.dev/errors/NG0100), [component lifecycle](https://angular.dev/guide/components/lifecycle), and [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q49 (the conceptual cause of `ExpressionChangedAfterItHasBeenChecked`-style issues) in both sources: Markdown lines 1109–1122 and DOCX extracted lines beginning at 722; keep extending this one canonical guide.
+- **Next:** continue with bounded Q50 (structuring a large Angular application) in both sources: Markdown lines 1123–1135 and DOCX extracted lines 733–740; keep extending this one canonical guide.
 
