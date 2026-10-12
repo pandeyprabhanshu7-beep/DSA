@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q59)
+# Angular 22 — Interview Foundations (Q1–Q60)
 
-> **Current bounded edition, 2026-10-12.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q59 (Q59 is lines 1242–1261) with the corresponding `Angular_Interview_Workbook.docx` text (Q59 is extracted lines 823–834). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, and a layered duplicate-payment defense combining RxJS admission control with server idempotency, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-12.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q60 (Q60 is lines 1262–1279) with the corresponding `Angular_Interview_Workbook.docx` text (Q60 is extracted lines 837–848). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, and route-keyed stale-result cancellation with explicit loading ownership, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -63,6 +63,7 @@
 - [Q57: diagnose duplicate HTTP calls](#q57)
 - [Q58: third-party callbacks in zoneless Angular](#q58)
 - [Q59: prevent duplicate payment submissions](#q59)
+- [Q60: prevent stale route-detail results](#q60)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -5145,6 +5146,238 @@ For `c` clicks that occur during one request interval, the client gate examines 
 
 **Primary references:** RxJS [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), and [`retry`](https://rxjs.dev/api/operators/retry); Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests) and [HTTP testing](https://angular.dev/guide/http/testing); Stripe's [idempotent request contract](https://docs.stripe.com/api/idempotent_requests); and RFC 9110's [HTTP idempotent-method semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2). The three-layer model, operator matrix, four examples, state machine, sequence trace, dry run, invariants and cost derivation above are added teaching material.
 
+<a id="q60"></a>
+## Q60. Why do old details flash when the route changes quickly?
+
+**Requirement:** whenever the active route key changes, make that key the owner of loading, ready and error state; unsubscribe from the previous read; prevent any late result from becoming visible; and decide deliberately whether the old view is cleared, retained or replaced by a skeleton while the new key loads.
+
+The common race is **A starts, B starts, B finishes, then A finishes and overwrites B**. Angular can reuse the same component instance when only a route parameter changes, so `snapshot`-only initialization or nested subscriptions often miss the ownership change. The source workbook's core repair is correct: derive the ID from `ActivatedRoute.paramMap`, remove consecutive duplicates, and use `switchMap` so a new ID replaces the previous inner subscription.
+
+There is a second, different “flash” to diagnose: even when A can no longer emit, a stream that emits only successful users may keep A's last rendered value visible while B is loading. Emit `{kind: 'loading', id: 'B'}` immediately inside B's switched generation if the UI must clear A. Cancellation and presentation-state replacement solve different problems.
+
+### Identify the symptom before choosing the repair
+
+| Symptom | Root cause | Repair |
+|---|---|---|
+| A response arrives after B and overwrites it | Independent/nested subscriptions | Route-key stream plus `switchMap` |
+| URL is B but A remains until B responds | No B loading emission; old successful state is retained | Emit loading state inside each switched generation |
+| Parameter changes but no new request starts | Read only `route.snapshot` in a reused component | Subscribe to `paramMap`, use a bound input, or use a resolver/resource |
+| Two B requests appear | More than one subscription to a cold HTTP-derived stream | Bind once or share one explicitly owned generation |
+| Child route ID is always missing | Reading the wrong `ActivatedRoute` node | Select the route level that owns `:id` |
+
+### Example 1 — the broken nested-subscription race
+
+```typescript
+// Anti-pattern: each route emission creates an independent subscription.
+this.route.paramMap.subscribe(params => {
+  const id = params.get('id');
+  if (!id) return;
+
+  this.api.getUser(id).subscribe(user => {
+    this.user.set(user); // Slow A can overwrite fast B.
+  });
+});
+```
+
+Destroying only the outer subscription does not retroactively give B ownership over the already-created inner subscriptions. A boolean such as `isLatest` is also fragile unless it is keyed and checked at every emission. Express replacement directly in the observable topology.
+
+### Example 2 — one route-keyed state stream
+
+```typescript
+import {AsyncPipe} from '@angular/common';
+import {HttpClient} from '@angular/common/http';
+import {Component, Injectable, inject} from '@angular/core';
+import {ActivatedRoute} from '@angular/router';
+import {
+  Observable, catchError, concat, distinctUntilChanged,
+  map, of, switchMap,
+} from 'rxjs';
+
+type User = {id: string; displayName: string; biography: string};
+type UserState =
+  | {kind: 'loading'; id: string}
+  | {kind: 'ready'; id: string; user: User}
+  | {kind: 'error'; id: string; message: string};
+
+@Injectable({providedIn: 'root'})
+class UserApi {
+  private readonly http = inject(HttpClient);
+  getUser(id: string): Observable<User> {
+    return this.http.get<User>(`/api/users/${encodeURIComponent(id)}`);
+  }
+}
+
+@Component({
+  selector: 'app-user-detail',
+  imports: [AsyncPipe],
+  template: `
+    @if (state$ | async; as state) {
+      @switch (state.kind) {
+        @case ('loading') {
+          <p aria-live="polite">Loading user {{ state.id }}…</p>
+        }
+        @case ('ready') {
+          <article>
+            <h1 class="user-name">{{ state.user.displayName }}</h1>
+            <p>{{ state.user.biography }}</p>
+          </article>
+        }
+        @case ('error') {
+          <p role="alert">{{ state.message }}</p>
+        }
+      }
+    }
+  `,
+})
+export class UserDetail {
+  private readonly route = inject(ActivatedRoute);
+  private readonly api = inject(UserApi);
+
+  readonly state$: Observable<UserState> = this.route.paramMap.pipe(
+    map(params => params.get('id')),
+    distinctUntilChanged(),
+    switchMap(id => {
+      if (!id) {
+        return of<UserState>({
+          kind: 'error', id: '', message: 'The route is missing a user ID.',
+        });
+      }
+
+      return concat(
+        // This synchronous first emission replaces the previous user's view.
+        of<UserState>({kind: 'loading', id}),
+        this.api.getUser(id).pipe(
+          map((user): UserState => ({kind: 'ready', id, user})),
+          // Inner recovery keeps the outer route stream alive for later IDs.
+          catchError(() => of<UserState>({
+            kind: 'error', id, message: `Could not load user ${id}.`,
+          })),
+        ),
+      );
+    }),
+  );
+}
+```
+
+**Key lines:** `switchMap` transfers ownership to the latest ID, `concat(of(loading), request$)` clears or replaces stale presentation synchronously, and `catchError` stays inside the projection so one failed user does not terminate future route updates. The template has one `AsyncPipe` subscription, so it does not duplicate the cold HTTP execution and Angular owns teardown.
+
+If product design intentionally keeps A visible while B loads, encode that as a distinct `refreshing` state carrying `previousUser` and `requestedId`. Never accidentally label A as B merely because the URL changed.
+
+### Example 3 — resolver when detail data is an activation prerequisite
+
+```typescript
+import {Routes, ResolveFn} from '@angular/router';
+import {inject} from '@angular/core';
+
+export const userResolver: ResolveFn<User> = route => {
+  const id = route.paramMap.get('id');
+  if (!id) throw new Error('Missing required route parameter: id');
+  return inject(UserApi).getUser(id);
+};
+
+export const routes: Routes = [{
+  path: 'users/:id',
+  loadComponent: () => import('./user-detail')
+    .then(module => module.UserDetail),
+  resolve: {user: userResolver},
+}];
+```
+
+A resolver is appropriate when the route should not activate without essential data and the team has an explicit navigation-error/loading policy. The trade-off is delayed activation: for a slow backend, a component-level skeleton can feel more responsive. Do not add both a resolver and a component fetch for the same identity unless they intentionally share one cache/transfer contract.
+
+### Example 4 — prove that A is cancelled and only B renders
+
+```typescript
+import {provideHttpClient} from '@angular/common/http';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
+import {TestBed} from '@angular/core/testing';
+import {ActivatedRoute, ParamMap, convertToParamMap} from '@angular/router';
+import {Subject} from 'rxjs';
+
+it('cancels stale A when route B arrives', () => {
+  const params = new Subject<ParamMap>();
+  TestBed.configureTestingModule({
+    imports: [UserDetail],
+    providers: [
+      UserApi,
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      {provide: ActivatedRoute, useValue: {paramMap: params}},
+    ],
+  });
+
+  const fixture = TestBed.createComponent(UserDetail);
+  const http = TestBed.inject(HttpTestingController);
+  fixture.detectChanges(); // AsyncPipe subscribes to state$.
+
+  params.next(convertToParamMap({id: 'A'}));
+  fixture.detectChanges();
+  const requestA = http.expectOne('/api/users/A');
+
+  params.next(convertToParamMap({id: 'B'}));
+  fixture.detectChanges();
+  expect(requestA.cancelled).toBe(true);
+  expect(fixture.nativeElement.textContent).toContain('Loading user B');
+
+  const requestB = http.expectOne('/api/users/B');
+  requestB.flush({id: 'B', displayName: 'Bina', biography: 'Current user'});
+  fixture.detectChanges();
+
+  expect(fixture.nativeElement.querySelector('.user-name').textContent)
+    .toContain('Bina');
+  expect(fixture.nativeElement.textContent).not.toContain('Loading user A');
+  http.verify({ignoreCancelled: true});
+});
+```
+
+Also test A→B→A, duplicate consecutive B IDs, a missing ID, B returning 404, B failing after A was ready, destruction during a request, the component being reused rather than recreated, child-route parameter ownership, multiple template consumers, SSR/hydration, and a transport/backend that continues doing work after the browser aborts.
+
+### A→B race trace
+
+```mermaid
+sequenceDiagram
+  participant R as Router
+  participant C as Detail component
+  participant S as switchMap
+  participant H as HttpClient
+  participant V as View
+  R->>C: paramMap emits A
+  C->>S: generation A
+  S->>H: GET /users/A
+  S->>V: loading A
+  R->>C: paramMap emits B
+  C->>S: generation B replaces A
+  S-xH: unsubscribe request A
+  S->>V: loading B
+  S->>H: GET /users/B
+  H-->>S: user B
+  S-->>V: ready B
+```
+
+**Step-by-step dry run:** at `t=0`, `/users/A` emits A, displays `loading A`, and starts request A. At `t=20 ms`, the URL becomes `/users/B`; `switchMap` unsubscribes A, emits `loading B`, and starts request B. At `t=80 ms`, B returns and the view renders Bina. If A's server work completes at `t=500 ms`, its client subscription no longer owns an observer, so it cannot overwrite B. Browser abort is a resource optimization, not the correctness proof—the ownership topology is. If the transport cannot cancel, the stale response is still unobserved.
+
+### Invariants, costs and boundaries
+
+- **Identity invariant:** every loading/ready/error state carries the route key that owns it. Never combine URL B with user A without explicitly labeling it `previousUser`.
+- **Latest-read invariant:** one component stream has at most one active detail-read subscription. Use `switchMap` for replaceable reads, not for writes whose server effects must complete.
+- **Loading invariant:** switching subscriptions does not itself erase the last DOM value. Emit the chosen B loading/refreshing state deliberately.
+- **Error invariant:** recover inside the switched generation; outer recovery would terminate or detach the route-key lifecycle.
+- **Route-node invariant:** read `paramMap` from the `ActivatedRoute` node that declares `:id`; parent, child and query parameters are not interchangeable.
+- **Snapshot invariant:** `snapshot` is a static view. It is valid for one-time reads only when component recreation is guaranteed or later changes are irrelevant.
+- **Cancellation boundary:** Angular documents that unsubscribing an `HttpClient` observable aborts the in-progress browser request. That does not guarantee the origin stopped computation, so authorization, quotas and efficient server cancellation remain server concerns.
+- **Subscription invariant:** `HttpClient` observables are cold. Two independent consumers can still issue two current-ID requests unless the template binds once or a deliberately scoped shared generation owns them.
+
+For `k` route-key emissions, mapping and equality checks cost `O(k)`. At most one detail request is subscribed at a time, while as many as `k` requests can have been dispatched over the whole navigation sequence. The latest-only operator holds `O(1)` active-subscription state; the current response consumes `O(b)` memory for payload size `b`, and rendering/output construction remains `O(b)` or proportional to the displayed fields/DOM. If a keyed cache retains `m` responses, memory becomes `O(mb)` and needs eviction/invalidation. Cancellation can reduce transferred bytes and parsing work, but already-dispatched server work is not included in that client bound.
+
+**Common errors:** nested subscriptions; using `mergeMap` and accepting out-of-order results; using `concatMap` and showing obsolete IDs sequentially; using `exhaustMap` and ignoring a newer route; reading only `snapshot`; placing `catchError` outside `switchMap`; assuming unsubscription proves server cancellation; retaining A without an explicit refreshing label; clearing state after B returns and causing a reverse flash; reading the wrong route level; issuing one request per `AsyncPipe`; caching by URL without tenant/auth identity; and tests that only assert the final value without proving A was cancelled.
+
+**Interview variations:** component reuse; `paramMap` versus snapshot; route input binding; resolver versus component fetch; `switchMap` versus `mergeMap`/`concatMap`/`exhaustMap`; loading-state ownership; keep-previous-data UX; request cancellation versus ignored results; pagination/query parameters; child route keys; cache invalidation; SSR transfer cache; prefetching; polling; websocket details; and testing A-slow/B-fast timing.
+
+**Primary references:** Angular's [route-state guide](https://angular.dev/guide/routing/read-route-state), [`ActivatedRoute`](https://angular.dev/api/router/ActivatedRoute), [making HTTP requests](https://angular.dev/guide/http/making-requests), and [HTTP testing](https://angular.dev/guide/http/testing), plus RxJS [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`distinctUntilChanged`](https://rxjs.dev/api/operators/distinctUntilChanged), and [`catchError`](https://rxjs.dev/api/operators/catchError). The symptom matrix, four examples, loading-state refinement, race trace, dry run, tests, invariants and cost derivation above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -5158,8 +5391,8 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q59. This pass was bounded to Markdown lines 1242–1261 and DOCX extracted lines 823–834 for Q59; the two sources contained the same rule: use `exhaustMap` when additional payment clicks should be ignored while one request is active. This edition preserves that rule and adds the distinct server-idempotency boundary needed for retries, refreshes and concurrent clients. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
-- Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest execution, Spring compilation/test, browser screenshot, payment-provider call or live server call was executed** during this source-comparison pass.
+- Both **actual Library source texts** were inspected for Q1–Q60. This pass was bounded to Markdown lines 1262–1279 and DOCX extracted lines 837–848 for Q60; the two sources contained the same rule: derive the current ID from the route stream and use switching/cancellation semantics so an older request cannot own the newer route. This edition preserves that rule and separately handles the previous successful value that can remain rendered during the new request's loading gap. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest execution, router/browser execution, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-11): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
@@ -5173,8 +5406,9 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular/RxJS request-cardinality material (reviewed 2026-10-12): Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), and [HTTP testing](https://angular.dev/guide/http/testing); RxJS [`shareReplay`](https://rxjs.dev/api/index/function/shareReplay), [`share`](https://rxjs.dev/api/operators/share), [`retry`](https://rxjs.dev/api/operators/retry), and [Observable guide](https://rxjs.dev/guide/observable). Sharing/reset behavior is package-version-sensitive; the concrete examples use the RxJS 7 configuration shape compatible with the guide's Angular baseline.
 - Official Angular zoneless-integration material (reviewed 2026-10-12): [zoneless compatibility and notifications](https://angular.dev/guide/zoneless), [signals](https://angular.dev/guide/signals), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`ComponentRef`](https://angular.dev/api/core/ComponentRef), [`toSignal`](https://angular.dev/api/core/rxjs-interop/toSignal), [`DestroyRef`](https://angular.dev/api/core/DestroyRef), and [`PendingTasks`](https://angular.dev/api/core/PendingTasks).
 - Official RxJS/payment-concurrency material (reviewed 2026-10-12): RxJS [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), and [`retry`](https://rxjs.dev/api/operators/retry); Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests) and [HTTP testing](https://angular.dev/guide/http/testing); Stripe's [idempotent requests](https://docs.stripe.com/api/idempotent_requests); and RFC 9110 [§9.2.2, Idempotent Methods](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2). Stripe is an example of a provider contract, not a claim that every payment API has identical retention or replay semantics.
+- Official Angular/RxJS stale-route material (reviewed 2026-10-12): Angular's [route-state guide](https://angular.dev/guide/routing/read-route-state), [`ActivatedRoute`](https://angular.dev/api/router/ActivatedRoute), [making HTTP requests](https://angular.dev/guide/http/making-requests), and [HTTP testing](https://angular.dev/guide/http/testing), plus RxJS [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`distinctUntilChanged`](https://rxjs.dev/api/operators/distinctUntilChanged), and [`catchError`](https://rxjs.dev/api/operators/catchError). Angular documents that route snapshots are static and that unsubscribing an `HttpClient` observable aborts the in-progress client request; the guide does not infer that this necessarily halts already-started origin work.
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q60 (route changes quickly and the old product's details flash) in both sources, starting at Markdown anchor line 1262 / heading line 1264 and DOCX extracted line 835; resolve the section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q61 (a 5,000-row table is slow: senior-level performance diagnosis) in both sources, starting at Markdown anchor line 1280 / heading line 1282 and DOCX extracted line 849; resolve the section end before reading it and keep extending this one canonical guide.
 
