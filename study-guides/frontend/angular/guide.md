@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q58)
+# Angular 22 — Interview Foundations (Q1–Q59)
 
-> **Current bounded edition, 2026-10-12.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q58 (Q58 is lines 1230–1241) with the corresponding `Angular_Interview_Workbook.docx` text (Q58 is extracted lines 812–822). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, and explicit third-party callback notification boundaries for zoneless rendering, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-12.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q59 (Q59 is lines 1242–1261) with the corresponding `Angular_Interview_Workbook.docx` text (Q59 is extracted lines 823–834). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, and a layered duplicate-payment defense combining RxJS admission control with server idempotency, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -62,6 +62,7 @@
 - [Q56: migrate a legacy NgModule + ZoneJS application](#q56)
 - [Q57: diagnose duplicate HTTP calls](#q57)
 - [Q58: third-party callbacks in zoneless Angular](#q58)
+- [Q59: prevent duplicate payment submissions](#q59)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -4897,6 +4898,253 @@ For `c` callback events, adapter work is `O(c)` plus payload parsing. A signal w
 
 **Primary references:** Angular's [zoneless guide](https://angular.dev/guide/zoneless), [signals guide](https://angular.dev/guide/signals), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`ComponentRef`](https://angular.dev/api/core/ComponentRef), [`toSignal`](https://angular.dev/api/core/rxjs-interop/toSignal), [`DestroyRef`](https://angular.dev/api/core/DestroyRef), and [`PendingTasks`](https://angular.dev/api/core/PendingTasks). The decision table, four adapters, sequence trace, dry run, test strategy, invariants and cost derivation above are added teaching material.
 
+<a id="q59"></a>
+## Q59. How do you prevent duplicate payment submissions with RxJS?
+
+**Requirement:** accept at most one payment command from this UI while its request is active, keep later clicks from queuing or cancelling that command, recover after success or failure, and make repeated delivery of the same logical command safe at the server.
+
+The concise interview answer is **`exhaustMap` when clicks during the active request should be ignored**. It subscribes to the first projected inner observable, ignores source emissions until that inner observable terminates, and then admits a later source emission. That is an admission policy for one subscription—not an exactly-once guarantee for a distributed payment.
+
+### Define three different problems first
+
+| Problem | Correct owner | Contract |
+|---|---|---|
+| Human double-click in one live component | RxJS stream plus disabled UI | At most one active client request from this command stream |
+| Ambiguous transport result or automatic retry | Stable idempotency key | Every retry of one logical payment carries the same key and request identity |
+| Two tabs, refresh, another client or replay | Server transaction and payment-provider key | Atomically recognize an already claimed key and return/reconcile its stored result |
+
+Disabling the button is useful feedback, but DOM state is neither a security boundary nor an atomic lock. `exhaustMap` closes the race in this stream even if two click events were already queued before Angular rendered the disabled state. Server idempotency closes the wider race that the browser cannot see.
+
+### Choose the flattening policy by business meaning
+
+| Operator | A second click while payment A is active | Good payment-submit default? |
+|---|---|---|
+| `exhaustMap` | Ignore it; admit a later click only after A terminates | **Yes**, when repeat clicks mean “the same impatient user action” |
+| `concatMap` | Queue it and run it after A | Usually no: two clicks become two payments; use only when every command is intentionally durable |
+| `switchMap` | Unsubscribe from A and start B | No: client cancellation does not prove that the server rolled A back |
+| `mergeMap` | Run A and B concurrently | No for a single checkout action; both can charge |
+
+`debounceTime` is not a correctness substitute. Two clicks outside its time window can still overlap, while a slow deliberate click can be delayed. Choose the operator from the command semantics, not from a guessed human-click interval.
+
+### Example 1 — one command stream, explicit state and inner error recovery
+
+```typescript
+import {HttpClient, HttpHeaders} from '@angular/common/http';
+import {Component, DestroyRef, Injectable, inject, input, signal} from '@angular/core';
+import {EMPTY, Subject, catchError, exhaustMap, tap} from 'rxjs';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+
+type Receipt = {paymentId: string; status: 'accepted' | 'settled'};
+type PayState =
+  | {kind: 'idle'}
+  | {kind: 'submitting'; key: string}
+  | {kind: 'paid'; receipt: Receipt}
+  | {kind: 'failed'; key: string; message: string};
+
+@Injectable({providedIn: 'root'})
+class PaymentApi {
+  private readonly http = inject(HttpClient);
+
+  pay(orderId: string, idempotencyKey: string) {
+    return this.http.post<Receipt>(`/api/orders/${orderId}/payments`, {}, {
+      headers: new HttpHeaders({'Idempotency-Key': idempotencyKey}),
+    });
+  }
+}
+
+@Component({
+  selector: 'app-checkout-payment',
+  template: `
+    <button type="button"
+            [disabled]="state().kind === 'submitting'"
+            (click)="submit()">
+      {{ state().kind === 'submitting' ? 'Paying…' : 'Pay' }}
+    </button>
+    @if (state().kind === 'failed') {
+      <p role="alert">Payment status is uncertain. Check the order before retrying.</p>
+    }
+  `,
+})
+export class CheckoutPayment {
+  readonly orderId = input.required<string>();
+  private readonly api = inject(PaymentApi);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly payClicks = new Subject<void>();
+  readonly state = signal<PayState>({kind: 'idle'});
+
+  constructor() {
+    this.payClicks.pipe(
+      exhaustMap(() => {
+        // Created only for an admitted logical attempt, not for ignored clicks.
+        const key = crypto.randomUUID();
+        this.state.set({kind: 'submitting', key});
+
+        return this.api.pay(this.orderId(), key).pipe(
+          tap(receipt => this.state.set({kind: 'paid', receipt})),
+          // Keep recovery inside the projection so one failure does not terminate
+          // the outer click stream permanently.
+          catchError(error => {
+            console.error('payment request failed', error);
+            this.state.set({
+              kind: 'failed', key,
+              message: 'Confirm payment status before another logical attempt.',
+            });
+            return EMPTY;
+          }),
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe();
+  }
+
+  submit(): void {
+    this.payClicks.next();
+  }
+}
+```
+
+The key line is `exhaustMap(() => this.api.pay(...))`: `payClicks` may emit many times, but the projection is not called again while the admitted HTTP observable is active. Keeping `catchError` inside that projection converts the failed attempt to a completed inner stream, so the gate opens for a later, deliberate reconciliation/retry path. In production, inject a UUID/key factory for deterministic tests and browser compatibility instead of coupling domain code directly to `crypto`.
+
+Do not automatically tell the user “payment failed” merely because the connection failed. The server or payment provider might have committed after the client lost the response. “Status uncertain; check/reconcile” is the safer state until an idempotent retry or status lookup resolves it.
+
+### Example 2 — preserve one key across a transport retry
+
+If the API's documented contract supports idempotent retries, create the key outside the retried subscription and reuse it:
+
+```typescript
+exhaustMap(() => {
+  const key = this.keyFactory.newKey();
+  const request$ = this.api.pay(this.orderId(), key);
+
+  return request$.pipe(
+    retry({
+      count: 2,
+      delay: (_error, retryIndex) => timer(250 * 2 ** (retryIndex - 1)),
+    }),
+    catchError(error => this.reconcileUnknownResult(key, error)),
+  );
+})
+```
+
+Calling `newKey()` inside `retry` or an interceptor retry callback would describe each wire attempt as a new payment and defeat deduplication. Conversely, never reuse one key for a different order, amount, currency or authenticated principal. Store or compare a canonical request fingerprint so a key reused with different parameters is rejected.
+
+### Example 3 — server-side idempotency is an atomic state machine
+
+A simplified durable record can use a unique constraint on `(principal_id, idempotency_key)` and retain a request hash, state and response:
+
+```sql
+CREATE TABLE payment_attempt (
+  principal_id   VARCHAR(128) NOT NULL,
+  idempotency_key VARCHAR(255) NOT NULL,
+  request_hash   CHAR(64) NOT NULL,
+  state          VARCHAR(24) NOT NULL,
+  response_json  TEXT,
+  PRIMARY KEY (principal_id, idempotency_key)
+);
+```
+
+For one logical command, the server should atomically perform this transition:
+
+1. Authenticate the principal, validate order ownership and compute a canonical request hash.
+2. Try to claim the scoped key. A uniqueness conflict means another request already owns it.
+3. If the existing hash differs, reject the key reuse. If a terminal response exists, replay it.
+4. If the attempt is still processing, return a documented in-progress response or coordinate on that record—do not start a second provider charge.
+5. Call the payment provider with the same idempotency key, persist the final response, then return it.
+
+This design also requires a retention policy longer than the client's retry/reconciliation window. A database insert followed by an unrelated provider call is not magically one transaction across both systems; the provider key, durable attempt state and a reconciliation job handle the unavoidable distributed boundary.
+
+### Example 4 — assert request cardinality, then assert the gate reopens
+
+Angular's HTTP testing backend can prove the observable behavior rather than relying on a disabled-button screenshot:
+
+```typescript
+import {provideHttpClient} from '@angular/common/http';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
+import {TestBed} from '@angular/core/testing';
+
+it('ignores overlapping Pay clicks and admits a later attempt', () => {
+  TestBed.configureTestingModule({
+    imports: [CheckoutPayment],
+    providers: [
+      PaymentApi,
+      provideHttpClient(),
+      provideHttpClientTesting(),
+    ],
+  });
+
+  const fixture = TestBed.createComponent(CheckoutPayment);
+  fixture.componentRef.setInput('orderId', 'order-42');
+  fixture.detectChanges();
+  const http = TestBed.inject(HttpTestingController);
+  const button: HTMLButtonElement = fixture.nativeElement.querySelector('button');
+
+  button.click();
+  button.click();
+  const firstWave = http.match('/api/orders/order-42/payments');
+  expect(firstWave.length).toBe(1);
+  expect(firstWave[0].request.headers.has('Idempotency-Key')).toBe(true);
+
+  firstWave[0].flush({paymentId: 'p-1', status: 'accepted'});
+  fixture.detectChanges();
+
+  button.click();
+  const secondWave = http.match('/api/orders/order-42/payments');
+  expect(secondWave.length).toBe(1);
+  secondWave[0].flush({paymentId: 'p-2', status: 'accepted'});
+  http.verify();
+});
+```
+
+A real suite should inject a deterministic key factory and also cover an HTTP error, a response lost after server commit, component destruction, a never-completing inner observable, different order IDs, retries retaining the same key, two concurrent server requests with the same key, same key/different body, two tabs, provider timeout, and reconciliation after an in-progress response.
+
+### End-to-end trace — double-click plus lost response
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant A as Angular stream
+  participant S as Payment API
+  participant D as Idempotency store
+  participant P as Provider
+  U->>A: click 1
+  A->>S: POST key K
+  U->>A: click 2
+  A-->>U: ignored while active
+  S->>D: atomically claim K + hash
+  S->>P: charge with K
+  P-->>S: accepted P-7
+  S->>D: store terminal response
+  S--xA: response lost
+  A->>S: reconcile/retry with K
+  S->>D: find K + matching hash
+  D-->>S: replay P-7
+  S-->>A: same logical result
+```
+
+**Step-by-step dry run:** at `t=0`, click A is admitted, key `K` is generated and the state becomes `submitting`. At `t=20 ms`, click B is ignored; it is not buffered. At `t=80 ms`, the server claims `(user,K)` and starts one provider operation. At `t=900 ms`, the provider accepts it, but the response connection breaks. The inner stream errors, local state becomes `failed/uncertain`, and `exhaustMap` opens again because the inner terminated. A blind new click would create a new logical key, so the recovery action instead retries or queries with `K`. The server finds the matching terminal record and returns the same receipt without another charge.
+
+### Invariants, costs and boundaries
+
+- **Admission invariant:** for one active subscription, `exhaustMap` has at most one inner subscription at a time. It provides no cross-tab, cross-device or server lock.
+- **Termination invariant:** the gate reopens only when the inner observable completes or errors. A hung request needs a deliberate timeout/status policy; indiscriminate timeout-and-new-key can duplicate a committed payment.
+- **Identity invariant:** one logical attempt has one stable key, scoped to the authenticated principal and bound to the same canonical request parameters.
+- **Atomicity invariant:** claiming a key and deciding whether to execute must be atomic at the server. “Check, then insert” without a uniqueness constraint races.
+- **Replay invariant:** a repeated matching key returns or converges on the original result; it does not initiate another side effect.
+- **Cancellation invariant:** `switchMap`, component destruction or browser abort can stop client observation. None proves that a remote charge rolled back.
+- **Authorization invariant:** idempotency never substitutes for authentication, order ownership, amount validation or provider-side controls.
+- **Observability invariant:** log the key, correlation ID and payment-attempt ID without placing card data, credentials or personal data in the key or logs.
+
+For `c` clicks that occur during one request interval, the client gate examines `c` source notifications in `O(c)` total work but creates one inner subscription and does not buffer the ignored `c-1` clicks, so additional operator space is `O(1)`. Across `a` retained logical attempts, a server idempotency table uses `O(a)` records plus response payload storage; indexed lookup is typically `O(log a)` for a tree index (or expected `O(1)` for an appropriate hash index), while returning a cached response of `b` bytes still costs `O(b)` construction/transfer. These bounds do not include provider latency, database durability or rendering work. `concatMap` instead may retain `O(c)` queued commands, while `mergeMap` can create `O(c)` concurrent work.
+
+**Common errors:** disabling only the button; placing `catchError` outside `exhaustMap` and permanently killing the click stream; using `switchMap` for a mutation; using `concatMap` and accidentally charging once per click; generating a new key per retry; reusing a key for different request data; trusting a browser-local flag across tabs; non-atomic server check-then-act; marking a timeout as a definite failure; letting a provider and local record use unrelated identities; retaining idempotency records for less time than retry clients; putting PII in a key; and testing only the button state rather than request/provider cardinality.
+
+**Interview variations:** `exhaustMap` versus `auditTime`; queued saves versus ignored submits; retry placement; error recovery; never-completing inners; cancelable reads versus non-rollback mutations; idempotency-key scope and TTL; request fingerprinting; concurrent duplicate keys; crash between provider success and local persistence; outbox/reconciliation workers; webhook deduplication; redirect-based payment flows; multi-tab coordination; HTTP method idempotence versus application-level idempotency; and proving at-most-one provider operation under races.
+
+**Primary references:** RxJS [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), and [`retry`](https://rxjs.dev/api/operators/retry); Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests) and [HTTP testing](https://angular.dev/guide/http/testing); Stripe's [idempotent request contract](https://docs.stripe.com/api/idempotent_requests); and RFC 9110's [HTTP idempotent-method semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2). The three-layer model, operator matrix, four examples, state machine, sequence trace, dry run, invariants and cost derivation above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -4910,8 +5158,8 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q58. This pass was bounded to Markdown lines 1230–1241 and DOCX extracted lines 812–822 for Q58; the two sources contained the same rule: adapt a third-party callback through a zoneless notification Angular understands, preferring signal/input state and using `markForCheck` as a deliberate integration bridge rather than distributing `detectChanges` calls. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
-- Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest execution, Spring compilation/test, browser screenshot or live server call was executed** during this source-comparison pass.
+- Both **actual Library source texts** were inspected for Q1–Q59. This pass was bounded to Markdown lines 1242–1261 and DOCX extracted lines 823–834 for Q59; the two sources contained the same rule: use `exhaustMap` when additional payment clicks should be ignored while one request is active. This edition preserves that rule and adds the distinct server-idempotency boundary needed for retries, refreshes and concurrent clients. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest execution, Spring compilation/test, browser screenshot, payment-provider call or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-11): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
@@ -4924,8 +5172,9 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular migration material (reviewed 2026-10-12): [keeping projects up to date](https://angular.dev/update), [Update Guide](https://angular.dev/update-guide), [`ng update`](https://angular.dev/cli/update), [version compatibility](https://angular.dev/reference/versions), [standalone migration](https://angular.dev/reference/migrations/standalone), [`bootstrapApplication`](https://angular.dev/api/platform-browser/bootstrapApplication), [`provideZonelessChangeDetection`](https://angular.dev/api/core/provideZonelessChangeDetection), [zoneless guide](https://angular.dev/guide/zoneless), and [testing overview](https://angular.dev/guide/testing).
 - Official Angular/RxJS request-cardinality material (reviewed 2026-10-12): Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), and [HTTP testing](https://angular.dev/guide/http/testing); RxJS [`shareReplay`](https://rxjs.dev/api/index/function/shareReplay), [`share`](https://rxjs.dev/api/operators/share), [`retry`](https://rxjs.dev/api/operators/retry), and [Observable guide](https://rxjs.dev/guide/observable). Sharing/reset behavior is package-version-sensitive; the concrete examples use the RxJS 7 configuration shape compatible with the guide's Angular baseline.
 - Official Angular zoneless-integration material (reviewed 2026-10-12): [zoneless compatibility and notifications](https://angular.dev/guide/zoneless), [signals](https://angular.dev/guide/signals), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`ComponentRef`](https://angular.dev/api/core/ComponentRef), [`toSignal`](https://angular.dev/api/core/rxjs-interop/toSignal), [`DestroyRef`](https://angular.dev/api/core/DestroyRef), and [`PendingTasks`](https://angular.dev/api/core/PendingTasks).
+- Official RxJS/payment-concurrency material (reviewed 2026-10-12): RxJS [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), and [`retry`](https://rxjs.dev/api/operators/retry); Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests) and [HTTP testing](https://angular.dev/guide/http/testing); Stripe's [idempotent requests](https://docs.stripe.com/api/idempotent_requests); and RFC 9110 [§9.2.2, Idempotent Methods](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2). Stripe is an example of a provider contract, not a claim that every payment API has identical retention or replay semantics.
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q59 (preventing concurrent payment submits with an explicit RxJS policy) in both sources, starting at Markdown line 1244 and DOCX extracted line 823; resolve the section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q60 (route changes quickly and the old product's details flash) in both sources, starting at Markdown anchor line 1262 / heading line 1264 and DOCX extracted line 835; resolve the section end before reading it and keep extending this one canonical guide.
 
