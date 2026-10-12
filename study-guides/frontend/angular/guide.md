@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q53)
+# Angular 22 — Interview Foundations (Q1–Q54)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q53 (Q53 is lines 1165–1173) with the corresponding `Angular_Interview_Workbook.docx` text (Q53 is extracted lines 762–768). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component testing and deterministic HTTP-backend tests, with diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q54 (Q54 is lines 1176–1187) with the corresponding `Angular_Interview_Workbook.docx` text (Q54 is extracted lines 769–779). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, and context-aware XSS defenses, with diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -57,6 +57,7 @@
 - [Q51: Smart vs presentational components](#q51)
 - [Q52: Component testing](#q52)
 - [Q53: HTTP testing](#q53)
+- [Q54: XSS prevention](#q54)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -3725,18 +3726,225 @@ For `R` pending requests, a controller match must inspect candidate requests unt
 
 **Primary references:** Angular's [HTTP testing guide](https://angular.dev/guide/http/testing), [`HttpTestingController` API](https://angular.dev/api/common/http/testing/HttpTestingController) and [`TestRequest` API](https://angular.dev/api/common/http/testing/TestRequest). The examples, boundary model, ledger, complexity derivation and negative security case above are added teaching material.
 
+<a id="q54"></a>
+## Q54. How does Angular help prevent XSS?
+
+**Requirement:** keep attacker-controlled data as data from its source to the final DOM sink. Use normal Angular interpolation and property binding so Angular can apply the destination's security context; never construct executable templates from data; minimize direct DOM sinks and security-bypass APIs; and add CSP plus Trusted Types as defense in depth. XSS prevention is a source-to-sink property, not a one-time “clean this string” operation.
+
+Cross-site scripting occurs when an attacker-controlled value reaches a browser location that interprets it as HTML, a URL, CSS or executable code. A `<script>` element is only one payload: event attributes, `javascript:` URLs, `iframe srcdoc`, dangerous resource URLs and third-party DOM APIs can also execute or import attacker content.
+
+### The context determines the protection
+
+| Destination | Angular context/behavior | Preferred design | Important boundary |
+|---|---|---|---|
+| `{{ comment }}` or ordinary text property | Escapes as text | Interpolation or `textContent`-like binding | Markup is displayed, not interpreted |
+| `[innerHTML]="articleHtml"` | Sanitizes HTML | Use only when formatted HTML is a real requirement | Unsafe elements/attributes can be removed |
+| `[href]="link"` | Sanitizes URL protocols | Also validate application-allowed scheme/origin | Sanitization is not business redirect policy |
+| `[src]` of an iframe/script-like resource | Resource URL may execute code; arbitrary values cannot be made safe automatically | Construct from a fixed trusted origin and validated identifier | A resource URL is more powerful than a navigation URL |
+| `ElementRef.nativeElement.innerHTML`, `document.write`, third-party widget sink | Outside normal template-binding protection | Refactor to templates/text sinks; otherwise explicitly sanitize for the exact context | Direct DOM APIs do not inherit Angular sanitization |
+| Dynamically concatenated template source | Angular treats templates as executable/trusted | Compile static templates with AOT; express data through bindings | Never turn user input into template syntax |
+
+Angular's four documented contexts are HTML, style, URL and resource URL. HTML and URL values can be sanitized. A resource URL names content loaded as code, so Angular cannot generically sanitize an arbitrary value into a safe executable resource. Context matters: HTML escaping is not a safe way to construct JavaScript, and URL encoding does not prove that a URL's scheme or origin is permitted.
+
+### Example 1 — text interpolation versus sanitized HTML
+
+Use interpolation when the requirement is “show exactly what the user wrote.” Use `[innerHTML]` only when the requirement is “render supported rich text.”
+
+```typescript
+import {Component, input} from '@angular/core';
+
+@Component({
+  selector: 'app-comment-preview',
+  template: `
+    <h3>Plain preview</h3>
+    <p class="plain">{{ content() }}</p>
+
+    <h3>Rich preview</h3>
+    <div class="rich" [innerHTML]="content()"></div>
+  `,
+})
+export class CommentPreviewComponent {
+  readonly content = input.required<string>();
+}
+```
+
+For this input:
+
+```text
+Hello <b>Ada</b><img src=x onerror="stealCookies()"><script>attack()</script>
+```
+
+- `.plain` displays the angle brackets and attribute text; the string is not parsed as markup.
+- `.rich` may retain supported formatting such as `<b>Ada</b>`, but Angular removes unsafe script/event content before assigning HTML.
+- The application must not depend on the sanitizer preserving a particular cosmetic tag. Sanitization is a security transformation, not a rich-text compatibility contract.
+
+Do not pre-encode the value and then interpolate it: double encoding can display `&lt;` to the user. Keep the original string as data and let the final context choose the transformation.
+
+### Example 2 — sanitize rich HTML without converting it to “trusted bypass” data
+
+If several consumers need one explicit boundary, wrap `DomSanitizer.sanitize` with the exact `SecurityContext`. Returning a plain string means later `[innerHTML]` binding still receives ordinary data; it is not a capability to bypass checks.
+
+```typescript
+import {Injectable, SecurityContext, inject} from '@angular/core';
+import {DomSanitizer} from '@angular/platform-browser';
+
+@Injectable({providedIn: 'root'})
+export class ArticleHtmlPolicy {
+  private readonly sanitizer = inject(DomSanitizer);
+
+  sanitize(untrustedHtml: string): string {
+    return this.sanitizer.sanitize(SecurityContext.HTML, untrustedHtml) ?? '';
+  }
+}
+```
+
+For stored user-authored HTML, define an allowed-format contract, sanitize on ingestion or rendering as appropriate, patch the sanitizer, and retain the unsanitized source only where operationally necessary. If sanitized HTML is modified afterward or passed to a library that reparses/mutates it, the earlier safety result may no longer hold. Server-side sanitization is still needed for non-Angular consumers; client-side protection cannot repair every downstream renderer.
+
+`bypassSecurityTrustHtml(untrustedHtml)` is the opposite of the method above. It wraps the value as `SafeHtml` and instructs Angular not to sanitize it. It is not “stronger sanitization,” and placing it in a reusable `safeHtml` pipe hides a security-sensitive decision from reviewers.
+
+### Example 3 — a narrowly constructed resource URL
+
+An iframe source can load active content, so accept a small identifier—not an arbitrary URL—and construct the only allowed origin in the same function that creates the `SafeResourceUrl`.
+
+```typescript
+import {Component, inject, signal} from '@angular/core';
+import {DomSanitizer, SafeResourceUrl} from '@angular/platform-browser';
+
+@Component({
+  selector: 'app-training-video',
+  template: `
+    @if (videoUrl(); as url) {
+      <iframe [src]="url" title="Training video"></iframe>
+    } @else {
+      <p>Invalid video identifier</p>
+    }
+  `,
+})
+export class TrainingVideoComponent {
+  private readonly sanitizer = inject(DomSanitizer);
+  readonly videoUrl = signal<SafeResourceUrl | null>(null);
+
+  selectVideo(id: string): void {
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
+      this.videoUrl.set(null);
+      return;
+    }
+    const url = `https://www.youtube-nocookie.com/embed/${id}`;
+    this.videoUrl.set(
+      this.sanitizer.bypassSecurityTrustResourceUrl(url),
+    );
+  }
+}
+```
+
+The trust call is reviewable because the attacker controls only an allowlisted 11-character path segment; the scheme, host and route are constants. If requirements allow several hosts, parse with `new URL`, require `https:`, compare `url.origin` against an exact allowlist and reject credentials/ambiguous host suffixes. A check such as `hostname.endsWith('youtube.com')` is unsafe because an attacker can register `notyoutube.com`.
+
+### Example 4 — defense in depth with CSP and Trusted Types
+
+Template sanitization is the primary framework defense. A server-delivered Content Security Policy limits which code the browser may run, and Trusted Types makes important DOM-XSS sinks reject plain strings in supporting browsers. A representative policy must be adapted and tested against the application's actual assets:
+
+```http
+Content-Security-Policy:
+  default-src 'self';
+  script-src 'self' 'nonce-{unique-per-response}';
+  style-src 'self' 'nonce-{unique-per-response}';
+  object-src 'none';
+  base-uri 'self';
+  trusted-types angular angular#bundler;
+  require-trusted-types-for 'script';
+```
+
+The nonce must be cryptographically unpredictable and unique per response; do not hard-code one into cacheable HTML. `angular#bundler` is needed when the CLI bundler creates lazy chunks. Add `angular#unsafe-bypass` only if reviewed code truly uses a `bypassSecurityTrust…` method—the policy name honestly signals that an escape hatch exists; it does not make the bypass safe. Roll out CSP/Trusted Types in report-only or test environments first, inventory violations, remove unsafe sinks, then enforce. Do not weaken the policy with broad wildcards merely to silence reports.
+
+### Source-to-sink trace
+
+```mermaid
+flowchart TD
+  S["Untrusted source"] --> B{"Binding / sink"}
+  B -->|interpolation| T["Escaped text"]
+  B -->|innerHTML / URL| C["Context sanitizer"]
+  B -->|direct DOM / bypass| R["Explicit security review"]
+  C --> D["Browser DOM"]
+  T --> D
+  R --> D
+```
+
+The dangerous branch is not automatically wrong—some third-party integrations are unavoidable—but it has lost the ordinary safe default. The review must identify the source, exact sink, allowed syntax, sanitizer/allowlist, lifetime, third-party behavior, CSP/Trusted Types impact and regression tests.
+
+### Malicious-value dry run
+
+Suppose a profile biography arrives as `<b>Ada</b><img src=x onerror=attack()>`.
+
+| Step | Plain-text biography | Rich-text biography | Unsafe direct sink |
+|---:|---|---|---|
+| 1. Source | Original string remains data | Original string remains untrusted HTML | Original string remains untrusted |
+| 2. Destination selected | `{{ bio }}` | `[innerHTML]="bio"` | `nativeElement.innerHTML = bio` |
+| 3. Context action | Escapes `<`, `>` and quotes for text | Parses/sanitizes HTML context | No Angular template sanitizer |
+| 4. DOM result | Literal markup is visible | Bold text may remain; `onerror` is removed | Event handler may reach an executable sink |
+| 5. Defense in depth | CSP/Trusted Types still active | CSP/Trusted Types still active | Trusted Types should block plain-string assignment where enforced |
+
+Correctness means no attacker-controlled byte reaches an executable interpretation unless a narrow, explicitly reviewed policy intentionally grants that capability. It does not mean “the payload contained no `<script>` string.”
+
+### Tests that prove the contract
+
+```typescript
+import {TestBed} from '@angular/core/testing';
+import {expect, it} from 'vitest';
+
+it('renders text literally and strips executable rich-html sinks', async () => {
+  const fixture = TestBed.createComponent(CommentPreviewComponent);
+  const payload =
+    '<b>Ada</b><img src=x onerror="attack()"><script>attack()</script>';
+  fixture.componentRef.setInput('content', payload);
+  await fixture.whenStable();
+
+  const host: HTMLElement = fixture.nativeElement;
+  const plain = host.querySelector('.plain')!;
+  const rich = host.querySelector('.rich')!;
+
+  expect(plain.textContent).toBe(payload);
+  expect(plain.querySelector('b')).toBeNull();
+  expect(rich.querySelector('b')?.textContent).toBe('Ada');
+  expect(rich.querySelector('script')).toBeNull();
+  expect(rich.querySelector('[onerror]')).toBeNull();
+});
+```
+
+Add adversarial cases for mixed-case/encoded protocols, SVG/MathML, `srcdoc`, malformed markup, Unicode hostnames, redirected URLs and every allowed rich-text feature. Unit tests are necessary but not sufficient: run a real browser with the production CSP and Trusted Types headers, fail on policy violations, inspect final DOM properties rather than only source strings, and use maintained security scanners plus human review. Exact sanitized serialization can vary, so assert prohibited capabilities are absent and required content remains rather than snapshotting every character.
+
+### Invariants, costs and boundaries
+
+- **Data/code invariant:** template source is application code; user values enter only through bindings. Never concatenate data into a template and compile it.
+- **Context invariant:** every value is protected for its final sink. HTML, URL, style and executable resource URL are not interchangeable.
+- **Least-power invariant:** prefer text over HTML, ordinary URLs over resource URLs, templates over direct DOM, and sanitized values over bypassed `SafeValue`s.
+- **Provenance invariant:** a `SafeHtml`/`SafeResourceUrl` is a trust capability, not proof that sanitization happened. Keep creation close to a fixed origin or audited source.
+- **End-to-end invariant:** sanitization remains valid only while downstream code does not reinterpret or mutate the result into a more powerful context.
+- **Defense-depth invariant:** CSP and Trusted Types reduce damage and catch unsafe sinks, but do not replace validation, contextual binding, patching or review.
+
+Escaping plain text is O(n) in the input length and produces O(n) output in the worst case because characters may expand into entities. HTML sanitization must parse/inspect a document proportional to its nodes/attributes and serialize the retained result: approximately O(n) time and O(n) output/working space for input size `n`, subject to sanitizer/parser implementation and pathological markup. An allowlist check over a fixed-length video ID is O(1); parsing a URL is O(u) in URL length. CSP/Trusted Types add policy checks and reporting, but their practical cost is usually dominated by parsing, application rendering and network work—measure rather than disabling controls based on assumption.
+
+Angular's protections do **not** authorize data, stop SQL/command injection, secure a compromised third-party script, guarantee a custom DOM library is safe, or replace server-side escaping for server-rendered HTML. XSS is also distinct from CSRF/XSRF: XSS runs attacker code in the trusted origin, while CSRF tricks a browser into sending an authenticated request. A successful XSS can bypass many client-side assumptions, so backend authorization and secure cookie/token design remain mandatory.
+
+### Common failures and interview checklist
+
+**Common errors:** calling `bypassSecurityTrustHtml` on API/user content; a generic “safe” pipe; assigning to `innerHTML`, `outerHTML`, `srcdoc` or `document.write`; building templates from strings; assuming TypeScript types validate HTML; validating a URL with substring/suffix matching; letting users choose a tag or attribute name; sanitizing and then concatenating more markup; trusting server sanitation for a different output context; storing only already-encoded text and double encoding later; stale sanitizer dependencies; static CSP nonces; adding `unsafe-inline` broadly; testing only `<script>`; treating CSP/WAF as the primary fix; and assuming SSR or hydration changes the browser sink.
+
+**Interview variations:** interpolation vs `[innerHTML]`; security-context selection; URL vs resource URL; `DomSanitizer.sanitize` vs bypass methods; rich-text editors/Markdown; direct DOM and `ElementRef`; third-party widgets; AOT vs runtime template compilation; CSP nonces and `autoCsp`; Trusted Types policy names; SSR/template injection; DOM clobbering; security tests; and the XSS/CSRF distinction.
+
+**Primary references:** Angular's [security guide](https://angular.dev/best-practices/security) and [`DomSanitizer` API](https://angular.dev/api/platform-browser/DomSanitizer), plus OWASP's [Cross-Site Scripting Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html). The examples, source-to-sink model, dry run, policy review checklist and cost derivation above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
 Keep the reusable order card behind a readonly view-model input and semantic `selected` output; let it own only local view state while the page owns navigation, feature state and effects.
 
-Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly.
+Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly.
 
 Place `/orders/:id` behind one public orders feature entry point. Keep order domain rules independent of Angular UI and concrete HTTP code, map DTOs in data access, inject the repository port at route composition, expose workflow state through a route-scoped facade, and prove import rules reject reverse/deep dependencies. Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and prevent synchronous child initialization from rewriting an already-checked parent binding; demonstrate the NG0100 trace and repair the ownership rather than adding a timer. Cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: forbidden import direction, deep import, dependency cycle, malformed DTO, route-provider teardown, lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, unauthorized API access despite a bypassed guard, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, child-after-view parent mutation, impure binding getter, DOM measurement in browser and SSR, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q53. This pass was bounded to Markdown lines 1165–1173 and DOCX extracted lines 762–768 for Q53; the two sources contained the same advice to replace the backend, assert outgoing URL/method/body/headers and control success/error mapping rather than opening a real network connection. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q54. This pass was bounded to Markdown lines 1176–1187 and DOCX extracted lines 769–779 for Q54; the two sources contained the same context-aware escaping/sanitization model, warned about direct DOM sinks and explicitly stated that `bypassSecurityTrust…` marks a value trusted rather than sanitizing it. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest execution, browser screenshot or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
@@ -3745,8 +3953,9 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular application-structure and component-contract material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [signals](https://angular.dev/guide/signals), [services and DI](https://angular.dev/guide/di/creating-and-using-services), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
 - Official Angular testing material (reviewed 2026-10-11): [testing overview and Vitest setup](https://angular.dev/guide/testing), [component-testing basics](https://angular.dev/guide/testing/components-basics), [component-testing scenarios](https://angular.dev/guide/testing/components-scenarios), [testing utility APIs](https://angular.dev/guide/testing/utility-apis), [component harnesses](https://angular.dev/guide/testing/component-harnesses-overview), and [migrating from Karma to Vitest](https://angular.dev/guide/testing/migrating-to-vitest).
 - Official Angular HTTP-testing material (reviewed 2026-10-11): [testing HTTP requests](https://angular.dev/guide/http/testing), [`provideHttpClientTesting`](https://angular.dev/api/common/http/testing/provideHttpClientTesting), [`HttpTestingController`](https://angular.dev/api/common/http/testing/HttpTestingController), and [`TestRequest`](https://angular.dev/api/common/http/testing/TestRequest).
+- Official XSS-prevention material (reviewed 2026-10-11): Angular's [security guide](https://angular.dev/best-practices/security) and [`DomSanitizer` API](https://angular.dev/api/platform-browser/DomSanitizer), and OWASP's [Cross-Site Scripting Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html).
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q54 (Angular XSS prevention) in both sources, starting at Markdown line 1175 and DOCX extracted line 769; resolve the section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q55 (route guards versus server authorization) in both sources, starting at Markdown line 1190 and DOCX extracted line 780; resolve the section end before reading it and keep extending this one canonical guide.
 

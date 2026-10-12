@@ -220,7 +220,7 @@
       "size_bytes": 74372,
       "status": "READY",
       "last_read_at": "2026-10-11",
-      "selection": "Q1–Q53 content read and compared; Q54 onward remains unpromoted"
+      "selection": "Q1–Q54 content read and compared; Q55 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
@@ -342,7 +342,7 @@
       "size_bytes": 62355,
       "status": "READY",
       "last_read_at": "2026-10-11",
-      "selection": "Q1–Q53 content read and compared; Q54 onward remains unpromoted"
+      "selection": "Q1–Q54 content read and compared; Q55 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Workbook.docx",
@@ -642,8 +642,8 @@
         "Angular_Interview_Mermaid_Workbook.md",
         "Angular_Interview_Workbook.docx"
       ],
-      "last_processed_at": "2026-10-11",
-      "next_action": "Continue with bounded Angular Q54 on XSS prevention; the source begins at Markdown line 1175 and DOCX extracted line 769. Resolve the bounded section end before reading, enrich guide.md and rebuild guide.html.",
+      "last_processed_at": "2026-10-11T22:31:03-04:00",
+      "next_action": "Continue with bounded Angular Q55 on route guards versus server authorization; the source begins at Markdown line 1190 and DOCX extracted line 780. Resolve the bounded section end before reading, enrich guide.md and rebuild guide.html.",
       "priority": 15,
       "processed_sections": [
         "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)",
@@ -662,16 +662,17 @@
         "Large-application architecture: Q50 (feature-first structure, dependency direction, lazy route entry point, ports/adapters, facade boundary, design-system and monorepo ownership)",
         "Component ownership: Q51 (pragmatic container/presentational boundaries, typed view-model inputs, semantic outputs, local UI state, orchestration and split/merge decisions)",
         "Component testing: Q52 (contract-first test boundaries, rendered inputs, semantic outputs, DOM events, dependency state transitions, scheduler ownership and browser escalation)",
-        "HTTP testing: Q53 (testing backend setup, exact request contracts, controlled success/status/network responses, interceptor leakage check, request ledger and derived costs)"
+        "HTTP testing: Q53 (testing backend setup, exact request contracts, controlled success/status/network responses, interceptor leakage check, request ledger and derived costs)",
+        "XSS prevention: Q54 (context-aware bindings, HTML/URL/resource-URL boundaries, sanitizer-versus-bypass distinction, CSP/Trusted Types, source-to-sink trace and adversarial tests)"
       ],
       "source_revision": {
         "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
-        "source_markdown_lines": "1165-1173 for Q53; earlier Q1-Q52 retained",
-        "source_docx": "Angular_Interview_Workbook.docx extracted lines 762-768 for Q53",
+        "source_markdown_lines": "1176-1187 for Q54; earlier Q1-Q53 retained",
+        "source_docx": "Angular_Interview_Workbook.docx extracted lines 769-779 for Q54",
         "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-11",
-        "baseline_main_head": "a678781afd5dcb8c68510baa865b1bb485549089"
+        "baseline_main_head": "87cccddd3690e886eae945d82851a390d6637596"
       },
-      "validation": "Q53 adds the modern testing-backend provider order, GET and mutation contract tests, backend-versus-network failure mapping, an interceptor origin-leakage negative case, a request-ledger trace, invariants, boundaries and derived request/payload costs; deterministic builder and exact 233861-character HTML embedded-Markdown equality passed with 54 unique anchors, 110 balanced fenced blocks and 33 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those packages are absent.",
+      "validation": "Q54 adds context-aware binding rules, HTML/URL/resource-URL boundaries, explicit sanitize-versus-bypass semantics, a fixed-origin resource URL example, CSP/Trusted Types defense in depth, a source-to-sink trace, invariants, costs and adversarial tests; deterministic builder and exact 249543-character HTML embedded-Markdown equality passed with 55 unique anchors, 117 balanced fenced blocks and 34 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those packages are absent.",
       "last_successful_commit": "7dc6123f062b8579852c6222d99f7f45f16c4fbf"
     },
     {
@@ -805,7 +806,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q53 are processed. Continue with bounded Angular Q54 on XSS prevention, starting at Markdown line 1175 and DOCX extracted line 769; resolve the section end before reading.",
+    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q54 are processed. Continue with bounded Angular Q55 on route guards versus server authorization, starting at Markdown line 1190 and DOCX extracted line 780; resolve the section end before reading.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -851,11 +852,11 @@
       "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)"
     ],
     "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
-    "validation": "Angular Q53 was compared in both actual source texts and enriched with the modern testing-backend provider order, GET and mutation contract tests, backend-versus-network failure mapping, an interceptor origin-leakage negative case, a request-ledger trace, invariants, boundaries and derived request/payload costs; deterministic reader generation, exact 233861-character payload equality, 54 anchors, 110 balanced fences, 33 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those packages are absent.",
-    "estimated_next_tokens": 10000,
-    "estimate_method": "Heuristic only: bounded Q54 begins at Markdown line 1175 and DOCX extracted line 769; reserve ~700 tokens for paired source intake/range resolution, ~2600 primary Angular/OWASP security documentation, ~4800 teaching/code/diagram/HTML and ~1900 validation/checkpoint. This is not account-quota telemetry.",
+    "validation": "Angular Q54 was compared in both actual source texts and enriched with context-aware binding rules, HTML/URL/resource-URL boundaries, explicit sanitize-versus-bypass semantics, a fixed-origin resource URL example, CSP/Trusted Types defense in depth, a source-to-sink trace, invariants, costs and adversarial tests; deterministic reader generation, exact 249543-character payload equality, 55 anchors, 117 balanced fences, 34 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those packages are absent.",
+    "estimated_next_tokens": 8500,
+    "estimate_method": "Heuristic only: bounded Q55 begins at Markdown line 1190 and DOCX extracted line 780; reserve ~600 tokens for paired source intake/range resolution, ~2200 primary Angular/router and server-authorization documentation, ~3900 teaching/code/diagram/HTML and ~1800 validation/checkpoint. This is not account-quota telemetry.",
     "last_successful_commit": "7dc6123f062b8579852c6222d99f7f45f16c4fbf",
-    "last_processed_at": "2026-10-11T19:56:53-04:00",
-    "next_batch_decision": "Q53 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q54 and retain the conservative one-section checkpoint."
+    "last_processed_at": "2026-10-11T22:31:03-04:00",
+    "next_batch_decision": "Q54 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q55 and retain the conservative one-section checkpoint."
   }
 }
