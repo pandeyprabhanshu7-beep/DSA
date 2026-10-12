@@ -220,7 +220,7 @@
       "size_bytes": 74372,
       "status": "READY",
       "last_read_at": "2026-10-12",
-      "selection": "Q1–Q57 content read and compared; Q58 onward remains unpromoted"
+      "selection": "Q1–Q58 content read and compared; Q59 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
@@ -342,7 +342,7 @@
       "size_bytes": 62355,
       "status": "READY",
       "last_read_at": "2026-10-12",
-      "selection": "Q1–Q57 content read and compared; Q58 onward remains unpromoted"
+      "selection": "Q1–Q58 content read and compared; Q59 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Workbook.docx",
@@ -642,8 +642,8 @@
         "Angular_Interview_Mermaid_Workbook.md",
         "Angular_Interview_Workbook.docx"
       ],
-      "last_processed_at": "2026-10-12T02:17:19-04:00",
-      "next_action": "Continue with bounded Angular Q58 on adapting a third-party callback in zoneless Angular; the source begins at Markdown line 1230 and DOCX extracted line 812. Resolve the bounded section end before reading, enrich guide.md and rebuild guide.html.",
+      "last_processed_at": "2026-10-12T04:21:51-04:00",
+      "next_action": "Continue with bounded Angular Q59 on preventing concurrent payment submits with an explicit RxJS policy; the source begins at Markdown line 1244 and DOCX extracted line 823. Resolve the bounded section end before reading, enrich guide.md and rebuild guide.html.",
       "priority": 15,
       "processed_sections": [
         "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)",
@@ -666,16 +666,17 @@
         "XSS prevention: Q54 (context-aware bindings, HTML/URL/resource-URL boundaries, sanitizer-versus-bypass distinction, CSP/Trusted Types, source-to-sink trace and adversarial tests)",
         "Authorization boundary: Q55 (guard UX contract, direct-request bypass, deny-by-default API rules, object/tenant authorization, 401/403/404 mapping and boundary tests)",
         "Legacy modernization: Q56 (measured framework upgrades, standalone leaf/root sequencing, provider-scope preservation, notification compatibility, zoneless canary, rollback gates and ZoneJS removal)",
-        "Duplicate HTTP diagnosis: Q57 (cold-request execution, subscription-topology evidence, stable stream identity, template aliasing, flattening, sharing/refresh/retry boundaries and request-cardinality tests)"
+        "Duplicate HTTP diagnosis: Q57 (cold-request execution, subscription-topology evidence, stable stream identity, template aliasing, flattening, sharing/refresh/retry boundaries and request-cardinality tests)",
+        "Zoneless callback integration: Q58 (signal/AsyncPipe/markForCheck/setInput notification choices, imperative adapter trace, teardown, burst policy, SSR boundary and notification-focused tests)"
       ],
       "source_revision": {
         "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
-        "source_markdown_lines": "1216-1227 for Q57; earlier Q1-Q56 retained",
-        "source_docx": "Angular_Interview_Workbook.docx extracted lines 801-811 for Q57",
+        "source_markdown_lines": "1230-1241 for Q58; earlier Q1-Q57 retained",
+        "source_docx": "Angular_Interview_Workbook.docx extracted lines 812-822 for Q58",
         "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-12",
-        "baseline_main_head": "99f4501213cbd341f737896d0ee982891d6b834f"
+        "baseline_main_head": "00cd39c8d605ecaac84aa9408be848d66d4b7287"
       },
-      "validation": "Q57 adds cold-request execution internals, an evidence/topology matrix, four TypeScript/template examples, a subscription sequence trace, search dry run, explicit share/replay/refresh/retry policies, request-cardinality TestBed test, invariants and derived network/memory/output costs; deterministic builder and exact 302916-character HTML embedded-Markdown equality passed with 58 unique anchors, 145 balanced fenced blocks and 37 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those runtimes are absent.",
+      "validation": "Q58 adds a notification decision table, four TypeScript/template integration examples, callback-to-render sequence trace, burst dry run, notification-focused TestBed test, teardown/error/SSR invariants and derived event/render/buffer costs; deterministic builder and exact 316316-character HTML embedded-Markdown equality passed with 59 unique anchors, 153 balanced fenced blocks and 38 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those runtimes are absent.",
       "last_successful_commit": "405ab652125f46337e0b722b54615b2036cda9ce"
     },
     {
@@ -809,7 +810,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q57 are processed. Continue with bounded Angular Q58 on adapting a third-party callback in zoneless Angular, starting at Markdown line 1230 and DOCX extracted line 812; resolve the section end before reading.",
+    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q58 are processed. Continue with bounded Angular Q59 on preventing concurrent payment submits with an explicit RxJS policy, starting at Markdown line 1244 and DOCX extracted line 823; resolve the section end before reading.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -855,11 +856,11 @@
       "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)"
     ],
     "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
-    "validation": "Angular Q57 was compared in both actual source texts and enriched with cold-request execution internals, an evidence/topology matrix, four TypeScript/template examples, a subscription sequence trace, search dry run, explicit share/replay/refresh/retry policies, request-cardinality TestBed test, invariants and derived network/memory/output costs; deterministic reader generation, exact 302916-character payload equality, 58 anchors, 145 balanced fences, 37 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those runtimes are absent.",
-    "estimated_next_tokens": 8200,
-    "estimate_method": "Heuristic only: bounded Q58 begins at Markdown line 1230 and DOCX extracted line 812; reserve ~600 tokens for paired source intake/range resolution, ~1800 primary Angular zoneless/integration research, ~4000 teaching/code/diagram/HTML and ~1800 validation/checkpoint. This is not account-quota telemetry.",
+    "validation": "Angular Q58 was compared in both actual source texts and enriched with a notification decision table, four TypeScript/template integration examples, callback-to-render sequence trace, burst dry run, notification-focused TestBed test, teardown/error/SSR invariants and derived event/render/buffer costs; deterministic reader generation, exact 316316-character payload equality, 59 anchors, 153 balanced fences, 38 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those runtimes are absent.",
+    "estimated_next_tokens": 7800,
+    "estimate_method": "Heuristic only: bounded Q59 begins at Markdown line 1244 and DOCX extracted line 823; reserve ~600 tokens for paired source intake/range resolution, ~1600 primary RxJS/Angular research, ~3900 teaching/code/diagram/HTML and ~1700 validation/checkpoint. This is not account-quota telemetry.",
     "last_successful_commit": "405ab652125f46337e0b722b54615b2036cda9ce",
-    "last_processed_at": "2026-10-12T02:17:19-04:00",
-    "next_batch_decision": "Q57 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q58 and retain the conservative one-section checkpoint."
+    "last_processed_at": "2026-10-12T04:21:51-04:00",
+    "next_batch_decision": "Q58 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q59 and retain the conservative one-section checkpoint."
   }
 }

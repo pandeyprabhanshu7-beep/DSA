@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q57)
+# Angular 22 — Interview Foundations (Q1–Q58)
 
-> **Current bounded edition, 2026-10-12.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q57 (Q57 is lines 1216–1227) with the corresponding `Angular_Interview_Workbook.docx` text (Q57 is extracted lines 801–811). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, and subscription-topology diagnosis for duplicate HTTP requests, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-12.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q58 (Q58 is lines 1230–1241) with the corresponding `Angular_Interview_Workbook.docx` text (Q58 is extracted lines 812–822). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, and explicit third-party callback notification boundaries for zoneless rendering, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -61,6 +61,7 @@
 - [Q55: route guards versus server authorization](#q55)
 - [Q56: migrate a legacy NgModule + ZoneJS application](#q56)
 - [Q57: diagnose duplicate HTTP calls](#q57)
+- [Q58: third-party callbacks in zoneless Angular](#q58)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -4675,6 +4676,227 @@ For a response payload of `b` bytes and `k` independent cold subscribers, accide
 
 **Primary references:** Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), and [HTTP testing](https://angular.dev/guide/http/testing); RxJS [`shareReplay`](https://rxjs.dev/api/index/function/shareReplay), [`share`](https://rxjs.dev/api/operators/share), [`retry`](https://rxjs.dev/api/operators/retry), and [Observable guide](https://rxjs.dev/guide/observable). The topology table, four examples, sequence diagram, dry run, test matrix, invariants and cost derivation above are added teaching material.
 
+<a id="q58"></a>
+## Q58. The UI does not update after a third-party callback in zoneless Angular. What do you do?
+
+**Requirement:** adapt the callback once at the integration boundary so that every template-visible state transition uses a notification Angular understands, while also preserving teardown, error, burst-rate and SSR behavior.
+
+The failure is not that the callback is "outside a zone." In a zoneless application, Angular intentionally does not treat every browser task as evidence that state changed. A callback that only assigns a plain field can therefore leave the DOM stale:
+
+```typescript
+// The SDK invoked the callback, but this plain assignment is not a
+// zoneless change-detection notification.
+chatSdk.onMessage(message => {
+  this.latestMessage = message;
+});
+```
+
+Use one of Angular's real notification paths: update a signal read by the template, let `AsyncPipe` consume an observable emission, call `ChangeDetectorRef.markForCheck()` after changing legacy plain state, or use `ComponentRef.setInput()` for a dynamically created child. A bound template/host listener is also a notification, but an arbitrary SDK callback is not. `NgZone.run()` can remain for zoneful compatibility; it is not a replacement for modeling the state transition through one of these explicit paths.
+
+### Choose the boundary from the state owner
+
+| Integration shape | Preferred adapter | Why |
+|---|---|---|
+| One component owns SDK state | Write a private signal exposed readonly | The write notifies Angular and keeps ownership/local teardown visible |
+| Several views consume an event stream | Wrap registration as an observable, then use `AsyncPipe` or `toSignal` | Subscription lifetime and notification are framework-owned |
+| Legacy component must keep plain fields | Assign, then call `markForCheck()` once at the callback boundary | Small migration bridge without global forced checks |
+| Dynamically created component receives callback data | `componentRef.setInput(...)` | Uses the component input contract and schedules the correct view |
+| Detached view with an intentional local render loop | Bounded `detectChanges()` on that detached view | Local/manual rendering is explicit; this is not the default repair |
+
+### Internal event-to-render trace
+
+```mermaid
+sequenceDiagram
+  participant SDK as Third-party SDK
+  participant A as Angular adapter
+  participant N as Notification API
+  participant CD as Scheduler / change detection
+  participant DOM as Dependent view
+  SDK->>A: callback(payload)
+  A->>A: validate + map + deduplicate
+  A->>N: signal.set / markForCheck / setInput
+  N->>CD: mark affected view dirty
+  CD->>DOM: render latest state
+```
+
+The adapter is responsible for translating an untrusted, imperative payload into application state. Angular is responsible for scheduling and checking the notified view. Keeping those jobs separate prevents the common anti-pattern of calling `detectChanges()` throughout domain code.
+
+### Example 1 — translate one SDK callback into a signal
+
+```typescript
+import {ChangeDetectionStrategy, Component, DestroyRef, inject, signal} from '@angular/core';
+
+type Presence = 'offline' | 'online' | 'away';
+
+interface PresenceSdk {
+  onPresence(listener: (raw: unknown) => void): () => void;
+}
+
+@Component({
+  selector: 'app-presence-badge',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<span [class.online]="presence() === 'online'">{{ presence() }}</span>`,
+})
+export class PresenceBadge {
+  private readonly sdk = inject<PresenceSdk>(PRESENCE_SDK);
+  private readonly destroyRef = inject(DestroyRef);
+  readonly presence = signal<Presence>('offline');
+
+  constructor() {
+    const unregister = this.sdk.onPresence(raw => {
+      this.presence.set(parsePresence(raw));
+    });
+    this.destroyRef.onDestroy(unregister);
+  }
+}
+
+function parsePresence(raw: unknown): Presence {
+  return raw === 'online' || raw === 'away' ? raw : 'offline';
+}
+```
+
+Because the template reads `presence()`, `set` is both the state mutation and the Angular notification. The unregister function is just as important: otherwise a destroyed component can remain retained by the SDK and receive stale callbacks.
+
+### Example 2 — expose a reusable callback source as an observable
+
+```typescript
+import {Observable} from 'rxjs';
+
+function messagesFrom(sdk: ChatSdk): Observable<ChatMessage> {
+  return new Observable(subscriber => {
+    const unregister = sdk.onMessage(raw => {
+      try {
+        subscriber.next(parseChatMessage(raw));
+      } catch (error) {
+        subscriber.error(error);
+      }
+    });
+    return unregister;
+  });
+}
+```
+
+```typescript
+import {ChangeDetectionStrategy, Component, inject} from '@angular/core';
+import {toSignal} from '@angular/core/rxjs-interop';
+
+@Component({
+  selector: 'app-chat-status',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `@if (latest(); as message) { <p>{{ message.text }}</p> }`,
+})
+export class ChatStatus {
+  private readonly sdk = inject(CHAT_SDK);
+  readonly latest = toSignal(messagesFrom(this.sdk), {initialValue: null});
+}
+```
+
+`toSignal` owns the subscription in the injection context and turns each emission into a signal update. `AsyncPipe` is the equivalent template-owned option. Merely calling `.subscribe()` and assigning an ordinary field would still need a notification and explicit teardown.
+
+### Example 3 — bridge a legacy plain-field component with `markForCheck`
+
+```typescript
+import {ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, inject} from '@angular/core';
+
+@Component({
+  selector: 'app-map-status',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<p>Zoom: {{ zoom }}</p>`,
+})
+export class MapStatus {
+  private readonly map = inject(MAP_SDK);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
+  zoom = 1;
+
+  constructor() {
+    const unregister = this.map.onZoomChanged(value => {
+      if (value === this.zoom) return;
+      this.zoom = value;
+      this.cdr.markForCheck();
+    });
+    this.destroyRef.onDestroy(unregister);
+  }
+}
+```
+
+`markForCheck()` is the deliberate compatibility bridge: it marks the attached view for a scheduled check. `detectChanges()` immediately checks the view and descendants; reserve it for an explicitly detached/local rendering design, not as a reflex after every callback.
+
+### Example 4 — update a dynamically created component through its input
+
+```typescript
+const widgetRef = this.host.createComponent(PriceWidget);
+
+const unregister = priceSdk.onQuote(raw => {
+  const quote = parseQuote(raw);
+  widgetRef.setInput('quote', quote);
+});
+
+this.destroyRef.onDestroy(() => {
+  unregister();
+  widgetRef.destroy();
+});
+```
+
+Avoid mutating `widgetRef.instance.quote` directly. `setInput` preserves input transforms/change records and is one of Angular's documented zoneless notification mechanisms. The dynamic view must also be attached through the normal view-container/application lifecycle.
+
+### Dry run — three rapid price callbacks
+
+Assume the widget begins at `$100`, the SDK emits `$101`, `$101`, `$102`, and the adapter ignores equal consecutive values:
+
+| Step | Integration state | Notification/render consequence |
+|---|---|---|
+| 1 | Callback `$101` is parsed and accepted | Signal/input changes; dependent view is scheduled |
+| 2 | Duplicate `$101` arrives before synchronization | Adapter rejects it; no extra logical transition |
+| 3 | Callback `$102` is accepted | State now holds the latest quote; view remains scheduled |
+| 4 | Angular synchronizes | Template renders `$102`; an intermediate DOM write is unnecessary |
+| 5 | Component is destroyed | SDK listener is unregistered; later callbacks cannot retain or mutate it |
+
+Do not promise that all producers or schedulers coalesce identically. If every intermediate event matters—for example an audit trail—store each event or process it in the domain layer rather than relying on render timing. If callbacks arrive faster than the UI can render, define a sampling/buffering policy explicitly (`auditTime`, `throttleTime`, animation-frame scheduling, or SDK-specific backpressure) and test what may be dropped.
+
+### Test the notification, not a forced render
+
+```typescript
+it('renders an SDK callback without calling fixture.detectChanges()', async () => {
+  const sdk = new FakePresenceSdk();
+
+  TestBed.configureTestingModule({
+    imports: [PresenceBadge],
+    providers: [{provide: PRESENCE_SDK, useValue: sdk}],
+  });
+
+  const fixture = TestBed.createComponent(PresenceBadge);
+  await fixture.whenStable();
+
+  sdk.emit('online');
+  await fixture.whenStable();
+
+  expect(fixture.nativeElement.textContent).toContain('online');
+  fixture.destroy();
+  expect(sdk.listenerCount).toBe(0);
+});
+```
+
+Calling `fixture.detectChanges()` after `sdk.emit()` would hide the exact production bug the test should catch. Also test malformed payloads, duplicate/burst events, callback after destroy, SDK registration failure, multiple component instances, and a zoneful compatibility build if the library supports both modes. Browser-only SDKs need a platform boundary or deferred client-only initialization; never reference `window` during server rendering. If asynchronous work must complete before SSR serialization, register that work with `PendingTasks`—a rendering notification alone is not an SSR-stability contract.
+
+### Invariants, costs and common errors
+
+- **Notification invariant:** every state value read by a template must change through a path that notifies Angular.
+- **Ownership invariant:** register, adapt and unregister at the same component/service lifetime boundary.
+- **Validity invariant:** validate and normalize external payloads before they enter trusted application state.
+- **Rate invariant:** define whether all callbacks matter or only the latest; UI coalescing must not silently become business-data loss.
+- **Isolation invariant:** one SDK callback should not trigger unrelated application-wide work by default.
+- **SSR invariant:** browser SDK availability, Angular rendering notification and server serialization stability are three separate concerns.
+- **Error invariant:** callback exceptions need an owned reporting/recovery path; do not throw asynchronously and assume Angular will convert it into UI state.
+
+For `c` callback events, adapter work is `O(c)` plus payload parsing. A signal write or `markForCheck` is `O(1)` at the API boundary, but the later render cost depends on the affected view and derived computations: if `v` bindings are checked and output construction costs `r`, the total is approximately `O(c(v + r))` without effective coalescing. An explicit latest-value policy that renders `f <= c` frames changes DOM work to `O(f(v + r))` while event validation remains `O(c)`. Retaining only the latest payload costs `O(b)` for payload size `b`; buffering `q` payloads costs `O(qb)`. Calling application-wide `tick()` or broad manual `detectChanges()` per event can needlessly expand `v` to much of the application tree.
+
+**Common errors:** plain-field assignment from a callback; using `NgZone.run()` as the only supposed notification in a zoneless app; sprinkling `detectChanges()` everywhere; forgetting SDK unregister/destroy; multiple registrations after recreation; mutating a dynamic component instance instead of `setInput`; manual observable subscription without teardown or notification; converting a hot producer separately per consumer; accepting malformed payloads; hiding callback loss with aggressive throttling; touching browser globals during SSR; assuming signal notification makes SSR wait; and tests that force `fixture.detectChanges()` after the external event.
+
+**Interview variations:** signals versus `markForCheck`; `AsyncPipe` versus `toSignal`; `markForCheck` versus `detectChanges`; dynamic `ComponentRef.setInput`; detached views; callback error channels; teardown with `DestroyRef`; callback burst policy; websockets and observers; zoneful/zoneless library compatibility; SSR `PendingTasks`; browser-only initialization; and proving the integration with `whenStable`.
+
+**Primary references:** Angular's [zoneless guide](https://angular.dev/guide/zoneless), [signals guide](https://angular.dev/guide/signals), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`ComponentRef`](https://angular.dev/api/core/ComponentRef), [`toSignal`](https://angular.dev/api/core/rxjs-interop/toSignal), [`DestroyRef`](https://angular.dev/api/core/DestroyRef), and [`PendingTasks`](https://angular.dev/api/core/PendingTasks). The decision table, four adapters, sequence trace, dry run, test strategy, invariants and cost derivation above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -4688,7 +4910,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q57. This pass was bounded to Markdown lines 1216–1227 and DOCX extracted lines 801–811 for Q57; the two sources contained the same rule: diagnose duplicate HTTP from subscription topology, because each subscription to a cold request can execute it again, then choose intentional sharing/caching only when subscriber semantics match. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q58. This pass was bounded to Markdown lines 1230–1241 and DOCX extracted lines 812–822 for Q58; the two sources contained the same rule: adapt a third-party callback through a zoneless notification Angular understands, preferring signal/input state and using `markForCheck` as a deliberate integration bridge rather than distributing `detectChanges` calls. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest execution, Spring compilation/test, browser screenshot or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
@@ -4701,8 +4923,9 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official authorization-boundary material (reviewed 2026-10-11): Angular's [route-guard guide](https://angular.dev/guide/routing/route-guards), OWASP's [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html), Spring Security's [request authorization](https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html) and [method security](https://docs.spring.io/spring-security/reference/servlet/authorization/method-security.html), and RFC 9110's [401/403 status semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5).
 - Official Angular migration material (reviewed 2026-10-12): [keeping projects up to date](https://angular.dev/update), [Update Guide](https://angular.dev/update-guide), [`ng update`](https://angular.dev/cli/update), [version compatibility](https://angular.dev/reference/versions), [standalone migration](https://angular.dev/reference/migrations/standalone), [`bootstrapApplication`](https://angular.dev/api/platform-browser/bootstrapApplication), [`provideZonelessChangeDetection`](https://angular.dev/api/core/provideZonelessChangeDetection), [zoneless guide](https://angular.dev/guide/zoneless), and [testing overview](https://angular.dev/guide/testing).
 - Official Angular/RxJS request-cardinality material (reviewed 2026-10-12): Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), and [HTTP testing](https://angular.dev/guide/http/testing); RxJS [`shareReplay`](https://rxjs.dev/api/index/function/shareReplay), [`share`](https://rxjs.dev/api/operators/share), [`retry`](https://rxjs.dev/api/operators/retry), and [Observable guide](https://rxjs.dev/guide/observable). Sharing/reset behavior is package-version-sensitive; the concrete examples use the RxJS 7 configuration shape compatible with the guide's Angular baseline.
+- Official Angular zoneless-integration material (reviewed 2026-10-12): [zoneless compatibility and notifications](https://angular.dev/guide/zoneless), [signals](https://angular.dev/guide/signals), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`ComponentRef`](https://angular.dev/api/core/ComponentRef), [`toSignal`](https://angular.dev/api/core/rxjs-interop/toSignal), [`DestroyRef`](https://angular.dev/api/core/DestroyRef), and [`PendingTasks`](https://angular.dev/api/core/PendingTasks).
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q58 (adapting a third-party callback in zoneless Angular) in both sources, starting at Markdown line 1230 and DOCX extracted line 812; resolve the section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q59 (preventing concurrent payment submits with an explicit RxJS policy) in both sources, starting at Markdown line 1244 and DOCX extracted line 823; resolve the section end before reading it and keep extending this one canonical guide.
 
