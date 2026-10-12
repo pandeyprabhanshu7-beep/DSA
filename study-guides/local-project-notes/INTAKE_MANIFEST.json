@@ -14,7 +14,7 @@
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 3",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 2",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 1",
-    "Angular_Interview_Mermaid_Workbook.md Q1-Q52",
+    "Angular_Interview_Mermaid_Workbook.md Q1-Q56",
     "src/README.md excerpt"
   ],
   "files": [
@@ -146,7 +146,7 @@
       "relative_path": "untitled/Angular_Interview_Mermaid_Workbook.md",
       "bytes": 74372,
       "sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
-      "status": "QUEUED",
+      "status": "IN_PROGRESS",
       "headings": [
         "# Angular Interview Workbook - Mermaid Edition",
         "## Clickable contents",
@@ -163,7 +163,12 @@
         "### Interview-ready code:",
         "## Q6. What is the modern built-in control flow syntax?",
         "### Interview-ready code:"
-      ]
+      ],
+      "completed_sections": [
+        "Q1-Q56"
+      ],
+      "processed_range": "latest bounded read: lines 1202-1213 for Q56",
+      "next_section": "Q57 duplicate HTTP calls begins at line 1216"
     },
     {
       "relative_path": "untitled/DSA V2/Striver_Graph_DSA_Deep_Study_Guide_Visual.md",
@@ -842,27 +847,27 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "Angular modernization: bounded Q56 legacy NgModule + ZoneJS migration",
+    "section": "Angular HTTP behavior: bounded Q57 duplicate-request diagnosis",
     "status": "QUEUED",
-    "estimated_tokens": 9500,
-    "estimate_method": "Heuristic only: Q56 begins at Markdown line 1202 and DOCX extracted line 790; ~900 paired source intake/range resolution, ~2300 primary Angular migration/standalone/zoneless documentation, ~4500 teaching/code/diagram/HTML and ~1800 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 8500,
+    "estimate_method": "Heuristic only: Q57 begins at Markdown line 1216 and DOCX extracted line 801; ~700 paired source intake/range resolution, ~2000 primary Angular HTTP/RxJS research, ~4000 teaching/code/diagram/HTML and ~1800 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "readers": "Canonical Angular reader rebuilt from Markdown; exact 266088-character embedded payload equality, 56 unique anchors, 125 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked",
-    "diagrams": "The Q55 guard/server trace is embedded in the canonical payload; 35 Mermaid diagrams total; browser visual QA not executed",
-    "last_processed_at": "2026-10-11T23:43:45-04:00"
+    "readers": "Canonical Angular reader rebuilt from Markdown; exact 286606-character embedded payload equality, 57 unique anchors, 136 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked",
+    "diagrams": "The Q56 migration state trace is embedded in the canonical payload; 36 Mermaid diagrams total; browser visual QA not executed",
+    "last_processed_at": "2026-10-12T01:12:13-04:00"
   },
   "angular_intake_checkpoint": {
-    "last_processed_at": "2026-10-11T23:43:45-04:00",
+    "last_processed_at": "2026-10-12T01:12:13-04:00",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q55; latest bounded source ranges are Markdown lines 1190-1199 and DOCX extracted lines 780-789 for Q55",
+    "processed": "Q1–Q56; latest bounded source ranges are Markdown lines 1202-1213 and DOCX extracted lines 790-798 for Q56",
     "status": "PUBLISHED",
-    "validation": "Q55 adds a guard-versus-server decision table, Angular redirect guard, direct-request bypass example, Spring Security deny-by-default and object-policy examples, 401/403/404 mapping, end-to-end trace, tenant/ownership dry run, invariants, costs and boundary tests; deterministic builder and exact 266088-character payload equality passed with 56 unique anchors, 125 balanced fences and 35 Mermaid diagrams; inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker audit passed; not Angular/TypeScript/Vitest-executed, Spring-executed, browser-executed or visually tested because those runtimes are absent",
+    "validation": "Q56 adds a phased baseline/upgrade/standalone/notification/zoneless sequence, change-axis matrix, four TypeScript/CLI examples, provider-scope audit, migration state trace, orders-feature dry run, zoneless TestBed example, rollout gates, invariants, costs and rollback criteria; deterministic builder and exact 286606-character payload equality passed with 57 unique anchors, 136 balanced fences and 36 Mermaid diagrams; inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker audit passed; not Angular/TypeScript/Vitest-executed, browser-executed or visually tested because those runtimes are absent",
     "content_commit": "6cb00ea114cdc1ca325f533989be15819700b03e",
-    "estimated_next_tokens": 9500,
-    "estimate_method": "Heuristic from bounded Q56 starting at Markdown line 1202 and DOCX extracted line 790 plus paired source range resolution, primary Angular migration/standalone/zoneless research, explanation/examples/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "estimated_next_tokens": 8500,
+    "estimate_method": "Heuristic from bounded Q57 starting at Markdown line 1216 and DOCX extracted line 801 plus paired source range resolution, primary Angular HTTP/RxJS research, explanation/examples/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }

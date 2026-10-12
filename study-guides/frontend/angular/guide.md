@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q55)
+# Angular 22 — Interview Foundations (Q1–Q56)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q55 (Q55 is lines 1190–1199) with the corresponding `Angular_Interview_Workbook.docx` text (Q55 is extracted lines 780–789). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, and a client-guard/server-authorization threat boundary, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-12.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q56 (Q56 is lines 1202–1213) with the corresponding `Angular_Interview_Workbook.docx` text (Q56 is extracted lines 790–798). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, and a reversible NgModule/ZoneJS modernization sequence, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -59,6 +59,7 @@
 - [Q53: HTTP testing](#q53)
 - [Q54: XSS prevention](#q54)
 - [Q55: route guards versus server authorization](#q55)
+- [Q56: migrate a legacy NgModule + ZoneJS application](#q56)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -4183,10 +4184,276 @@ Client guards do not replace CSRF protection, XSS prevention, token validation, 
 
 **Primary references:** Angular's [route-guard guide](https://angular.dev/guide/routing/route-guards), OWASP's [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html), Spring Security's [request authorization](https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html) and [method security](https://docs.spring.io/spring-security/reference/servlet/authorization/method-security.html), and RFC 9110's [HTTP status semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5). The boundary table, four scenarios, trace, dry run, tests, invariants and cost derivation above are added teaching material.
 
+<a id="q56"></a>
+## Q56. How would you migrate a legacy NgModule + ZoneJS application?
+
+**Requirement:** modernize a production application without turning several independent risks into one release. Preserve observable behavior first, upgrade through supported framework/toolchain versions, convert bounded dependency leaves to standalone, move root providers and routing deliberately, make state changes notify Angular explicitly, and remove ZoneJS only after compatibility evidence says the application no longer depends on its global patches.
+
+The senior-level answer is not “run a schematic” or “rewrite it with signals.” It is a sequence of **small, independently reversible changes**:
+
+> **Baseline → framework upgrade → standalone leaves → standalone bootstrap → notification compatibility → zoneless canary → ZoneJS removal.**
+
+Angular's schematics remove mechanical work, but they cannot prove runtime behavior, third-party compatibility, provider scope, test assumptions, SSR stability or architectural ownership. Keep the application deployable after every phase.
+
+### First separate the migrations
+
+| Change axis | Primary goal | Evidence before advancing | Keep out of the same change |
+|---|---|---|---|
+| Framework/toolchain | Reach a supported Angular, Node.js, TypeScript and RxJS combination | Production build, tests, smoke journeys, bundle/error/performance comparison | State rewrite and design-system replacement |
+| Standalone declarations | Make component dependencies explicit and shrink module ceremony | Converted leaf compiles; route and focused tests pass | Root bootstrap and ZoneJS removal |
+| Standalone bootstrap | Replace `bootstrapModule` with `bootstrapApplication`; preserve providers/routes | DI scopes, initializers, interceptors, lazy routes and SSR bootstrap behave identically | Zoneless behavior change |
+| Notification compatibility | Remove hidden reliance on a global async patch | Template-visible mutations arrive through signals, `AsyncPipe`, listeners, `setInput` or `markForCheck` | Removing ZoneJS immediately |
+| Zoneless runtime | Stop using ZoneJS to schedule change detection | Canary metrics and browser/SSR tests show no stale UI or early serialization | Unrelated product refactors |
+| Cleanup | Delete bridge modules, polyfills and obsolete dependencies | Search/audit finds no consumer; rollback window has passed | “While we are here” rewrites |
+
+This order is a risk-control strategy, not a rule that every application must finish every phase. A stable NgModule feature can interoperate with standalone code. `importProvidersFrom` is a bridge, not a failure; remove it when the owning library offers or the team creates explicit provider functions.
+
+### Phase 0 — make behavior measurable
+
+Before changing packages, capture the exact starting point:
+
+1. Record `ng version`, lockfile, Node/TypeScript/RxJS versions, builders, polyfills, browsers, SSR/hydration mode and third-party packages that touch `NgZone` or direct DOM.
+2. Establish a clean build and a production-like smoke suite for login, a lazy route, a protected route, forms, overlays, HTTP/interceptors, timers/web sockets, error handling and SSR if used.
+3. Record bundle bytes, first navigation, error rate, long tasks and change-detection/profile samples. Performance is a comparison, not an assumed benefit.
+4. Freeze unrelated architecture changes and define a rollback per phase: package-lock revert, route flag, canary cohort or previous deploy.
+
+If the baseline already fails, fix or explicitly quarantine that failure. Angular's standalone schematic relies on a compilable, statically analyzable project and `tsconfig` inclusion; proceeding through unexplained red builds makes migration output untrustworthy.
+
+### Example 1 — upgrade the framework before rewriting architecture
+
+Use Angular's Update Guide for the application's exact source/target versions and move by supported major-version steps. Check the target's Node.js, TypeScript and RxJS compatibility before changing the framework.
+
+```bash
+# Inspect first; do not use --force to hide peer-dependency conflicts.
+ng version
+ng update
+
+# Example shape for one planned major step; choose the actual next supported major.
+ng update @angular/cli@^21 @angular/core@^21 --create-commits
+
+npm ci
+ng build --configuration production
+ng test --watch=false
+```
+
+`--create-commits` can create mechanical checkpoints, but team-owned commits should still explain manual fixes. Investigate peer conflicts; `--force` changes the warning, not package compatibility. After every major step, deploy to a test environment, exercise critical journeys, and compare telemetry. Only then move to the next major.
+
+**Boundary case:** if the application is AngularJS 1.x hybrid, that is an `ngUpgrade` migration with a different strangler plan. “NgModule” means Angular 2+ metadata and should not be confused with AngularJS.
+
+### Example 2 — convert a dependency leaf, not the root first
+
+Pick a low-coupling component/pipe/directive with direct tests. Convert its template dependencies into its own `imports`; leave its consuming NgModule as an interoperability shell while callers migrate.
+
+```typescript
+import {ChangeDetectionStrategy, Component, input, output} from '@angular/core';
+import {CurrencyPipe} from '@angular/common';
+
+@Component({
+  selector: 'app-order-total',
+  imports: [CurrencyPipe],
+  template: `
+    <strong>{{ amount() | currency: currency() }}</strong>
+    <button type="button" (click)="confirmed.emit()">Confirm</button>
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class OrderTotalComponent {
+  readonly amount = input.required<number>();
+  readonly currency = input('USD');
+  readonly confirmed = output<void>();
+}
+```
+
+A remaining NgModule may import and export the standalone declaration during transition:
+
+```typescript
+@NgModule({
+  imports: [OrderTotalComponent],
+  exports: [OrderTotalComponent],
+})
+export class LegacyOrdersUiModule {}
+```
+
+Run the official migration incrementally by `path`: convert declarations, remove only modules that are genuinely unnecessary, then switch bootstrap. Review every generated import and `TODO(standalone-migration)`; the schematic cannot fully understand custom test wrappers, dynamic metadata or code outside analyzed `tsconfig`s.
+
+```bash
+ng generate @angular/core:standalone
+# Mode 1: convert declarations
+# Mode 2: remove unnecessary NgModules
+# Mode 3: switch to standalone bootstrap
+```
+
+The sequence is important. Deleting a module that owns providers, a `ModuleWithProviders`, an initializer or class-side behavior can silently change injector scope or startup order.
+
+### Example 3 — move the root while preserving runtime semantics
+
+Make root composition explicit in an `ApplicationConfig`. Prefer current provider functions; bridge module-only libraries temporarily. In this phase, keep ZoneJS scheduling explicit so a bootstrap change and a change-detection change do not share one failure surface.
+
+```typescript
+// app.config.ts
+import {ApplicationConfig, provideZoneChangeDetection} from '@angular/core';
+import {provideHttpClient, withInterceptors} from '@angular/common/http';
+import {provideRouter, withComponentInputBinding} from '@angular/router';
+import {importProvidersFrom} from '@angular/core';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideZoneChangeDetection({eventCoalescing: true}), // temporary compatibility
+    provideRouter(routes, withComponentInputBinding()),
+    provideHttpClient(withInterceptors([authInterceptor, correlationInterceptor])),
+    importProvidersFrom(LegacyVendorModule.forRoot(vendorConfig)), // migration bridge
+  ],
+};
+```
+
+```typescript
+// main.ts
+import {bootstrapApplication} from '@angular/platform-browser';
+import {AppComponent} from './app/app.component';
+import {appConfig} from './app/app.config';
+
+bootstrapApplication(AppComponent, appConfig)
+  .catch(error => console.error(error));
+```
+
+Audit root providers one by one: router features and route order, HTTP backend/interceptor order, animations, locale, error handler, app/environment initializers, service-worker registration, hydration/SSR providers, testability requirements, and library `forRoot()` results. A provider accidentally moved from a lazy/route injector to the application injector changes instance lifetime and may leak tenant/user state.
+
+Prove bootstrap parity with tests for initial URL, one lazy route, one guarded route, provider identity/scope, interceptor order and initialization failure. Keep the old deploy available until production smoke metrics are stable.
+
+### Example 4 — prove zoneless compatibility before deleting ZoneJS
+
+Angular 21+ is zoneless by default, but a migrated application may explicitly keep `provideZoneChangeDetection()` during compatibility work. Removing that provider is not enough if application code still mutates plain fields from unobserved callbacks.
+
+Bad legacy dependency on “some async task will make Angular check later”:
+
+```typescript
+export class LegacyTickerComponent {
+  price = 0;
+
+  constructor(feed: LegacyFeed) {
+    feed.onPrice(value => {
+      this.price = value; // plain write; no Angular notification contract
+    });
+  }
+}
+```
+
+Make the integration boundary notify Angular explicitly:
+
+```typescript
+import {Component, DestroyRef, inject, signal} from '@angular/core';
+
+@Component({
+  selector: 'app-ticker',
+  template: `<output>{{ price() }}</output>`,
+})
+export class TickerComponent {
+  readonly price = signal(0);
+  private readonly destroyRef = inject(DestroyRef);
+
+  constructor(feed: LegacyFeed) {
+    const unsubscribe = feed.onPrice(value => this.price.set(value));
+    this.destroyRef.onDestroy(unsubscribe);
+  }
+}
+```
+
+Valid notification paths include a template/host listener, a signal read by the template, `AsyncPipe`, `ComponentRef.setInput`, or `ChangeDetectorRef.markForCheck`. `OnPush` is a useful compatibility discipline, not a magic switch and not mandatory. Replace `NgZone.onStable`/`onMicrotaskEmpty` timing with the actual intent—often `afterNextRender`, `afterEveryRender`, `MutationObserver`, or a domain event. `NgZone.run` and `runOutsideAngular` need not be mechanically deleted.
+
+For SSR, register application-owned asynchronous work with `PendingTasks` or `pendingUntilEvent`; otherwise serialization can happen before the resulting view state is ready. For reactive forms, model changes emit form observables but do not by themselves guarantee a view notification in zoneless execution; bridge template-visible state through signals/`AsyncPipe` or mark the owning view deliberately.
+
+Only after notification audits and canary tests pass should the team remove `zone.js` and `zone.js/testing` from build/test polyfills and uninstall the package:
+
+```bash
+npm uninstall zone.js
+# Also remove zone.js imports/polyfill entries from build and test configuration.
+```
+
+### Migration state trace
+
+```mermaid
+stateDiagram-v2
+  [*] --> Baseline: lockfile + tests + metrics
+  Baseline --> Upgraded: one supported major at a time
+  Upgraded --> LeafStandalone: convert bounded declarations
+  LeafStandalone --> StandaloneRoot: preserve providers and routes
+  StandaloneRoot --> Compatible: explicit UI notifications
+  Compatible --> ZonelessCanary: cohort + browser/SSR tests
+  ZonelessCanary --> ZoneRemoved: remove polyfills and dependency
+  ZonelessCanary --> Compatible: stale UI or ecosystem failure
+  ZoneRemoved --> [*]
+```
+
+Every forward edge has a concrete verification gate. The rollback edge is not embarrassment; it is the mechanism that keeps modernization from becoming an outage.
+
+### Dry run — migrating one orders feature
+
+| Step | Change | Verification | Failure means |
+|---|---|---|---|
+| 0 | Record current Angular/toolchain, route and production metrics | Clean build; login → orders → edit smoke journey | Establish/fix baseline; do not migrate through unknown red |
+| 1 | Update one Angular major and its compatible toolchain | Unit/integration/e2e, bundle diff, canary telemetry | Revert package checkpoint; resolve migration/dependency issue |
+| 2 | Convert `OrderTotalComponent` to standalone | Component test plus legacy module consumer still passes | Import/template contract is incomplete |
+| 3 | Lazy route imports standalone orders entry | Direct navigation, guard, resolver and chunk-failure tests | Route/provider ownership changed |
+| 4 | Root uses `bootstrapApplication` while ZoneJS remains explicit | Initializer, interceptor order, singleton identity, SSR bootstrap | Restore old bootstrap; reconcile providers |
+| 5 | Adapt feed callback and form/status reads to notification APIs | Zoneless `TestBed`, timer/socket/form/overlay tests | A hidden ZoneJS dependency remains |
+| 6 | Enable zoneless for an internal cohort | Error/stale-view/long-task/SSR metrics compared with baseline | Roll back cohort; repair a specific boundary |
+| 7 | Remove ZoneJS build/test entries and dependency | Clean install/build/test, real browsers, SSR/hydration and smoke | Configuration or dependency still requires ZoneJS |
+
+### Tests and release gates
+
+Do not make `fixture.detectChanges()` after every mutation the only evidence: that can mask a missing production notification. Prefer updating through the same public signal/input/listener/observable path used by the application and awaiting stability.
+
+```typescript
+it('renders a legacy feed callback without a ZoneJS tick', async () => {
+  const feed = new FakeLegacyFeed();
+  TestBed.configureTestingModule({
+    imports: [TickerComponent],
+    providers: [
+      provideZonelessChangeDetection(),
+      {provide: LegacyFeed, useValue: feed},
+    ],
+  });
+
+  const fixture = TestBed.createComponent(TickerComponent);
+  feed.emit(125);
+  await fixture.whenStable();
+
+  expect(fixture.nativeElement.querySelector('output').textContent).toContain('125');
+});
+```
+
+Add contract tests for lazy chunks, provider scope/teardown, dialogs/overlays, router guards/resolvers, HTTP/interceptors, global error handling, timers, animation callbacks, websockets, third-party widgets, forms, SSR completion, hydration equality and test wrappers. Run at least one production build and real-browser critical journey. A DOM-emulated unit suite cannot prove layout, animation, patched-browser API or third-party runtime compatibility.
+
+Use feature flags or cohort routing only for behavior that can coexist safely. Do not ship two provider graphs that write incompatible state or render different SSR/client DOM for the same hydration boundary. Database/API contracts remain backward-compatible throughout a frontend rollback window.
+
+### Invariants, costs and completion criteria
+
+- **One-axis invariant:** each checkpoint primarily changes one risk axis; upgrade, state rewrite, design-system rewrite and zoneless conversion are not one task.
+- **Deployable-checkpoint invariant:** main builds and critical journeys pass after every migration phase.
+- **Scope-preservation invariant:** provider lifetime, route ownership, initializer/interceptor order and public behavior remain unchanged unless the phase explicitly changes them.
+- **Notification invariant:** every template-visible state change reaches Angular through a documented notification mechanism; no correctness depends on an unrelated future async event.
+- **Interop invariant:** standalone and NgModule code may coexist; bridges are explicit, tested and assigned an owner/removal condition.
+- **Evidence invariant:** remove ZoneJS only after dependency audit, zoneless tests, real-browser canary and SSR checks—not because a sample component works.
+- **Rollback invariant:** every released phase has a compatible previous artifact and data/API contract.
+
+For `N` declarations and `E` import/provider edges, inventorying and reviewing the migration graph is O(N + E). A schematic must analyze source proportional to project size; its practical time also includes TypeScript program creation and disk I/O. Converting one component with `d` direct template dependencies is O(d) code/import work before tests. A full build is dominated by the build graph and emitted output; if the resulting JavaScript/CSS payload is `B` bytes, constructing and writing it costs at least O(B) time and output space. Running `T` tests costs the sum of their setup and execution, not O(T) when individual tests differ. Canary comparison costs depend on requests/users observed; keep cohorts large and long enough to detect the agreed error/performance regression rather than claiming “no errors” from a trivial sample.
+
+Standalone conversion does not automatically improve runtime speed, signals do not require deleting RxJS, `OnPush` is not equivalent to zoneless, and zoneless does not mean “manual change detection everywhere.” Completion means the team can explain and test dependency/provider ownership and notification behavior; it is not merely the absence of `AppModule` or `zone.js` in `package.json`.
+
+### Common failures and interview checklist
+
+**Common errors:** big-bang rewrite; jumping several unsupported majors; ignoring Node/TypeScript/RxJS compatibility; `ng update --force`; running schematics on a failing tree; root-first conversion; deleting provider-bearing modules; copying every module into `importProvidersFrom` forever; changing injector scope accidentally; assuming standalone means tree-shaken or faster; replacing all observables with signals; deleting ZoneJS before auditing callbacks/forms/SSR; wrapping every callback in `detectChanges`; removing all `NgZone.runOutsideAngular`; using only unit tests; forcing `fixture.detectChanges` and hiding missed notifications; no real-browser/SSR test; canary without metrics; unrelated design-system/state changes; and no rollback artifact.
+
+**Interview variations:** module-to-standalone interoperability; `bootstrapModule` versus `bootstrapApplication`; `ApplicationConfig`; provider functions versus `importProvidersFrom`; lazy route migration; schematics and their limits; supported version/toolchain matrices; third-party library blockers; OnPush compatibility; notification sources; `NgZone.onStable` replacement; reactive forms; `PendingTasks` in SSR; Karma-to-Vitest as a separate migration; micro-frontends; monorepos; feature flags; success metrics; and deciding when not to remove an NgModule yet.
+
+**Primary references:** Angular's [Update Guide](https://angular.dev/update-guide), [`ng update`](https://angular.dev/cli/update), [version compatibility](https://angular.dev/reference/versions), [standalone migration](https://angular.dev/reference/migrations/standalone), [`bootstrapApplication`](https://angular.dev/api/platform-browser/bootstrapApplication), and [zoneless guide](https://angular.dev/guide/zoneless). The phased rollout, four examples, state trace, orders dry run, test gates, invariants and cost derivation above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
 Keep the reusable order card behind a readonly view-model input and semantic `selected` output; let it own only local view state while the page owns navigation, feature state and effects.
+
+Plan the legacy application's modernization as deployable checkpoints: capture a clean behavioral/performance baseline; use the Update Guide and supported toolchain matrix for one major-version step at a time; convert the leaf order card to standalone while its NgModule consumer remains valid; migrate the lazy orders route; then replace root bootstrap while preserving provider scopes, initializers, interceptor order and ZoneJS scheduling explicitly. Audit every template-visible timer, SDK, socket, form and SSR update for a real Angular notification, prove it in zoneless tests and a measured canary, and only then remove ZoneJS polyfills/dependency. Keep state-management and design-system rewrites outside these checkpoints, assign every `importProvidersFrom` bridge an owner/removal gate, and demonstrate the rollback after each phase.
 
 Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly.
 
@@ -4194,7 +4461,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q55. This pass was bounded to Markdown lines 1190–1199 and DOCX extracted lines 780–789 for Q55; the two sources contained the same concise rule that client guards improve UX while the server must authenticate and authorize every protected operation/data access. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q56. This pass was bounded to Markdown lines 1202–1213 and DOCX extracted lines 790–798 for Q56; the two sources contained the same incremental migration rule: baseline first, standalone leaves/providers/routing next, explicit notification compatibility before ZoneJS removal, and no uncontrolled combined rewrite. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest execution, Spring compilation/test, browser screenshot or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
@@ -4205,8 +4472,9 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular HTTP-testing material (reviewed 2026-10-11): [testing HTTP requests](https://angular.dev/guide/http/testing), [`provideHttpClientTesting`](https://angular.dev/api/common/http/testing/provideHttpClientTesting), [`HttpTestingController`](https://angular.dev/api/common/http/testing/HttpTestingController), and [`TestRequest`](https://angular.dev/api/common/http/testing/TestRequest).
 - Official XSS-prevention material (reviewed 2026-10-11): Angular's [security guide](https://angular.dev/best-practices/security) and [`DomSanitizer` API](https://angular.dev/api/platform-browser/DomSanitizer), and OWASP's [Cross-Site Scripting Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html).
 - Official authorization-boundary material (reviewed 2026-10-11): Angular's [route-guard guide](https://angular.dev/guide/routing/route-guards), OWASP's [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html), Spring Security's [request authorization](https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html) and [method security](https://docs.spring.io/spring-security/reference/servlet/authorization/method-security.html), and RFC 9110's [401/403 status semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5).
+- Official Angular migration material (reviewed 2026-10-12): [keeping projects up to date](https://angular.dev/update), [Update Guide](https://angular.dev/update-guide), [`ng update`](https://angular.dev/cli/update), [version compatibility](https://angular.dev/reference/versions), [standalone migration](https://angular.dev/reference/migrations/standalone), [`bootstrapApplication`](https://angular.dev/api/platform-browser/bootstrapApplication), [`provideZonelessChangeDetection`](https://angular.dev/api/core/provideZonelessChangeDetection), [zoneless guide](https://angular.dev/guide/zoneless), and [testing overview](https://angular.dev/guide/testing).
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q56 (migrating a legacy NgModule + ZoneJS application) in both sources, starting at Markdown line 1202 and DOCX extracted line 790; resolve the section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q57 (diagnosing duplicate HTTP calls) in both sources, starting at Markdown line 1216 and DOCX extracted line 801; resolve the section end before reading it and keep extending this one canonical guide.
 
