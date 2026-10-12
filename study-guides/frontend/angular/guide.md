@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q60)
+# Angular 22 — Interview Foundations (Q1–Q61)
 
-> **Current bounded edition, 2026-10-12.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q60 (Q60 is lines 1262–1279) with the corresponding `Angular_Interview_Workbook.docx` text (Q60 is extracted lines 837–848). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, and route-keyed stale-result cancellation with explicit loading ownership, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-12.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q61 (Q61 is lines 1280–1297) with the corresponding `Angular_Interview_Workbook.docx` text (Q61 is extracted lines 849–862). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, and a production-budgeted 5,000-row table investigation that separates data, derivation, synchronization and DOM costs, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -64,6 +64,7 @@
 - [Q58: third-party callbacks in zoneless Angular](#q58)
 - [Q59: prevent duplicate payment submissions](#q59)
 - [Q60: prevent stale route-detail results](#q60)
+- [Q61: diagnose a slow 5,000-row table](#q61)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -5378,6 +5379,235 @@ For `k` route-key emissions, mapping and equality checks cost `O(k)`. At most on
 
 **Primary references:** Angular's [route-state guide](https://angular.dev/guide/routing/read-route-state), [`ActivatedRoute`](https://angular.dev/api/router/ActivatedRoute), [making HTTP requests](https://angular.dev/guide/http/making-requests), and [HTTP testing](https://angular.dev/guide/http/testing), plus RxJS [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`distinctUntilChanged`](https://rxjs.dev/api/operators/distinctUntilChanged), and [`catchError`](https://rxjs.dev/api/operators/catchError). The symptom matrix, four examples, loading-state refinement, race trace, dry run, tests, invariants and cost derivation above are added teaching material.
 
+<a id="q61"></a>
+## Q61. A 5,000-row table is slow. What is the senior-level answer?
+
+**Requirement:** name the slow user interaction, reproduce it with production-shaped data, attribute time to the correct layer, choose the smallest remedy that preserves data semantics, selection, focus and accessibility, then repeat the same measurement. “Use OnPush” or “add virtual scrolling” without evidence is not a senior answer.
+
+Q48 explains the individual list mechanisms in depth. This scenario adds the **operational decision** around them. Five thousand records are not automatically too many for memory or filtering, but 5,000 rendered rows multiplied by many cells, child components, listeners and layout boxes can overwhelm a frame. Keep these quantities separate:
+
+| Cost owner | Evidence to collect | Likely remedy when dominant |
+|---|---|---|
+| Network and JSON | Payload bytes, request latency, parse time, fields never displayed | Server projection, filtering and cursor/page limit; compress transport |
+| Data derivation | CPU profile of filter/sort/group/format; allocations per interaction | Better algorithm, pre-normalized search key, memoized `computed`/pure pipe, worker or server |
+| Angular synchronization | Angular DevTools cycle/component time and number of passes | Narrow state ownership and notifications; stable row inputs; remove lifecycle/template work |
+| DOM reconciliation | Row construction/destruction count; duplicate/unstable keys | `track row.id`; immutable replacement only for changed records |
+| Browser rendering | DOM node count, long tasks, layout, style, paint and memory | Pagination or virtual scrolling; simpler cells; fixed/measured layout |
+| Per-row side effects | Subscriptions, observers, tooltips or requests multiplied by 5,000 | Lift shared work, lazily attach behavior, teardown correctly |
+
+Define the baseline before changing code. For example: production build, the same 5,000-row fixture, cold initial render, sort, filter keystroke, one middle-row update and first-to-last navigation; record median and slow-tail interaction time, rendered row/node count, heap and correctness. Angular DevTools attributes change-detection and lifecycle work to components, while the correlated Chrome trace distinguishes application/template work from layout, paint and third-party scripts. A development-only profiler recording helps diagnosis; the acceptance budget still belongs to a representative production build and device class.
+
+### Example 1 — move an unbounded query to the server
+
+If the user needs 50 visible results rather than an offline copy of all 5,000, do not download and render the entire relation. Make query ownership explicit and cancel obsolete reads:
+
+```typescript
+import {Component, inject, signal} from '@angular/core';
+import {toObservable, toSignal} from '@angular/core/rxjs-interop';
+import {HttpClient, HttpParams} from '@angular/common/http';
+import {catchError, concat, debounceTime, distinctUntilChanged, map, of, switchMap} from 'rxjs';
+
+type ProductRow = Readonly<{id: string; name: string; priceCents: number}>;
+type ProductPage = Readonly<{
+  rows: readonly ProductRow[];
+  nextCursor: string | null;
+  totalEstimate?: number;
+}>;
+type Query = Readonly<{term: string; cursor: string | null; limit: 50}>;
+type PageState =
+  | {kind: 'loading'; query: Query}
+  | {kind: 'ready'; query: Query; page: ProductPage}
+  | {kind: 'error'; query: Query; message: string};
+
+@Component({selector: 'app-product-table', templateUrl: './product-table.html'})
+export class ProductTable {
+  private readonly http = inject(HttpClient);
+  readonly query = signal<Query>({term: '', cursor: null, limit: 50});
+
+  readonly state = toSignal(
+    toObservable(this.query).pipe(
+      debounceTime(150),
+      distinctUntilChanged((a, b) =>
+        a.term === b.term && a.cursor === b.cursor && a.limit === b.limit),
+      switchMap(query => concat(
+        of({kind: 'loading', query} as PageState),
+        this.loadPage(query).pipe(
+          map(page => ({kind: 'ready', query, page}) as PageState),
+          catchError(() => of({
+            kind: 'error', query, message: 'Products could not be loaded.',
+          } as PageState)),
+        ),
+      )),
+    ),
+    {initialValue: {kind: 'loading', query: this.query()} as PageState},
+  );
+
+  search(term: string): void {
+    this.query.set({term: term.trim(), cursor: null, limit: 50});
+  }
+
+  private loadPage(query: Query) {
+    let params = new HttpParams()
+      .set('q', query.term)
+      .set('limit', query.limit);
+    if (query.cursor) params = params.set('cursor', query.cursor);
+    return this.http.get<ProductPage>('/api/products', {params});
+  }
+}
+```
+
+The backend must own the matching sort/filter semantics and use an indexed seek or another appropriate query plan; moving an O(n) scan to a server does not make it free. Cursor pagination avoids offset drift for changing data, but the cursor needs a deterministic ordering and tie-breaker. If the product requires “select all 5,000,” export, offline access or cross-page totals, design those as server operations or explicit data modes rather than pretending a 50-row page is the whole set.
+
+### Example 2 — virtualize when all client records are genuinely needed
+
+When the 5,000 rows must remain client-side, bound rendered DOM to the viewport. Fixed-size CDK virtual scrolling is predictable when the row box really is fixed:
+
+```typescript
+import {Component, input} from '@angular/core';
+import {ScrollingModule} from '@angular/cdk/scrolling';
+
+type ProductRow = Readonly<{id: string; name: string; priceCents: number}>;
+
+@Component({
+  selector: 'app-virtual-product-table',
+  imports: [ScrollingModule],
+  styles: [`
+    .viewport { height: 480px; }
+    .row { height: 48px; display: grid; grid-template-columns: 8rem 1fr 8rem; }
+  `],
+  template: `
+    <div role="table" aria-label="Products">
+      <div role="row" class="row">
+        <strong role="columnheader">ID</strong>
+        <strong role="columnheader">Name</strong>
+        <strong role="columnheader">Price</strong>
+      </div>
+      <cdk-virtual-scroll-viewport class="viewport"
+          itemSize="48" minBufferPx="240" maxBufferPx="480">
+        <div role="row" class="row"
+             *cdkVirtualFor="let row of rows(); trackBy: trackById">
+          <span role="cell">{{ row.id }}</span>
+          <span role="cell">{{ row.name }}</span>
+          <span role="cell">{{ row.priceCents / 100 }}</span>
+        </div>
+      </cdk-virtual-scroll-viewport>
+    </div>
+  `,
+})
+export class VirtualProductTable {
+  readonly rows = input.required<readonly ProductRow[]>();
+  readonly trackById = (_: number, row: ProductRow) => row.id;
+}
+```
+
+The example demonstrates rendering pressure, not a promise that a `role="table"` composite is automatically accessible. Validate row/column relationships, announcements, keyboard navigation, focus retention, browser find, printing, sticky content and variable-height cells with assistive technology and a real browser. A conventional native table plus server paging may be the safer product choice.
+
+### Example 3 — preserve identity and isolate one changed row
+
+Stable keys avoid attaching local state to an array position. Stable references also let unchanged row components remain unchanged when one record is replaced:
+
+```typescript
+import {computed, signal} from '@angular/core';
+
+type ProductRow = Readonly<{
+  id: string;
+  name: string;
+  priceCents: number;
+  searchKey: string;
+}>;
+
+export class ProductTableState {
+  readonly rows = signal<readonly ProductRow[]>([]);
+  readonly term = signal('');
+  readonly filtered = computed(() => {
+    const needle = this.term().trim().toLocaleLowerCase();
+    return needle === ''
+      ? this.rows()
+      : this.rows().filter(row => row.searchKey.includes(needle));
+  });
+
+  updatePrice(id: string, priceCents: number): void {
+    this.rows.update(rows => rows.map(row =>
+      row.id === id ? {...row, priceCents} : row));
+  }
+}
+```
+
+```html
+@for (row of filtered(); track row.id) {
+  <app-product-row [row]="row" />
+}
+```
+
+This immutable update scans O(n) references and creates one replacement object; it does not recreate the other 4,999 row objects. `track row.id` lets reconciliation retain the record-to-view mapping. Precomputing `searchKey` at the data boundary avoids repeatedly normalizing every name on each keystroke. For very frequent point updates, normalize state as `Map<id,row>` plus an ordered ID list or use an entity store—but measure the additional mapping and memory before adding that complexity.
+
+### Example 4 — gate optimization on both a budget and correctness
+
+The test plan needs two kinds of assertions:
+
+1. **Deterministic contract tests:** 5,000 unique IDs; filter/sort output equals an independent oracle; a reorder preserves the selected/focused record; a point update changes only the target value; empty, singleton and duplicate-key inputs have defined behavior.
+2. **Browser performance checks:** after stabilization, the virtualized implementation keeps rendered data rows below a documented viewport-plus-buffer ceiling; initial render, sort and filter stay within the team's percentile budget on controlled hardware; first/last keyboard navigation works; heap does not grow after repeated scroll cycles.
+3. **Request checks:** server mode sends only the intended query generation, never appends duplicate pages, rejects stale pages and does not report a page count as the total result count.
+4. **Regression trace:** keep the fixture, device/throttling profile, interaction script, build mode and measured before/after artifacts together. A faster run with a warm cache or different data is not proof.
+
+Do not put a millisecond constant into a unit test running on arbitrary CI hardware. Use functional tests for semantics and a controlled browser benchmark for timing; compare distributions, not one lucky sample.
+
+### 5,000-row decision trace
+
+```mermaid
+sequenceDiagram
+  participant U as User action
+  participant P as Browser + Angular profile
+  participant D as Data boundary
+  participant V as View strategy
+  participant G as Regression gate
+  U->>P: filter / sort / update / scroll
+  P->>P: attribute network, CPU, CD, layout, paint
+  alt payload or query dominates
+    P->>D: server filter + page/window
+  else DOM/layout dominates
+    P->>V: virtualize or paginate
+  else derivation/check dominates
+    P->>V: memoize, narrow updates, simplify rows
+  end
+  D-->>G: query and correctness evidence
+  V-->>G: row budget and trace evidence
+  G-->>U: same semantics within target budget
+```
+
+### Dry run — choosing the fix from evidence
+
+Assume a 5,000-row, 12-column table: the first profile shows a 9 MB response, 45 ms parsing, 25 ms Angular synchronization and 420 ms layout/paint for roughly 60,000 cells.
+
+| Step | Observation | Decision |
+|---:|---|---|
+| 1 | DOM/layout dominates the named first-render interaction | Do not start by changing change-detection flags |
+| 2 | Product needs all rows locally for offline comparison | Server-only paging would violate the requirement |
+| 3 | Rows are fixed at 48 px and only ~10 are visible | Virtualize with a measured buffer; retain all source rows |
+| 4 | Re-profile shows ~30 rendered rows and layout/paint falls sharply | Keep the DOM fix; now inspect the still-large payload separately |
+| 5 | Reorder test loses focus when keyed by index | Replace the key with immutable row ID before release |
+| 6 | Accessibility test cannot traverse the virtual grid correctly | Repair the interaction model or choose accessible pagination |
+
+The numbers are an example, not universal budgets. The logic is the invariant: choose the remedy from the dominant measured cost while preserving the product contract.
+
+### Invariants, derived costs and failure boundaries
+
+- **Measurement invariant:** compare the same build mode, data, interaction, cache state and device class; keep the before/after trace.
+- **Semantic invariant:** optimization cannot change ordering, completeness, selection, editing, focus or accessibility without an explicit product decision.
+- **Identity invariant:** each live row has one stable unique key; neither array index nor a regenerated random value identifies a mutable record set.
+- **Work-placement invariant:** network, server query, derivation, Angular synchronization and browser layout are separate budgets. Moving work is not deleting work.
+- **DOM invariant:** rendering all `n` rows with `c` cells needs O(nc) DOM/binding space. A virtual window with `v` visible and `b` buffered rows reduces rendered space to O((v+b)c), but the client data still costs O(nc) fields and collection reconciliation may remain O(n).
+- **Page invariant:** server paging with page size `p` reduces each response, client page memory and rendered rows toward O(pc); total traversal still transfers O(nc) across pages, plus request and server-query overhead.
+- **Derivation invariant:** filtering is O(n), sorting is O(n log n), and materializing `m` results costs O(m) space. `computed` avoids repeating an unchanged derivation; it does not make its first execution free.
+- **Update invariant:** stable keys minimize create/destroy work and preserve view identity, but Angular must still reconcile the supplied iterable. Replacing one object does not justify claiming the whole update is O(1).
+- **Lifecycle invariant:** every row-owned subscription, observer or widget multiplies by rendered row instances and must be torn down; prefer one shared source plus narrow inputs.
+
+**Common errors:** optimizing a development trace only; using `OnPush` as a slogan; virtualizing after already rendering hidden rows; paginating when the user contract requires all rows; filtering/sorting/formatting in template methods; tracking by index during reorder; recreating every row object on every emission; one HTTP call or subscription per row; a guessed virtual `itemSize`; nested scroll containers; variable row height under a fixed-size strategy; timing assertions in ordinary unit tests; ignoring parse/memory after fixing DOM; breaking native table semantics, focus, assistive navigation, browser find, print or export; and reporting an average while slow-tail interactions regress.
+
+**Interview variations:** server pagination versus virtualization; cursor versus offset paging; native table versus ARIA grid; `@for track` versus `*cdkVirtualFor trackBy`; fixed versus variable height; Signals versus `AsyncPipe`; expensive pure transforms in a worker; frequent live price updates; row component boundaries; selection across pages; sticky columns; export-all; memory leaks; performance budgets; and proving that the optimization did not change behavior.
+
+**Primary references:** Angular's [DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [slow-computation guidance](https://angular.dev/best-practices/slow-computations), [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Signals/computed guide](https://angular.dev/guide/signals#computed-signals-are-both-lazily-evaluated-and-memoized), [subtree-skipping guidance](https://angular.dev/best-practices/skipping-subtrees), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md). The cost-owner matrix, four examples, 5,000-row trace, dry run, invariants, regression gates and complexity derivations above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -5391,11 +5621,11 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q60. This pass was bounded to Markdown lines 1262–1279 and DOCX extracted lines 837–848 for Q60; the two sources contained the same rule: derive the current ID from the route stream and use switching/cancellation semantics so an older request cannot own the newer route. This edition preserves that rule and separately handles the previous successful value that can remain rendered during the new request's loading gap. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q61. This pass was bounded to Markdown lines 1280–1297 and DOCX extracted lines 849–862 for Q61; both sources prescribe measuring DOM size, rendering, transformations, payload and update frequency before choosing pagination, server filtering, virtual scrolling, stable keys, targeted reactive state or memoized derivations. This edition preserves that rule, avoids duplicating Q48's mechanism tutorial, and adds a senior operational case study with budgets, decision evidence, correctness gates and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest execution, router/browser execution, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
-- Official Angular performance material (reviewed 2026-10-11): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
+- Official Angular performance material (reviewed 2026-10-12): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), [Signals/computed](https://angular.dev/guide/signals#computed-signals-are-both-lazily-evaluated-and-memoized), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
 - Official Angular lifecycle-stability material (reviewed 2026-10-11): [NG0100 error encyclopedia](https://angular.dev/errors/NG0100), [component lifecycle](https://angular.dev/guide/components/lifecycle), and [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular application-structure and component-contract material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [signals](https://angular.dev/guide/signals), [services and DI](https://angular.dev/guide/di/creating-and-using-services), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
 - Official Angular testing material (reviewed 2026-10-11): [testing overview and Vitest setup](https://angular.dev/guide/testing), [component-testing basics](https://angular.dev/guide/testing/components-basics), [component-testing scenarios](https://angular.dev/guide/testing/components-scenarios), [testing utility APIs](https://angular.dev/guide/testing/utility-apis), [component harnesses](https://angular.dev/guide/testing/component-harnesses-overview), and [migrating from Karma to Vitest](https://angular.dev/guide/testing/migrating-to-vitest).
@@ -5410,5 +5640,5 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q61 (a 5,000-row table is slow: senior-level performance diagnosis) in both sources, starting at Markdown anchor line 1280 / heading line 1282 and DOCX extracted line 849; resolve the section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q62 (Angular 22 change-detection defaults) in both sources, starting at Markdown anchor line 1298 / heading line 1300 and DOCX extracted heading line 863; resolve the section end before reading it and keep extending this one canonical guide.
 
