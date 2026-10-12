@@ -677,7 +677,7 @@
         "baseline_main_head": "00cd39c8d605ecaac84aa9408be848d66d4b7287"
       },
       "validation": "Q58 adds a notification decision table, four TypeScript/template integration examples, callback-to-render sequence trace, burst dry run, notification-focused TestBed test, teardown/error/SSR invariants and derived event/render/buffer costs; deterministic builder and exact 316316-character HTML embedded-Markdown equality passed with 59 unique anchors, 153 balanced fenced blocks and 38 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those runtimes are absent.",
-      "last_successful_commit": "405ab652125f46337e0b722b54615b2036cda9ce"
+      "last_successful_commit": "eeeb4886c2c712d0a24339f3aa103e9389dd75bd"
     },
     {
       "id": "javascript-html-css",
@@ -859,7 +859,7 @@
     "validation": "Angular Q58 was compared in both actual source texts and enriched with a notification decision table, four TypeScript/template integration examples, callback-to-render sequence trace, burst dry run, notification-focused TestBed test, teardown/error/SSR invariants and derived event/render/buffer costs; deterministic reader generation, exact 316316-character payload equality, 59 anchors, 153 balanced fences, 38 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those runtimes are absent.",
     "estimated_next_tokens": 7800,
     "estimate_method": "Heuristic only: bounded Q59 begins at Markdown line 1244 and DOCX extracted line 823; reserve ~600 tokens for paired source intake/range resolution, ~1600 primary RxJS/Angular research, ~3900 teaching/code/diagram/HTML and ~1700 validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "405ab652125f46337e0b722b54615b2036cda9ce",
+    "last_successful_commit": "eeeb4886c2c712d0a24339f3aa103e9389dd75bd",
     "last_processed_at": "2026-10-12T04:21:51-04:00",
     "next_batch_decision": "Q58 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q59 and retain the conservative one-section checkpoint."
   }
