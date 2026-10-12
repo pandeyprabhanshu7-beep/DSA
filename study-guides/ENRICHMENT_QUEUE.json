@@ -680,7 +680,7 @@
         "baseline_main_head": "2fa05e758dbc52ed68b7b4f905334d97f0ad8a46"
       },
       "validation": "Q61 adds a six-owner evidence matrix, four performance scenarios, server-page and fixed-viewport examples, stable-identity state, a 5,000-row trace, correctness/accessibility gates and derived data/DOM costs without duplicating Q48; deterministic builder and exact 362821-character HTML embedded-Markdown equality passed with 62 unique anchors, 168 balanced fenced blocks and 41 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript/Vitest execution, controlled browser profiling, SSR testing and visual QA were not executed because those runtimes are absent.",
-      "last_successful_commit": "fb12c96c9941dd1be3a7bee825bdfd3a35c6bbb2"
+      "last_successful_commit": "adf08e26dcb716c09f91667b09504429d8a7f800"
     },
     {
       "id": "javascript-html-css",
@@ -862,7 +862,7 @@
     "validation": "Angular Q61 was compared in both actual source texts and enriched with a six-owner evidence matrix, four performance scenarios, server-page and fixed-viewport examples, stable-identity state, a 5,000-row trace, correctness/accessibility gates and derived data/DOM costs without duplicating Q48; deterministic reader generation, exact 362821-character payload equality, 62 anchors, 168 balanced fences, 41 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript/Vitest execution, controlled browser profiling, SSR testing and visual QA were not executed because those runtimes are absent.",
     "estimated_next_tokens": 8000,
     "estimate_method": "Heuristic only: bounded Q62 begins at Markdown anchor line 1298 / heading line 1300 and DOCX extracted heading line 863; reserve ~500 tokens for paired source intake/range resolution, ~1700 for version-sensitive primary Angular research, ~4000 for teaching/code/diagram/HTML and ~1800 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "fb12c96c9941dd1be3a7bee825bdfd3a35c6bbb2",
+    "last_successful_commit": "adf08e26dcb716c09f91667b09504429d8a7f800",
     "last_processed_at": "2026-10-12T09:21:30-04:00",
     "next_batch_decision": "Q61 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q62 and retain the conservative one-section checkpoint."
   }
