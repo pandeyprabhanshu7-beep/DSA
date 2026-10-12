@@ -679,7 +679,7 @@
         "baseline_main_head": "679dda36198fb198ec39c3c4b0b97028cfd84532"
       },
       "validation": "Q60 adds a five-symptom diagnosis matrix, four TypeScript/router/testing examples, explicit per-route loading replacement, A-to-B sequence trace, dry run, ownership/cancellation invariants and derived route/payload/cache costs; deterministic builder and exact 346775-character HTML embedded-Markdown equality passed with 61 unique anchors, 163 balanced fenced blocks and 40 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript/Vitest execution, router/browser execution, SSR testing and visual QA were not executed because those runtimes are absent.",
-      "last_successful_commit": "88271c6d6615594c3ca4e09d36b7fb98c9601ddc"
+      "last_successful_commit": "fb12c96c9941dd1be3a7bee825bdfd3a35c6bbb2"
     },
     {
       "id": "javascript-html-css",
@@ -861,7 +861,7 @@
     "validation": "Angular Q60 was compared in both actual source texts and enriched with a five-symptom diagnosis matrix, four TypeScript/router/testing examples, explicit per-route loading replacement, A-to-B sequence trace, dry run, ownership/cancellation invariants and derived route/payload/cache costs; deterministic reader generation, exact 346775-character payload equality, 61 anchors, 163 balanced fences, 40 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript/Vitest execution, router/browser execution, SSR testing and visual QA were not executed because those runtimes are absent.",
     "estimated_next_tokens": 8200,
     "estimate_method": "Heuristic only: bounded Q61 begins at Markdown anchor line 1280 / heading line 1282 and DOCX extracted line 849; reserve ~650 tokens for paired source intake/range resolution, ~1650 primary Angular/CDK research, ~4100 teaching/code/diagram/HTML and ~1800 validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "88271c6d6615594c3ca4e09d36b7fb98c9601ddc",
+    "last_successful_commit": "fb12c96c9941dd1be3a7bee825bdfd3a35c6bbb2",
     "last_processed_at": "2026-10-12T06:26:19-04:00",
     "next_batch_decision": "Q60 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q61 and retain the conservative one-section checkpoint."
   }
