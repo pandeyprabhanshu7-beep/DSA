@@ -676,7 +676,7 @@
         "baseline_main_head": "99f4501213cbd341f737896d0ee982891d6b834f"
       },
       "validation": "Q57 adds cold-request execution internals, an evidence/topology matrix, four TypeScript/template examples, a subscription sequence trace, search dry run, explicit share/replay/refresh/retry policies, request-cardinality TestBed test, invariants and derived network/memory/output costs; deterministic builder and exact 302916-character HTML embedded-Markdown equality passed with 58 unique anchors, 145 balanced fenced blocks and 37 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those runtimes are absent.",
-      "last_successful_commit": "4f41e19ae30d9c5235527f4e84e83a3dd8dd0c05"
+      "last_successful_commit": "405ab652125f46337e0b722b54615b2036cda9ce"
     },
     {
       "id": "javascript-html-css",
@@ -858,7 +858,7 @@
     "validation": "Angular Q57 was compared in both actual source texts and enriched with cold-request execution internals, an evidence/topology matrix, four TypeScript/template examples, a subscription sequence trace, search dry run, explicit share/replay/refresh/retry policies, request-cardinality TestBed test, invariants and derived network/memory/output costs; deterministic reader generation, exact 302916-character payload equality, 58 anchors, 145 balanced fences, 37 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript/Vitest execution, browser execution and visual QA were not executed because those runtimes are absent.",
     "estimated_next_tokens": 8200,
     "estimate_method": "Heuristic only: bounded Q58 begins at Markdown line 1230 and DOCX extracted line 812; reserve ~600 tokens for paired source intake/range resolution, ~1800 primary Angular zoneless/integration research, ~4000 teaching/code/diagram/HTML and ~1800 validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "4f41e19ae30d9c5235527f4e84e83a3dd8dd0c05",
+    "last_successful_commit": "405ab652125f46337e0b722b54615b2036cda9ce",
     "last_processed_at": "2026-10-12T02:17:19-04:00",
     "next_batch_decision": "Q57 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q58 and retain the conservative one-section checkpoint."
   }
