@@ -14,7 +14,7 @@
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 3",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 2",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 1",
-    "Angular_Interview_Mermaid_Workbook.md Q1-Q56",
+    "Angular_Interview_Mermaid_Workbook.md Q1-Q57",
     "src/README.md excerpt"
   ],
   "files": [
@@ -165,10 +165,10 @@
         "### Interview-ready code:"
       ],
       "completed_sections": [
-        "Q1-Q56"
+        "Q1-Q57"
       ],
-      "processed_range": "latest bounded read: lines 1202-1213 for Q56",
-      "next_section": "Q57 duplicate HTTP calls begins at line 1216"
+      "processed_range": "latest bounded read: lines 1216-1227 for Q57",
+      "next_section": "Q58 third-party callback in zoneless Angular begins at line 1230"
     },
     {
       "relative_path": "untitled/DSA V2/Striver_Graph_DSA_Deep_Study_Guide_Visual.md",
@@ -847,27 +847,27 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "Angular HTTP behavior: bounded Q57 duplicate-request diagnosis",
+    "section": "Angular zoneless integration: bounded Q58 third-party callback adaptation",
     "status": "QUEUED",
-    "estimated_tokens": 8500,
-    "estimate_method": "Heuristic only: Q57 begins at Markdown line 1216 and DOCX extracted line 801; ~700 paired source intake/range resolution, ~2000 primary Angular HTTP/RxJS research, ~4000 teaching/code/diagram/HTML and ~1800 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 8200,
+    "estimate_method": "Heuristic only: Q58 begins at Markdown line 1230 and DOCX extracted line 812; ~600 paired source intake/range resolution, ~1800 primary Angular zoneless/integration research, ~4000 teaching/code/diagram/HTML and ~1800 validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "readers": "Canonical Angular reader rebuilt from Markdown; exact 286606-character embedded payload equality, 57 unique anchors, 136 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked",
-    "diagrams": "The Q56 migration state trace is embedded in the canonical payload; 36 Mermaid diagrams total; browser visual QA not executed",
-    "last_processed_at": "2026-10-12T01:12:13-04:00"
+    "readers": "Canonical Angular reader rebuilt from Markdown; exact 302916-character embedded payload equality, 58 unique anchors, 145 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked",
+    "diagrams": "The Q57 subscription sequence trace is embedded in the canonical payload; 37 Mermaid diagrams total; browser visual QA not executed",
+    "last_processed_at": "2026-10-12T02:17:19-04:00"
   },
   "angular_intake_checkpoint": {
-    "last_processed_at": "2026-10-12T01:12:13-04:00",
+    "last_processed_at": "2026-10-12T02:17:19-04:00",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q56; latest bounded source ranges are Markdown lines 1202-1213 and DOCX extracted lines 790-798 for Q56",
+    "processed": "Q1–Q57; latest bounded source ranges are Markdown lines 1216-1227 and DOCX extracted lines 801-811 for Q57",
     "status": "PUBLISHED",
-    "validation": "Q56 adds a phased baseline/upgrade/standalone/notification/zoneless sequence, change-axis matrix, four TypeScript/CLI examples, provider-scope audit, migration state trace, orders-feature dry run, zoneless TestBed example, rollout gates, invariants, costs and rollback criteria; deterministic builder and exact 286606-character payload equality passed with 57 unique anchors, 136 balanced fences and 36 Mermaid diagrams; inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker audit passed; not Angular/TypeScript/Vitest-executed, browser-executed or visually tested because those runtimes are absent",
+    "validation": "Q57 adds cold-request execution internals, an evidence/topology matrix, four TypeScript/template examples, a subscription sequence trace, search dry run, explicit share/replay/refresh/retry policies, request-cardinality TestBed test, invariants and derived network/memory/output costs; deterministic builder and exact 302916-character payload equality passed with 58 unique anchors, 145 balanced fences and 37 Mermaid diagrams; inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker audit passed; not Angular/TypeScript/Vitest-executed, browser-executed or visually tested because those runtimes are absent",
     "content_commit": "4f41e19ae30d9c5235527f4e84e83a3dd8dd0c05",
-    "estimated_next_tokens": 8500,
-    "estimate_method": "Heuristic from bounded Q57 starting at Markdown line 1216 and DOCX extracted line 801 plus paired source range resolution, primary Angular HTTP/RxJS research, explanation/examples/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "estimated_next_tokens": 8200,
+    "estimate_method": "Heuristic from bounded Q58 starting at Markdown line 1230 and DOCX extracted line 812 plus paired source range resolution, primary Angular zoneless/integration research, explanation/examples/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }

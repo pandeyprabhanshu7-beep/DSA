@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q56)
+# Angular 22 — Interview Foundations (Q1–Q57)
 
-> **Current bounded edition, 2026-10-12.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q56 (Q56 is lines 1202–1213) with the corresponding `Angular_Interview_Workbook.docx` text (Q56 is extracted lines 790–798). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, and a reversible NgModule/ZoneJS modernization sequence, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-12.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q57 (Q57 is lines 1216–1227) with the corresponding `Angular_Interview_Workbook.docx` text (Q57 is extracted lines 801–811). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, and subscription-topology diagnosis for duplicate HTTP requests, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -60,6 +60,7 @@
 - [Q54: XSS prevention](#q54)
 - [Q55: route guards versus server authorization](#q55)
 - [Q56: migrate a legacy NgModule + ZoneJS application](#q56)
+- [Q57: diagnose duplicate HTTP calls](#q57)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -4448,12 +4449,238 @@ Standalone conversion does not automatically improve runtime speed, signals do n
 
 **Primary references:** Angular's [Update Guide](https://angular.dev/update-guide), [`ng update`](https://angular.dev/cli/update), [version compatibility](https://angular.dev/reference/versions), [standalone migration](https://angular.dev/reference/migrations/standalone), [`bootstrapApplication`](https://angular.dev/api/platform-browser/bootstrapApplication), and [zoneless guide](https://angular.dev/guide/zoneless). The phased rollout, four examples, state trace, orders dry run, test gates, invariants and cost derivation above are added teaching material.
 
+<a id="q57"></a>
+## Q57. A search page issues duplicate HTTP calls. What do you inspect?
+
+**Requirement:** determine whether the observed requests are accidental duplicates or separate intended executions, identify the subscription edges that created them, and apply the narrowest ownership or sharing fix without inventing an unsafe global cache.
+
+Start with the execution rule, not with `shareReplay`:
+
+> An `HttpClient` call returns a cold observable description. Constructing it sends nothing. **Each subscription executes the request pipeline again.** Unsubscription can abort that execution; `retry` is another subscription by design.
+
+If one search generation should produce one request, then all views of that generation must share one upstream execution or consume one owner-produced state. If each subscriber genuinely needs independent freshness, separate requests can be correct.
+
+### First prove what is duplicated
+
+Use the browser Network panel and application tracing together. Compare method, full URL including normalized query parameters, request body, initiator stack, start time, cancellation status, correlation ID and response. Then reproduce with one user action and count these edges:
+
+| Evidence | Likely cause | Question before changing code |
+|---|---|---|
+| Same GET begins at the same time from two views | Two subscriptions to one cold source | Can the template bind once or can both consumers share one generation? |
+| Earlier request is cancelled, then the same URL starts again during change detection | A getter/factory returned a new observable reference | Why is observable construction in a template-accessed getter? |
+| First attempt fails, then the next begins after the configured delay | `retry`/`retryWhen` resubscription | Is the extra attempt within the explicit retry policy? |
+| New request follows every keystroke | Missing debounce/distinctness or imperative nested subscriptions | What is the query identity, and should stale work be cancelled? |
+| Server render and browser both request once | SSR transfer-cache/configuration boundary | Is the duplicate across runtimes rather than within one browser subscription graph? |
+| Two successful POSTs carry different idempotency keys or click timestamps | Duplicate user actions or handler registration | Never hide mutation duplication with replay caching; fix command ownership/idempotency |
+
+A correlation interceptor is useful evidence, but do not let it change request semantics. Log a locally generated execution ID, method, sanitized URL, start/end/cancel outcome and elapsed time; never log secrets or full sensitive bodies. Server access logs then distinguish two browser executions from a proxy redirect, retry or backend fan-out.
+
+### Internal subscription topology
+
+```mermaid
+sequenceDiagram
+  participant A as Results view
+  participant B as Count view
+  participant S as Shared search stream
+  participant H as HttpClient/backend
+  A->>S: subscribe
+  S->>H: one upstream subscribe/request
+  B->>S: subscribe
+  H-->>S: response
+  S-->>A: same generation
+  S-->>B: same generation
+```
+
+Without the sharing boundary, A and B subscribe directly to the cold HTTP observable and the `HttpClient` handler/backend chain runs twice. With a sharing boundary, the first downstream subscriber creates the upstream subscription and overlapping subscribers join it. Replay additionally retains a bounded number of emissions for late subscribers; that retention is a cache policy, not a synonym for “make duplicates disappear.”
+
+### Example 1 — bind once when one template owns the result
+
+This template subscribes twice. The two expressions may look harmless, but each `AsyncPipe` instance owns a subscription:
+
+```html
+<!-- Bad for a cold HTTP source: two AsyncPipe subscriptions. -->
+<app-results [items]="results$ | async" />
+<p>{{ (results$ | async)?.length ?? 0 }} matches</p>
+```
+
+Alias one subscription and reuse its emitted value:
+
+```html
+@if (results$ | async; as results) {
+  <app-results [items]="results" />
+  <p>{{ results.length }} matches</p>
+} @else {
+  <app-search-skeleton />
+}
+```
+
+This is the simplest correct repair when both consumers have the same lifetime and owner. `AsyncPipe` also disposes its subscription when the view is destroyed or the bound observable reference changes. If two independently created subtrees need the same generation, put the sharing boundary in the service/facade instead of forcing awkward template ownership.
+
+### Example 2 — never manufacture request observables in a template getter
+
+```typescript
+// Bad: change detection can observe a fresh reference, so AsyncPipe replaces
+// its subscription; an in-flight request may be aborted and reissued.
+get results$(): Observable<readonly SearchResult[]> {
+  return this.http.get<readonly SearchResult[]>('/api/search', {
+    params: {q: this.query()},
+  });
+}
+```
+
+Model query changes once and make cancellation/distinctness explicit:
+
+```typescript
+import {HttpClient} from '@angular/common/http';
+import {inject, Injectable} from '@angular/core';
+import {BehaviorSubject, Observable, of} from 'rxjs';
+import {debounceTime, distinctUntilChanged, map, shareReplay, switchMap} from 'rxjs/operators';
+
+@Injectable()
+export class SearchFacade {
+  private readonly http = inject(HttpClient);
+  private readonly querySubject = new BehaviorSubject('');
+
+  readonly results$: Observable<readonly SearchResult[]> = this.querySubject.pipe(
+    map(query => query.trim()),
+    debounceTime(250),
+    distinctUntilChanged(),
+    switchMap(query => query === ''
+      ? of([])
+      : this.http.get<readonly SearchResult[]>('/api/search', {params: {q: query}})),
+    shareReplay({bufferSize: 1, refCount: true}),
+  );
+
+  search(query: string): void {
+    this.querySubject.next(query);
+  }
+}
+```
+
+Here `switchMap` gives the search box a latest-query policy: a new distinct query unsubscribes from the previous in-flight read. `shareReplay` lets overlapping view consumers share the current upstream generation and receive its latest value. `refCount: true` ties the upstream lifetime to active consumers; because the outer query stream stays alive rather than completing after one HTTP result, losing the last consumer tears down that generation. Re-entering the feature can legitimately run the latest query again.
+
+Do not read the operator name as a full product policy. Decide service scope, retention, refresh, error reset, identity/tenant key and logout behavior explicitly. A root-scoped replay of user A's response that survives authentication change is a data-leak bug, not an optimization.
+
+### Example 3 — nested subscriptions hide ownership; flatten the graph
+
+```typescript
+// Bad: every route emission creates another manually owned inner subscription.
+this.route.queryParamMap.subscribe(params => {
+  this.api.search(params.get('q') ?? '').subscribe(items => {
+    this.items.set(items);
+  });
+});
+```
+
+```typescript
+readonly results$ = this.route.queryParamMap.pipe(
+  map(params => (params.get('q') ?? '').trim()),
+  distinctUntilChanged(),
+  switchMap(query => query === '' ? of([]) : this.api.search(query)),
+  shareReplay({bufferSize: 1, refCount: true}),
+);
+```
+
+Flattening makes the subscription owner, stale-request cancellation and sharing point visible. It also prevents an old slow response from overwriting a newer query. If the required policy is “finish every write,” `switchMap` is wrong; choose `concatMap`, `exhaustMap` or `mergeMap` deliberately and enforce server-side idempotency for mutations.
+
+### Example 4 — make refresh and retry separate, visible policies
+
+```typescript
+import {HttpClient} from '@angular/common/http';
+import {inject, Injectable} from '@angular/core';
+import {retry, shareReplay, startWith, Subject, switchMap, timer} from 'rxjs';
+
+@Injectable()
+export class ProfileService {
+  private readonly http = inject(HttpClient);
+  private readonly refreshSubject = new Subject<void>();
+
+  readonly profile$ = this.refreshSubject.pipe(
+    startWith(undefined),
+    switchMap(() => this.http.get<UserProfile>('/api/me').pipe(
+      retry({count: 2, delay: (_error, retryIndex) => timer(retryIndex * 250)}),
+    )),
+    shareReplay({bufferSize: 1, refCount: true}),
+  );
+
+  refresh(): void {
+    this.refreshSubject.next();
+  }
+}
+```
+
+One refresh generation can make up to three transport attempts: the original plus two retries. That is not a duplicate-subscription bug, but the policy must be bounded and restricted to operations safe to retry. A successful mutation whose response was lost may already have committed; retries require an idempotency key or an operation-specific reconciliation strategy. Place `retry` inside the refresh `switchMap` so one exhausted generation errors according to the chosen UI policy; decide whether the outer stream should recover for later refreshes.
+
+### Dry run — `laptop` typed and two widgets visible
+
+| Step | Observable event | Active upstream HTTP | What is proved |
+|---|---|---:|---|
+| 1 | Results widget subscribes to shared `results$` | 0 until debounced query emits | Subscription alone does not invent a query |
+| 2 | Count widget subscribes to the same shared instance | 0 | Second consumer joins the shared downstream graph |
+| 3 | Query emits `laptop`; debounce expires | 1 | One generation creates one request |
+| 4 | Query emits `laptops` before response | Old request unsubscribed; 1 new request | `switchMap` enforces latest-read ownership |
+| 5 | Response arrives | 0 | One payload is delivered to both consumers |
+| 6 | Count widget is destroyed | 0 | Results widget retains the shared generation |
+| 7 | Last widget is destroyed | 0 | Ref-counted outer subscription is released |
+| 8 | Feature is recreated | At most 1 for the latest query | A new lifetime is allowed to refetch; this is not an overlap duplicate |
+
+### Prove request cardinality with the HTTP testing backend
+
+The failing shape is easy to expose: subscribe twice to a cold `http.get`, call `httpTesting.match(...)`, and observe two pending requests. The repaired contract should assert one:
+
+```typescript
+it('shares one current-user request between overlapping consumers', () => {
+  TestBed.configureTestingModule({
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      ProfileService,
+    ],
+  });
+
+  const service = TestBed.inject(ProfileService);
+  const httpTesting = TestBed.inject(HttpTestingController);
+  const first: UserProfile[] = [];
+  const second: UserProfile[] = [];
+
+  service.profile$.subscribe(value => first.push(value));
+  service.profile$.subscribe(value => second.push(value));
+
+  const request = httpTesting.expectOne({method: 'GET', url: '/api/me'});
+  request.flush({id: 'u-1', displayName: 'Asha'});
+
+  expect(first).toEqual([{id: 'u-1', displayName: 'Asha'}]);
+  expect(second).toEqual(first);
+  httpTesting.verify();
+});
+```
+
+Also test: second subscriber while the request is pending; subscriber after emission; all subscribers leaving before completion; component destroy/recreate; refresh; logout/account switch; one retryable error; permanent error; two different query keys; SSR followed by hydration; and rapid A→B query replacement. `expectOne` intentionally fails when more than one request matches, while `match` is the diagnostic API when duplicates are the subject of the test.
+
+### Invariants, cost model and boundaries
+
+- **Identity invariant:** only executions with the same semantic request identity may share—method, URL/query, representation headers, body, tenant/user and authorization context all matter.
+- **Lifetime invariant:** place the sharing owner at the narrowest scope that matches the data lifetime. Route data usually should not become an unbounded application-global cache.
+- **Invalidation invariant:** name every event that makes replayed data stale: refresh, mutation, role/account change, expiry or route lifetime.
+- **Mutation invariant:** never use replay to conceal duplicate POST/PUT/DELETE commands. Own the click/command once and use server idempotency where repetition is possible.
+- **Cancellation invariant:** browser unsubscription can abort client work, but it cannot prove that a server operation rolled back.
+- **Error invariant:** decide whether an error is replayed, reset or transformed. An accidental permanent error cache can make recovery impossible without reload.
+- **Observation invariant:** interceptor, service-worker, browser, proxy and backend retries can produce multiple wire attempts even with one Angular subscriber; use correlation evidence before blaming the template.
+
+For a response payload of `b` bytes and `k` independent cold subscribers, accidental duplication can cost approximately `k` network requests, `O(kb)` transferred/parsed bytes and `k` backend executions. A shared generation reduces the upstream portion to one request and `O(b)` retained replay space, while delivery and rendering still cost at least `O(k)` notifications plus each consumer's DOM/output construction. Query filtering over `n` results remains `O(n)` per recomputation unless derived work is also shared/memoized. A keyed cache holding `m` payloads of average size `b` costs `O(mb)` memory and therefore needs eviction; `shareReplay` does not supply a multi-key eviction policy.
+
+**Common errors:** adding `shareReplay(1)` everywhere; confusing construction with execution; two `AsyncPipe`s on a cold source; returning observables from getters called by templates; manual nested subscriptions; providing the same facade separately in sibling subtrees; sharing after the HTTP source has already been subscribed independently; sharing responses across users/tenants; replaying mutations; unbounded keyed maps; no invalidation; treating retry attempts as duplicates; placing `retry` around non-idempotent writes; assuming unsubscription rolls back the server; suppressing evidence with `distinctUntilChanged` on the wrong identity; and tests that flush only the first unexpected request.
+
+**Interview variations:** cold versus hot; multicast versus replay; `share` versus `shareReplay`; `refCount`; late subscribers; completed HTTP streams; error/reset behavior; template aliasing; `AsyncPipe` replacement; `switchMap` cancellation; retry cardinality; refresh; polling; route-scoped providers; SSR transfer cache; service workers; request coalescing; keyed caches; logout invalidation; memory leaks; command idempotency; and request-count testing.
+
+**Primary references:** Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), and [HTTP testing](https://angular.dev/guide/http/testing); RxJS [`shareReplay`](https://rxjs.dev/api/index/function/shareReplay), [`share`](https://rxjs.dev/api/operators/share), [`retry`](https://rxjs.dev/api/operators/retry), and [Observable guide](https://rxjs.dev/guide/observable). The topology table, four examples, sequence diagram, dry run, test matrix, invariants and cost derivation above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
 Keep the reusable order card behind a readonly view-model input and semantic `selected` output; let it own only local view state while the page owns navigation, feature state and effects.
 
-Plan the legacy application's modernization as deployable checkpoints: capture a clean behavioral/performance baseline; use the Update Guide and supported toolchain matrix for one major-version step at a time; convert the leaf order card to standalone while its NgModule consumer remains valid; migrate the lazy orders route; then replace root bootstrap while preserving provider scopes, initializers, interceptor order and ZoneJS scheduling explicitly. Audit every template-visible timer, SDK, socket, form and SSR update for a real Angular notification, prove it in zoneless tests and a measured canary, and only then remove ZoneJS polyfills/dependency. Keep state-management and design-system rewrites outside these checkpoints, assign every `importProvidersFrom` bridge an owner/removal gate, and demonstrate the rollback after each phase.
+Plan the legacy application's modernization as deployable checkpoints: capture a clean behavioral/performance baseline; use the Update Guide and supported toolchain matrix for one major-version step at a time; convert the leaf order card to standalone while its NgModule consumer remains valid; migrate the lazy orders route; then replace root bootstrap while preserving provider scopes, initializers, interceptor order and ZoneJS scheduling explicitly. Audit every template-visible timer, SDK, socket, form and SSR update for a real Angular notification, prove it in zoneless tests and a measured canary, and only then remove ZoneJS polyfills/dependency. Keep state-management and design-system rewrites outside these checkpoints, assign every `importProvidersFrom` bridge an owner/removal gate, and demonstrate the rollback after each phase. For the search page, draw the subscriber graph before adding an operator: bind a cold request once when one view owns it, expose a stable field rather than a template getter, flatten route/query changes with `switchMap`, and share only one explicitly identified query generation across overlapping consumers. Separate refresh from bounded retry, key/invalidate retained data by user and query, and prove request cardinality with `expectOne`/`match` rather than trusting the Network panel alone.
 
 Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly.
 
@@ -4461,7 +4688,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q56. This pass was bounded to Markdown lines 1202–1213 and DOCX extracted lines 790–798 for Q56; the two sources contained the same incremental migration rule: baseline first, standalone leaves/providers/routing next, explicit notification compatibility before ZoneJS removal, and no uncontrolled combined rewrite. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q57. This pass was bounded to Markdown lines 1216–1227 and DOCX extracted lines 801–811 for Q57; the two sources contained the same rule: diagnose duplicate HTTP from subscription topology, because each subscription to a cold request can execute it again, then choose intentional sharing/caching only when subscriber semantics match. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest execution, Spring compilation/test, browser screenshot or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
@@ -4473,8 +4700,9 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official XSS-prevention material (reviewed 2026-10-11): Angular's [security guide](https://angular.dev/best-practices/security) and [`DomSanitizer` API](https://angular.dev/api/platform-browser/DomSanitizer), and OWASP's [Cross-Site Scripting Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html).
 - Official authorization-boundary material (reviewed 2026-10-11): Angular's [route-guard guide](https://angular.dev/guide/routing/route-guards), OWASP's [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html), Spring Security's [request authorization](https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html) and [method security](https://docs.spring.io/spring-security/reference/servlet/authorization/method-security.html), and RFC 9110's [401/403 status semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5).
 - Official Angular migration material (reviewed 2026-10-12): [keeping projects up to date](https://angular.dev/update), [Update Guide](https://angular.dev/update-guide), [`ng update`](https://angular.dev/cli/update), [version compatibility](https://angular.dev/reference/versions), [standalone migration](https://angular.dev/reference/migrations/standalone), [`bootstrapApplication`](https://angular.dev/api/platform-browser/bootstrapApplication), [`provideZonelessChangeDetection`](https://angular.dev/api/core/provideZonelessChangeDetection), [zoneless guide](https://angular.dev/guide/zoneless), and [testing overview](https://angular.dev/guide/testing).
+- Official Angular/RxJS request-cardinality material (reviewed 2026-10-12): Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), and [HTTP testing](https://angular.dev/guide/http/testing); RxJS [`shareReplay`](https://rxjs.dev/api/index/function/shareReplay), [`share`](https://rxjs.dev/api/operators/share), [`retry`](https://rxjs.dev/api/operators/retry), and [Observable guide](https://rxjs.dev/guide/observable). Sharing/reset behavior is package-version-sensitive; the concrete examples use the RxJS 7 configuration shape compatible with the guide's Angular baseline.
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q57 (diagnosing duplicate HTTP calls) in both sources, starting at Markdown line 1216 and DOCX extracted line 801; resolve the section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q58 (adapting a third-party callback in zoneless Angular) in both sources, starting at Markdown line 1230 and DOCX extracted line 812; resolve the section end before reading it and keep extending this one canonical guide.
 
