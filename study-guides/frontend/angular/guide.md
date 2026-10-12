@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q54)
+# Angular 22 — Interview Foundations (Q1–Q55)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q54 (Q54 is lines 1176–1187) with the corresponding `Angular_Interview_Workbook.docx` text (Q54 is extracted lines 769–779). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, and context-aware XSS defenses, with diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q55 (Q55 is lines 1190–1199) with the corresponding `Angular_Interview_Workbook.docx` text (Q55 is extracted lines 780–789). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, and a client-guard/server-authorization threat boundary, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -58,6 +58,7 @@
 - [Q52: Component testing](#q52)
 - [Q53: HTTP testing](#q53)
 - [Q54: XSS prevention](#q54)
+- [Q55: route guards versus server authorization](#q55)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -3933,6 +3934,255 @@ Angular's protections do **not** authorize data, stop SQL/command injection, sec
 
 **Primary references:** Angular's [security guide](https://angular.dev/best-practices/security) and [`DomSanitizer` API](https://angular.dev/api/platform-browser/DomSanitizer), plus OWASP's [Cross-Site Scripting Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html). The examples, source-to-sink model, dry run, policy review checklist and cost derivation above are added teaching material.
 
+<a id="q55"></a>
+## Q55. What is route guard security versus server authorization?
+
+**Requirement:** use an Angular guard to make navigation coherent—redirect a signed-out user, avoid rendering a route they cannot use, select a feature route, or warn about unsaved changes. Treat every browser decision as forgeable. The API must independently authenticate the caller and authorize the requested **action on the specific resource** for every protected request.
+
+The shortest interview answer is:
+
+> **A route guard is a UX boundary. Backend authorization is the security boundary.**
+
+The browser belongs to the user. They can edit JavaScript, replace a service result, call a component directly, remove a guard, replay a captured request, or skip Angular and use `curl`. A hidden menu and a rejected navigation reduce confusion; neither prevents a request from reaching `/api/orders/42`.
+
+### Put each decision at the correct boundary
+
+| Boundary | Useful decision | What it cannot prove |
+|---|---|---|
+| `CanActivate` / `CanActivateChild` | Whether the current client should enter a route | That the API caller is genuine or may access a particular object |
+| `CanMatch` | Which route/configuration should match; feature rollout or alternate UI | That a lazy bundle or API is inaccessible to an attacker |
+| `CanDeactivate` | Whether to warn before abandoning local edits | That server data is protected |
+| API authentication filter | Whether credentials are valid for this request | That this identity may perform every action |
+| Request-level authorization | Broad endpoint/method rule such as `orders:read` | That the caller owns order `42` or belongs to its tenant |
+| Service/domain authorization | Action + resource + tenant/relationship policy close to data | Nothing downstream should silently widen the decision |
+
+Authentication answers **who is calling**. Authorization answers **whether that caller may perform this action on this resource under the current policy**. A valid token is therefore necessary for many endpoints but never equivalent to permission.
+
+### Example 1 — an Angular guard that redirects cleanly
+
+Return a `UrlTree`; do not return `false` and start a second imperative navigation. Keep the guard focused on the client snapshot needed for routing.
+
+```typescript
+import {inject} from '@angular/core';
+import {CanActivateFn, Router} from '@angular/router';
+
+export const signedInGuard: CanActivateFn = (_route, state) => {
+  const session = inject(SessionStore);
+  const router = inject(Router);
+
+  return session.isAuthenticated()
+    ? true
+    : router.createUrlTree(['/sign-in'], {
+        queryParams: {returnUrl: state.url},
+      });
+};
+
+export const routes = [
+  {
+    path: 'orders/:id',
+    canActivate: [signedInGuard],
+    loadComponent: () =>
+      import('./order-page.component').then(m => m.OrderPageComponent),
+  },
+];
+```
+
+This improves first navigation and preserves a return URL. It does **not** authorize `:id`. Even if the store says the user is an administrator, the claim can be stale, locally modified, or valid for a different tenant. The order API must still decide.
+
+If the guard returns an `Observable` or `Promise`, Angular uses the first emitted/resolved value. Do not make guards depend on side effects from an earlier guard in the same array: current Angular starts guard functions in array order but asynchronous guards can run concurrently. Share one initialized session source or combine dependent checks into one guard.
+
+### Example 2 — bypass the guard without attacking Angular
+
+Assume Alice may read order `42`; Mallory is signed in but may not. Mallory does not need to open the guarded page:
+
+```bash
+curl -i \
+  -H 'Authorization: Bearer <mallory-token>' \
+  https://api.example.com/api/orders/42
+```
+
+Correct server behavior is a denial (commonly `403`, or `404` when the product deliberately conceals resource existence). The following response is a broken-object-level-authorization defect even if the Angular guard is perfect:
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"id":42,"owner":"alice","total":149.00}
+```
+
+Changing `/orders/41` to `/orders/42`, editing a hidden field, calling `fetch()` in DevTools, or replaying a mobile request are the same trust-boundary test. Unpredictable UUIDs reduce guessing; they do not replace an ownership/tenant check.
+
+### Example 3 — Spring Security enforces broad and object-level rules
+
+Use request rules for a deny-by-default outer boundary, then protect domain operations close to the resource. This Java is intentionally paired with the Angular example because a full-stack interview should show both sides of the contract.
+
+```java
+import static org.springframework.http.HttpMethod.GET;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration
+@EnableMethodSecurity
+class SecurityConfig {
+    @Bean
+    SecurityFilterChain apiSecurity(HttpSecurity http) throws Exception {
+        return http
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(GET, "/api/catalog/**").permitAll()
+                .requestMatchers("/api/admin/**").hasAuthority("orders:admin")
+                .requestMatchers("/api/orders/**").authenticated()
+                .anyRequest().denyAll())
+            .build();
+    }
+}
+```
+
+`authenticated()` protects the endpoint family, but object authorization must bind the authenticated identity to the requested order:
+
+```java
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+class OrderService {
+    private final OrderRepository orders;
+
+    OrderService(OrderRepository orders) {
+        this.orders = orders;
+    }
+
+    @PreAuthorize("hasAuthority('orders:admin') or " +
+                  "@orderPolicy.canRead(authentication, #orderId)")
+    @Transactional(readOnly = true)
+    public OrderView read(long orderId) {
+        return orders.findViewById(orderId)
+            .orElseThrow(OrderNotFoundException::new);
+    }
+}
+```
+
+`orderPolicy.canRead` should derive identity from the verified `Authentication`, not from `ownerId` supplied by the client. It must include tenant/relationship rules where applicable. For a mutation, avoid a check-then-update race: authorize and modify in one transaction or use an ownership-scoped update such as `UPDATE ... WHERE id = ? AND owner_id = ?`, then require exactly one affected row.
+
+Method rules are defense in depth for alternate callers such as another controller, message consumer or scheduled workflow. Define an explicit policy for those non-HTTP identities instead of bypassing the service.
+
+### Example 4 — map server outcomes without changing authority
+
+| API result | Meaning | Angular response |
+|---|---|---|
+| `401 Unauthorized` | Missing/invalid authentication credentials | Refresh once if the protocol permits; otherwise clear the session and redirect to sign-in with a validated local return URL |
+| `403 Forbidden` | Identity is known but policy refuses the action | Render an access-denied state; do not loop through sign-in or retry automatically |
+| `404 Not Found` | Resource is absent, or the API intentionally conceals its existence | Render not-found without revealing another tenant's metadata |
+| `200/204` | Server authorized and completed the operation | Update the UI from the returned authoritative result |
+
+The awkward HTTP name `401 Unauthorized` means “lacks valid authentication credentials” in RFC 9110, while `403` means the server understood and refused the request. A client interceptor may centralize session-expiry handling, but it must not turn every `403` into logout or treat a guard decision as permission to retry a forbidden mutation.
+
+### End-to-end trace, including the bypass path
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant R as Angular router
+  participant A as API
+  participant P as Policy + data
+  B->>R: Navigate /orders/42
+  R-->>B: Allow or redirect (UX)
+  B->>A: GET /api/orders/42 + credential
+  A->>P: Authenticate; authorize action + object
+  alt allowed
+    P-->>A: Visible order
+    A-->>B: 200 OrderView
+  else denied
+    P-->>A: Deny
+    A-->>B: 401 / 403 / chosen 404
+  end
+  B->>A: Direct request that skips router
+  A->>P: Run the same authorization
+```
+
+The second API request is the invariant test: skipping the router changes no server outcome.
+
+### Authorization dry run
+
+Assume order `42` belongs to Alice in tenant `north`.
+
+| Caller and request | Guard view | Server facts | Result |
+|---|---|---|---|
+| Signed-out user opens `/orders/42` | Redirect to sign-in | No credential if API is called directly | `401`; no order data |
+| Alice reads `42` | Allow | Subject Alice, tenant north, read action, owner match | `200` with permitted fields |
+| Mallory changes URL from `41` to `42` | May still allow because she is signed in | Subject Mallory, owner mismatch | `403` or policy-consistent `404` |
+| North admin reads `42` | Allow if client claim is current | Verified server authority and tenant match | `200` |
+| South admin reads `42` | Client might display admin UI | Admin role but tenant mismatch | Deny |
+| Alice updates `42` after ownership is transferred | Stale page may remain open | Policy evaluated at mutation time sees new owner | Deny; no stale-client override |
+
+### Tests that prove the boundary
+
+Test the guard for navigation behavior, then test API authorization independently. A guard test alone can never establish backend security.
+
+```typescript
+it('redirects a signed-out user and preserves the attempted URL', async () => {
+  TestBed.configureTestingModule({
+    providers: [
+      provideRouter(routes),
+      {provide: SessionStore, useValue: {isAuthenticated: () => false}},
+    ],
+  });
+  const harness = await RouterTestingHarness.create();
+
+  await harness.navigateByUrl('/orders/42');
+
+  expect(TestBed.inject(Router).url)
+    .toBe('/sign-in?returnUrl=%2Forders%2F42');
+});
+```
+
+```java
+@Test
+@WithMockUser(username = "mallory", authorities = "orders:read")
+void authenticatedUserCannotReadAnotherOwnersOrder() throws Exception {
+    mockMvc.perform(get("/api/orders/42"))
+        .andExpect(status().isForbidden())
+        .andExpect(content().string(""));
+}
+
+@Test
+@WithMockUser(username = "alice", authorities = "orders:read")
+void ownerCanReadOrder() throws Exception {
+    mockMvc.perform(get("/api/orders/42"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(42));
+}
+```
+
+Add an unauthenticated request, cross-tenant admin, read-versus-write distinction, unknown ID, disabled account, expired credential, revoked role, direct API call, alternate controller/message-consumer entry point and concurrent ownership change. Assert denial and absence of sensitive response fields/log leakage, not only a status code. If the product uses concealment, expect the same outward `404` shape and timing policy for missing and unauthorized objects.
+
+### Invariants, costs and boundaries
+
+- **Untrusted-client invariant:** route, button, state, token claims decoded in the browser and hidden DOM are presentation inputs, not authorization evidence.
+- **Every-request invariant:** authenticate and authorize every protected operation, regardless of Angular navigation, HTTP method, alternate client or cached page.
+- **Action-object invariant:** check subject + action + resource + tenant/relationship; “authenticated” and a broad role are often insufficient.
+- **Deny-default invariant:** unmatched endpoints and policy branches deny. Public access is an explicit rule.
+- **Server-identity invariant:** derive the principal from verified credentials. Never accept `ownerId`, tenant or privileged role from a writable request field as truth.
+- **Fresh-decision invariant:** evaluate authorization when the operation occurs. A guard or earlier read cannot authorize a later mutation after roles/ownership change.
+- **Atomic-mutation invariant:** keep the final authorization predicate and state change in one safe transaction/boundary to avoid time-of-check/time-of-use gaps.
+- **Consistent-denial invariant:** choose `403` versus concealed `404`, response body, logging and audit behavior deliberately; do not leak sensitive object existence.
+
+A local boolean guard is O(1). A guard that waits for one session request adds network latency and should share that request rather than duplicate it. Server role/authority membership is approximately O(1) with a set. Object authorization normally costs the indexed lookup needed to find the resource/relationship: typically O(log n) in an index with O(1) returned policy data, though the actual database plan controls cost. Returning an authorized payload of `p` bytes necessarily costs O(p) construction/serialization and output space. A guard does not eliminate these server costs; it only avoids some pointless navigations/requests.
+
+Client guards do not replace CSRF protection, XSS prevention, token validation, secure cookies, rate limits, audit logs or domain invariants. Server authorization also does not decide whether leaving a dirty form is good UX; that remains a `CanDeactivate` concern.
+
+### Common failures and interview checklist
+
+**Common errors:** calling a route “secure” because it has `canActivate`; hiding a button instead of rejecting its API; trusting decoded JWT claims in the browser; checking only authentication; accepting owner/tenant from the request body; global role without object/tenant scope; predictable-ID denial omitted; `CanMatch` treated as bundle secrecy; relying on guard order for async initialization; imperative navigation inside a guard; API rules ending in `permitAll`; missing alternate service entry points; stale authorization cached indefinitely; check-then-update race; retrying forbidden writes; mapping every `403` to logout; inconsistent `403`/`404` leakage; and tests that cover only permitted users.
+
+**Interview variations:** `CanActivate` vs `CanMatch`; guard return types and redirects; parallel async guards; UI permissions vs API permissions; authentication vs authorization; RBAC vs ABAC/ReBAC; horizontal vs vertical privilege escalation; multi-tenant isolation; IDOR/BOLA; field-level authorization; 401 vs 403 vs concealed 404; method security; deny by default; role revocation; TOCTOU; WebSocket/message authorization; SSR; micro-frontends; backend-for-frontend; and how to test direct requests.
+
+**Primary references:** Angular's [route-guard guide](https://angular.dev/guide/routing/route-guards), OWASP's [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html), Spring Security's [request authorization](https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html) and [method security](https://docs.spring.io/spring-security/reference/servlet/authorization/method-security.html), and RFC 9110's [HTTP status semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5). The boundary table, four scenarios, trace, dry run, tests, invariants and cost derivation above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -3940,12 +4190,12 @@ Keep the reusable order card behind a readonly view-model input and semantic `se
 
 Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly.
 
-Place `/orders/:id` behind one public orders feature entry point. Keep order domain rules independent of Angular UI and concrete HTTP code, map DTOs in data access, inject the repository port at route composition, expose workflow state through a route-scoped facade, and prove import rules reject reverse/deep dependencies. Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and prevent synchronous child initialization from rewriting an already-checked parent binding; demonstrate the NG0100 trace and repair the ownership rather than adding a timer. Cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: forbidden import direction, deep import, dependency cycle, malformed DTO, route-provider teardown, lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, unauthorized API access despite a bypassed guard, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, child-after-view parent mutation, impure binding getter, DOM measurement in browser and SSR, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
+Place `/orders/:id` behind one public orders feature entry point. Keep order domain rules independent of Angular UI and concrete HTTP code, map DTOs in data access, inject the repository port at route composition, expose workflow state through a route-scoped facade, and prove import rules reject reverse/deep dependencies. Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. On the server, deny unmatched endpoints, derive identity from verified credentials, enforce broad request rules plus order/tenant ownership near the domain operation, and make mutation authorization atomic with the write. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and prevent synchronous child initialization from rewriting an already-checked parent binding; demonstrate the NG0100 trace and repair the ownership rather than adding a timer. Cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: forbidden import direction, deep import, dependency cycle, malformed DTO, route-provider teardown, lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, direct unauthenticated API call, authenticated other-owner and cross-tenant API calls, role revocation, alternate service entry point and ownership change concurrent with mutation, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, child-after-view parent mutation, impure binding getter, DOM measurement in browser and SSR, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/403/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q54. This pass was bounded to Markdown lines 1176–1187 and DOCX extracted lines 769–779 for Q54; the two sources contained the same context-aware escaping/sanitization model, warned about direct DOM sinks and explicitly stated that `bypassSecurityTrust…` marks a value trusted rather than sanitizing it. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
-- Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest execution, browser screenshot or live server call was executed** during this source-comparison pass.
+- Both **actual Library source texts** were inspected for Q1–Q55. This pass was bounded to Markdown lines 1190–1199 and DOCX extracted lines 780–789 for Q55; the two sources contained the same concise rule that client guards improve UX while the server must authenticate and authorize every protected operation/data access. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest execution, Spring compilation/test, browser screenshot or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-11): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
@@ -3954,8 +4204,9 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular testing material (reviewed 2026-10-11): [testing overview and Vitest setup](https://angular.dev/guide/testing), [component-testing basics](https://angular.dev/guide/testing/components-basics), [component-testing scenarios](https://angular.dev/guide/testing/components-scenarios), [testing utility APIs](https://angular.dev/guide/testing/utility-apis), [component harnesses](https://angular.dev/guide/testing/component-harnesses-overview), and [migrating from Karma to Vitest](https://angular.dev/guide/testing/migrating-to-vitest).
 - Official Angular HTTP-testing material (reviewed 2026-10-11): [testing HTTP requests](https://angular.dev/guide/http/testing), [`provideHttpClientTesting`](https://angular.dev/api/common/http/testing/provideHttpClientTesting), [`HttpTestingController`](https://angular.dev/api/common/http/testing/HttpTestingController), and [`TestRequest`](https://angular.dev/api/common/http/testing/TestRequest).
 - Official XSS-prevention material (reviewed 2026-10-11): Angular's [security guide](https://angular.dev/best-practices/security) and [`DomSanitizer` API](https://angular.dev/api/platform-browser/DomSanitizer), and OWASP's [Cross-Site Scripting Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html).
+- Official authorization-boundary material (reviewed 2026-10-11): Angular's [route-guard guide](https://angular.dev/guide/routing/route-guards), OWASP's [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html), Spring Security's [request authorization](https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html) and [method security](https://docs.spring.io/spring-security/reference/servlet/authorization/method-security.html), and RFC 9110's [401/403 status semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5).
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q55 (route guards versus server authorization) in both sources, starting at Markdown line 1190 and DOCX extracted line 780; resolve the section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q56 (migrating a legacy NgModule + ZoneJS application) in both sources, starting at Markdown line 1202 and DOCX extracted line 790; resolve the section end before reading it and keep extending this one canonical guide.
 
