@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q52)
+# Angular 22 — Interview Foundations (Q1–Q53)
 
-> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q52 (Q52 is lines 1151–1162) with the corresponding `Angular_Interview_Workbook.docx` text (Q52 is extracted lines 751–758). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership and behavior-focused component testing, with diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-11.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q53 (Q53 is lines 1165–1173) with the corresponding `Angular_Interview_Workbook.docx` text (Q53 is extracted lines 762–768). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component testing and deterministic HTTP-backend tests, with diagrams, costs and caveats. It is **not** a claim that an Angular application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -56,6 +56,7 @@
 - [Q50: Large-application structure](#q50)
 - [Q51: Smart vs presentational components](#q51)
 - [Q52: Component testing](#q52)
+- [Q53: HTTP testing](#q53)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -3443,18 +3444,299 @@ Test: required and changed inputs; visible output; semantic output payload; keyb
 
 **Interview variations:** plain class test vs `TestBed`; Vitest vs Angular testing utilities; `fixture.whenStable()` vs controlled timers; host component vs `setInput`; service fake vs HTTP testing controller; shallow vs integrated component test; component harnesses; router testing; Signals and zoneless rendering; accessibility tests; browser mode; flaky-test diagnosis; coverage trade-offs; and testing deferred content.
 
+<a id="q53"></a>
+## Q53. How do you test HTTP code?
+
+**Requirement:** prove the application-to-server contract without opening a socket. Trigger the public service API, let Angular create its real `HttpRequest`, capture that request at the testing backend, assert the URL/method/parameters/body/headers that matter, deliver a controlled success or failure, and assert the service's public result. A component test normally replaces this service instead; repeating URL assertions in every component couples presentation tests to transport details.
+
+Angular's `provideHttpClientTesting()` replaces the normal backend and exposes `HttpTestingController`. When the test also configures client features, put `provideHttpClient(...)` **before** `provideHttpClientTesting()` because the latter overwrites backend-related providers. The production service and interceptor chain still run; only the final network boundary is replaced.
+
+| Contract | Assert at this boundary | Do not confuse it with |
+|---|---|---|
+| Component renders loading/error/ready | Component + fake `OrdersApi` | Whether the request used `GET` |
+| Service builds and maps a request | `HttpTestingController` service test | A live backend integration test |
+| Interceptor adds or withholds metadata | Focused interceptor test with testing backend | Testing every interceptor at once |
+| Client and deployed server agree | Contract/integration test against a controlled server | A deterministic unit test |
+
+### Minimal service under test
+
+The runtime response is `unknown` in the trust model even when `HttpClient` is given a TypeScript generic: the generic is a compile-time assertion, not JSON validation. A production boundary should validate untrusted data before mapping it. This compact example concentrates on the HTTP-test mechanics.
+
+```typescript
+import {Injectable, inject} from '@angular/core';
+import {HttpClient, HttpErrorResponse} from '@angular/common/http';
+import {catchError, map, throwError} from 'rxjs';
+
+type OrderDto = Readonly<{
+  id: string;
+  total_cents: number;
+  status: 'draft' | 'submitted';
+}>;
+type Order = Readonly<{
+  id: string;
+  totalCents: number;
+  status: 'draft' | 'submitted';
+}>;
+type CreateOrder = Readonly<{totalCents: number}>;
+
+export class OrderApiError extends Error {
+  constructor(
+    readonly kind: 'not-found' | 'network' | 'server',
+    readonly status: number,
+  ) {
+    super(`Order request failed: ${kind}`);
+  }
+}
+
+@Injectable()
+export class OrdersApi {
+  private readonly http = inject(HttpClient);
+
+  load(id: string) {
+    return this.http
+      .get<OrderDto>(`/api/orders/${encodeURIComponent(id)}`)
+      .pipe(map(this.toOrder), catchError(error => this.mapError(error)));
+  }
+
+  create(command: CreateOrder, idempotencyKey: string) {
+    return this.http.post<OrderDto>(
+      '/api/orders',
+      {total_cents: command.totalCents},
+      {headers: {'Idempotency-Key': idempotencyKey}},
+    ).pipe(map(this.toOrder), catchError(error => this.mapError(error)));
+  }
+
+  private readonly toOrder = (dto: OrderDto): Order => ({
+    id: dto.id,
+    totalCents: dto.total_cents,
+    status: dto.status,
+  });
+
+  private mapError(error: unknown) {
+    const status = error instanceof HttpErrorResponse ? error.status : -1;
+    const kind = status === 404 ? 'not-found'
+      : status === 0 ? 'network'
+      : 'server';
+    return throwError(() => new OrderApiError(kind, status));
+  }
+}
+```
+
+### Shared test setup — provider order is part of correctness
+
+```typescript
+import {provideHttpClient} from '@angular/common/http';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
+import {TestBed} from '@angular/core/testing';
+import {afterEach, beforeEach} from 'vitest';
+
+let api: OrdersApi;
+let httpTesting: HttpTestingController;
+
+beforeEach(() => {
+  TestBed.configureTestingModule({
+    providers: [
+      provideHttpClient(),          // client features first
+      provideHttpClientTesting(),   // test backend last
+      OrdersApi,
+    ],
+  });
+  api = TestBed.inject(OrdersApi);
+  httpTesting = TestBed.inject(HttpTestingController);
+});
+
+afterEach(() => httpTesting.verify());
+```
+
+`verify()` is the request-leak assertion: every issued request must have been matched and handled. Put it in `afterEach` so a test cannot silently pass after checking only its preferred request. The default also reports an unmatched cancelled request; use `verify({ignoreCancelled: true})` only when cancellation is deliberately verified elsewhere.
+
+### Example 1 — exact GET request and mapped success
+
+```typescript
+import {firstValueFrom} from 'rxjs';
+import {expect, it} from 'vitest';
+
+it('loads an encoded order and maps its DTO', async () => {
+  const result = firstValueFrom(api.load('A/B')); // subscribes: request now exists
+
+  const request = httpTesting.expectOne(
+    {method: 'GET', url: '/api/orders/A%2FB'},
+    'load the selected order',
+  );
+  expect(request.request.body).toBeNull();
+
+  request.flush({id: 'A/B', total_cents: 2599, status: 'submitted'});
+
+  await expect(result).resolves.toEqual({
+    id: 'A/B', totalCents: 2599, status: 'submitted',
+  });
+});
+```
+
+`firstValueFrom` performs the subscription. Without a subscriber, `HttpClient`'s Observable is cold and `expectOne` correctly finds no request. `expectOne` also fails if two requests match, which turns accidental duplicate traffic into a test failure. URL matching uses the full URL including query parameters; for order-insensitive query checks, use a predicate and inspect `request.params` instead of comparing a fragile string.
+
+### Example 2 — mutation body, header and response status
+
+```typescript
+it('creates an order with the exact wire DTO and idempotency key', async () => {
+  const result = firstValueFrom(api.create({totalCents: 5000}, 'create-17'));
+
+  const request = httpTesting.expectOne({method: 'POST', url: '/api/orders'});
+  expect(request.request.body).toEqual({total_cents: 5000});
+  expect(request.request.headers.get('Idempotency-Key')).toBe('create-17');
+
+  request.flush(
+    {id: 'O-17', total_cents: 5000, status: 'draft'},
+    {status: 201, statusText: 'Created'},
+  );
+
+  await expect(result).resolves.toEqual({
+    id: 'O-17', totalCents: 5000, status: 'draft',
+  });
+});
+```
+
+This test protects the application's wire contract and mapping. It does **not** prove that the real server honors the idempotency key or accepts the body—that needs a server contract/integration test. Avoid asserting incidental headers that Angular or a browser may own unless the application contract depends on them.
+
+### Example 3 — distinguish backend and transport failures
+
+An HTTP status failure is still a completed HTTP exchange, so return it with `flush`. A network failure has no meaningful backend status; deliver a `ProgressEvent` through `error`.
+
+```typescript
+it('maps a 404 response to a domain-facing error', async () => {
+  const result = firstValueFrom(api.load('missing'));
+  const request = httpTesting.expectOne('/api/orders/missing');
+
+  request.flush(
+    {message: 'no such order'},
+    {status: 404, statusText: 'Not Found'},
+  );
+
+  await expect(result).rejects.toMatchObject({kind: 'not-found', status: 404});
+});
+
+it('maps a connection failure separately', async () => {
+  const result = firstValueFrom(api.load('O-9'));
+  const request = httpTesting.expectOne('/api/orders/O-9');
+
+  request.error(new ProgressEvent('network error'));
+
+  await expect(result).rejects.toMatchObject({kind: 'network', status: 0});
+});
+```
+
+Do not use the deprecated `ErrorEvent` overload. Add cases for 401/403, 409, 429 and malformed success payloads when the application gives them distinct behavior; otherwise table-drive equivalent server failures instead of duplicating mechanics.
+
+### Example 4 — test an interceptor and its negative case
+
+The highest-value security assertion is often what an interceptor **does not** modify. This focused test proves that an auth header reaches the API origin but is not leaked to an absolute third-party URL.
+
+```typescript
+import {
+  HttpClient,
+  HttpInterceptorFn,
+  provideHttpClient,
+  withInterceptors,
+} from '@angular/common/http';
+import {firstValueFrom} from 'rxjs';
+
+const apiAuthInterceptor: HttpInterceptorFn = (request, next) => {
+  const isOwnedApi = request.url.startsWith('/api/');
+  return next(isOwnedApi ? request.clone({
+    setHeaders: {Authorization: 'Bearer test-token'},
+  }) : request);
+};
+
+it('adds auth only to the owned API origin', async () => {
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({providers: [
+    provideHttpClient(withInterceptors([apiAuthInterceptor])),
+    provideHttpClientTesting(),
+  ]});
+  const client = TestBed.inject(HttpClient);
+  const controller = TestBed.inject(HttpTestingController);
+
+  const owned = firstValueFrom(client.get('/api/orders'));
+  const external = firstValueFrom(client.get('https://metrics.example/pixel'));
+
+  const apiRequest = controller.expectOne('/api/orders');
+  const externalRequest = controller.expectOne('https://metrics.example/pixel');
+  expect(apiRequest.request.headers.get('Authorization')).toBe('Bearer test-token');
+  expect(externalRequest.request.headers.has('Authorization')).toBe(false);
+
+  apiRequest.flush([]);
+  externalRequest.flush({ok: true});
+  await Promise.all([owned, external]);
+  controller.verify();
+});
+```
+
+In a real spec, keep this in a separate `describe` with its own setup rather than resetting a shared module mid-suite. Test one interceptor at a time when its contract can be isolated; retain a small ordered-chain test only when order itself is behavior.
+
+### Request/response trace and ledger
+
+```mermaid
+sequenceDiagram
+  participant T as Test
+  participant S as OrdersApi
+  participant H as HttpClient + interceptors
+  participant B as Test backend
+  participant C as HttpTestingController
+  T->>S: subscribe to load("A/B")
+  S->>H: GET /api/orders/A%2FB
+  H->>B: captured request
+  T->>C: expectOne(method + full URL)
+  C-->>T: TestRequest
+  T->>B: flush(200 DTO)
+  B-->>S: HttpResponse
+  S-->>T: mapped Order
+  T->>C: verify no outstanding requests
+```
+
+| Step | Pending request ledger | Observable state | Failure caught |
+|---:|---|---|---|
+| Before subscription | `[]` | cold, no value | Eager/unintended request assumptions |
+| After `firstValueFrom` | `[GET /api/orders/A%2FB]` | waiting | Wrong URL/method or duplicate request |
+| After `expectOne` | request claimed by test | waiting | Ambiguous matcher |
+| After `flush` | no unhandled response | resolves mapped order | DTO mapping/status handling |
+| After `verify` | `[]` | complete | Any forgotten extra request |
+
+For deliberately concurrent requests, use `match()` and assert the returned count before flushing every request. Once matched, those requests are removed from later matching; the test owns all of them. Use `expectNone()` for a meaningful forbidden action—for example, no POST after invalid input—not as a substitute for `verify()`.
+
+### Invariants, correctness and costs
+
+- **Isolation invariant:** the final backend is fake, so no result depends on DNS, a port, credentials, clock skew or remote data.
+- **Causality invariant:** trigger and subscribe before matching. The request is evidence produced by the action under test, not a fixture invented in advance.
+- **Shape invariant:** assert only contract-significant method, full URL or parameters, body and headers; still include negative security assertions where leakage would matter.
+- **Resolution invariant:** each matched request is deliberately flushed, failed or cancelled, and every returned Promise/Observable assertion is awaited.
+- **Exhaustiveness invariant:** `verify()` leaves no unmatched request. `expectOne` proves cardinality one; `match` transfers responsibility for a set to the test.
+- **Boundary invariant:** a mocked backend proves client construction/mapping, not server routing, authorization, persistence or schema compatibility. Retain narrower component tests and fewer real contract/integration tests.
+
+For `R` pending requests, a controller match must inspect candidate requests until it can determine the matching set; keep each test's ledger small and unambiguous rather than depending on an implementation-specific constant. Constructing/asserting a body of `P` bytes and materializing a response is at least O(P) time and O(P) test-data space. A `match()` result for `K` requests requires O(K) references, and the application mapping cost must be added separately. These tests remove network latency and nondeterminism, but they do not make oversized fixtures free.
+
+### Common failures and interview checklist
+
+**Common errors:** reversing the two provider functions; expecting before subscription; forgetting to flush; forgetting to await the consumer; a string matcher that omits query parameters; matching only by URL when method matters; using `match()` but not handling every returned request; broad predicates that accept the wrong call; treating `HttpClient<T>` as runtime validation; using `error()` for an HTTP 500 instead of `flush(..., {status: 500})`; failing to test status `0`; asserting implementation-owned incidental headers; leaking auth to third-party origins; omitting `verify()`; real HTTP in unit tests; and repeating transport assertions in component tests.
+
+**Interview variations:** `expectOne` vs `match` vs `expectNone`; query-parameter matching; concurrent request order; cancellation and `verify({ignoreCancelled})`; progress events; retry counts; interceptor order; auth refresh recursion; transfer cache; `httpResource`; timeout/error mapping; malformed payload validation; fake service vs HTTP controller; consumer-driven contracts; and when to run a real backend integration test.
+
+**Primary references:** Angular's [HTTP testing guide](https://angular.dev/guide/http/testing), [`HttpTestingController` API](https://angular.dev/api/common/http/testing/HttpTestingController) and [`TestRequest` API](https://angular.dev/api/common/http/testing/TestRequest). The examples, boundary model, ledger, complexity derivation and negative security case above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
 Keep the reusable order card behind a readonly view-model input and semantic `selected` output; let it own only local view state while the page owns navigation, feature state and effects.
 
-Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly.
+Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly.
 
 Place `/orders/:id` behind one public orders feature entry point. Keep order domain rules independent of Angular UI and concrete HTTP code, map DTOs in data access, inject the repository port at route composition, expose workflow state through a route-scoped facade, and prove import rules reject reverse/deep dependencies. Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and prevent synchronous child initialization from rewriting an already-checked parent binding; demonstrate the NG0100 trace and repair the ownership rather than adding a timer. Cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: forbidden import direction, deep import, dependency cycle, malformed DTO, route-provider teardown, lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, unauthorized API access despite a bypassed guard, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, child-after-view parent mutation, impure binding getter, DOM measurement in browser and SSR, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q52. This pass was bounded to Markdown lines 1151–1162 and DOCX extracted lines 751–758 for Q52; the two sources contained the same advice to test rendered behavior, interaction, input/output contracts, state transitions and dependency integration without coupling to private choreography. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q53. This pass was bounded to Markdown lines 1165–1173 and DOCX extracted lines 762–768 for Q53; the two sources contained the same advice to replace the backend, assert outgoing URL/method/body/headers and control success/error mapping rather than opening a real network connection. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest execution, browser screenshot or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
@@ -3462,8 +3744,9 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular lifecycle-stability material (reviewed 2026-10-11): [NG0100 error encyclopedia](https://angular.dev/errors/NG0100), [component lifecycle](https://angular.dev/guide/components/lifecycle), and [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular application-structure and component-contract material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [signals](https://angular.dev/guide/signals), [services and DI](https://angular.dev/guide/di/creating-and-using-services), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
 - Official Angular testing material (reviewed 2026-10-11): [testing overview and Vitest setup](https://angular.dev/guide/testing), [component-testing basics](https://angular.dev/guide/testing/components-basics), [component-testing scenarios](https://angular.dev/guide/testing/components-scenarios), [testing utility APIs](https://angular.dev/guide/testing/utility-apis), [component harnesses](https://angular.dev/guide/testing/component-harnesses-overview), and [migrating from Karma to Vitest](https://angular.dev/guide/testing/migrating-to-vitest).
+- Official Angular HTTP-testing material (reviewed 2026-10-11): [testing HTTP requests](https://angular.dev/guide/http/testing), [`provideHttpClientTesting`](https://angular.dev/api/common/http/testing/provideHttpClientTesting), [`HttpTestingController`](https://angular.dev/api/common/http/testing/HttpTestingController), and [`TestRequest`](https://angular.dev/api/common/http/testing/TestRequest).
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q53 (testing HTTP code) in both sources, starting at Markdown line 1165 and DOCX extracted line 762; resolve the section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q54 (Angular XSS prevention) in both sources, starting at Markdown line 1175 and DOCX extracted line 769; resolve the section end before reading it and keep extending this one canonical guide.
 
