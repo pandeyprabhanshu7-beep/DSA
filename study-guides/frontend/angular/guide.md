@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q62)
+# Angular 22 — Interview Foundations (Q1–Q63)
 
-> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q62 (Q62 is lines 1298–1316) with the corresponding `Angular_Interview_Workbook.docx` text (Q62 is extracted lines 863–876). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, and the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q63 (Q63 is lines 1317–1332) with the corresponding `Angular_Interview_Workbook.docx` text (Q63 is extracted lines 877–890). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—and explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -66,6 +66,7 @@
 - [Q60: prevent stale route-detail results](#q60)
 - [Q61: diagnose a slow 5,000-row table](#q61)
 - [Q62: Angular 22 change-detection defaults](#q62)
+- [Q63: toSignal vs toObservable](#q63)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -5807,6 +5808,248 @@ For `V` attached views and `B` evaluated bindings, a full reachable check is O(V
 
 **Primary references:** Angular's [`ChangeDetectionStrategy` API](https://angular.dev/api/core/ChangeDetectionStrategy), [component metadata API](https://angular.dev/api/core/Component), [skipping-subtrees guide](https://angular.dev/best-practices/skipping-subtrees), [zoneless notification guide](https://angular.dev/guide/zoneless), and [v22 OnPush-by-default RFC](https://github.com/angular/angular/discussions/69633), plus the current [JIT default issue #70262](https://github.com/angular/angular/issues/70262), [fix PR #69898](https://github.com/angular/angular/pull/69898), and [pre-v22 partial-library JIT issue #71107](https://github.com/angular/angular/issues/71107). The version matrix, four examples, migration sequence, trace, dry run, tests, invariants and cost derivation above are added teaching material.
 
+<a id="q63"></a>
+## Q63. When should you use `toSignal` versus `toObservable`?
+
+**Requirement:** put the adapter at a stable ownership boundary and keep each side in its natural model:
+
+- Use **`toSignal(observable$)`** when an RxJS producer already exists but Angular code needs a synchronously readable latest value for a template, `computed` or another signal consumer.
+- Use **`toObservable(signal)`** when signal-owned state must enter an RxJS pipeline whose operators express time, cancellation, concurrency or multi-stream coordination.
+- Create either adapter once per owner—normally as a field during component/service construction—and reuse the result. Do not convert back and forth at every method or template read.
+
+The two functions are bridges, not equivalent casts. `toSignal` subscribes immediately and stores the source's newest notification. `toObservable` creates one effect that reads the signal and forwards stabilized values through a `ReplaySubject(1)`. This timing difference decides whether every intermediate transition is observable.
+
+### Decision table
+
+| Need | Boundary | Critical contract |
+|---|---|---|
+| Render an existing service/route Observable | `Observable<T> -> toSignal -> Signal<T | initial>` | One eager subscription; choose initial-value and teardown policy |
+| Debounce/cancel a signal query | `Signal<string> -> toObservable -> RxJS operators` | Effect-based, stabilized emissions; rapid writes may coalesce |
+| Synchronously seeded RxJS state | `BehaviorSubject<T> -> toSignal(..., {requireSync: true})` | Throws during adapter creation if no synchronous first emission occurs |
+| Template only consumes one Observable | `Observable<T> -> AsyncPipe` | Template owns subscription; an imperative signal bridge may be unnecessary |
+| Pure synchronous derivation | `Signal<T> -> computed` | No RxJS adapter needed |
+| Every domain layer converts both directions | Redesign ownership | Adapter ping-pong obscures lifetime, timing, errors and request cardinality |
+
+### Example 1 — adapt one service Observable once
+
+```typescript
+import {Component, computed, inject, Injectable} from '@angular/core';
+import {toSignal} from '@angular/core/rxjs-interop';
+import {BehaviorSubject, distinctUntilChanged} from 'rxjs';
+
+type Session = Readonly<{userId: string; displayName: string}> | null;
+
+@Injectable({providedIn: 'root'})
+class SessionService {
+  private readonly writableSession = new BehaviorSubject<Session>(null);
+  readonly session$ = this.writableSession.asObservable();
+}
+
+@Component({
+  selector: 'app-user-badge',
+  template: `
+    @if (session()) {
+      <span>{{ greeting() }}</span>
+    } @else {
+      <a href="/login">Sign in</a>
+    }
+  `,
+})
+export class UserBadge {
+  private readonly sessions = inject(SessionService);
+
+  // Stable field: exactly one subscription for this component instance.
+  readonly session = toSignal(
+    this.sessions.session$.pipe(
+      distinctUntilChanged((a, b) => a?.userId === b?.userId),
+    ),
+    {initialValue: null},
+  );
+
+  readonly greeting = computed(
+    () => `Hello, ${this.session()?.displayName ?? 'guest'}`,
+  );
+}
+```
+
+`toSignal` subscribes as soon as the field is initialized—even if no template reads `session`. That is useful when the component owns the subscription, but it can trigger a cold HTTP source immediately. Calling `toSignal(this.sessions.session$)` from a getter, `computed`, event handler or template-facing method would create subscriptions repeatedly. Keep the returned signal and read it many times.
+
+By default Angular gets a `DestroyRef` from the creation injector and unsubscribes when that context is destroyed. `manualCleanup: true` deliberately disables that teardown and should be reserved for a source that owns and guarantees its own completion; it is not a general leak workaround.
+
+### Example 2 — move a signal query into a cancellable RxJS pipeline
+
+```typescript
+import {Component, inject, signal} from '@angular/core';
+import {toObservable, toSignal} from '@angular/core/rxjs-interop';
+import {HttpClient} from '@angular/common/http';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  map,
+  of,
+  startWith,
+  switchMap,
+} from 'rxjs';
+
+type Result = Readonly<{id: string; label: string}>;
+type SearchState =
+  | {kind: 'idle'}
+  | {kind: 'loading'; query: string}
+  | {kind: 'ready'; query: string; results: readonly Result[]}
+  | {kind: 'error'; query: string};
+
+@Component({selector: 'app-search', templateUrl: './search.html'})
+export class SearchPage {
+  private readonly http = inject(HttpClient);
+  readonly query = signal('');
+
+  private readonly query$ = toObservable(this.query);
+  private readonly state$ = this.query$.pipe(
+    map(value => value.trim()),
+    debounceTime(200),
+    distinctUntilChanged(),
+    switchMap(query => query === ''
+      ? of<SearchState>({kind: 'idle'})
+      : this.http.get<readonly Result[]>('/api/search', {params: {q: query}}).pipe(
+          map(results => ({kind: 'ready', query, results}) as SearchState),
+          startWith({kind: 'loading', query} as SearchState),
+          catchError(() => of<SearchState>({kind: 'error', query})),
+        )),
+  );
+
+  readonly state = toSignal(this.state$, {
+    initialValue: {kind: 'idle'} as SearchState,
+  });
+}
+```
+
+This is a legitimate round trip because each model owns a different part of the workflow: the input and template are signal-native; RxJS owns debounce and latest-request cancellation; one final signal exposes the UI state. The fields are stable, so the component has one `toObservable` effect and one `toSignal` subscription—not a new pair for each keystroke.
+
+Do not infer that every `query.set` becomes an RxJS event. `toObservable`'s effect runs asynchronously after signal stabilization. If code writes `'a'`, `'an'` and `'ang'` before the effect runs, the Observable can emit only `'ang'`. That is right for state. If every key event, audit record or transaction must be preserved, model those events as an Observable at their source rather than using a signal as a lossless event bus.
+
+### Example 3 — make the initial-value contract explicit
+
+```typescript
+import {Injectable} from '@angular/core';
+import {toSignal} from '@angular/core/rxjs-interop';
+import {BehaviorSubject, timer} from 'rxjs';
+
+@Injectable()
+export class ClockState {
+  private readonly theme$ = new BehaviorSubject<'light' | 'dark'>('light');
+
+  // Signal<'light' | 'dark'>: BehaviorSubject emits synchronously on subscribe.
+  readonly theme = toSignal(this.theme$, {requireSync: true});
+
+  // Signal<number>: timer is asynchronous, so provide a domain-valid initial value.
+  readonly seconds = toSignal(timer(0, 1000), {initialValue: 0});
+
+  // Without initialValue, the type and first read are number | undefined.
+  readonly maybeSeconds = toSignal(timer(0, 1000));
+}
+```
+
+`requireSync: true` is an executable assertion, not a performance option. It removes `undefined` from the type because construction fails if the source does not emit synchronously. Do not use it for HTTP, timers, delayed streams or a shared stream whose replay/reset policy does not guarantee a synchronous value.
+
+An Observable error is stored and thrown when the returned signal is read. Completion has no signal equivalent: after completion, the signal keeps the last value. Convert expected remote failures into explicit domain state in the RxJS pipeline if the template needs a recoverable error view.
+
+### Example 4 — equality suppresses equal state, not source work
+
+```typescript
+import {inject, Injectable} from '@angular/core';
+import {toSignal} from '@angular/core/rxjs-interop';
+import {map, Observable} from 'rxjs';
+
+type Temperature = Readonly<{celsius: number; sensorSequence: number}>;
+type SensorReading = Readonly<{celsius: number; sequence: number}>;
+
+abstract class SensorService {
+  abstract readonly readings$: Observable<SensorReading>;
+}
+
+@Injectable()
+export class TemperatureAdapter {
+  private readonly sensor = inject(SensorService);
+
+  readonly temperature = toSignal<Temperature>(
+    this.sensor.readings$.pipe(
+      map(reading => ({
+        celsius: Math.round(reading.celsius * 10) / 10,
+        sensorSequence: reading.sequence,
+      })),
+    ),
+    {
+      initialValue: {celsius: 0, sensorSequence: 0},
+      equal: (previous, current) => previous.celsius === current.celsius,
+    },
+  );
+}
+```
+
+The `equal` function can prevent dependent computations and views from rerunning when the projected state is semantically unchanged. It does not stop the Observable subscription, upstream I/O, mapping or the comparison itself. It also intentionally hides `sensorSequence` changes from signal consumers in this example; equality must match the consumer's full semantic contract.
+
+### Internal topology and lifetime
+
+```mermaid
+flowchart TB
+  O["Observable producer"] -->|"subscribe now"| TS["toSignal state cell"]
+  TS --> S["Signal / computed / template"]
+  G["Writable or computed signal"] -->|"effect after stabilization"| TO["toObservable ReplaySubject(1)"]
+  TO --> R["RxJS pipeline + subscribers"]
+  D["Owner DestroyRef"] -->|"unsubscribe"| TS
+  D -->|"destroy effect + complete subject"| TO
+```
+
+One `toSignal` call creates one source subscription. If the source is cold, that call creates one producer execution. One `toObservable` call creates one effect and one replay subject; subscribers to that returned Observable share that adapter, though downstream operators may still be cold per subscriber. Both functions normally require an injection context; when construction happens elsewhere, pass an explicit `Injector` rather than inventing a global lifetime.
+
+### Stabilization dry run
+
+Assume `query` starts as `''`, the adapter effect has produced that value, and a subscriber exists:
+
+| Step | Action | Adapter state | Observable consequence |
+|---:|---|---|---|
+| 1 | Subscriber attaches | Replay buffer contains `''` | It may receive `''` synchronously |
+| 2 | Same task calls `set('a')` | Signal is `'a'`; effect is scheduled | No guaranteed synchronous emission |
+| 3 | Same task calls `set('an')`, then `set('ang')` | Final stabilized value is `'ang'` | Intermediate state writes may coalesce |
+| 4 | Effect runs | It reads `'ang'` once | Subject emits `'ang'` to current subscribers |
+| 5 | Pipeline's 200 ms debounce expires | Query is still `'ang'` | `switchMap` starts only the `ang` request |
+| 6 | Owner injector is destroyed | Effect is destroyed; subject completes | Adapter stops producing values |
+
+The first replayed value may be synchronous when already available; later signal changes are effect-driven and asynchronous. Tests should wait for Angular stabilization rather than asserting immediately after `set`.
+
+### Boundary-focused tests
+
+| Test | Action | Required assertion |
+|---|---|---|
+| One bridge, one subscription | Wrap a cold Observable that increments a subscribe/finalize ledger; read the returned signal many times | Exactly one subscribe; reads do not resubscribe; owner destruction records one finalize |
+| Initial-value modes | Adapt a delayed source with no option, with `initialValue`, and with `requireSync: true` | First reads are `undefined`, the chosen initial value, and a construction-time failure respectively |
+| Stabilized signal state | Subscribe to one `toObservable`, perform three same-turn `set` calls, then await Angular stability | The last value is emitted; the test does not require every intermediate write |
+| Error and completion | Make the source error; separately make it emit then complete | Reading the errored signal throws; the completed source leaves the last value readable |
+| Adapter lifetime | Create the bridge in a route/component injector, subscribe, then destroy that fixture/injector | `toSignal` unsubscribes; `toObservable` completes and emits no later values |
+| Equality boundary | Emit two objects equal under the configured semantic comparator while counting upstream mapping | Dependent signal work is suppressed, but both upstream emissions/mappings still occurred |
+
+For HTTP-backed examples, add an `HttpTestingController.expectOne` assertion so the bridge topology cannot silently multiply requests. For `toObservable`, prefer `await fixture.whenStable()` (or the matching scheduler primitive in the pinned test stack) over timers guessed from implementation details.
+
+### Correctness, costs and failure boundaries
+
+- **Direction invariant:** choose the adapter from the consumer's need, not from a preference to make the whole application use one reactive type.
+- **Identity invariant:** construct once and reuse. A `toSignal` call inside a reactive context would create side-effecting subscriptions as that context reruns and is rejected in Angular development mode.
+- **Current-state invariant:** signals have a value now. Supply `initialValue`, accept `undefined`, or prove `requireSync`; do not lie to the type system.
+- **Timing invariant:** `toObservable` communicates stabilized state, not every mutation event. Multiple writes before its effect runs may collapse to the last value.
+- **Lifetime invariant:** the injector that creates the adapter owns it. A root-provided service creates a root-length bridge; a route/component provider creates a shorter-lived bridge.
+- **Error invariant:** `toSignal` throws a source error on read; `toObservable` forwards a throwing signal as an Observable error. Map recoverable failures before they cross the UI boundary.
+- **Completion invariant:** `toSignal` retains the last value when its source completes; `toObservable` completes when its owner is destroyed.
+- **Equality invariant:** custom equality suppresses downstream signal invalidation only; it neither deduplicates upstream side effects nor changes Observable delivery.
+
+For `n` source emissions, `toSignal` performs O(n) state updates/comparisons and holds O(1) latest-value adapter state, excluding the value's own size. With `d` dependent signal consumers, invalidation/evaluation work is proportional to the affected dependency graph and output construction remains proportional to changed DOM/data. For `w` stabilized signal values and `s` current Observable subscribers, the replay subject dispatches O(ws) notifications and stores one latest value, O(1) adapter slots. Debounce and `switchMap` may reduce downstream requests, but do not make upstream signal writes or adapter effects free. Calling either bridge `k` times multiplies subscriptions/effects and retained latest-value slots by O(k).
+
+**Common errors:** calling `toSignal` from a getter, `computed`, loop or frequently invoked method; assuming it is lazy; using `requireSync` with HTTP; forgetting the `undefined` initial state; choosing `manualCleanup` without guaranteed source completion; expecting completion to clear a signal; expecting every signal write to appear in `toObservable`; asserting synchronously after `set`; treating a signal as an event log; converting both directions in every layer; using `equal` to hide fields consumers actually need; passing a root injector for component-local work; ignoring error-on-read; adding `shareReplay` without defining reset/cache ownership; and assuming a bridge cancels or retries work without an explicit RxJS operator.
+
+**Interview variations:** `toSignal` versus `AsyncPipe`; `toObservable` versus a Subject; initial value versus `requireSync`; `BehaviorSubject` versus writable signal; cold HTTP source; repeated bridge creation; injection context versus explicit injector; component versus root lifetime; `manualCleanup`; source error and completion; custom equality; stabilized writes; debounced search; cancellation; multiple subscribers; SSR ownership; testing with `whenStable`; and when `rxResource` expresses the boundary better.
+
+**Primary references:** Angular's [RxJS interop guide](https://angular.dev/ecosystem/rxjs-interop), [`toSignal` API](https://angular.dev/api/core/rxjs-interop/toSignal), [`ToSignalOptions`](https://angular.dev/api/core/rxjs-interop/ToSignalOptions), [`toObservable` API](https://angular.dev/api/core/rxjs-interop/toObservable), and [`ToObservableOptions`](https://angular.dev/api/core/rxjs-interop/ToObservableOptions), plus the Angular repository's [`to_signal.ts`](https://github.com/angular/angular/blob/main/packages/core/rxjs-interop/src/to_signal.ts) and [`to_observable.ts`](https://github.com/angular/angular/blob/main/packages/core/rxjs-interop/src/to_observable.ts). The decision table, four examples, topology, dry run, invariants, tests and cost derivation above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -5814,13 +6057,13 @@ Keep the reusable order card behind a readonly view-model input and semantic `se
 
 Plan the legacy application's modernization as deployable checkpoints: capture a clean behavioral/performance baseline; use the Update Guide and supported toolchain matrix for one major-version step at a time; convert the leaf order card to standalone while its NgModule consumer remains valid; migrate the lazy orders route; then replace root bootstrap while preserving provider scopes, initializers, interceptor order and ZoneJS scheduling explicitly. Audit every template-visible timer, SDK, socket, form and SSR update for a real Angular notification, prove it in zoneless tests and a measured canary, and only then remove ZoneJS polyfills/dependency. Keep state-management and design-system rewrites outside these checkpoints, assign every `importProvidersFrom` bridge an owner/removal gate, and demonstrate the rollback after each phase. For the search page, draw the subscriber graph before adding an operator: bind a cold request once when one view owns it, expose a stable field rather than a template getter, flatten route/query changes with `switchMap`, and share only one explicitly identified query generation across overlapping consumers. Separate refresh from bounded retry, key/invalidate retained data by user and query, and prove request cardinality with `expectOne`/`match` rather than trusting the Network panel alone.
 
-Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly.
+Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly. Put each RxJS/signal bridge at one stable owner: adapt an existing stream once with `toSignal`, move signal state into RxJS once when debounce/cancellation is required, and test stabilized rather than imaginary per-write emissions.
 
 Place `/orders/:id` behind one public orders feature entry point. Keep order domain rules independent of Angular UI and concrete HTTP code, map DTOs in data access, inject the repository port at route composition, expose workflow state through a route-scoped facade, and prove import rules reject reverse/deep dependencies. Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. On the server, deny unmatched endpoints, derive identity from verified credentials, enforce broad request rules plus order/tenant ownership near the domain operation, and make mutation authorization atomic with the write. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and prevent synchronous child initialization from rewriting an already-checked parent binding; demonstrate the NG0100 trace and repair the ownership rather than adding a timer. Cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: forbidden import direction, deep import, dependency cycle, malformed DTO, route-provider teardown, lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, direct unauthenticated API call, authenticated other-owner and cross-tenant API calls, role revocation, alternate service entry point and ownership change concurrent with mutation, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, child-after-view parent mutation, impure binding getter, DOM measurement in browser and SSR, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/403/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q62. This pass was bounded to Markdown lines 1298–1316 and DOCX extracted lines 863–876 for Q62; both sources identify OnPush as the Angular 22 default, Eager as the opt-out and deprecated Default as the compatibility alias. This edition adds the preservation-migration distinction, notification contract, four examples, JIT/AOT caveats, trace, dry run and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q63. This pass was bounded to Markdown lines 1317–1332 and DOCX extracted lines 877–890 for Q63; both sources select `toSignal` for Observable-to-signal state and `toObservable` for signal-to-RxJS composition, and warn against repeated bridge creation or indiscriminate conversion. This edition adds exact initial-value, timing, error, completion, equality and injector-lifetime contracts; four examples; a topology; a stabilization trace; and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official docs and current Angular repository reports. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest/JIT execution, router/browser execution, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
@@ -5835,10 +6078,11 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular migration material (reviewed 2026-10-12): [keeping projects up to date](https://angular.dev/update), [Update Guide](https://angular.dev/update-guide), [`ng update`](https://angular.dev/cli/update), [version compatibility](https://angular.dev/reference/versions), [standalone migration](https://angular.dev/reference/migrations/standalone), [`bootstrapApplication`](https://angular.dev/api/platform-browser/bootstrapApplication), [`provideZonelessChangeDetection`](https://angular.dev/api/core/provideZonelessChangeDetection), [zoneless guide](https://angular.dev/guide/zoneless), and [testing overview](https://angular.dev/guide/testing).
 - Official Angular/RxJS request-cardinality material (reviewed 2026-10-12): Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), and [HTTP testing](https://angular.dev/guide/http/testing); RxJS [`shareReplay`](https://rxjs.dev/api/index/function/shareReplay), [`share`](https://rxjs.dev/api/operators/share), [`retry`](https://rxjs.dev/api/operators/retry), and [Observable guide](https://rxjs.dev/guide/observable). Sharing/reset behavior is package-version-sensitive; the concrete examples use the RxJS 7 configuration shape compatible with the guide's Angular baseline.
 - Official Angular zoneless-integration material (reviewed 2026-10-12): [zoneless compatibility and notifications](https://angular.dev/guide/zoneless), [signals](https://angular.dev/guide/signals), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`ComponentRef`](https://angular.dev/api/core/ComponentRef), [`toSignal`](https://angular.dev/api/core/rxjs-interop/toSignal), [`DestroyRef`](https://angular.dev/api/core/DestroyRef), and [`PendingTasks`](https://angular.dev/api/core/PendingTasks).
+- Official Angular RxJS/signal interop material (reviewed 2026-10-13): [RxJS interop guide](https://angular.dev/ecosystem/rxjs-interop), [`toSignal`](https://angular.dev/api/core/rxjs-interop/toSignal), [`ToSignalOptions`](https://angular.dev/api/core/rxjs-interop/ToSignalOptions), [`toObservable`](https://angular.dev/api/core/rxjs-interop/toObservable), and [`ToObservableOptions`](https://angular.dev/api/core/rxjs-interop/ToObservableOptions), plus the current Angular [`to_signal.ts`](https://github.com/angular/angular/blob/main/packages/core/rxjs-interop/src/to_signal.ts) and [`to_observable.ts`](https://github.com/angular/angular/blob/main/packages/core/rxjs-interop/src/to_observable.ts) implementations. Adapter semantics are tied to the pinned Angular version; this pass verified v22.2.2 documentation.
 - Official RxJS/payment-concurrency material (reviewed 2026-10-12): RxJS [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), and [`retry`](https://rxjs.dev/api/operators/retry); Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests) and [HTTP testing](https://angular.dev/guide/http/testing); Stripe's [idempotent requests](https://docs.stripe.com/api/idempotent_requests); and RFC 9110 [§9.2.2, Idempotent Methods](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2). Stripe is an example of a provider contract, not a claim that every payment API has identical retention or replay semantics.
 - Official Angular/RxJS stale-route material (reviewed 2026-10-12): Angular's [route-state guide](https://angular.dev/guide/routing/read-route-state), [`ActivatedRoute`](https://angular.dev/api/router/ActivatedRoute), [making HTTP requests](https://angular.dev/guide/http/making-requests), and [HTTP testing](https://angular.dev/guide/http/testing), plus RxJS [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`distinctUntilChanged`](https://rxjs.dev/api/operators/distinctUntilChanged), and [`catchError`](https://rxjs.dev/api/operators/catchError). Angular documents that route snapshots are static and that unsubscribing an `HttpClient` observable aborts the in-progress client request; the guide does not infer that this necessarily halts already-started origin work.
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q63 (a scalable Angular folder structure) in both sources, starting at Markdown anchor line 1317 / heading line 1319 and DOCX extracted heading line 877; resolve the section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q64 (`afterNextRender`) in both sources, starting at Markdown anchor line 1333 / heading line 1335 and DOCX extracted line 891; resolve the section end before reading it and keep extending this one canonical guide.
 

@@ -220,7 +220,7 @@
       "size_bytes": 74372,
       "status": "READY",
       "last_read_at": "2026-10-13",
-      "selection": "Q1–Q62 content read and compared; Q63 onward remains unpromoted"
+      "selection": "Q1–Q63 content read and compared; Q64 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
@@ -342,7 +342,7 @@
       "size_bytes": 62355,
       "status": "READY",
       "last_read_at": "2026-10-13",
-      "selection": "Q1–Q62 content read and compared; Q63 onward remains unpromoted"
+      "selection": "Q1–Q63 content read and compared; Q64 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Workbook.docx",
@@ -642,8 +642,8 @@
         "Angular_Interview_Mermaid_Workbook.md",
         "Angular_Interview_Workbook.docx"
       ],
-      "last_processed_at": "2026-10-13T01:54:33-04:00",
-      "next_action": "Continue with bounded Angular Q63 on a scalable Angular folder structure; the source begins at Markdown anchor line 1317 / heading line 1319 and DOCX extracted heading line 877. Resolve the bounded section end before reading, compare it with the richer Q50 architecture material, and merge only distinct teaching value into the canonical guide.",
+      "last_processed_at": "2026-10-13T02:15:45-04:00",
+      "next_action": "Continue with bounded Angular Q64 on afterNextRender; the source begins at Markdown anchor line 1333 / heading line 1335 and DOCX extracted line 891. Resolve the bounded section end before reading, compare it with existing lifecycle/rendering coverage, and merge only distinct teaching value into the canonical guide.",
       "priority": 15,
       "processed_sections": [
         "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)",
@@ -671,16 +671,17 @@
         "Payment submission concurrency: Q59 (exhaustMap admission policy, stable retry key, atomic server idempotency, provider reconciliation and request-cardinality tests)",
         "Stale route-detail prevention: Q60 (route-key ownership, switchMap cancellation, explicit loading replacement, resolver trade-off and A-to-B race test)",
         "5,000-row table performance: Q61 (cost-owner evidence matrix, server paging versus virtualization decisions, stable row identity, profiling trace, correctness/accessibility gates and derived budgets)",
-        "Angular 22 change-detection default: Q62 (OnPush omission semantics, Eager/Default compatibility, preservation migration, notification trace, JIT/AOT caveats and derived costs)"
+        "Angular 22 change-detection default: Q62 (OnPush omission semantics, Eager/Default compatibility, preservation migration, notification trace, JIT/AOT caveats and derived costs)",
+        "RxJS and signal interop: Q63 (toSignal/toObservable direction, initial-value and stabilization timing, injector lifetime, errors/completion, equality, topology and derived costs)"
       ],
       "source_revision": {
         "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
-        "source_markdown_lines": "1298-1316 for Q62; earlier Q1-Q61 retained",
-        "source_docx": "Angular_Interview_Workbook.docx extracted lines 863-876 for Q62",
+        "source_markdown_lines": "1317-1332 for Q63; earlier Q1-Q62 retained",
+        "source_docx": "Angular_Interview_Workbook.docx extracted lines 877-890 for Q63",
         "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-13",
-        "baseline_main_head": "cbe6ccec3ca6022266ca69a4f33b352c87249adb"
+        "baseline_main_head": "a28e155de3765f70a4bbb8ac5d5fba7ec3359fc8"
       },
-      "validation": "Q62 adds a version matrix, four examples, preservation-migration sequence, notification trace, dry run, JIT/AOT caveats, invariants and derived costs without duplicating Q20-Q22; deterministic builder and exact 376886-character HTML embedded-Markdown equality passed with 63 unique anchors, 174 balanced fenced blocks and 42 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript/Vitest/JIT execution and browser visual QA were not executed because those runtimes are absent.",
+      "validation": "Q63 compared both source texts and adds the toSignal/toObservable direction contract, four examples, initial-value/stabilization/error/completion/equality/lifetime rules, topology, dry run and derived costs; deterministic builder and exact 394641-character HTML embedded-Markdown equality passed with 64 unique anchors, 179 balanced fenced blocks and 43 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed. Angular/TypeScript/Vitest execution and browser visual QA were not executed because the Angular runtime is absent.",
       "last_successful_commit": "6ee6735c5472656f7cd43c704cf3ec571960136e"
     },
     {
@@ -814,7 +815,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q62 are processed. Continue with bounded Angular Q63 on scalable folder structure, starting at Markdown anchor line 1317 / heading line 1319 and DOCX extracted heading line 877; resolve the section end before reading and compare against canonical Q50 before merging.",
+    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q63 are processed. Continue with bounded Angular Q64 on afterNextRender, starting at Markdown anchor line 1333 / heading line 1335 and DOCX extracted line 891; resolve the section end before reading and compare against existing lifecycle/rendering coverage before merging.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -860,11 +861,11 @@
       "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)"
     ],
     "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
-    "validation": "Angular Q62 was compared in both actual source texts and enriched with a version matrix, four examples, preservation-migration sequence, notification trace, dry run, JIT/AOT caveats, invariants and derived costs without duplicating Q20-Q22; deterministic reader generation, exact 376886-character payload equality, 63 anchors, 174 balanced fences, 42 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript/Vitest/JIT execution and browser visual QA were not executed because those runtimes are absent.",
-    "estimated_next_tokens": 7500,
-    "estimate_method": "Heuristic only: bounded Q63 begins at Markdown anchor line 1317 / heading line 1319 and DOCX extracted heading line 877; reserve ~450 tokens for paired source intake/range resolution, ~1200 for current primary architecture research, ~3900 for comparison plus distinct teaching/code/diagram/HTML, and ~1950 for validation/checkpoint. This is not account-quota telemetry.",
+    "validation": "Angular Q63 was compared in both actual source texts and enriched with the toSignal/toObservable direction contract, four examples, initial-value/stabilization/error/completion/equality/lifetime rules, topology, dry run and derived costs; deterministic reader generation, exact 394641-character payload equality, 64 anchors, 179 balanced fences, 43 Mermaid diagrams, inline JavaScript, JSON, relative links, local README source hash, selected-file diff and live 170-marker audit passed. Angular/TypeScript/Vitest execution and browser visual QA were not executed because the Angular runtime is absent.",
+    "estimated_next_tokens": 7000,
+    "estimate_method": "Heuristic only: bounded Q64 begins at Markdown anchor line 1333 / heading line 1335 and DOCX extracted line 891; reserve ~450 tokens for paired source intake/range resolution, ~1200 for current primary lifecycle research, ~3400 for distinct teaching/code/diagram/HTML, and ~1950 for validation/checkpoint. This is not account-quota telemetry.",
     "last_successful_commit": "6ee6735c5472656f7cd43c704cf3ec571960136e",
-    "last_processed_at": "2026-10-13T01:54:33-04:00",
-    "next_batch_decision": "Q62 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q63 and retain the conservative one-section checkpoint."
+    "last_processed_at": "2026-10-13T02:15:45-04:00",
+    "next_batch_decision": "Q63 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q64 and retain the conservative one-section checkpoint."
   }
 }

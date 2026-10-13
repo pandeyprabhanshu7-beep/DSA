@@ -49,7 +49,7 @@ See [intake manifest](INTAKE_MANIFEST.json) for source hashes, statuses and exac
 
 ## Continue next
 
-Rotate to the accessible unpromoted Angular Markdown/DOCX pair. Resolve both sources, then read and compare only section 1, Modern Angular 22 Interview Baseline (Markdown lines 155–284), before creating the first canonical frontend section. Estimated next-batch budget: approximately 18,000 tokens. The estimate uses 4,996 Markdown characters / 4 (about 1,249 source tokens because a tokenizer is unavailable), plus heuristic reserves of 3,500 for paired-source comparison/current research, 10,000 for teaching/code/diagram/HTML, and 3,000 for validation/checkpoint work, rounded conservatively. It is not account-quota telemetry.
+Angular Q1–Q63 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded Q64 on `afterNextRender`, beginning at Markdown anchor line 1333 / heading line 1335 and DOCX extracted line 891; resolve its end before reading and compare against existing lifecycle/rendering coverage. Estimated next-batch budget: approximately 7,000 tokens. This heuristic reserves about 450 tokens for bounded paired-source intake, 1,200 for current primary lifecycle research, 3,400 for distinct teaching/code/diagram/HTML, and 1,950 for validation/checkpoint work. It is not account-quota telemetry.
 
 ## Maintain readers
 
