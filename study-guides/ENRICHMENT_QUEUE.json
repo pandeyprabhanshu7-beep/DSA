@@ -683,7 +683,7 @@
         "baseline_main_head": "4d8c8e211cbf6fbe2ea4696d1de298abe2471c14"
       },
       "validation": "Q64 compared both source texts and adds afterNextRender/afterEveryRender selection, four examples, exact phase order and typed handoff, default and early cleanup, global batching trace, SSR/hydration/paint boundaries, test matrix and derived costs; deterministic builder and exact 409528-character HTML embedded-Markdown equality passed with 65 unique anchors, 184 balanced fenced blocks and 44 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed. Angular/TypeScript/Vitest execution, controlled-browser geometry/paint testing, hydration and SSR execution were not performed because the project runtime is absent.",
-      "last_successful_commit": "6ccc2d7d63b983ccefbd5c392fc892ac4dceb074"
+      "last_successful_commit": "5cb3faadf486dec67b77bebcda709aff6f02942e"
     },
     {
       "id": "javascript-html-css",
@@ -865,7 +865,7 @@
     "validation": "Angular Q64 was compared in both actual source texts and enriched with afterNextRender/afterEveryRender selection, four examples, exact phase order and typed handoff, default and early cleanup, global batching trace, SSR/hydration/paint boundaries, test matrix and derived costs; deterministic reader generation, exact 409528-character payload equality, 65 anchors, 184 balanced fences, 44 Mermaid diagrams, inline JavaScript, JSON, relative links, local README source hash, selected-file diff and live 170-marker audit passed. Angular/TypeScript/Vitest execution, controlled-browser geometry/paint testing, hydration and SSR execution were not performed because the project runtime is absent.",
     "estimated_next_tokens": 7200,
     "estimate_method": "Heuristic only: bounded Q65 begins at Markdown anchor line 1362 / heading line 1364 and follows Q64 after DOCX extracted line 907; reserve ~500 tokens for paired source intake/range resolution, ~1200 for current primary inputs research, ~3500 for distinct teaching/code/diagram/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "6ccc2d7d63b983ccefbd5c392fc892ac4dceb074",
+    "last_successful_commit": "5cb3faadf486dec67b77bebcda709aff6f02942e",
     "last_processed_at": "2026-10-13T07:51:09-04:00",
     "next_batch_decision": "Q64 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q65 and retain the conservative one-section checkpoint."
   }
