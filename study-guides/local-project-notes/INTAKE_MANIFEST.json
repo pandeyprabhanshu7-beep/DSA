@@ -165,10 +165,10 @@
         "### Interview-ready code:"
       ],
       "completed_sections": [
-        "Q1-Q68"
+        "Q1-Q69"
       ],
-      "processed_range": "latest bounded read: lines 1417-1430 for Q68",
-      "next_section": "Q69 single-flight token refresh begins at anchor line 1431 / heading line 1433"
+      "processed_range": "latest bounded read: lines 1431-1444 for Q69",
+      "next_section": "Q70 catchError placement with switchMap begins at anchor line 1445 / heading line 1447"
     },
     {
       "relative_path": "untitled/DSA V2/Striver_Graph_DSA_Deep_Study_Guide_Visual.md",
@@ -847,27 +847,27 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "Single-flight token refresh: bounded Q69 comparison against canonical interceptor, retry and request-cardinality coverage",
+    "section": "catchError placement with switchMap: bounded Q70 comparison against canonical error-ownership, cancellation and flattening coverage",
     "status": "QUEUED",
-    "estimated_tokens": 7800,
-    "estimate_method": "Heuristic only: Q69 begins at Markdown anchor line 1431 / heading line 1433 and DOCX extracted line 959; reserve ~650 tokens for paired source range resolution, ~1300 for current primary Angular/RxJS/auth research, ~3750 for distinct teaching/code/diagram/HTML, and ~2100 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 7000,
+    "estimate_method": "Heuristic only: Q70 begins at Markdown anchor line 1445 / heading line 1447 and DOCX extracted line 970; reserve ~500 tokens for paired source range resolution, ~1100 for current primary Angular/RxJS research, ~3300 for distinct teaching/code/diagram/HTML, and ~2100 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "readers": "Canonical Angular reader rebuilt from Markdown; exact 468445-character embedded payload equality, 69 unique anchors, 213 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked. Local-project README HTML source hash matches its Markdown.",
-    "diagrams": "The Q68 SSR-to-hydration trigger state trace is embedded in the canonical payload; 48 Mermaid diagrams total; browser visual QA not executed",
-    "last_processed_at": "2026-10-13T18:28:06-04:00"
+    "readers": "Canonical Angular reader rebuilt from Markdown; exact 485029-character embedded payload equality, 70 unique anchors, 219 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked. Local-project README HTML source hash matches its Markdown.",
+    "diagrams": "The Q69 refresh state machine and three-request packet trace are embedded in the canonical payload; 50 Mermaid diagrams total; browser visual QA not executed",
+    "last_processed_at": "2026-10-13T19:25:04-04:00"
   },
   "angular_intake_checkpoint": {
-    "last_processed_at": "2026-10-13T18:28:06-04:00",
+    "last_processed_at": "2026-10-13T19:25:04-04:00",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q68; latest bounded source ranges are Markdown lines 1417-1430 and DOCX extracted lines 948-958 for Q68",
+    "processed": "Q1–Q69; latest bounded source ranges are Markdown lines 1431-1444 and DOCX extracted lines 959-969 for Q69",
     "status": "PUBLISHED",
-    "validation": "Q68 adds fetch/render/hydrate requirements, four examples, an SSR-to-hydration state trace, trigger/eligibility/accessibility invariants, a production verification matrix and derived costs; deterministic builder and exact 468445-character payload equality passed with 69 unique anchors, 213 balanced fences and 48 Mermaid diagrams; inline JavaScript, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed; Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, production chunk inspection, controlled-browser execution, hydration and SSR execution were not performed because the project runtime is absent",
+    "validation": "Q69 adds a shared refresh flight, token-generation race guard, recursion and one-retry boundaries, four scenarios, a packet trace, request-cardinality tests, mutation replay safety and derived costs; deterministic builder and exact 485029-character payload equality passed with 70 unique anchors, 219 balanced fences and 50 Mermaid diagrams; inline JavaScript, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed; Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution and live auth-server calls were not performed because the project runtime is absent",
     "content_commit": "61e5d4c3479f2dc62400d0b38198f304cd322f0a",
-    "estimated_next_tokens": 7800,
-    "estimate_method": "Heuristic from bounded Q69 starting at Markdown anchor line 1431 / heading line 1433 and DOCX extracted line 959, plus paired source range resolution, primary Angular/RxJS/auth research, distinct explanation/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "estimated_next_tokens": 7000,
+    "estimate_method": "Heuristic from bounded Q70 starting at Markdown anchor line 1445 / heading line 1447 and DOCX extracted line 970, plus paired source range resolution, primary Angular/RxJS research, distinct explanation/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }

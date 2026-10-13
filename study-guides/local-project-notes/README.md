@@ -49,7 +49,7 @@ See [intake manifest](INTAKE_MANIFEST.json) for source hashes, statuses and exac
 
 ## Continue next
 
-Angular Q1–Q68 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded Q69 on single-flight token refresh, beginning at Markdown anchor line 1431 / heading line 1433 and DOCX extracted line 959; resolve the exact section end in both sources before reading, then compare against existing interceptor, request-cardinality and retry coverage. Estimated next-batch budget: approximately 7,800 tokens. This heuristic reserves about 650 tokens for bounded paired-source range resolution, 1,300 for current primary Angular/RxJS/auth research, 3,750 for distinct teaching/code/diagram/HTML, and 2,100 for validation/checkpoint work. It is not account-quota telemetry.
+Angular Q1–Q69 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded Q70 on `catchError` placement with `switchMap`, beginning at Markdown anchor line 1445 / heading line 1447 and DOCX extracted line 970; resolve the exact section end in both sources before reading, then compare against existing error-ownership, cancellation and flattening coverage. Estimated next-batch budget: approximately 7,000 tokens. This heuristic reserves about 500 tokens for bounded paired-source range resolution, 1,100 for current primary Angular/RxJS research, 3,300 for distinct teaching/code/diagram/HTML, and 2,100 for validation/checkpoint work. It is not account-quota telemetry.
 
 ## Maintain readers
 

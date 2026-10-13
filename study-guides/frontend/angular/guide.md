@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q68)
+# Angular 22 — Interview Foundations (Q1–Q69)
 
-> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q68 (Q68 is lines 1417–1430) with the corresponding `Angular_Interview_Workbook.docx` text (Q68 is extracted lines 948–958). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, required signal-input plus pure boundary-normalization rules, intentional `model()` ownership for reusable value editors, capability-oriented browser API boundaries, and evidence-based `@defer` trigger selection across CSR, SSR and incremental hydration, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q69 (Q69 is lines 1431–1444) with the corresponding `Angular_Interview_Workbook.docx` text (Q69 is extracted lines 959–969). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, required signal-input plus pure boundary-normalization rules, intentional `model()` ownership for reusable value editors, capability-oriented browser API boundaries, evidence-based `@defer` trigger selection across CSR, SSR and incremental hydration, and a race-safe single-flight access-token refresh protocol with bounded request replay, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -72,6 +72,7 @@
 - [Q66: model inputs and intentional two-way binding](#q66)
 - [Q67: browser-only APIs in SSR applications](#q67)
 - [Q68: @defer triggers across CSR and SSR](#q68)
+- [Q69: single-flight token refresh interceptor](#q69)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -7056,6 +7057,271 @@ Angular's TestBed can set defer behavior to manual and use `fixture.getDeferBloc
 
 **Primary references:** Angular's [`@defer` guide](https://angular.dev/guide/templates/defer), [incremental hydration guide](https://angular.dev/guide/incremental-hydration), [hydration guide](https://angular.dev/guide/hydration), and [server/hybrid-rendering guide](https://angular.dev/guide/ssr). The three-clock model, decision table, four examples, state trace, dry run, invariants, cost derivation and verification matrix above are added teaching material.
 
+<a id="q69"></a>
+## Q69. How do you implement a single-flight token refresh interceptor?
+
+**Requirement:** when several eligible API requests fail with `401` for the same expired access token, start at most one refresh request in that browser execution context. Every other eligible request joins that flight, then each original request is replayed at most once with the accepted token. The refresh request must bypass refresh handling, refresh failure must clear the session once, and unsafe mutations must not be replayed without an explicit server-backed idempotency contract.
+
+“Single flight” means many callers share one in-progress operation and its terminal result. It is not merely “put `catchError` around every request”: that naive form can spend the same rotating refresh token several times, race session writes, create a retry loop, or repeat a mutation whose first response was lost.
+
+### State machine and invariants
+
+```mermaid
+stateDiagram-v2
+  [*] --> Idle
+  Idle --> Refreshing: first eligible 401 for current token
+  Refreshing --> Refreshing: later eligible 401 joins flight
+  Refreshing --> Idle: accept new token, replay each once
+  Refreshing --> SignedOut: refresh fails, clear once
+  Idle --> Idle: late old-token 401 retries current token
+  SignedOut --> [*]
+```
+
+Keep these values separate:
+
+| Value | Scope | Purpose |
+|---|---|---|
+| Token used by the failed request | Captured per original request | Detect a late `401` from an old generation |
+| Current accepted access token | Session-wide | Retry directly when another flight already advanced the session |
+| `refreshFlight$` | One interceptor/session instance | Let all current waiters observe exactly one refresh result |
+| `AUTH_RETRIED` | Per request through `HttpContext` | Bound automatic replay to one attempt |
+| `SKIP_AUTH` | Per refresh/login request | Prevent recursive interception |
+| `ALLOW_AUTH_REPLAY` | Per mutation, default false | Record an explicit replay/idempotency decision |
+
+Core invariants:
+
+1. **Single-flight:** while `refreshFlight$` exists, no second refresh call starts in the same injector/browser realm.
+2. **Generation:** a `401` for token A must not start another refresh after token B has already been accepted; retry once with B.
+3. **Bounded replay:** `AUTH_RETRIED` makes the replay terminal. A second `401` is propagated.
+4. **No recursion:** refresh/login/logout endpoints carry `SKIP_AUTH` and never receive the bearer-injection or refresh-recovery path.
+5. **Trusted origin:** attach credentials only to an explicit API-origin allowlist. Never leak a bearer token to arbitrary absolute URLs.
+6. **One session transition:** token acceptance or session clearing happens upstream of the shared replay, once per refresh flight—not once per waiter.
+7. **Replay safety:** GET/HEAD/OPTIONS are reasonable automatic candidates; a POST/PATCH/PUT/DELETE needs explicit opt-in plus a stable idempotency key and a backend contract that deduplicates the operation.
+
+### A functional interceptor with one shared refresh flight
+
+This Angular/RxJS 7-shaped example assumes `AuthSession.refresh()` calls the refresh endpoint with `SKIP_AUTH`, `accept()` atomically stores the returned token pair, and `clear()` is idempotent. The access token should normally be held in memory; if a refresh credential is browser-managed, prefer a hardened `HttpOnly`, `Secure`, appropriately `SameSite` cookie rather than exposing it to application JavaScript.
+
+```typescript
+import {
+  HttpContextToken,
+  HttpErrorResponse,
+  HttpHandlerFn,
+  HttpInterceptorFn,
+  HttpRequest,
+} from '@angular/common/http';
+import {inject} from '@angular/core';
+import {Observable, catchError, finalize, map, of, shareReplay, switchMap, tap, throwError} from 'rxjs';
+
+export const SKIP_AUTH = new HttpContextToken<boolean>(() => false);
+export const AUTH_RETRIED = new HttpContextToken<boolean>(() => false);
+export const ALLOW_AUTH_REPLAY = new HttpContextToken<boolean>(() => false);
+
+let refreshFlight$: Observable<string> | undefined;
+
+export const authRefreshInterceptor: HttpInterceptorFn = (request, next) => {
+  const session = inject(AuthSession);
+
+  if (request.context.get(SKIP_AUTH) || !isTrustedApiUrl(request.url)) {
+    return next(request);
+  }
+
+  const usedToken = session.accessToken();
+  const firstAttempt = addBearer(request, usedToken);
+
+  return next(firstAttempt).pipe(
+    catchError(error => {
+      if (
+        !(error instanceof HttpErrorResponse) ||
+        error.status !== 401 ||
+        request.context.get(AUTH_RETRIED) ||
+        usedToken === null ||
+        !isReplayAllowed(request)
+      ) {
+        return throwError(() => error);
+      }
+
+      const currentToken = session.accessToken();
+      const replacementToken$ =
+        currentToken !== null && currentToken !== usedToken
+          ? of(currentToken) // another flight already committed a newer token
+          : startOrJoinRefresh(session);
+
+      return replacementToken$.pipe(
+        switchMap(token => {
+          const replay = request.clone({
+            context: request.context.set(AUTH_RETRIED, true),
+          });
+          return next(addBearer(replay, token));
+        }),
+      );
+    }),
+  );
+};
+
+function startOrJoinRefresh(session: AuthSession): Observable<string> {
+  if (refreshFlight$ === undefined) {
+    refreshFlight$ = session.refresh().pipe(
+      tap(tokens => session.accept(tokens)),
+      map(tokens => tokens.accessToken),
+      tap({error: () => session.clear()}),
+      // This finalize is upstream of sharing, so it runs once per flight.
+      finalize(() => {
+        refreshFlight$ = undefined;
+      }),
+      shareReplay({bufferSize: 1, refCount: false}),
+    );
+  }
+  return refreshFlight$;
+}
+
+function addBearer<T>(request: HttpRequest<T>, token: string | null): HttpRequest<T> {
+  return token === null
+    ? request
+    : request.clone({setHeaders: {Authorization: `Bearer ${token}`}});
+}
+
+function isReplayAllowed(request: HttpRequest<unknown>): boolean {
+  return ['GET', 'HEAD', 'OPTIONS'].includes(request.method) ||
+    request.context.get(ALLOW_AUTH_REPLAY);
+}
+
+function isTrustedApiUrl(url: string): boolean {
+  const parsed = new URL(url, document.baseURI);
+  return parsed.origin === new URL('/api/', document.baseURI).origin &&
+    parsed.pathname.startsWith('/api/');
+}
+```
+
+Keep one canonical helper rather than hiding this behavior in a generic retry operator. If SSR can execute the interceptor, replace the `document`-based URL resolution with an injected, platform-valid API origin; Q67's browser/server boundary still applies.
+
+The key ordering is `finalize(...), shareReplay(...)`. The refresh side effects and cleanup belong to the one upstream subscription. `refCount: false` keeps that refresh alive if one waiting component is destroyed; another waiter must not accidentally cancel the shared credential transition. The variable is cleared at termination, so a future genuinely expired generation may create a new flight. Pin and test the exact RxJS version because sharing/reset semantics are version-sensitive.
+
+The refresh call itself carries the bypass:
+
+```typescript
+import {HttpClient, HttpContext} from '@angular/common/http';
+import {inject, Injectable} from '@angular/core';
+
+@Injectable({providedIn: 'root'})
+export class AuthSession {
+  private readonly http = inject(HttpClient);
+
+  refresh() {
+    return this.http.post<TokenPair>('/auth/refresh', {}, {
+      context: new HttpContext().set(SKIP_AUTH, true),
+      withCredentials: true,
+    });
+  }
+
+  // accessToken(), accept(...) and clear() are application-specific.
+}
+```
+
+Do not attach the expired access token to this request. A cookie-based refresh endpoint also needs the server's CSRF/origin defenses; `HttpOnly` reduces script access but does not itself prevent cross-site requests.
+
+### Four concrete scenarios
+
+| Scenario | Result | Why |
+|---|---|---|
+| Three concurrent GETs fail with token A | One refresh; all three wait; each replays once with B | All waiters subscribe to the same `refreshFlight$` |
+| Refresh fails with 401/400/network error | `clear()` runs once; every waiter receives the error; no replay loop | Failure side effect is upstream of sharing; refresh has `SKIP_AUTH` |
+| A slow response for A returns after B was accepted | Retry once with B; do not refresh again | Captured `usedToken` differs from the current token |
+| `POST /payments` returns 401 | Fail closed by default; opt in only with a stable idempotency key and server deduplication | The client cannot prove the first attempt had no side effect |
+
+For an explicitly replayable mutation, create the operation identity once, not during retry:
+
+```typescript
+const operationId = crypto.randomUUID();
+const context = new HttpContext().set(ALLOW_AUTH_REPLAY, true);
+
+this.http.post('/api/payments', command, {
+  context,
+  headers: {'Idempotency-Key': operationId},
+});
+```
+
+That header has meaning only if the server stores and compares the key under an authenticated caller/operation scope, returns the original result for an identical replay, and rejects key reuse with different input. Client opt-in alone does not make a mutation idempotent.
+
+### Packet trace: three failures, one refresh
+
+```mermaid
+sequenceDiagram
+  participant A as GET A
+  participant B as GET B
+  participant C as GET C
+  participant I as Interceptor
+  participant R as Refresh endpoint
+  A->>I: 401 with token t0
+  I->>R: refresh once (SKIP_AUTH)
+  B->>I: 401 with token t0
+  C->>I: 401 with token t0
+  I-->>B: join shared flight
+  I-->>C: join shared flight
+  R-->>I: token t1
+  I->>A: replay once with t1
+  I->>B: replay once with t1
+  I->>C: replay once with t1
+```
+
+Detailed dry run:
+
+1. Requests A, B and C capture `usedToken = t0` and leave with `Authorization: Bearer t0`.
+2. A's `401` arrives first. No flight exists, so A constructs the shared refresh observable and subscribes; exactly one `/auth/refresh` request begins.
+3. B and C receive `401`. Their current session token is still t0, so both obtain the existing flight rather than creating another.
+4. The refresh endpoint returns `{accessToken: t1, refreshToken: r1}`. `accept()` commits the pair once before the shared value reaches waiters.
+5. A, B and C each clone their own original request, set `AUTH_RETRIED`, attach t1 and call the remainder of the interceptor chain once.
+6. The refresh observable completes; its upstream `finalize` clears the flight slot. A later old-t0 `401` observes current t1 and replays directly with t1 instead of spending r1.
+7. If any replay returns `401`, `AUTH_RETRIED` propagates it. Authentication UI/session policy handles the terminal failure; no second refresh is hidden inside this request.
+
+### Verification with the HTTP testing backend
+
+The most important assertion is **request cardinality**, not just final values:
+
+```typescript
+it('coalesces concurrent 401s into one refresh and one replay each', () => {
+  const values: unknown[] = [];
+  forkJoin([
+    http.get('/api/a'),
+    http.get('/api/b'),
+    http.get('/api/c'),
+  ]).subscribe(value => values.push(value));
+
+  for (const url of ['/api/a', '/api/b', '/api/c']) {
+    const first = testing.expectOne(url);
+    expect(first.request.headers.get('Authorization')).toBe('Bearer t0');
+    first.flush(null, {status: 401, statusText: 'Unauthorized'});
+  }
+
+  const refreshes = testing.match('/auth/refresh');
+  expect(refreshes).toHaveLength(1);
+  refreshes[0].flush({accessToken: 't1', refreshToken: 'r1'});
+
+  for (const url of ['/api/a', '/api/b', '/api/c']) {
+    const replay = testing.expectOne(url);
+    expect(replay.request.headers.get('Authorization')).toBe('Bearer t1');
+    replay.flush({ok: true});
+  }
+
+  expect(values).toHaveLength(1);
+  testing.verify();
+});
+```
+
+Add independent tests for refresh failure, a replayed request's second `401`, a late t0 response after t1 is accepted, untrusted absolute URLs, `SKIP_AUTH`, request cancellation, and mutation opt-in with a stable idempotency key.
+
+### Cost, boundaries and common failures
+
+For `n` eligible requests that fail during one expiry wave, this design issues 1 refresh and at most `n` replays: `n + 1` follow-up network requests, versus as many as `2n` follow-ups in a naive per-request refresh/replay scheme. Each waiter performs O(1) interceptor work, so total coordination and replay work is O(n). The flight reference and token-generation state are O(1); retaining `n` waiting subscriptions/request objects is O(n) until the shared result terminates. If refresh latency is `R` and replay latency for request `i` is `Pᵢ`, that caller adds approximately `R + Pᵢ` after its `401`, except a late stale-token failure can skip `R`. Response parsing/output construction costs remain those of each individual replay and are not erased by sharing the refresh.
+
+This is single-flight only inside the interceptor/session instance. Separate tabs, workers, server-render requests or duplicated Angular injectors can each start a flight. Cross-tab coordination requires a deliberate protocol (for example, a short server grace window plus rotating-token family semantics, or carefully designed browser coordination); a module variable is not a distributed lock. The authorization server still owns refresh-token rotation, reuse detection, revocation and expiry. OAuth 2.0 Security BCP requires public-client refresh tokens to be sender-constrained or rotated, and token replacement must be committed atomically.
+
+**Common errors:** calling refresh in every `catchError`; using a boolean without a shared result, leaving waiters hanging; placing `shareReplay` inside each request; running `clear()` once per waiter; intercepting the refresh call recursively; retrying any `401` forever; treating every `401` as expiry instead of respecting backend error contracts; forgetting the late old-token race; attaching bearer tokens to third-party URLs; replaying POST/PATCH/DELETE because “the server returned 401”; generating a new idempotency key during retry; assuming client cancellation rolls back the server; storing refresh credentials in broadly accessible JavaScript state; trusting `HttpOnly` as CSRF protection; and assuming one browser tab's flight coordinates every tab or SSR request.
+
+**Interview variations:** `BehaviorSubject` gate versus a shared cold flight; `shareReplay` lifetime/reset semantics; token generation comparison; refresh-token rotation races; injector scope; multi-tab coordination; safe-method versus business-operation idempotency; logout exactly once; cancellation; refresh timeouts; offline errors; origin allowlists; cookie/CSRF boundaries; queued request memory; and proving “one refresh” with `HttpTestingController.match()`.
+
+**Primary references:** Angular's [interceptor guide](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [HTTP testing guide](https://angular.dev/guide/http/testing), [`HttpContext`](https://angular.dev/api/common/http/HttpContext) and [`HttpContextToken`](https://angular.dev/api/common/http/HttpContextToken); the RxJS [`shareReplay` implementation and contract](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/shareReplay.ts); and OAuth 2.0 Security Best Current Practice [RFC 9700 §4.14](https://www.rfc-editor.org/rfc/rfc9700.html#section-4.14). The state machine, code composition, four scenarios, packet trace, dry run, cost derivation and test strategy above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -7069,8 +7335,8 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q68. This pass was bounded to Markdown lines 1417–1430 and DOCX extracted lines 948–958 for Q68; both sources say to match the trigger to user value and dependency cost, distinguish viewport/interaction/idle/application-state cases, design fallback states and avoid excessive tiny chunks. This edition adds the fetch/render/hydrate clock model; a trigger decision table; four CSR/SSR examples; an SSR-to-hydration trace and dry run; eligibility, accessibility, geometry and hierarchy invariants; a production verification matrix; and derived transfer/render/hydration costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
-- Code snippets and traces were checked conceptually against the linked official Angular 22.2.2 docs. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration test, SSR test or live server call was executed** during this source-comparison pass.
+- Both **actual Library source texts** were inspected for Q1–Q69. This pass was bounded to Markdown lines 1431–1444 and DOCX extracted lines 959–969 for Q69; both sources require one shared refresh while concurrent failed requests wait, replay with the new token, recursion prevention, explicit failure/logout behavior and attention to replay safety. This edition adds a token-generation race guard; trusted-origin, one-retry and mutation-idempotency invariants; a functional interceptor and bypassed refresh call; four scenarios; a three-request packet trace and dry run; request-cardinality tests; multi-context/security boundaries; and derived network, latency and retained-state costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Code snippets and traces were checked conceptually against the linked official Angular 22.2.2, RxJS and OAuth sources. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration test, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-12): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), [Signals/computed](https://angular.dev/guide/signals#computed-signals-are-both-lazily-evaluated-and-memoized), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
@@ -7080,6 +7346,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular model-input material (reviewed 2026-10-13): [model inputs](https://angular.dev/guide/components/inputs#model-inputs), [two-way binding](https://angular.dev/guide/templates/two-way-binding), [`model`](https://angular.dev/api/core/model), [`ModelSignal`](https://angular.dev/api/core/ModelSignal), and the current [`createModelSignal`](https://github.com/angular/angular/blob/main/packages/core/src/authoring/model/model_signal.ts) implementation. The Angular 22.2.2 pages define the writable input/implicit `Change` output pair, plain-property and writable-signal parent targets, required/default/alias forms, no-transform restriction and automatic output subscription cleanup; the current source confirms that equal values are not re-emitted.
 - Official Angular server/browser-boundary material (reviewed 2026-10-13): [server-side and hybrid rendering](https://angular.dev/guide/ssr), [`isPlatformBrowser`](https://angular.dev/api/common/isPlatformBrowser), [`DOCUMENT`](https://angular.dev/api/common/DOCUMENT), [using DOM APIs](https://angular.dev/guide/components/dom-apis), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), and [hydration constraints](https://angular.dev/guide/hydration#constraints). The Angular 22.2.2 pages state that browser globals and layout capabilities are not available during SSR; render callbacks are browser-only; platform-specific providers are preferred over scattered runtime checks; platform-driven template differences can cause hydration mismatch/layout shift; `DOCUMENT` represents the current rendering document; render callbacks are not a hydration-completion guarantee; and Angular-owned server/client DOM structure must match.
 - Official Angular deferrable-view material (reviewed 2026-10-13): [`@defer`](https://angular.dev/guide/templates/defer), [incremental hydration](https://angular.dev/guide/incremental-hydration), [hydration](https://angular.dev/guide/hydration), and [server/hybrid rendering](https://angular.dev/guide/ssr). The Angular 22.2.2 pages distinguish render, prefetch and hydrate triggers; state that ordinary SSR/SSG emits the placeholder without invoking regular triggers; document that incremental hydration plus a hydrate trigger emits the main block and delays client interactivity; and require regular placeholders for later CSR navigations.
+- Official Angular/RxJS/OAuth refresh-concurrency material (reviewed 2026-10-13): Angular's [interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [HTTP testing](https://angular.dev/guide/http/testing), [`HttpContext`](https://angular.dev/api/common/http/HttpContext) and [`HttpContextToken`](https://angular.dev/api/common/http/HttpContextToken); RxJS's current [`shareReplay`](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/shareReplay.ts) implementation; and [RFC 9700 §4.14](https://www.rfc-editor.org/rfc/rfc9700.html#section-4.14). Angular documents immutable request cloning, mutable retry context and cold HTTP observables; RFC 9700 requires sender-constrained or rotated refresh tokens for public clients. Sharing/reset details remain tied to the pinned RxJS version.
 - Official Angular application-structure and component-contract material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [signals](https://angular.dev/guide/signals), [services and DI](https://angular.dev/guide/di/creating-and-using-services), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
 - Official Angular testing material (reviewed 2026-10-11): [testing overview and Vitest setup](https://angular.dev/guide/testing), [component-testing basics](https://angular.dev/guide/testing/components-basics), [component-testing scenarios](https://angular.dev/guide/testing/components-scenarios), [testing utility APIs](https://angular.dev/guide/testing/utility-apis), [component harnesses](https://angular.dev/guide/testing/component-harnesses-overview), and [migrating from Karma to Vitest](https://angular.dev/guide/testing/migrating-to-vitest).
 - Official Angular HTTP-testing material (reviewed 2026-10-11): [testing HTTP requests](https://angular.dev/guide/http/testing), [`provideHttpClientTesting`](https://angular.dev/api/common/http/testing/provideHttpClientTesting), [`HttpTestingController`](https://angular.dev/api/common/http/testing/HttpTestingController), and [`TestRequest`](https://angular.dev/api/common/http/testing/TestRequest).
@@ -7094,5 +7361,5 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q69 (single-flight token refresh) in both sources. It begins at Markdown anchor line 1431 / heading line 1433 and DOCX extracted line 959; resolve the exact section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q70 (`catchError` placement with `switchMap`) in both sources. It begins at Markdown anchor line 1445 / heading line 1447 and DOCX extracted line 970; resolve the exact section end before reading it and keep extending this one canonical guide.
 
