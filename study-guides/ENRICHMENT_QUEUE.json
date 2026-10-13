@@ -681,7 +681,7 @@
         "baseline_main_head": "cbe6ccec3ca6022266ca69a4f33b352c87249adb"
       },
       "validation": "Q62 adds a version matrix, four examples, preservation-migration sequence, notification trace, dry run, JIT/AOT caveats, invariants and derived costs without duplicating Q20-Q22; deterministic builder and exact 376886-character HTML embedded-Markdown equality passed with 63 unique anchors, 174 balanced fenced blocks and 42 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript/Vitest/JIT execution and browser visual QA were not executed because those runtimes are absent.",
-      "last_successful_commit": "8dc7fde33d7bb55746770fff9e98964af6dee43b"
+      "last_successful_commit": "6ee6735c5472656f7cd43c704cf3ec571960136e"
     },
     {
       "id": "javascript-html-css",
@@ -863,7 +863,7 @@
     "validation": "Angular Q62 was compared in both actual source texts and enriched with a version matrix, four examples, preservation-migration sequence, notification trace, dry run, JIT/AOT caveats, invariants and derived costs without duplicating Q20-Q22; deterministic reader generation, exact 376886-character payload equality, 63 anchors, 174 balanced fences, 42 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript/Vitest/JIT execution and browser visual QA were not executed because those runtimes are absent.",
     "estimated_next_tokens": 7500,
     "estimate_method": "Heuristic only: bounded Q63 begins at Markdown anchor line 1317 / heading line 1319 and DOCX extracted heading line 877; reserve ~450 tokens for paired source intake/range resolution, ~1200 for current primary architecture research, ~3900 for comparison plus distinct teaching/code/diagram/HTML, and ~1950 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "8dc7fde33d7bb55746770fff9e98964af6dee43b",
+    "last_successful_commit": "6ee6735c5472656f7cd43c704cf3ec571960136e",
     "last_processed_at": "2026-10-13T01:54:33-04:00",
     "next_batch_decision": "Q62 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q63 and retain the conservative one-section checkpoint."
   }
