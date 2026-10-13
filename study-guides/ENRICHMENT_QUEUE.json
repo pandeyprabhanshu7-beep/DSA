@@ -684,7 +684,7 @@
         "baseline_main_head": "8fc527d6822d752a5fa9e62dc7ff8b57ecb19284"
       },
       "validation": "Q65 compared both source texts and adds required/optional/default selection, separate transform read/write types, four examples, built-in and custom coercion boundaries, an update trace, purity/static-analysis/ownership invariants, test matrix and derived costs; deterministic builder and exact 422483-character HTML embedded-Markdown equality passed with 66 unique anchors, 190 balanced fenced blocks and 45 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration and SSR execution were not performed because the project runtime is absent.",
-      "last_successful_commit": "5cb3faadf486dec67b77bebcda709aff6f02942e"
+      "last_successful_commit": "cc5537a650f5294b990793f104acbfc88dba7a38"
     },
     {
       "id": "javascript-html-css",
@@ -866,7 +866,7 @@
     "validation": "Angular Q65 was compared in both actual source texts and enriched with required/optional/default selection, separate transform read/write types, four examples, built-in and custom coercion boundaries, an update trace, purity/static-analysis/ownership invariants, test matrix and derived costs; deterministic reader generation, exact 422483-character payload equality, 66 anchors, 190 balanced fences, 45 Mermaid diagrams, inline JavaScript, JSON, relative links, local README source hash, selected-file diff and live 170-marker audit passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration and SSR execution were not performed because the project runtime is absent.",
     "estimated_next_tokens": 6800,
     "estimate_method": "Heuristic only: bounded Q66 begins at Markdown anchor line 1380 / heading line 1382 and DOCX extracted line 921; reserve ~500 tokens for paired source range resolution, ~1100 for current primary model-input research, ~3200 for distinct teaching/code/diagram/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "5cb3faadf486dec67b77bebcda709aff6f02942e",
+    "last_successful_commit": "cc5537a650f5294b990793f104acbfc88dba7a38",
     "last_processed_at": "2026-10-13T08:54:40-04:00",
     "next_batch_decision": "Q65 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q66 and retain the conservative one-section checkpoint."
   }
