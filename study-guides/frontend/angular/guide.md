@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q67)
+# Angular 22 — Interview Foundations (Q1–Q68)
 
-> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q67 (Q67 is lines 1403–1417) with the corresponding `Angular_Interview_Workbook.docx` text (Q67 is extracted lines 937–947). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, required signal-input plus pure boundary-normalization rules, intentional `model()` ownership for reusable value editors, and capability-oriented browser API boundaries for SSR, prerendering and hydration, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q68 (Q68 is lines 1417–1430) with the corresponding `Angular_Interview_Workbook.docx` text (Q68 is extracted lines 948–958). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, required signal-input plus pure boundary-normalization rules, intentional `model()` ownership for reusable value editors, capability-oriented browser API boundaries, and evidence-based `@defer` trigger selection across CSR, SSR and incremental hydration, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -71,6 +71,7 @@
 - [Q65: required signal inputs and transforms](#q65)
 - [Q66: model inputs and intentional two-way binding](#q66)
 - [Q67: browser-only APIs in SSR applications](#q67)
+- [Q68: @defer triggers across CSR and SSR](#q68)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -6863,6 +6864,198 @@ Use an actual server-render build plus browser hydration test for the end-to-end
 
 **Primary references:** Angular's [server-side and hybrid-rendering guide](https://angular.dev/guide/ssr), [`isPlatformBrowser`](https://angular.dev/api/common/isPlatformBrowser), [`DOCUMENT`](https://angular.dev/api/common/DOCUMENT), [DOM APIs guide](https://angular.dev/guide/components/dom-apis), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), and [hydration constraints](https://angular.dev/guide/hydration#constraints). The decision table, four examples, request-to-hydration trace, dry run, invariants, cost derivation and test matrix above are added teaching material.
 
+<a id="q68"></a>
+## Q68. What are `@defer` triggers, how do you choose one, and what happens during SSR?
+
+**Requirement:** choose a trigger from user intent and measurable delivery cost, not from syntax preference. State separately when Angular may **fetch** the deferred JavaScript, when it may **render** the block, and—on an SSR initial load—when it may **hydrate** server-rendered content. Preserve meaningful accessible fallback content, stable geometry and a recoverable error state. Confirm that dependencies are actually eligible for deferral and that the resulting chunk graph improves a named metric.
+
+`@defer` is a compiler-supported lazy boundary. Eligible standalone components, directives, pipes and their CSS can become dynamic imports; the main block renders only after its render trigger fires and all required imports resolve. A dependency referenced outside the block in the same file, including through a `ViewChild` query, stays eager. Placeholder, loading and error dependencies are also eager, so a visually elaborate placeholder can defeat the intended saving.
+
+Keep the three clocks distinct:
+
+| Clock | Syntax | Decides | It does **not** decide |
+|---|---|---|---|
+| Fetch | `prefetch on ...` / `prefetch when ...` | When the browser may download the deferred code early | When the main view becomes visible |
+| Render | `on ...` / `when ...` | When a CSR navigation may fetch if needed and replace fallback with the main view | What normal SSR emits by default |
+| Hydrate | `hydrate on ...` / `hydrate when ...` / `hydrate never` | On the initial server-rendered visit, when a server-rendered defer boundary becomes interactive | What later client-side navigations do |
+
+Multiple event triggers separated by semicolons are OR conditions. A `when expression` becomes a one-way latch: once truthy, the block does not return to its placeholder when the expression becomes false. Prefetch changes readiness, not visibility. Hydrate triggers apply to the initial server-rendered load; later client-side navigation uses the regular render trigger.
+
+### Trigger decision table
+
+| User/value signal | Good starting trigger | Example | Main risk and verification |
+|---|---|---|---|
+| Content is below the fold and likely to be viewed | `on viewport` | Reviews, related products | Reserve height; measure CLS and bytes loaded before visibility |
+| User explicitly asks for the feature | `on interaction` | “Open editor”, map controls | Make the trigger keyboard-operable; measure first-interaction latency |
+| Code is useful soon but not critical now | default `on idle` | Recommendations, secondary insights | Idle may occur too late on a busy device; add a justified timeout and measure |
+| Domain state, consent or entitlement makes content valid | `when ready()` | Authenticated chart after consent/data | The condition is a latch, not visibility toggling; test false → true once |
+| Content must follow a known delay | `on timer(...)` | Noncritical guided hint | Timer is not user intent and can contend with active work |
+| Enhancement should start just after eager rendering | `on immediate` | Small noncritical enhancement | Often erases the startup benefit; compare bundle and main-thread budgets |
+| Likely future interaction should feel instant | render on interaction + prefetch on idle | Optional editor | Prefetch spends bandwidth even if unused; measure hit rate and data-saver policy |
+
+`hover` can improve pointer latency, but Angular also responds to `focusin`; it still needs a keyboard-usable control and must not be the only way to discover functionality. `viewport`, `interaction` and `hover` can use the placeholder as the trigger, in which case that placeholder needs one root element, or they can name a template reference. Use a stable explicit trigger element when the placeholder is complex.
+
+### Example 1 — below-the-fold reviews: viewport plus reserved geometry
+
+```typescript
+import {Component} from '@angular/core';
+import {ProductReviews} from './product-reviews';
+
+@Component({
+  selector: 'app-product-page',
+  imports: [ProductReviews],
+  template: `
+    <h1>Trail shoes</h1>
+    <p>Primary product content...</p>
+
+    @defer (on viewport; prefetch on idle(1500)) {
+      <app-product-reviews />
+    } @placeholder (minimum 250ms) {
+      <section class="reviews-shell" aria-label="Customer reviews">
+        <p>Reviews load as this section approaches the viewport.</p>
+      </section>
+    } @loading (after 150ms; minimum 300ms) {
+      <section class="reviews-shell" aria-live="polite">Loading reviews…</section>
+    } @error {
+      <p role="alert">Reviews could not be loaded. Reload the page to retry.</p>
+    }
+  `,
+})
+export class ProductPage {}
+```
+
+The render trigger protects startup work; the earlier prefetch may hide network latency. Give `.reviews-shell` approximately the final height so replacement does not create avoidable layout shift. On a normal SSR/SSG render, Angular emits the placeholder and does not invoke these browser triggers. The browser hydrates that placeholder, activates the triggers, and later swaps in the reviews.
+
+### Example 2 — an optional editor: interaction controls visibility
+
+```html
+<button #edit type="button">Edit delivery instructions</button>
+
+@defer (on interaction(edit); prefetch on idle) {
+  <app-delivery-editor />
+} @placeholder {
+  <p id="editor-status">The editor opens when requested.</p>
+} @loading (after 100ms; minimum 200ms) {
+  <p aria-live="polite">Opening editor…</p>
+} @error {
+  <p role="alert">Editor unavailable. Your current instructions are unchanged.</p>
+}
+```
+
+The button exists eagerly, so click and keyboard activation have the same intent. Prefetch is useful only if the probability of interaction justifies the extra transfer. Record the p75/p95 time from activation to usable editor, the prefetch hit rate and bytes downloaded but never used. Do not replace this with `hover` alone: touch and keyboard users may never produce the assumed event.
+
+### Example 3 — application readiness: `when` is a latch
+
+```typescript
+import {Component, signal} from '@angular/core';
+import {PortfolioChart} from './portfolio-chart';
+
+@Component({
+  selector: 'app-portfolio',
+  imports: [PortfolioChart],
+  template: `
+    @defer (when chartAllowed()) {
+      <app-portfolio-chart />
+    } @placeholder {
+      <p>Accept analytics and load an account before showing the chart.</p>
+    }
+  `,
+})
+export class PortfolioPage {
+  readonly chartAllowed = signal(false);
+}
+```
+
+This fits a state transition such as `false → true`. It does **not** implement show/hide behavior: after the first truthy value, later `false` values do not restore the placeholder. Put reversible visibility inside the loaded component or an `@if`, and keep authorization on the server; a defer condition only controls client delivery/rendering.
+
+### Example 4 — above-the-fold SSR content: render on the server, hydrate on interaction
+
+```typescript
+// app.config.ts
+import {ApplicationConfig} from '@angular/core';
+import {provideClientHydration} from '@angular/platform-browser';
+
+export const appConfig: ApplicationConfig = {
+  providers: [provideClientHydration()],
+};
+```
+
+```html
+@defer (on viewport; hydrate on interaction) {
+  <app-price-calculator />
+} @placeholder {
+  <section class="calculator-shell" aria-label="Price calculator">
+    Calculator preview
+  </section>
+}
+```
+
+With incremental hydration on the initial SSR/SSG visit, the `hydrate` trigger tells Angular to load the boundary's dependencies while server-rendering and emit the **main calculator markup**, not the placeholder. In the browser that markup initially remains dehydrated; interaction causes code loading/hydration, and event replay preserves supported pre-hydration listener events. On a later client-side navigation, there is no initial server boundary, so `on viewport` governs the normal defer block and the placeholder still matters.
+
+Do not add `hydrate on interaction` merely because it sounds fast. The server now pays to load and render the main boundary, and the response contains its HTML. This is appropriate when visible HTML/SEO/layout stability matters but interactivity can wait. For static content that truly never needs client behavior on the initial load, `hydrate never` exists; it also prevents hydration of its entire nested subtree and therefore requires an explicit product contract and navigation tests.
+
+### SSR-to-hydration state trace
+
+```mermaid
+stateDiagram-v2
+  [*] --> ServerChoice
+  ServerChoice --> PlaceholderHTML: no hydrate trigger
+  ServerChoice --> MainHTMLDehydrated: incremental hydration + hydrate trigger
+  PlaceholderHTML --> PlaceholderHydrated: browser boot
+  PlaceholderHydrated --> ChunkReady: prefetch trigger optional
+  ChunkReady --> MainInteractive: render trigger + imports resolved
+  MainHTMLDehydrated --> MainInteractive: hydrate trigger + imports + replay
+  MainInteractive --> [*]
+```
+
+Dry-run Example 4:
+
+1. The SSR request reaches the calculator boundary with incremental hydration enabled and a `hydrate on interaction` clause.
+2. Angular loads the boundary dependencies on the server and serializes the main calculator view. The placeholder is still compiled for later CSR navigation but is not the initial response content.
+3. The browser displays the calculator HTML without replacing it. Its Angular boundary is not yet interactive.
+4. A user clicks or presses a key on an element with a registered listener. Event replay records the supported event while Angular loads the client code.
+5. Angular hydrates parent dehydrated boundaries first if necessary, then the calculator, and replays the queued event.
+6. A later in-app navigation to the same route is CSR, so the regular `on viewport` trigger—not the initial-load hydrate trigger—controls rendering.
+
+### Internal rules, invariants and cost model
+
+- **Eligibility invariant:** every dependency intended to split is standalone and referenced only inside eligible defer blocks in that file. Confirm a real lazy chunk in the production build; barrel imports and outside references can retain eager code.
+- **Three-clock invariant:** fetch, render and hydration policies are named separately. A prefetch must not accidentally disclose/show content, and a render trigger is not an SSR execution rule.
+- **SSR invariant:** without a hydrate trigger, SSR/SSG emits the placeholder (or nothing) and does not invoke regular triggers. With incremental hydration plus a hydrate trigger, it emits the main block and delays client hydration.
+- **Geometry invariant:** placeholder, loading, content and error states reserve compatible space for visible boundaries; measure CLS rather than assuming similarity.
+- **Accessibility invariant:** trigger controls are focusable and keyboard-operable; state transitions use useful labels/live regions without noisy announcements; meaningful content is not stranded behind hover.
+- **One-way invariant:** a fired `when` trigger is not a reversible conditional. Use application state inside the loaded view for later hiding.
+- **Hierarchy invariant:** hydrating a nested boundary requires its dehydrated parents first. Do not assume a child can become interactive while an ancestor remains dehydrated.
+- **Failure invariant:** chunk/network failures produce an actionable `@error` state. Business/API failures inside the loaded component still need their own handling.
+- **Measurement invariant:** retain the boundary only if production-build evidence improves a named outcome after accounting for request, parse, layout and interaction costs.
+
+Let `B` be deferred JavaScript/CSS bytes, `E` eagerly retained fallback bytes, `R` the number of chunk requests, `P(B)` parse/compile work, `H(n)` hydration work for `n` server-rendered nodes, and `U` bytes prefetched but never used. Deferring can remove roughly `B` from the eager code path only when eligibility and the bundler graph permit it; it adds request scheduling/latency and eventual transfer/parse work `O(B) + P(B)`. Placeholder/loading/error dependencies contribute `E` to the eager path. A prefetch moves the `O(B)` transfer earlier and may reduce interaction latency, but wasted transfer is `U` and can be substantial when intent prediction is poor. Incremental hydration can keep initial interactivity work near `H(n)` out of the eager client path until the hydrate trigger, but SSR still constructs and serializes the main HTML, which costs at least O(n) node/output work plus the component's data work. Counting blocks is not a performance model: measure emitted chunks, request waterfall, transferred/unused bytes, LCP, CLS, INP and server response latency.
+
+Avoid many tiny boundaries. If `k` nested or adjacent blocks all trigger together, fixed request/scheduling overhead can approach O(k), and dependency waterfalls can dominate the bytes saved. Group dependencies that share one user intent; give nested boundaries different policies only when the interaction sequence is genuinely staged.
+
+### Verification plan, common failures and interview variations
+
+| Check | Expected evidence |
+|---|---|
+| Production build chunk graph | Deferred dependency has a lazy chunk; fallback dependencies remain eager; no accidental outside/barrel retention |
+| Manual defer-block unit test | Placeholder, loading, complete and error states render deterministically |
+| Browser trigger tests | Viewport, click/keydown, idle timeout and `when` produce exactly one transition |
+| Default SSR/SSG response | Placeholder or empty boundary appears; main deferred component is absent |
+| Incremental-hydration SSR response | Main boundary HTML appears; placeholder is not substituted on initial hydration |
+| Pre-hydration interaction | Supported event is replayed once after the boundary hydrates |
+| Later client navigation | Regular render trigger applies; placeholder remains correct and accessible |
+| Slow/failed chunk | Loading timing does not flicker; error state is useful and layout remains stable |
+| Nested boundaries | Parent hydrates before child; no request cascade or duplicate initialization |
+| Performance budget | Build bytes, LCP, CLS, INP, unused bytes and SSR latency beat the agreed baseline |
+
+Angular's TestBed can set defer behavior to manual and use `fixture.getDeferBlocks()` plus `DeferBlockState` to step through local states. That proves template transitions, not IntersectionObserver timing, production chunking, server HTML or event replay; cover those with a production build, SSR response assertions and a real browser. Test under cache hit/miss, CPU/network throttling, data-saver policy where relevant, direct SSR entry and in-app navigation.
+
+**Common errors:** treating `@defer` as a visibility toggle; assuming all imports inside it become lazy; putting the same dependency outside the block; overlooking eager placeholder/loading/error dependencies; using a barrel and never checking the chunk graph; relying on hover only; using `immediate` everywhere; prefetching every optional feature; omitting the single-root placeholder or explicit reference required by an implicit trigger; changing layout drastically between states; confusing render and hydrate triggers; expecting normal SSR to fire viewport/idle; removing placeholders because the first SSR visit uses incremental hydration; using `hydrate never` around interactive descendants; nesting identical triggers into a waterfall; hiding authorization behind `when`; and accepting unit-state tests as SSR/performance proof.
+
+**Interview variations:** default idle behavior; `on` versus `when`; OR semantics for multiple triggers; viewport/interaction/hover trigger references; prefetch versus render; placeholder/loading/error timing; standalone eligibility; external references and barrel files; SSR placeholder behavior; incremental hydration; initial SSR visit versus later CSR navigation; event replay; nested hydration order; `hydrate never`; accessibility and CLS; chunk granularity; HMR eager fetching; and how to verify the optimization in a production build.
+
+**Primary references:** Angular's [`@defer` guide](https://angular.dev/guide/templates/defer), [incremental hydration guide](https://angular.dev/guide/incremental-hydration), [hydration guide](https://angular.dev/guide/hydration), and [server/hybrid-rendering guide](https://angular.dev/guide/ssr). The three-clock model, decision table, four examples, state trace, dry run, invariants, cost derivation and verification matrix above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -6876,7 +7069,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q67. This pass was bounded to Markdown lines 1403–1417 and DOCX extracted lines 937–947 for Q67; both sources require browser-only APIs to live behind platform-aware boundaries rather than universal globals. This edition adds a platform-boundary decision table; four examples covering render callbacks, platform-specific providers, injected `DOCUMENT` and a narrow runtime guard; a request-to-hydration trace; module-evaluation, DOM-parity, request-isolation and cleanup invariants; a test matrix; and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q68. This pass was bounded to Markdown lines 1417–1430 and DOCX extracted lines 948–958 for Q68; both sources say to match the trigger to user value and dependency cost, distinguish viewport/interaction/idle/application-state cases, design fallback states and avoid excessive tiny chunks. This edition adds the fetch/render/hydrate clock model; a trigger decision table; four CSR/SSR examples; an SSR-to-hydration trace and dry run; eligibility, accessibility, geometry and hierarchy invariants; a production verification matrix; and derived transfer/render/hydration costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official Angular 22.2.2 docs. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration test, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
@@ -6886,6 +7079,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular input-contract material (reviewed 2026-10-13): [accepting data with inputs](https://angular.dev/guide/components/inputs), [`input` overloads](https://angular.dev/api/core/input), [`InputSignal`](https://angular.dev/api/core/InputSignal), [`InputSignalWithTransform`](https://angular.dev/api/core/InputSignalWithTransform), [`booleanAttribute`](https://angular.dev/api/core/booleanAttribute), and [`numberAttribute`](https://angular.dev/api/core/numberAttribute). The current pages state that required template inputs are build-time enforced, transforms must be statically analyzable and pure, transform parameter types define accepted template values, model inputs do not support transforms, failed built-in numeric coercion yields `NaN` unless a fallback is used, and these pages were built against Angular 22.2.2 when reviewed.
 - Official Angular model-input material (reviewed 2026-10-13): [model inputs](https://angular.dev/guide/components/inputs#model-inputs), [two-way binding](https://angular.dev/guide/templates/two-way-binding), [`model`](https://angular.dev/api/core/model), [`ModelSignal`](https://angular.dev/api/core/ModelSignal), and the current [`createModelSignal`](https://github.com/angular/angular/blob/main/packages/core/src/authoring/model/model_signal.ts) implementation. The Angular 22.2.2 pages define the writable input/implicit `Change` output pair, plain-property and writable-signal parent targets, required/default/alias forms, no-transform restriction and automatic output subscription cleanup; the current source confirms that equal values are not re-emitted.
 - Official Angular server/browser-boundary material (reviewed 2026-10-13): [server-side and hybrid rendering](https://angular.dev/guide/ssr), [`isPlatformBrowser`](https://angular.dev/api/common/isPlatformBrowser), [`DOCUMENT`](https://angular.dev/api/common/DOCUMENT), [using DOM APIs](https://angular.dev/guide/components/dom-apis), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), and [hydration constraints](https://angular.dev/guide/hydration#constraints). The Angular 22.2.2 pages state that browser globals and layout capabilities are not available during SSR; render callbacks are browser-only; platform-specific providers are preferred over scattered runtime checks; platform-driven template differences can cause hydration mismatch/layout shift; `DOCUMENT` represents the current rendering document; render callbacks are not a hydration-completion guarantee; and Angular-owned server/client DOM structure must match.
+- Official Angular deferrable-view material (reviewed 2026-10-13): [`@defer`](https://angular.dev/guide/templates/defer), [incremental hydration](https://angular.dev/guide/incremental-hydration), [hydration](https://angular.dev/guide/hydration), and [server/hybrid rendering](https://angular.dev/guide/ssr). The Angular 22.2.2 pages distinguish render, prefetch and hydrate triggers; state that ordinary SSR/SSG emits the placeholder without invoking regular triggers; document that incremental hydration plus a hydrate trigger emits the main block and delays client interactivity; and require regular placeholders for later CSR navigations.
 - Official Angular application-structure and component-contract material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [signals](https://angular.dev/guide/signals), [services and DI](https://angular.dev/guide/di/creating-and-using-services), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
 - Official Angular testing material (reviewed 2026-10-11): [testing overview and Vitest setup](https://angular.dev/guide/testing), [component-testing basics](https://angular.dev/guide/testing/components-basics), [component-testing scenarios](https://angular.dev/guide/testing/components-scenarios), [testing utility APIs](https://angular.dev/guide/testing/utility-apis), [component harnesses](https://angular.dev/guide/testing/component-harnesses-overview), and [migrating from Karma to Vitest](https://angular.dev/guide/testing/migrating-to-vitest).
 - Official Angular HTTP-testing material (reviewed 2026-10-11): [testing HTTP requests](https://angular.dev/guide/http/testing), [`provideHttpClientTesting`](https://angular.dev/api/common/http/testing/provideHttpClientTesting), [`HttpTestingController`](https://angular.dev/api/common/http/testing/HttpTestingController), and [`TestRequest`](https://angular.dev/api/common/http/testing/TestRequest).
@@ -6900,5 +7094,5 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q68 (`@defer` triggers and trigger selection) in both sources. It begins at Markdown anchor line 1418 / heading line 1420 and DOCX extracted line 948; resolve the exact section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q69 (single-flight token refresh) in both sources. It begins at Markdown anchor line 1431 / heading line 1433 and DOCX extracted line 959; resolve the exact section end before reading it and keep extending this one canonical guide.
 
