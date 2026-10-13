@@ -688,7 +688,7 @@
         "baseline_main_head": "93c501e57bdc197baa7e4598c82cb93d1c282c52"
       },
       "validation": "Q69 compared both source texts and adds a shared refresh flight, token-generation race guard, recursion and one-retry boundaries, four scenarios, a packet trace, request-cardinality tests, mutation replay safety and derived costs; deterministic builder and exact 485029-character HTML embedded-Markdown equality passed with 70 unique anchors, 219 balanced fenced blocks and 50 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution and live auth-server calls were not performed because the project runtime is absent.",
-      "last_successful_commit": "61e5d4c3479f2dc62400d0b38198f304cd322f0a"
+      "last_successful_commit": "4a72b9b0b17e1e8cefa1e18a9ca2fb9beff2fb61"
     },
     {
       "id": "javascript-html-css",
@@ -870,7 +870,7 @@
     "validation": "Angular Q69 was compared in both actual source texts and enriched with a shared refresh flight, token-generation race guard, recursion and one-retry boundaries, four scenarios, a packet trace, request-cardinality tests, mutation replay safety and derived costs; deterministic reader generation, exact 485029-character payload equality, 70 anchors, 219 balanced fences, 50 Mermaid diagrams, inline JavaScript, JSON, relative links, local README source hash, selected-file diff and live 170-marker audit passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution and live auth-server calls were not performed because the project runtime is absent.",
     "estimated_next_tokens": 7000,
     "estimate_method": "Heuristic only: bounded Q70 begins at Markdown anchor line 1445 / heading line 1447 and DOCX extracted line 970; reserve ~500 tokens for paired source range resolution, ~1100 for current primary Angular/RxJS research, ~3300 for distinct teaching/code/diagram/HTML, and ~2100 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "61e5d4c3479f2dc62400d0b38198f304cd322f0a",
+    "last_successful_commit": "4a72b9b0b17e1e8cefa1e18a9ca2fb9beff2fb61",
     "last_processed_at": "2026-10-13T19:25:04-04:00",
     "next_batch_decision": "Q69 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q70 and retain the conservative one-section checkpoint."
   }
