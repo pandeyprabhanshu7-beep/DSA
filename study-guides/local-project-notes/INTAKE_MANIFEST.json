@@ -165,10 +165,10 @@
         "### Interview-ready code:"
       ],
       "completed_sections": [
-        "Q1-Q63"
+        "Q1-Q64"
       ],
-      "processed_range": "latest bounded read: lines 1317-1332 for Q63",
-      "next_section": "Q64 afterNextRender begins at anchor line 1333 / heading line 1335"
+      "processed_range": "latest bounded read: lines 1337-1360 for Q64",
+      "next_section": "Q65 required signal inputs/input transforms begins at anchor line 1362 / heading line 1364"
     },
     {
       "relative_path": "untitled/DSA V2/Striver_Graph_DSA_Deep_Study_Guide_Visual.md",
@@ -847,27 +847,27 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "afterNextRender: bounded Q64 comparison against canonical lifecycle/rendering coverage",
+    "section": "required signal inputs and input transforms: bounded Q65 comparison against canonical input coverage",
     "status": "QUEUED",
-    "estimated_tokens": 7000,
-    "estimate_method": "Heuristic only: Q64 begins at Markdown anchor line 1333 / heading line 1335 and DOCX extracted line 891; reserve ~450 tokens for paired source intake/range resolution, ~1200 for current primary lifecycle research, ~3400 for distinct teaching/code/diagram/HTML, and ~1950 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 7200,
+    "estimate_method": "Heuristic only: Q65 begins at Markdown anchor line 1362 / heading line 1364 and follows Q64 after DOCX extracted line 907; reserve ~500 tokens for paired source intake/range resolution, ~1200 for current primary inputs research, ~3500 for distinct teaching/code/diagram/HTML, and ~2000 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "readers": "Canonical Angular reader rebuilt from Markdown; exact 394641-character embedded payload equality, 64 unique anchors, 179 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked. Local-project README HTML source hash matches its Markdown.",
-    "diagrams": "The Q63 adapter-topology diagram is embedded in the canonical payload; 43 Mermaid diagrams total; browser visual QA not executed",
-    "last_processed_at": "2026-10-13T02:15:45-04:00"
+    "readers": "Canonical Angular reader rebuilt from Markdown; exact 409528-character embedded payload equality, 65 unique anchors, 184 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked. Local-project README HTML source hash matches its Markdown.",
+    "diagrams": "The Q64 global render-phase diagram is embedded in the canonical payload; 44 Mermaid diagrams total; browser visual QA not executed",
+    "last_processed_at": "2026-10-13T07:51:09-04:00"
   },
   "angular_intake_checkpoint": {
-    "last_processed_at": "2026-10-13T02:15:45-04:00",
+    "last_processed_at": "2026-10-13T07:51:09-04:00",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q63; latest bounded source ranges are Markdown lines 1317-1332 and DOCX extracted lines 877-890 for Q63",
+    "processed": "Q1–Q64; latest bounded source ranges are Markdown lines 1337-1360 and DOCX extracted lines 893-907 for Q64",
     "status": "PUBLISHED",
-    "validation": "Q63 adds the toSignal/toObservable direction contract, four examples, initial-value/stabilization/error/completion/equality/lifetime rules, topology, dry run and derived costs; deterministic builder and exact 394641-character payload equality passed with 64 unique anchors, 179 balanced fences and 43 Mermaid diagrams; inline JavaScript, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed; not Angular/TypeScript/Vitest-executed or visually tested because the Angular runtime is absent",
+    "validation": "Q64 adds afterNextRender/afterEveryRender selection, four examples, exact phase order and typed handoff, default and early cleanup, global batching trace, SSR/hydration/paint boundaries, test matrix and derived costs; deterministic builder and exact 409528-character payload equality passed with 65 unique anchors, 184 balanced fences and 44 Mermaid diagrams; inline JavaScript, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed; Angular/TypeScript/Vitest execution, controlled-browser geometry/paint testing, hydration and SSR execution were not performed because the project runtime is absent",
     "content_commit": "6ccc2d7d63b983ccefbd5c392fc892ac4dceb074",
-    "estimated_next_tokens": 7000,
-    "estimate_method": "Heuristic from bounded Q64 starting at Markdown anchor line 1333 / heading line 1335 and DOCX extracted line 891 plus paired source range resolution, primary lifecycle research, distinct explanation/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "estimated_next_tokens": 7200,
+    "estimate_method": "Heuristic from bounded Q65 starting at Markdown anchor line 1362 / heading line 1364 and following Q64 after DOCX extracted line 907, plus paired source range resolution, primary inputs research, distinct explanation/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }

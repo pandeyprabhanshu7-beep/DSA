@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q63)
+# Angular 22 — Interview Foundations (Q1–Q64)
 
-> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q63 (Q63 is lines 1317–1332) with the corresponding `Angular_Interview_Workbook.docx` text (Q63 is extracted lines 877–890). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—and explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q64 (Q64 is lines 1337–1360) with the corresponding `Angular_Interview_Workbook.docx` text (Q64 is extracted lines 893–907). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, and application-wide render-callback phase, cleanup, SSR and hydration contracts, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -67,6 +67,7 @@
 - [Q61: diagnose a slow 5,000-row table](#q61)
 - [Q62: Angular 22 change-detection defaults](#q62)
 - [Q63: toSignal vs toObservable](#q63)
+- [Q64: afterNextRender vs afterEveryRender](#q64)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -6050,6 +6051,235 @@ For `n` source emissions, `toSignal` performs O(n) state updates/comparisons and
 
 **Primary references:** Angular's [RxJS interop guide](https://angular.dev/ecosystem/rxjs-interop), [`toSignal` API](https://angular.dev/api/core/rxjs-interop/toSignal), [`ToSignalOptions`](https://angular.dev/api/core/rxjs-interop/ToSignalOptions), [`toObservable` API](https://angular.dev/api/core/rxjs-interop/toObservable), and [`ToObservableOptions`](https://angular.dev/api/core/rxjs-interop/ToObservableOptions), plus the Angular repository's [`to_signal.ts`](https://github.com/angular/angular/blob/main/packages/core/rxjs-interop/src/to_signal.ts) and [`to_observable.ts`](https://github.com/angular/angular/blob/main/packages/core/rxjs-interop/src/to_observable.ts). The decision table, four examples, topology, dry run, invariants, tests and cost derivation above are added teaching material.
 
+<a id="q64"></a>
+## Q64. What are `afterNextRender` and `afterEveryRender`?
+
+**Requirement:** coordinate imperative DOM work with Angular's completed application render, choose one-shot versus recurring ownership deliberately, put geometry writes before reads, clean up owned resources, and preserve a correct server-rendering and hydration fallback.
+
+`afterNextRender` registers work for the **next** completed application render; `afterEveryRender` registers work after **each** completed application render until its registration is destroyed. They are standalone, application-wide render hooks—not component lifecycle methods. Register them in an injection context, usually a constructor, or pass an explicit injector. They run in browsers only: neither callback supplies server-rendered state during SSR or build-time prerendering.
+
+“After render” means after Angular has committed the render for that cycle. It does **not** promise that the browser has painted a frame, that every component is hydrated, or that an arbitrary third-party widget has finished its own asynchronous layout.
+
+### Choose the boundary before choosing the API
+
+| Requirement | Better boundary | Why |
+|---|---|---|
+| Initialize one chart after its host exists | `afterNextRender` | Exactly one post-render integration point |
+| Measure after each Angular render | `afterEveryRender` with a change guard | Repeats intentionally and can update only on a real size change |
+| Read a view query after this component's view initializes | `ngAfterViewInit` | Component-instance lifecycle is the actual requirement |
+| Derive state from inputs/signals | `computed`, `ngOnChanges` or ordinary state ownership | No DOM coordination is needed |
+| Observe element resizing independent of Angular renders | `ResizeObserver` with teardown | Resize is the event; Angular render count is only a proxy |
+| Wait for an actual browser frame | Explicit paint/frame scheduling | Render completion is not a paint guarantee |
+
+The callback registration is application-wide even when created by a component. By default Angular associates it with the current `DestroyRef`, so it is removed when that injection owner is destroyed. The returned `AfterRenderRef.destroy()` can stop it earlier. Setting `manualCleanup: true` transfers that cleanup responsibility to the application and should be exceptional.
+
+### The four global phases
+
+Angular orders all registered callbacks by phase:
+
+1. **`earlyRead`** — read only when a later write genuinely depends on that value.
+2. **`write`** — change layout-affecting DOM; do not read geometry here.
+3. **`mixedReadWrite`** — escape hatch for inseparable legacy code; avoid when work can be split.
+4. **`read`** — measure the DOM after writes; do not mutate layout here.
+
+Prefer `write` and `read`. Angular cannot inspect a callback and enforce that it obeys its phase. The return value of one phase is passed to the next phase declared in the same registration, which avoids a shared mutable scratch field.
+
+```mermaid
+flowchart TD
+ R["Angular completes one app render"] --> E["earlyRead callbacks"]
+ E --> W["write callbacks"]
+ W --> M["mixedReadWrite callbacks"]
+ M --> Q["read callbacks"]
+ Q --> P["Browser may later paint"]
+```
+
+Callbacks in the same phase run in registration order. The important batching property is that registered writes run before registered reads for the render; Angular does not guarantee that arbitrary third-party code inside a callback obeys the declared phase or that the browser performs exactly one layout calculation.
+
+### Example 1 — one write, one measurement, typed phase handoff
+
+```typescript
+import {
+  Component, ElementRef, afterNextRender, signal, viewChild
+} from '@angular/core';
+
+@Component({
+  selector: 'app-summary-card',
+  template: `
+    <article #card>Quarterly summary</article>
+    <p>Height: {{ heightPx() ?? 'not measured' }}</p>
+  `,
+})
+export class SummaryCard {
+  readonly card = viewChild.required<ElementRef<HTMLElement>>('card');
+  readonly heightPx = signal<number | null>(null);
+  private appliedPadding = '';
+
+  constructor() {
+    afterNextRender({
+      write: () => {
+        const element = this.card().nativeElement;
+        const nextPadding = element.dataset['density'] === 'compact'
+          ? '8px'
+          : '16px';
+        const changed = nextPadding !== this.appliedPadding;
+        if (changed) {
+          element.style.padding = nextPadding;
+          this.appliedPadding = nextPadding;
+        }
+        return changed;
+      },
+      read: (paddingChanged) => {
+        if (!paddingChanged) return;
+        const next = Math.round(
+          this.card().nativeElement.getBoundingClientRect().height
+        );
+        if (next !== this.heightPx()) this.heightPx.set(next);
+      },
+    });
+  }
+}
+```
+
+The `write` callback changes a geometric property and returns one boolean. The `read` callback receives that boolean, measures only when useful and guards the signal write. This is not “read after every statement”; it is one explicitly ordered write phase followed by a read phase.
+
+### Example 2 — initialize and destroy a third-party widget
+
+```typescript
+import {
+  Component, DestroyRef, ElementRef, afterNextRender,
+  inject, viewChild
+} from '@angular/core';
+
+type ChartHandle = {destroy(): void};
+declare function createChart(host: HTMLElement): ChartHandle;
+
+@Component({
+  selector: 'app-sales-chart',
+  template: `<div #chartHost aria-label="Sales chart"></div>`,
+})
+export class SalesChart {
+  readonly chartHost = viewChild.required<ElementRef<HTMLElement>>('chartHost');
+  private readonly destroyRef = inject(DestroyRef);
+  private chart: ChartHandle | null = null;
+
+  constructor() {
+    afterNextRender({
+      write: () => {
+        this.chart = createChart(this.chartHost().nativeElement);
+      },
+    });
+
+    this.destroyRef.onDestroy(() => {
+      this.chart?.destroy();
+      this.chart = null;
+    });
+  }
+}
+```
+
+The render registration itself is automatically cleaned up by its injection owner. The chart is a separate acquired resource, so the component must call the chart library's destructor. Give an imperative library a dedicated host; do not let it rewrite DOM nodes that Angular also owns. If `createChart` internally mixes geometry reads and writes, its documented behavior—not the outer `write` label—determines the actual layout cost.
+
+### Example 3 — recurring measurement without a render loop
+
+```typescript
+import {
+  Component, ElementRef, afterEveryRender, signal, viewChild
+} from '@angular/core';
+
+@Component({
+  selector: 'app-responsive-panel',
+  template: `
+    <section #panel><ng-content /></section>
+    <output>{{ widthPx() }} px</output>
+  `,
+})
+export class ResponsivePanel {
+  readonly panel = viewChild.required<ElementRef<HTMLElement>>('panel');
+  readonly widthPx = signal(0);
+
+  constructor() {
+    afterEveryRender({
+      read: () => {
+        const next = Math.round(
+          this.panel().nativeElement.getBoundingClientRect().width
+        );
+        if (next !== this.widthPx()) this.widthPx.set(next);
+      },
+    });
+  }
+}
+```
+
+The equality guard is a correctness boundary: without it, every read could write a template-consumed signal, schedule another render, invoke `afterEveryRender` again and create an avoidable loop. Even with the guard, this callback measures after **Angular renders**, not after every possible resize. Use a `ResizeObserver` when the element-size event itself is the requirement, and disconnect it on destruction.
+
+### Example 4 — stop a recurring registration early
+
+```typescript
+import {Component, AfterRenderRef, afterEveryRender} from '@angular/core';
+
+@Component({selector: 'app-render-probe', template: `Probe`})
+export class RenderProbe {
+  private samplesLeft = 3;
+  private readonly probe: AfterRenderRef;
+
+  constructor() {
+    this.probe = afterEveryRender({
+      read: () => {
+        recordRenderSample();
+        this.samplesLeft--;
+        if (this.samplesLeft === 0) this.probe.destroy();
+      },
+    });
+  }
+}
+
+declare function recordRenderSample(): void;
+```
+
+This callback would also be cleaned up automatically when its injection owner is destroyed, but `destroy()` expresses the narrower three-sample lifetime. Do not enable `manualCleanup` merely because a reference is returned.
+
+### Dry run with two registrations
+
+Suppose component A registers `write A` and `read A`, then component B registers `write B` and `read B`.
+
+| Step | Execution | State/guarantee |
+|---:|---|---|
+| 1 | Angular renders the application | Bound DOM for this cycle is committed |
+| 2 | `write A`, then `write B` | Same-phase registration order; layout-affecting work is grouped |
+| 3 | `read A`, then `read B` | Reads observe the preceding registered writes |
+| 4 | A returns a value from `write A` | Only A's next declared phase receives A's value |
+| 5 | Browser may paint | No render callback promised an already-painted frame |
+| 6 | A's owner is destroyed | A's registration is removed by default; B is unaffected |
+
+If A used `afterNextRender`, it is finished after this cycle. If B used `afterEveryRender`, it participates in later completed renders until cleanup. Neither runs on the server, and neither alone proves that the component subtree was already hydrated.
+
+### SSR, hydration and ownership boundaries
+
+- **Server fallback:** HTML, accessibility text and required data must be correct without the callback. A value written only in `afterNextRender` is absent from SSR/prerender output.
+- **Hydration:** browser-only is not equivalent to hydration-safe. Angular explicitly warns that components are not guaranteed hydrated before a render callback. Test the real SSR-to-hydration path and avoid mutating Angular-owned DOM.
+- **Component lifetime:** an application-wide hook can outlive the element unless cleanup follows the element's injector. Keep the default cleanup or destroy the returned reference.
+- **State ownership:** a render callback is for DOM coordination. Use ordinary signal/input/service ownership for business state.
+- **Notification:** writing a template-read signal is a render notification in zoneless Angular. In a recurring callback, guard equality and reason about the next cycle.
+
+### Correctness, costs and test matrix
+
+- **Phase invariant:** `write` performs no geometry read; `read` performs no layout write. Use `earlyRead` only when a later write truly depends on the early measurement.
+- **Frequency invariant:** choose `afterNextRender` for a one-shot requirement and `afterEveryRender` only when every render is semantically relevant.
+- **Lifetime invariant:** registration lifetime and third-party resource lifetime are separate; both must have an owner.
+- **Platform invariant:** server correctness is independent of these browser-only callbacks.
+- **Hydration invariant:** callback execution does not prove that a particular component has hydrated.
+- **Paint invariant:** post-render is not post-paint.
+
+For `c` registered callbacks whose bodies cost `t1 ... tc`, one render adds `O(t1 + ... + tc)` application callback work. Across `r` renders, an unchanged recurring set costs `O(r * sum(ti))`; one-shot callbacks contribute once. Holding `c` registrations needs O(c) framework records plus captured data and third-party resources. Reading or writing `n` elements is O(n) application work. Phase separation can reduce forced layout thrashing, but no portable fixed number of style/layout passes follows from the API because CSS, browser scheduling and third-party code also participate.
+
+Test at least these boundaries: one-shot count is exactly one; recurring count matches controlled renders; callbacks do not run in an SSR/prerender test; writes precede reads; a phase return value reaches the next phase; `AfterRenderRef.destroy()` prevents future calls; injector destruction cleans up the default registration; third-party teardown runs; equality guards prevent a render loop; the initial server DOM remains valid; the hydrated path does not duplicate widget ownership; and direct DOM code touches only its dedicated host. Use a real browser for geometry, paint and hydration claims—DOM shims do not implement browser layout faithfully.
+
+**Common errors:** treating these functions as component hooks; calling outside an injection context without an injector; using a plain callback and accepting the default `mixedReadWrite` phase; reading geometry in `write`; changing layout in `read`; assuming callback order across different phases follows registration order; using `afterEveryRender` for one-time initialization; setting a signal unconditionally from a recurring callback; forgetting library/observer/listener cleanup; using `manualCleanup` without destroying the ref; making SSR output depend on the callback; assuming browser-only means hydrated; calling `detectChanges()` or `setTimeout()` to guess render completion; and saying “after render” means “after paint.”
+
+**Interview variations:** `ngAfterViewInit` versus `afterNextRender`; `afterEveryRender` versus `ResizeObserver`; phase handoff typing; same-phase ordering; layout thrashing; zoneless signal notification; third-party chart ownership; SSR and prerender absence; hydration timing; `AfterRenderRef`; automatic versus manual cleanup; fake-DOM versus browser tests; and when a later frame is actually required.
+
+**Primary references:** Angular's [component lifecycle guide](https://angular.dev/guide/components/lifecycle), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), [`afterEveryRender`](https://angular.dev/api/core/afterEveryRender), [`AfterRenderOptions`](https://angular.dev/api/core/AfterRenderOptions), and [`AfterRenderRef`](https://angular.dev/api/core/AfterRenderRef). The decision table, four examples, global-phase diagram, dry run, invariants, cost derivation and test matrix above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -6057,19 +6287,19 @@ Keep the reusable order card behind a readonly view-model input and semantic `se
 
 Plan the legacy application's modernization as deployable checkpoints: capture a clean behavioral/performance baseline; use the Update Guide and supported toolchain matrix for one major-version step at a time; convert the leaf order card to standalone while its NgModule consumer remains valid; migrate the lazy orders route; then replace root bootstrap while preserving provider scopes, initializers, interceptor order and ZoneJS scheduling explicitly. Audit every template-visible timer, SDK, socket, form and SSR update for a real Angular notification, prove it in zoneless tests and a measured canary, and only then remove ZoneJS polyfills/dependency. Keep state-management and design-system rewrites outside these checkpoints, assign every `importProvidersFrom` bridge an owner/removal gate, and demonstrate the rollback after each phase. For the search page, draw the subscriber graph before adding an operator: bind a cold request once when one view owns it, expose a stable field rather than a template getter, flatten route/query changes with `switchMap`, and share only one explicitly identified query generation across overlapping consumers. Separate refresh from bounded retry, key/invalidate retained data by user and query, and prove request cardinality with `expectOne`/`match` rather than trusting the Network panel alone.
 
-Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly. Put each RxJS/signal bridge at one stable owner: adapt an existing stream once with `toSignal`, move signal state into RxJS once when debounce/cancellation is required, and test stabilized rather than imaginary per-write emissions.
+Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly. Put each RxJS/signal bridge at one stable owner: adapt an existing stream once with `toSignal`, move signal state into RxJS once when debounce/cancellation is required, and test stabilized rather than imaginary per-write emissions. Initialize one imperative chart with `afterNextRender`, give it a dedicated host and explicit destructor, and place geometric writes before reads. Use `afterEveryRender` only for a genuinely recurring render concern, guard signal writes against equality, prove automatic/early cleanup, and keep SSR output correct without either browser-only callback. Do not equate completed Angular rendering with browser paint or completed hydration.
 
 Place `/orders/:id` behind one public orders feature entry point. Keep order domain rules independent of Angular UI and concrete HTTP code, map DTOs in data access, inject the repository port at route composition, expose workflow state through a route-scoped facade, and prove import rules reject reverse/deep dependencies. Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. On the server, deny unmatched endpoints, derive identity from verified credentials, enforce broad request rules plus order/tenant ownership near the domain operation, and make mutation authorization atomic with the write. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and prevent synchronous child initialization from rewriting an already-checked parent binding; demonstrate the NG0100 trace and repair the ownership rather than adding a timer. Cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: forbidden import direction, deep import, dependency cycle, malformed DTO, route-provider teardown, lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, direct unauthenticated API call, authenticated other-owner and cross-tenant API calls, role revocation, alternate service entry point and ownership change concurrent with mutation, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, child-after-view parent mutation, impure binding getter, DOM measurement in browser and SSR, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/403/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q63. This pass was bounded to Markdown lines 1317–1332 and DOCX extracted lines 877–890 for Q63; both sources select `toSignal` for Observable-to-signal state and `toObservable` for signal-to-RxJS composition, and warn against repeated bridge creation or indiscriminate conversion. This edition adds exact initial-value, timing, error, completion, equality and injector-lifetime contracts; four examples; a topology; a stabilization trace; and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
-- Code snippets and traces were checked conceptually against the linked official docs and current Angular repository reports. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest/JIT execution, router/browser execution, SSR test or live server call was executed** during this source-comparison pass.
+- Both **actual Library source texts** were inspected for Q1–Q64. This pass was bounded to Markdown lines 1337–1360 and DOCX extracted lines 893–907 for Q64; both sources define `afterNextRender`/`afterEveryRender` as browser-only application render callbacks for DOM work and warn that direct DOM access still requires server/hydration discipline. This edition adds exact phase order, typed phase handoff, frequency and cleanup contracts; four examples; a global-phase diagram; a two-registration dry run; SSR/hydration boundaries; a test matrix; and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Code snippets and traces were checked conceptually against the linked official Angular 22.2.2 docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest/JIT execution, controlled-browser geometry/paint execution, hydration test, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-12): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), [Signals/computed](https://angular.dev/guide/signals#computed-signals-are-both-lazily-evaluated-and-memoized), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
 - Official Angular 22 change-detection material (reviewed 2026-10-13): [`ChangeDetectionStrategy`](https://angular.dev/api/core/ChangeDetectionStrategy), [component metadata](https://angular.dev/api/core/Component), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless notifications](https://angular.dev/guide/zoneless), the [OnPush-by-default RFC](https://github.com/angular/angular/discussions/69633), [JIT issue #70262](https://github.com/angular/angular/issues/70262), open [fix PR #69898](https://github.com/angular/angular/pull/69898), and [pre-v22 partial-library issue #71107](https://github.com/angular/angular/issues/71107). Angular's release page listed 22.2.2 as the current stable version on that review date.
-- Official Angular lifecycle-stability material (reviewed 2026-10-11): [NG0100 error encyclopedia](https://angular.dev/errors/NG0100), [component lifecycle](https://angular.dev/guide/components/lifecycle), and [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
+- Official Angular lifecycle and render-callback material (reviewed 2026-10-13): [NG0100 error encyclopedia](https://angular.dev/errors/NG0100), [component lifecycle](https://angular.dev/guide/components/lifecycle), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), [`afterEveryRender`](https://angular.dev/api/core/afterEveryRender), [`AfterRenderOptions`](https://angular.dev/api/core/AfterRenderOptions), and [`AfterRenderRef`](https://angular.dev/api/core/AfterRenderRef). The current API pages identify these callbacks as stable since Angular 20 and were built against Angular 22.2.2 when reviewed.
 - Official Angular application-structure and component-contract material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [signals](https://angular.dev/guide/signals), [services and DI](https://angular.dev/guide/di/creating-and-using-services), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
 - Official Angular testing material (reviewed 2026-10-11): [testing overview and Vitest setup](https://angular.dev/guide/testing), [component-testing basics](https://angular.dev/guide/testing/components-basics), [component-testing scenarios](https://angular.dev/guide/testing/components-scenarios), [testing utility APIs](https://angular.dev/guide/testing/utility-apis), [component harnesses](https://angular.dev/guide/testing/component-harnesses-overview), and [migrating from Karma to Vitest](https://angular.dev/guide/testing/migrating-to-vitest).
 - Official Angular HTTP-testing material (reviewed 2026-10-11): [testing HTTP requests](https://angular.dev/guide/http/testing), [`provideHttpClientTesting`](https://angular.dev/api/common/http/testing/provideHttpClientTesting), [`HttpTestingController`](https://angular.dev/api/common/http/testing/HttpTestingController), and [`TestRequest`](https://angular.dev/api/common/http/testing/TestRequest).
@@ -6084,5 +6314,5 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q64 (`afterNextRender`) in both sources, starting at Markdown anchor line 1333 / heading line 1335 and DOCX extracted line 891; resolve the section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q65 (required signal inputs and input transforms) in both sources. It follows Q64 at Markdown anchor line 1362 / heading line 1364 and immediately after DOCX extracted line 907; resolve its exact DOCX heading/end before reading it and keep extending this one canonical guide.
 
