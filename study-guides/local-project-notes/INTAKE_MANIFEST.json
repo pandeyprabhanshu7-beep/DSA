@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "6ee6735c5472656f7cd43c704cf3ec571960136e",
+  "last_successful_commit": "6ccc2d7d63b983ccefbd5c392fc892ac4dceb074",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -866,7 +866,7 @@
     "processed": "Q1–Q63; latest bounded source ranges are Markdown lines 1317-1332 and DOCX extracted lines 877-890 for Q63",
     "status": "PUBLISHED",
     "validation": "Q63 adds the toSignal/toObservable direction contract, four examples, initial-value/stabilization/error/completion/equality/lifetime rules, topology, dry run and derived costs; deterministic builder and exact 394641-character payload equality passed with 64 unique anchors, 179 balanced fences and 43 Mermaid diagrams; inline JavaScript, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed; not Angular/TypeScript/Vitest-executed or visually tested because the Angular runtime is absent",
-    "content_commit": "PENDING_Q63_CONTENT_COMMIT",
+    "content_commit": "6ccc2d7d63b983ccefbd5c392fc892ac4dceb074",
     "estimated_next_tokens": 7000,
     "estimate_method": "Heuristic from bounded Q64 starting at Markdown anchor line 1333 / heading line 1335 and DOCX extracted line 891 plus paired source range resolution, primary lifecycle research, distinct explanation/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
