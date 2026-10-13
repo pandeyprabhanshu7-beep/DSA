@@ -687,7 +687,7 @@
         "baseline_main_head": "39bc10cca68355a4bb48edb74ad673117ab0517e"
       },
       "validation": "Q68 compared both source texts and adds fetch/render/hydrate requirements, four examples, an SSR-to-hydration state trace, trigger/eligibility/accessibility invariants, a production verification matrix and derived costs; deterministic builder and exact 468445-character HTML embedded-Markdown equality passed with 69 unique anchors, 213 balanced fenced blocks and 48 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, production chunk inspection, controlled-browser execution, hydration and SSR execution were not performed because the project runtime is absent.",
-      "last_successful_commit": "ac1bd6d8870c05010190d6637a9a6e6bddd8d86b"
+      "last_successful_commit": "61e5d4c3479f2dc62400d0b38198f304cd322f0a"
     },
     {
       "id": "javascript-html-css",
@@ -869,7 +869,7 @@
     "validation": "Angular Q68 was compared in both actual source texts and enriched with fetch/render/hydrate requirements, four examples, an SSR-to-hydration state trace, trigger/eligibility/accessibility invariants, a production verification matrix and derived costs; deterministic reader generation, exact 468445-character payload equality, 69 anchors, 213 balanced fences, 48 Mermaid diagrams, inline JavaScript, JSON, relative links, local README source hash, selected-file diff and live 170-marker audit passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, production chunk inspection, controlled-browser execution, hydration and SSR execution were not performed because the project runtime is absent.",
     "estimated_next_tokens": 7800,
     "estimate_method": "Heuristic only: bounded Q69 begins at Markdown anchor line 1431 / heading line 1433 and DOCX extracted line 959; reserve ~650 tokens for paired source range resolution, ~1300 for current primary Angular/RxJS/auth research, ~3750 for distinct teaching/code/diagram/HTML, and ~2100 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "ac1bd6d8870c05010190d6637a9a6e6bddd8d86b",
+    "last_successful_commit": "61e5d4c3479f2dc62400d0b38198f304cd322f0a",
     "last_processed_at": "2026-10-13T18:28:06-04:00",
     "next_batch_decision": "Q68 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q69 and retain the conservative one-section checkpoint."
   }
