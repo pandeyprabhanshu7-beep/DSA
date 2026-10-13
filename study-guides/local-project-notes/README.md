@@ -49,7 +49,7 @@ See [intake manifest](INTAKE_MANIFEST.json) for source hashes, statuses and exac
 
 ## Continue next
 
-Angular Q1–Q64 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded Q65 on required signal inputs and input transforms, beginning at Markdown anchor line 1362 / heading line 1364 and following Q64 after DOCX extracted line 907; resolve the exact DOCX heading and both section ends before reading, then compare against existing input coverage. Estimated next-batch budget: approximately 7,200 tokens. This heuristic reserves about 500 tokens for bounded paired-source intake/range resolution, 1,200 for current primary inputs research, 3,500 for distinct teaching/code/diagram/HTML, and 2,000 for validation/checkpoint work. It is not account-quota telemetry.
+Angular Q1–Q65 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded Q66 on `model()` and intentional two-way component binding, beginning at Markdown anchor line 1380 / heading line 1382 and DOCX extracted line 921; resolve the exact DOCX section end before reading, then compare against existing Q9 ownership coverage and Q65's transform boundary. Estimated next-batch budget: approximately 6,800 tokens. This heuristic reserves about 500 tokens for bounded paired-source range resolution, 1,100 for current primary model-input research, 3,200 for distinct teaching/code/diagram/HTML, and 2,000 for validation/checkpoint work. It is not account-quota telemetry.
 
 ## Maintain readers
 

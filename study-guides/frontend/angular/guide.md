@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q64)
+# Angular 22 — Interview Foundations (Q1–Q65)
 
-> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q64 (Q64 is lines 1337–1360) with the corresponding `Angular_Interview_Workbook.docx` text (Q64 is extracted lines 893–907). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, and application-wide render-callback phase, cleanup, SSR and hydration contracts, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q65 (Q65 is lines 1362–1378) with the corresponding `Angular_Interview_Workbook.docx` text (Q65 is extracted lines 911–920). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, and required signal-input plus pure boundary-normalization rules, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -68,6 +68,7 @@
 - [Q62: Angular 22 change-detection defaults](#q62)
 - [Q63: toSignal vs toObservable](#q63)
 - [Q64: afterNextRender vs afterEveryRender](#q64)
+- [Q65: required signal inputs and transforms](#q65)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -6280,6 +6281,180 @@ Test at least these boundaries: one-shot count is exactly one; recurring count m
 
 **Primary references:** Angular's [component lifecycle guide](https://angular.dev/guide/components/lifecycle), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), [`afterEveryRender`](https://angular.dev/api/core/afterEveryRender), [`AfterRenderOptions`](https://angular.dev/api/core/AfterRenderOptions), and [`AfterRenderRef`](https://angular.dev/api/core/AfterRenderRef). The decision table, four examples, global-phase diagram, dry run, invariants, cost derivation and test matrix above are added teaching material.
 
+<a id="q65"></a>
+## Q65. Why use required signal inputs and input transforms?
+
+**Requirement:** design a component boundary that (1) rejects omitted essential configuration during template compilation, (2) accepts only an intentional set of public write types, (3) exposes one stable internal read type, and (4) normalizes each incoming value with a statically analyzable, pure and inexpensive transform.
+
+`input.required<T>()` declares a read-only `InputSignal<T>` with no automatic `undefined` member. When a template uses the component without binding that input, Angular reports a build-time template error. By contrast, `input<T>()` has the read type `T | undefined`, and `input(defaultValue)` is optional because the component already has a usable fallback.
+
+An input transform is a **boundary adapter**. Angular passes the bound value to the transform whenever it sets the input; the component reads only the transformed result. Its two types can therefore differ:
+
+```typescript
+InputSignalWithTransform<ReadT, WriteT>
+```
+
+`WriteT` is the type accepted from a template and `ReadT` is the type returned by `this.inputName()`. This is valuable for small representation conversions—attribute-like booleans, numeric coercion, whitespace normalization—not for validation, I/O, logging or hidden business policy.
+
+| Declaration | Consumer obligation | Child read type | Good use |
+|---|---|---|---|
+| `input.required<Order>()` | Must bind an `Order` | `Order` | Essential domain data |
+| `input<Order>()` | May omit | `Order \| undefined` | Truly absent-until-supplied data |
+| `input(DEFAULTS)` | May omit | Inferred non-null type | Meaningful component default |
+| `input(false, {transform: booleanAttribute})` | May bind attribute/string/boolean-like input | `boolean` | HTML-style presence semantics |
+
+Required means **the binding must exist**; it does not prove that a runtime object is authorized, fresh, non-empty or semantically valid. A required `string` can still be `''`; a required object can still contain bad domain values. Keep server validation and authorization at their real trust boundaries.
+
+### Example 1 — an essential typed object
+
+```typescript
+import {Component, input} from '@angular/core';
+
+type ProductCardVm = Readonly<{
+  id: string;
+  name: string;
+  priceCents: number;
+}>;
+
+@Component({
+  selector: 'app-product-card',
+  template: `
+    <article>
+      <h2>{{ product().name }}</h2>
+      <span>{{ product().priceCents }} cents</span>
+    </article>
+  `,
+})
+export class ProductCard {
+  readonly product = input.required<ProductCardVm>();
+}
+```
+
+`<app-product-card [product]="selected()" />` is valid. `<app-product-card />` produces a missing-required-input template diagnostic, and `[product]="17"` produces a template type error. The child cannot call `product.set(...)` because an input signal is read-only. This sharpens the Q9 parent/child ownership rule: the parent supplies the value; the child consumes it.
+
+### Example 2 — built-in attribute coercion
+
+```typescript
+import {
+  Component, booleanAttribute, input, numberAttribute
+} from '@angular/core';
+
+@Component({
+  selector: 'app-page-size',
+  template: `Rows: {{ rows() }}; disabled: {{ disabled() }}`,
+})
+export class PageSize {
+  readonly rows = input(25, {transform: numberAttribute});
+  readonly disabled = input(false, {transform: booleanAttribute});
+}
+```
+
+| Parent usage | `rows()` | `disabled()` | Important detail |
+|---|---:|---:|---|
+| `<app-page-size />` | `25` | `false` | Defaults apply because inputs are optional |
+| `<app-page-size rows="50" />` | `50` | `false` | Static attribute text is converted to a number |
+| `<app-page-size disabled />` | `25` | `true` | Presence follows boolean-attribute intent |
+| `<app-page-size disabled="false" />` | `25` | `false` | Angular's helper treats literal `"false"` specially |
+
+`numberAttribute` returns `NaN` when conversion fails unless its optional fallback argument is used. If `NaN` is not a valid component state, do not silently accept it: choose a deliberate wrapper transform, reject the API shape earlier, or model parsing failure explicitly.
+
+### Example 3 — a required input with a custom write type
+
+```typescript
+import {Component, input} from '@angular/core';
+
+function normalizeLabel(value: string | null | undefined): string {
+  return value?.trim() ?? '';
+}
+
+@Component({
+  selector: 'app-field-label',
+  template: `<label>{{ label() }}</label>`,
+})
+export class FieldLabel {
+  readonly label = input.required<
+    string,
+    string | null | undefined
+  >({transform: normalizeLabel});
+}
+```
+
+The public write contract accepts `string | null | undefined`; the component always reads a `string`. Binding `'  Email  '` yields `'Email'`; `null` and `undefined` yield `''`. Required still means the parent must bind `[label]`; deliberately binding `undefined` is allowed here because **this transform's parameter type** explicitly accepts it. If that would violate the product contract, narrow `WriteT` to `string` instead of using requiredness as a substitute for the correct type.
+
+### Example 4 — preserve an old template name while improving internals
+
+```typescript
+import {Component, input, numberAttribute} from '@angular/core';
+
+@Component({
+  selector: 'app-progress-meter',
+  template: `<progress [value]="percent()" max="100"></progress>`,
+})
+export class ProgressMeter {
+  readonly percent = input.required<number, unknown>({
+    alias: 'value',
+    transform: numberAttribute,
+  });
+}
+```
+
+Consumers keep `<app-progress-meter value="75" />`, while class code reads `percent() === 75`. The alias changes only the template-facing name. This can support a migration, but aliases should be exceptional: two vocabularies increase API-search and maintenance cost. Also note that `numberAttribute` may yield `NaN`; a progress component with a stricter 0–100 invariant needs a purpose-built pure transform or explicit validation rather than pretending coercion supplies range validation.
+
+### Update trace — write type becomes read type once
+
+```mermaid
+flowchart TD
+ P["Parent expression or attribute"] --> W["Template write-type check"]
+ W --> X["Pure input transform"]
+ X --> S["Read-only InputSignal<ReadT>"]
+ S --> C["computed / child template"]
+ C --> D["Rendered DOM"]
+```
+
+For `<app-field-label [label]="caption()" />`, assume the parent changes `caption` from `'  Email  '` to `' Work email '`:
+
+| Step | Value | Contract checked |
+|---:|---|---|
+| 1 | parent produces `' Work email '` | Assignable to transform parameter `string \| null \| undefined` |
+| 2 | Angular invokes `normalizeLabel` | Transform is the boundary, not a template getter |
+| 3 | transform returns `'Work email'` | Assignable to the signal read type `string` |
+| 4 | `label()` holds `'Work email'` | Child code never needs trimming or null branching |
+| 5 | dependent template/computed work reruns | Normal signal dependency rules apply |
+
+The transform runs when Angular sets the input, not whenever the child reads it. If the parent mutates a field inside the same object reference without causing an input update, a transform is not a deep-change detector. Preserve immutable ownership and replace values when semantic state changes.
+
+### Invariants, costs and boundaries
+
+- **Presence invariant:** every compiled template consumer supplies each required input. Dynamic creation and non-template callers still need explicit integration tests; compile-time requiredness is not runtime schema validation.
+- **Type invariant:** the transform parameter defines accepted template values; its return type defines what the child signal yields.
+- **Purity invariant:** a transform depends only on its argument. No service calls, clock reads, analytics, random IDs, signal writes or mutable external state.
+- **Static invariant:** the transform reference is statically analyzable; do not choose it conditionally or construct it from an expression.
+- **Ownership invariant:** the input signal is read-only in the child. Use `computed` for derived values and `model()` only for intentional two-way ownership; model inputs do not support transforms.
+- **Meaning invariant:** normalization may change representation, not silently reinterpret the domain. Emit an output or invoke a command for behavior; validate business rules explicitly.
+
+If one input is updated `u` times and its transform costs `T`, normalization costs O(uT), plus downstream reactive/rendering work. Reading the stored transformed signal is O(1) framework access aside from its consumers. Trimming a string of length `m` is O(m) time and allocates up to O(m) output; parsing a numeric string is O(m). Copying or sorting an `n`-item collection inside a transform makes every input update O(n) (or O(n log n)) and allocates accordingly—usually a sign to keep the boundary cheap and move memoized derivation into `computed`. Requiredness itself adds no per-read algorithmic cost.
+
+### Testing and common failures
+
+Use a real host template with template type checking for the compile-time contract, then test representative runtime mappings through the public binding:
+
+| Test | Expected result |
+|---|---|
+| Omit `[product]` | Compilation fails for missing required input |
+| Bind the wrong `product` type | Template type checking fails |
+| Bind `rows="50"`, `disabled`, and `disabled="false"` | Reads `50`, `true`, and `false` respectively |
+| Bind `'  Email  '`, `null`, `undefined` to `label` | Reads `'Email'`, `''`, `''` |
+| Update parent value twice | Transform is reflected for each set; child reads latest normalized value |
+| Destroy and recreate the child | No transform-owned external state leaks because the transform is pure |
+
+Test custom transform functions directly as ordinary pure functions, including empty, nullish, Unicode and malformed inputs. Test component integration through a host or Angular's public input-setting path; do not assign to the `InputSignal` field itself. Keep a separate domain test for range, authorization and server validation.
+
+**Common errors:** confusing required with non-null runtime validation; using `input.required<T>()` while the parent legitimately has an initial loading gap; widening `WriteT` to `unknown` without defining malformed-value policy; using `Boolean(value)` and accidentally treating the string `'false'` as true; forgetting that failed `numberAttribute` parsing yields `NaN`; putting HTTP calls, analytics or signal writes in a transform; allocating/sorting large collections on every set; transforming a mutable object and expecting nested mutations to retrigger it; duplicating the same normalization in a setter, lifecycle hook and template; adding an alias without a migration reason; and expecting a child to write a normal input signal.
+
+**Interview variations:** `input.required<T>()` versus `input<T>()`; default value versus requiredness; read type versus transform write type; built-in boolean/number transforms; pure and statically analyzable requirements; transform versus `computed`; decorator `@Input({required: true, transform})` compatibility; aliases; model inputs; template compile tests; dynamic component creation; and why boundary normalization is not domain validation.
+
+**Primary references:** Angular's [input guide](https://angular.dev/guide/components/inputs), [`input` overloads](https://angular.dev/api/core/input), [`InputSignalWithTransform`](https://angular.dev/api/core/InputSignalWithTransform), [`booleanAttribute`](https://angular.dev/api/core/booleanAttribute), and [`numberAttribute`](https://angular.dev/api/core/numberAttribute). The decision table, four examples, update trace, invariants, cost derivation and test matrix above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -6287,19 +6462,20 @@ Keep the reusable order card behind a readonly view-model input and semantic `se
 
 Plan the legacy application's modernization as deployable checkpoints: capture a clean behavioral/performance baseline; use the Update Guide and supported toolchain matrix for one major-version step at a time; convert the leaf order card to standalone while its NgModule consumer remains valid; migrate the lazy orders route; then replace root bootstrap while preserving provider scopes, initializers, interceptor order and ZoneJS scheduling explicitly. Audit every template-visible timer, SDK, socket, form and SSR update for a real Angular notification, prove it in zoneless tests and a measured canary, and only then remove ZoneJS polyfills/dependency. Keep state-management and design-system rewrites outside these checkpoints, assign every `importProvidersFrom` bridge an owner/removal gate, and demonstrate the rollback after each phase. For the search page, draw the subscriber graph before adding an operator: bind a cold request once when one view owns it, expose a stable field rather than a template getter, flatten route/query changes with `switchMap`, and share only one explicitly identified query generation across overlapping consumers. Separate refresh from bounded retry, key/invalidate retained data by user and query, and prove request cardinality with `expectOne`/`match` rather than trusting the Network panel alone.
 
-Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly. Put each RxJS/signal bridge at one stable owner: adapt an existing stream once with `toSignal`, move signal state into RxJS once when debounce/cancellation is required, and test stabilized rather than imaginary per-write emissions. Initialize one imperative chart with `afterNextRender`, give it a dedicated host and explicit destructor, and place geometric writes before reads. Use `afterEveryRender` only for a genuinely recurring render concern, guard signal writes against equality, prove automatic/early cleanup, and keep SSR output correct without either browser-only callback. Do not equate completed Angular rendering with browser paint or completed hydration.
+Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Make its immutable order view model a required signal input, use a pure transform only for a small representation boundary such as trimming an optional label, and test both the missing-binding compile failure and the transform's accepted write types; do not mistake requiredness or coercion for domain validation. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly. Put each RxJS/signal bridge at one stable owner: adapt an existing stream once with `toSignal`, move signal state into RxJS once when debounce/cancellation is required, and test stabilized rather than imaginary per-write emissions. Initialize one imperative chart with `afterNextRender`, give it a dedicated host and explicit destructor, and place geometric writes before reads. Use `afterEveryRender` only for a genuinely recurring render concern, guard signal writes against equality, prove automatic/early cleanup, and keep SSR output correct without either browser-only callback. Do not equate completed Angular rendering with browser paint or completed hydration.
 
 Place `/orders/:id` behind one public orders feature entry point. Keep order domain rules independent of Angular UI and concrete HTTP code, map DTOs in data access, inject the repository port at route composition, expose workflow state through a route-scoped facade, and prove import rules reject reverse/deep dependencies. Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. On the server, deny unmatched endpoints, derive identity from verified credentials, enforce broad request rules plus order/tenant ownership near the domain operation, and make mutation authorization atomic with the write. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and prevent synchronous child initialization from rewriting an already-checked parent binding; demonstrate the NG0100 trace and repair the ownership rather than adding a timer. Cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: forbidden import direction, deep import, dependency cycle, malformed DTO, route-provider teardown, lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, direct unauthenticated API call, authenticated other-owner and cross-tenant API calls, role revocation, alternate service entry point and ownership change concurrent with mutation, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, child-after-view parent mutation, impure binding getter, DOM measurement in browser and SSR, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/403/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q64. This pass was bounded to Markdown lines 1337–1360 and DOCX extracted lines 893–907 for Q64; both sources define `afterNextRender`/`afterEveryRender` as browser-only application render callbacks for DOM work and warn that direct DOM access still requires server/hydration discipline. This edition adds exact phase order, typed phase handoff, frequency and cleanup contracts; four examples; a global-phase diagram; a two-registration dry run; SSR/hydration boundaries; a test matrix; and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
-- Code snippets and traces were checked conceptually against the linked official Angular 22.2.2 docs. The reader validator and JavaScript syntax checks were executed, but **no Angular CLI integration compile, Vitest/JIT execution, controlled-browser geometry/paint execution, hydration test, SSR test or live server call was executed** during this source-comparison pass.
+- Both **actual Library source texts** were inspected for Q1–Q65. This pass was bounded to Markdown lines 1362–1378 and DOCX extracted lines 911–920 for Q65; both sources say required inputs move missing configuration into template/build checking and transforms normalize incoming values at the boundary. This edition adds a required/optional/default decision table; separate read/write types; four examples; a boundary-flow diagram and update trace; purity, static-analysis, ownership and validation boundaries; a test matrix; and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Code snippets and traces were checked conceptually against the linked official Angular 22.2.2 docs. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration test, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-12): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), [Signals/computed](https://angular.dev/guide/signals#computed-signals-are-both-lazily-evaluated-and-memoized), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
 - Official Angular 22 change-detection material (reviewed 2026-10-13): [`ChangeDetectionStrategy`](https://angular.dev/api/core/ChangeDetectionStrategy), [component metadata](https://angular.dev/api/core/Component), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless notifications](https://angular.dev/guide/zoneless), the [OnPush-by-default RFC](https://github.com/angular/angular/discussions/69633), [JIT issue #70262](https://github.com/angular/angular/issues/70262), open [fix PR #69898](https://github.com/angular/angular/pull/69898), and [pre-v22 partial-library issue #71107](https://github.com/angular/angular/issues/71107). Angular's release page listed 22.2.2 as the current stable version on that review date.
 - Official Angular lifecycle and render-callback material (reviewed 2026-10-13): [NG0100 error encyclopedia](https://angular.dev/errors/NG0100), [component lifecycle](https://angular.dev/guide/components/lifecycle), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), [`afterEveryRender`](https://angular.dev/api/core/afterEveryRender), [`AfterRenderOptions`](https://angular.dev/api/core/AfterRenderOptions), and [`AfterRenderRef`](https://angular.dev/api/core/AfterRenderRef). The current API pages identify these callbacks as stable since Angular 20 and were built against Angular 22.2.2 when reviewed.
+- Official Angular input-contract material (reviewed 2026-10-13): [accepting data with inputs](https://angular.dev/guide/components/inputs), [`input` overloads](https://angular.dev/api/core/input), [`InputSignal`](https://angular.dev/api/core/InputSignal), [`InputSignalWithTransform`](https://angular.dev/api/core/InputSignalWithTransform), [`booleanAttribute`](https://angular.dev/api/core/booleanAttribute), and [`numberAttribute`](https://angular.dev/api/core/numberAttribute). The current pages state that required template inputs are build-time enforced, transforms must be statically analyzable and pure, transform parameter types define accepted template values, model inputs do not support transforms, failed built-in numeric coercion yields `NaN` unless a fallback is used, and these pages were built against Angular 22.2.2 when reviewed.
 - Official Angular application-structure and component-contract material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [signals](https://angular.dev/guide/signals), [services and DI](https://angular.dev/guide/di/creating-and-using-services), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
 - Official Angular testing material (reviewed 2026-10-11): [testing overview and Vitest setup](https://angular.dev/guide/testing), [component-testing basics](https://angular.dev/guide/testing/components-basics), [component-testing scenarios](https://angular.dev/guide/testing/components-scenarios), [testing utility APIs](https://angular.dev/guide/testing/utility-apis), [component harnesses](https://angular.dev/guide/testing/component-harnesses-overview), and [migrating from Karma to Vitest](https://angular.dev/guide/testing/migrating-to-vitest).
 - Official Angular HTTP-testing material (reviewed 2026-10-11): [testing HTTP requests](https://angular.dev/guide/http/testing), [`provideHttpClientTesting`](https://angular.dev/api/common/http/testing/provideHttpClientTesting), [`HttpTestingController`](https://angular.dev/api/common/http/testing/HttpTestingController), and [`TestRequest`](https://angular.dev/api/common/http/testing/TestRequest).
@@ -6314,5 +6490,5 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q65 (required signal inputs and input transforms) in both sources. It follows Q64 at Markdown anchor line 1362 / heading line 1364 and immediately after DOCX extracted line 907; resolve its exact DOCX heading/end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q66 (`model()` and intentional two-way component binding) in both sources. It begins at Markdown anchor line 1380 / heading line 1382 and DOCX extracted line 921; resolve the exact DOCX section end before reading it and keep extending this one canonical guide.
 
