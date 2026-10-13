@@ -406,4 +406,465 @@
       ],
       "last_processed_at": "2026-10-08",
       "next_action": "Read latest canonical source and status; reconcile earlier source improvements in place.",
-    
+      "priority": 1
+    },
+    {
+      "id": "dsa-trees",
+      "domain": "DSA",
+      "canonical_target": "study-guides/striver-dsa/trees-bst/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [
+        "Take_U_Forward_Tree_Verified_Problem_Guide_v3.md",
+        "DSA_Tree_FAANG_Mermaid_Question_Workbook.md",
+        "DSA_Tree_FAANG_Question_Workbook.docx"
+      ],
+      "last_processed_at": "2026-10-08",
+      "next_action": "Read latest canonical source and status; reconcile earlier source improvements in place.",
+      "priority": 2
+    },
+    {
+      "id": "dsa-stack-queue",
+      "domain": "DSA",
+      "canonical_target": "study-guides/striver-dsa/stack-queue/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [
+        "Take_U_Forward_Stack_Queue_Complete_Deep_Guide_v2.md",
+        "Take_U_Forward_Stack_Queue_Mermaid_Guide.md",
+        "Take_U_Forward_Stack_Queue_Java_Deep_Workbook.docx",
+        "Stack_Queue_FAANG_Question_Workbook_Expanded.docx"
+      ],
+      "last_processed_at": "2026-10-08",
+      "next_action": "Read latest canonical source and status; reconcile earlier source improvements in place.",
+      "priority": 3
+    },
+    {
+      "id": "dsa-linked-list",
+      "domain": "DSA",
+      "canonical_target": "study-guides/striver-dsa/linked-list/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [],
+      "last_processed_at": "2026-10-08",
+      "next_action": "Read latest canonical source and status; reconcile earlier source improvements in place.",
+      "priority": 4
+    },
+    {
+      "id": "dsa-hashing",
+      "domain": "DSA",
+      "canonical_target": "study-guides/striver-dsa/hashmap-hashing/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [],
+      "last_processed_at": "2026-10-08",
+      "next_action": "Read latest canonical source and status; reconcile earlier source improvements in place.",
+      "priority": 5
+    },
+    {
+      "id": "dsa-arrays",
+      "domain": "DSA",
+      "canonical_target": "study-guides/striver-dsa/arrays/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "DSA_Arrays_FAANG_Mermaid_Question_Workbook.md",
+        "DSA_Arrays_FAANG_Question_Workbook_Expanded.docx"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 6
+    },
+    {
+      "id": "advanced-trees",
+      "domain": "DSA",
+      "canonical_target": "study-guides/advanced-trees/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "Advanced_Trees_FAANG_Mermaid_Study_Guide.md",
+        "Tree_Advanced_FAANG_Study_Guide.docx",
+        "advanced_trees_interview_guide.md"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 7
+    },
+    {
+      "id": "ai-foundations-rag-cag",
+      "domain": "AI",
+      "canonical_target": "study-guides/ai/foundations-rag-cag/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [
+        "AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md",
+        "AI_RAG_CAG_Deep_Learning_Developer_Guide.docx"
+      ],
+      "last_processed_at": "2026-10-08T07:37:33-04:00",
+      "processed_sections": [
+        "RAG minimal implementation — authorization-aware orchestration, four examples, dry run, citation invariant and Java pipeline",
+        "CAG cache identity and invalidation — four decisions, packet trace, collision-safe cache key and Java validation"
+      ],
+      "source_revision": {
+        "baseline_commit": "ccc47c26457024fe90b05c69584ba581f3cf8b5a",
+        "selected_library_file_id": "libfile_d2bbf045b6308191b0701c7c0218f7d6",
+        "selected_sha256": "d302fcc91dfc510ca514962d8fec4229c4ac418c227ca9aafd080552fbc99e08",
+        "compared_library_file_id": "libfile_2acdb587e9248191a4799afbe48fbd38",
+        "compared_sha256": "eb7e33869e7bd119f9b52d12ef7e9a7c301ba67065e87abf822fbd1396e51e80",
+        "canonical_sha256_after": "ed463b7ea3692774c10f55f19e75e1c75fbc1432a510e8674f982c4d9e079ab2"
+      },
+      "last_successful_commit": "f64d5cf3b93114a88e4dc6437348ee0cb7e433ae",
+      "validation": "Both resolved sources were read and hashed; DOCX ZIP integrity/traversal checks passed and two useful figures were retained; both Java 17 source-file programs passed explicit failures plus 10,000 seeded randomized tenant-scope/invalidation rounds; Pandoc rebuild was deterministic; embedded Markdown payload equality, unique IDs, internal anchors, relative links/assets, PNG signatures/dimensions, search-index targets, Mermaid counts, JSON and git diff checks passed; live DSA placeholder audit 174; browser visual QA was not executed.",
+      "next_action": "Rotate fairly to the accessible unpromoted DevOps/backend domain (prefer cicd-cloud-kubernetes); on the next AI foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment without creating a versioned duplicate.",
+      "priority": 8
+    },
+    {
+      "id": "ai-platform",
+      "domain": "AI",
+      "canonical_target": "study-guides/ai/platform/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "ai_cicd_spring_python_guides_complete.zip",
+        "ai_platform_master_guide.html",
+        "ai_platform_engineering_complete_bundle.zip",
+        "ai_platform_engineering_illustrated.html"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 9
+    },
+    {
+      "id": "system-design-fundamentals",
+      "domain": "System design/data",
+      "canonical_target": "study-guides/system-design/fundamentals/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [
+        "system_design_fundamentals_deep_research.md",
+        "system_design_fundamentals.md"
+      ],
+      "last_processed_at": "2026-10-08T06:37:18-04:00",
+      "processed_sections": [
+        "Requirements before architecture — capacity estimation contract, four examples, storage dry run, invariants and Java estimator",
+        "Caching as latency and load control — cache correctness invariants, stale-resurrection trace, version fencing and Java cache-aside example"
+      ],
+      "source_revision": {
+        "baseline_commit": "3c13297cf830c9c423723752e0ef7107ea2d933e",
+        "selected_library_file_id": "libfile_ec928991597c81918057029c614c3486",
+        "selected_version_id": "1",
+        "selected_sha256": "93446361f0c19cddbe2ab76bd9c32158a6dc540d10a60f2dbeffe827233efcd6",
+        "compared_sha256": "8b2752df0853d73f900dd9e58b71e7593a28d7bd0fef4847ffa5ed4ad250d657",
+        "canonical_sha256_after": "c91326928dc2be42c0a55da2e0a91e4953395c96d1d2be258302db434b56fce8"
+      },
+      "last_successful_commit": "e6023f5b5cc7d65db08aebc23fb1d417925de1d8",
+      "validation": "Both resolved sources were read and hashed; Java 17 source-file launch passed explicit capacity/cache checks and 10,000 seeded randomized version-fencing rounds; Pandoc rebuild was deterministic; embedded Markdown payload equality, unique IDs, internal anchors, relative links/assets, search-index targets, JSON and git diff checks passed; live DSA placeholder audit 174; isolated browser could not reach the loopback preview, so browser visual QA was not executed.",
+      "next_action": "No forced fundamentals continuation. Rotate fairly to an accessible unpromoted domain (prefer AI foundations/RAG/CAG); on the next system-design turn, process the distinct blueprints source or add the queued retry/idempotency packet trace without creating a versioned duplicate.",
+      "priority": 10
+    },
+    {
+      "id": "system-design-blueprints",
+      "domain": "System design/data",
+      "canonical_target": "study-guides/system-design/blueprints/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "top_5_system_design_interview_blueprints.md"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 11
+    },
+    {
+      "id": "database-caching-java",
+      "domain": "System design/data",
+      "canonical_target": "study-guides/databases/caching-java/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "database_internals_caching_java_master_guide.md"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 12
+    },
+    {
+      "id": "cicd-cloud-kubernetes",
+      "domain": "DevOps/backend",
+      "canonical_target": "study-guides/devops/cicd/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [
+        "cicd_aws_azure_teamcity_jenkins_guide.html",
+        "ai_cicd_spring_python_guides_complete.zip"
+      ],
+      "last_processed_at": "2026-10-08T08:33:40-04:00",
+      "processed_sections": [
+        "Claim-bound release authorization — four decisions, OIDC-to-STS trace, exact-claim invariant and Java policy model",
+        "Rollback and concurrent releases — four races, compare-and-set trace, immutable release record and Java concurrency model"
+      ],
+      "source_revision": {
+        "baseline_commit": "a2990d507473430a8b46563b8f6c6c0dcd4864c8",
+        "selected_library_file_id": "libfile_d6a32648e8408191845065f5dc21ed2a",
+        "selected_bundle_sha256": "c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31",
+        "selected_inner_source": "atlas_guides/cicd_aws_azure_teamcity_jenkins_guide.md",
+        "selected_inner_sha256": "10deac7075831e2c2fbd88757ead4e284c7ff0fcd4ab3e9693553502be91919e",
+        "compared_library_file_id": "libfile_0bfe6eef3e148191b043eec8eb84f5e0",
+        "compared_html_sha256": "a78c3ee9f83d6970c9fc55e81d6b355cfb66c13e798ed27bc487fc39aeee1f4d",
+        "canonical_sha256_after": "f1bafdaca870dc09dbba7ae92f56519f948cef5fb9f4c9d06a18d62084c7494d"
+      },
+      "last_successful_commit": "cd6e673ceef0a5e9209c603dc4bd746175c4fde1",
+      "validation": "Standalone HTML and bundle contents were read and hashed; ZIP integrity/traversal checks passed; both Java 17 source-file programs passed explicit cases plus 20,000 seeded adversarial rounds; Pandoc rebuild was deterministic; embedded Markdown payload equality, unique IDs, internal anchors, relative assets, PNG signatures/dimensions, visual contact-sheet inspection, search-index targets, Mermaid counts, JSON and git diff checks passed; live DSA placeholder audit 174; live cloud/CI integrations and browser rendering were not executed.",
+      "next_action": "Rotate fairly to an accessible unpromoted frontend source (prefer Angular); on the next DevOps pass, deepen probe-driven rollout failure diagnosis and TeamCity/Jenkins agent isolation without creating a versioned duplicate.",
+      "priority": 13
+    },
+    {
+      "id": "spring-ai-python-api",
+      "domain": "DevOps/backend",
+      "canonical_target": "study-guides/backend/spring-ai-python/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "ai_cicd_spring_python_guides_complete.zip",
+        "spring_ai_python_api_interview_guide.html"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 14
+    },
+    {
+      "id": "angular",
+      "domain": "Frontend",
+      "canonical_target": "study-guides/frontend/angular/",
+      "target_exists": true,
+      "status": "IN_PROGRESS",
+      "source_names": [
+        "Angular_Interview_Mermaid_Workbook.md",
+        "Angular_Interview_Workbook.docx"
+      ],
+      "last_processed_at": "2026-10-13T01:54:33-04:00",
+      "next_action": "Continue with bounded Angular Q63 on a scalable Angular folder structure; the source begins at Markdown anchor line 1317 / heading line 1319 and DOCX extracted heading line 877. Resolve the bounded section end before reading, compare it with the richer Q50 architecture material, and merge only distinct teaching value into the canonical guide.",
+      "priority": 15,
+      "processed_sections": [
+        "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)",
+        "Components, lifecycle and communication: Q7–Q13 (lifecycle phases, constructor vs ngOnInit, input/output/model ownership, view/content queries, projection, directives and pipe purity)",
+        "Signals and change detection: Q14–Q20 (writable/computed/effect, dynamic dependencies, linkedSignal, resource/httpResource, zoneless notification model and OnPush)",
+        "Zoneless migration and manual view control: Q21–Q22 (notification paths, migration audit, ChangeDetectorRef mark/detach/detect/reattach boundaries)",
+        "Dependency injection, provider recipes and host metadata: Q23–Q27 (hierarchical lookup, injection contexts, four provider forms, multi-provider plugins and accessible host bindings)",
+        "RxJS asynchronous flows: Q28–Q32 (Observable contracts, Subject families, flattening/concurrency policies, combineLatest/forkJoin and lifecycle-owned teardown)",
+        "RxJS sharing and template consumption: Q33–Q34 (cold/hot producer relationships, share/shareReplay reset and cache boundaries, AsyncPipe identity switching and view-owned teardown)",
+        "Forms and validation: Q35–Q37 (Reactive versus template-driven ownership, Signal Forms schema/state, synchronous and finite asynchronous validator contracts)",
+        "Routing and HTTP boundaries: Q38–Q42 (lazy chunks, guards/resolvers, functional interceptor ordering, layered error ownership and stale-request cancellation)",
+        "Feature state ownership: Q43–Q44 (service + signals versus NgRx decisions, route-scoped signal store, atomic transitions and save concurrency)",
+        "Rendering and hydration: Q45–Q47 (deferrable-view triggers, per-route CSR/SSR/prerendering, DOM reuse, event replay and incremental hydration)",
+        "List performance: Q48 (measurement workflow, stable identity, memoized derivation, OnPush boundaries, CDK virtualization, reconciliation trace and derived costs)",
+        "Lifecycle stability: Q49 (NG0100 development verification, parent-child feedback trace, four root-cause families, ownership fixes, afterNextRender boundary and regression tests)",
+        "Large-application architecture: Q50 (feature-first structure, dependency direction, lazy route entry point, ports/adapters, facade boundary, design-system and monorepo ownership)",
+        "Component ownership: Q51 (pragmatic container/presentational boundaries, typed view-model inputs, semantic outputs, local UI state, orchestration and split/merge decisions)",
+        "Component testing: Q52 (contract-first test boundaries, rendered inputs, semantic outputs, DOM events, dependency state transitions, scheduler ownership and browser escalation)",
+        "HTTP testing: Q53 (testing backend setup, exact request contracts, controlled success/status/network responses, interceptor leakage check, request ledger and derived costs)",
+        "XSS prevention: Q54 (context-aware bindings, HTML/URL/resource-URL boundaries, sanitizer-versus-bypass distinction, CSP/Trusted Types, source-to-sink trace and adversarial tests)",
+        "Authorization boundary: Q55 (guard UX contract, direct-request bypass, deny-by-default API rules, object/tenant authorization, 401/403/404 mapping and boundary tests)",
+        "Legacy modernization: Q56 (measured framework upgrades, standalone leaf/root sequencing, provider-scope preservation, notification compatibility, zoneless canary, rollback gates and ZoneJS removal)",
+        "Duplicate HTTP diagnosis: Q57 (cold-request execution, subscription-topology evidence, stable stream identity, template aliasing, flattening, sharing/refresh/retry boundaries and request-cardinality tests)",
+        "Zoneless callback integration: Q58 (signal/AsyncPipe/markForCheck/setInput notification choices, imperative adapter trace, teardown, burst policy, SSR boundary and notification-focused tests)",
+        "Payment submission concurrency: Q59 (exhaustMap admission policy, stable retry key, atomic server idempotency, provider reconciliation and request-cardinality tests)",
+        "Stale route-detail prevention: Q60 (route-key ownership, switchMap cancellation, explicit loading replacement, resolver trade-off and A-to-B race test)",
+        "5,000-row table performance: Q61 (cost-owner evidence matrix, server paging versus virtualization decisions, stable row identity, profiling trace, correctness/accessibility gates and derived budgets)",
+        "Angular 22 change-detection default: Q62 (OnPush omission semantics, Eager/Default compatibility, preservation migration, notification trace, JIT/AOT caveats and derived costs)"
+      ],
+      "source_revision": {
+        "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
+        "source_markdown_lines": "1298-1316 for Q62; earlier Q1-Q61 retained",
+        "source_docx": "Angular_Interview_Workbook.docx extracted lines 863-876 for Q62",
+        "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-13",
+        "baseline_main_head": "cbe6ccec3ca6022266ca69a4f33b352c87249adb"
+      },
+      "validation": "Q62 adds a version matrix, four examples, preservation-migration sequence, notification trace, dry run, JIT/AOT caveats, invariants and derived costs without duplicating Q20-Q22; deterministic builder and exact 376886-character HTML embedded-Markdown equality passed with 63 unique anchors, 174 balanced fenced blocks and 42 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link and selected-file diff checks passed; live DSA literal-marker audit 170; Angular/TypeScript/Vitest/JIT execution and browser visual QA were not executed because those runtimes are absent.",
+      "last_successful_commit": "8dc7fde33d7bb55746770fff9e98964af6dee43b"
+    },
+    {
+      "id": "javascript-html-css",
+      "domain": "Frontend",
+      "canonical_target": "study-guides/frontend/javascript-html-css/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
+        "JavaScript_HTML_CSS_Interview_Workbook.docx"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 16
+    },
+    {
+      "id": "aws-networking",
+      "domain": "AWS/cloud",
+      "canonical_target": "study-guides/aws/networking/",
+      "target_exists": true,
+      "status": "PROMOTED",
+      "source_names": [],
+      "last_processed_at": "2026-10-08T05:28:42-04:00",
+      "processed_sections": [
+        "Routing, ISPs, Autonomous Systems, BGP, Peering & Transit — BGP selection and route propagation",
+        "Ingress, Egress, Firewalls, WAF, Proxies, DMZ & Stateful vs Stateless Filtering — connection state and symmetric return paths"
+      ],
+      "source_revision": {
+        "baseline_commit": "95a9b9d3c7567cc01345661aa79de2fc0f7b6b77",
+        "canonical_blob_before": "76cf0c7b83059816691f2be2f4e67c153d248f30",
+        "canonical_sha256_after": "511e778077cbe27bc5f1bc806be7c68951571673c5d69f2c82cd458b97018323"
+      },
+      "last_successful_commit": "6c7a7aae9905a22ceb661acfbbe8549a4acfc0a8",
+      "validation": "build_networking.py regenerated both affected chapter pairs and combined HTML; local links, fragments, assets, JSON, SVG XML, generated-section coverage and idempotence passed; live DSA placeholder audit 174; browser visual QA pending",
+      "next_action": "No forced AWS continuation. Scheduler should attempt the accessible unpromoted system-design fundamentals source next; return to networking through fair domain rotation.",
+      "priority": 17
+    },
+    {
+      "id": "aws-master-course",
+      "domain": "AWS/cloud",
+      "canonical_target": "study-guides/aws/",
+      "target_exists": false,
+      "status": "NEEDS_SOURCE",
+      "source_names": [],
+      "last_processed_at": null,
+      "next_action": "Locate actual earlier source or analysis; record unresolved access instead of fabricating it.",
+      "priority": 18
+    },
+    {
+      "id": "cloud-comparisons",
+      "domain": "AWS/cloud",
+      "canonical_target": "study-guides/cloud/comparisons/",
+      "target_exists": false,
+      "status": "NEEDS_SOURCE",
+      "source_names": [],
+      "last_processed_at": null,
+      "next_action": "Locate actual earlier source or analysis; record unresolved access instead of fabricating it.",
+      "priority": 19
+    },
+    {
+      "id": "java-security-protocols",
+      "domain": "DevOps/backend",
+      "canonical_target": "study-guides/backend/java-security-protocols/",
+      "target_exists": false,
+      "status": "NEEDS_SOURCE",
+      "source_names": [],
+      "last_processed_at": null,
+      "next_action": "Locate actual earlier source or analysis; record unresolved access instead of fabricating it.",
+      "priority": 20
+    },
+    {
+      "id": "ai-project-docs",
+      "domain": "AI",
+      "canonical_target": "study-guides/ai/projects/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "spring-boot-ai-labs.zip",
+        "spring-boot-ai-journey.zip",
+        "GITHUB_PUSH_COMMANDS.md",
+        "README.md",
+        "enterprise-rag-assistant.zip"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 21,
+      "external_repositories": [
+        "pandeyprabhanshu7-beep/spring-boot-ai-journey",
+        "pandeyprabhanshu7-beep/spring-boot-ai-labs"
+      ],
+      "constraint": "Keep source code in its existing project repository; enrich learning documentation here without copying complete code repositories or regressing to older ZIP snapshots."
+    },
+    {
+      "id": "ai-employment-impact",
+      "domain": "AI",
+      "canonical_target": "study-guides/ai/employment-impact/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "ai_jobs_elimination_deep_research_2026.md"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 22
+    },
+    {
+      "id": "technical-study-workflows",
+      "domain": "Learning workflows",
+      "canonical_target": "study-guides/study-workflows/",
+      "target_exists": false,
+      "status": "DISCOVERED",
+      "source_names": [
+        "MASTER_PROMPT.md"
+      ],
+      "last_processed_at": null,
+      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "priority": 23
+    }
+  ],
+  "scheduler": {
+    "active_task_id": "6ac700d5c14c81918cca8786785f2a5e",
+    "cadence": "hourly",
+    "sections_per_run": "1–2",
+    "single_writer": true
+  },
+  "local_folder_intake": {
+    "id": "ideaprojects-untitled",
+    "source_path": "C:\\Users\\Admin\\IdeaProjects\\untitled",
+    "status": "IN_PROGRESS",
+    "access_blocker": null,
+    "canonical_target": "study-guides/local-project-notes/",
+    "discovered_files": 53,
+    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q62 are processed. Continue with bounded Angular Q63 on scalable folder structure, starting at Markdown anchor line 1317 / heading line 1319 and DOCX extracted heading line 877; resolve the section end before reading and compare against canonical Q50 before merging.",
+    "batch_policy": {
+      "max_sections_per_run": 2,
+      "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
+      "excluded_content": [
+        "build outputs",
+        "dependency caches",
+        "IDE metadata",
+        "logs",
+        "binaries without learning value",
+        "credentials and personal/unrelated documents"
+      ],
+      "checkpoint_fields": [
+        "source_hash",
+        "relative_path",
+        "section_or_line_range",
+        "completed_sections",
+        "next_section",
+        "validation",
+        "last_successful_commit",
+        "estimated_next_tokens",
+        "estimate_method",
+        "blocked_reason"
+      ],
+      "budget_strategy": "After each push estimate next section input plus research, examples, code, HTML, validation and checkpoint overhead. Use tokenizer when available, otherwise label heuristic estimates. Proceed only when exposed remaining budget supports a conservative reserve; if unknown choose one bounded section, avoid reading the next large file, and stop at a durable boundary.",
+      "limit_strategy": "Save a checkpoint before expensive work and after each push. If limit/context interruption is observed, stop the current run; keep hourly task enabled for later retry. Respect explicit retry-after if reported. Do not invent account quota/reset time or switch tasks to evade a global limit."
+    },
+    "teaching_standard": "Explain simply and deeply, use multiple correct examples, useful diagrams, Java/code when relevant, old-vs-new approaches, what problems changed techniques resolve, trade-offs, failure modes and authoritative source links. Do not claim Stanford credentials.",
+    "archive_library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
+    "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
+    "candidate_markdown_files": 28,
+    "candidate_diagram_files": 18,
+    "manifest": "study-guides/local-project-notes/INTAKE_MANIFEST.json",
+    "completed_sections": [
+      "Advanced trees section 10: Fenwick tree",
+      "Advanced trees section 9: Segment Tree + Lazy Propagation",
+      "Advanced trees section 8: Trie / Prefix Tree",
+      "Advanced trees section 7: Binary Heap / Priority Queue",
+      "Advanced trees section 6: B+ Tree Database Index",
+      "Advanced trees section 5: B-Tree Insertion and Deletion",
+      "Advanced trees section 4: Red-Black Tree Insertion and Deletion",
+      "Advanced trees section 3: AVL Tree Insertion and Deletion",
+      "Advanced trees section 2: Binary Search Tree Core (merged into canonical BST-6 and BST-7)",
+      "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)"
+    ],
+    "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
+    "validation": "Angular Q62 was compared in both actual source texts and enriched with a version matrix, four examples, preservation-migration sequence, notification trace, dry run, JIT/AOT caveats, invariants and derived costs without duplicating Q20-Q22; deterministic reader generation, exact 376886-character payload equality, 63 anchors, 174 balanced fences, 42 Mermaid diagrams, inline JavaScript, JSON, relative-link, selected-file diff and live 170-marker DSA placeholder audit passed; Angular/TypeScript/Vitest/JIT execution and browser visual QA were not executed because those runtimes are absent.",
+    "estimated_next_tokens": 7500,
+    "estimate_method": "Heuristic only: bounded Q63 begins at Markdown anchor line 1317 / heading line 1319 and DOCX extracted heading line 877; reserve ~450 tokens for paired source intake/range resolution, ~1200 for current primary architecture research, ~3900 for comparison plus distinct teaching/code/diagram/HTML, and ~1950 for validation/checkpoint. This is not account-quota telemetry.",
+    "last_successful_commit": "8dc7fde33d7bb55746770fff9e98964af6dee43b",
+    "last_processed_at": "2026-10-13T01:54:33-04:00",
+    "next_batch_decision": "Q62 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q63 and retain the conservative one-section checkpoint."
+  }
+}
