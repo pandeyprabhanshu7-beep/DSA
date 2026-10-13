@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q65)
+# Angular 22 — Interview Foundations (Q1–Q66)
 
-> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q65 (Q65 is lines 1362–1378) with the corresponding `Angular_Interview_Workbook.docx` text (Q65 is extracted lines 911–920). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, and required signal-input plus pure boundary-normalization rules, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q66 (Q66 is lines 1380–1401) with the corresponding `Angular_Interview_Workbook.docx` text (Q66 is extracted lines 921–933). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, required signal-input plus pure boundary-normalization rules, and intentional `model()` ownership for reusable value editors, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -69,6 +69,7 @@
 - [Q63: toSignal vs toObservable](#q63)
 - [Q64: afterNextRender vs afterEveryRender](#q64)
 - [Q65: required signal inputs and transforms](#q65)
+- [Q66: model inputs and intentional two-way binding](#q66)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -6455,10 +6456,225 @@ Test custom transform functions directly as ordinary pure functions, including e
 
 **Primary references:** Angular's [input guide](https://angular.dev/guide/components/inputs), [`input` overloads](https://angular.dev/api/core/input), [`InputSignalWithTransform`](https://angular.dev/api/core/InputSignalWithTransform), [`booleanAttribute`](https://angular.dev/api/core/booleanAttribute), and [`numberAttribute`](https://angular.dev/api/core/numberAttribute). The decision table, four examples, update trace, invariants, cost derivation and test matrix above are added teaching material.
 
+<a id="q66"></a>
+## Q66. What is `model()` and when is two-way component binding appropriate?
+
+**Requirement:** use `model()` only when a reusable component is an editor or control for **one clearly named value** and its public contract intentionally allows both directions: the parent supplies the current value, and a child interaction may replace that value. Prefer a read-only `input()` plus a semantic `output()` for display/configuration, commands, patches, workflow events and arbitrary domain mutation.
+
+`model<T>()` returns a `ModelSignal<T>`. The child reads it like a signal and writes with `set` or `update`; externally it acts as an input plus an automatically created output named `<property>Change`. The parent shorthand
+
+```html
+<app-quantity-stepper [(value)]="quantity" />
+```
+
+is conceptually the same contract as this property/event pair when `quantity` is a plain property:
+
+```html
+<app-quantity-stepper
+  [value]="quantity"
+  (valueChange)="quantity = $event"
+/>
+```
+
+The `[()]` syntax is commonly called “banana in a box.” It does not make every parent and child field mutually mutable. It composes one input direction with one output direction under a naming convention.
+
+| Boundary | Declaration | Child authority | Suitable example |
+|---|---|---|---|
+| Display/config only | `label = input.required<string>()` | Read | Card title, minimum, feature option |
+| Semantic event | `saved = output<Order>()` | Emit an occurrence | Save, retry, row selected |
+| Shared control value | `value = model.required<number>()` | Read and replace value | Stepper, checkbox, tabs |
+| Angular forms contract | `ControlValueAccessor` or Signal Forms control | Form-controlled | Validation/touched/disabled form integration |
+
+When the parent expression is a writable signal, pass the **signal instance**, not its current value:
+
+```typescript
+readonly quantity = signal(2);
+```
+
+```html
+<app-quantity-stepper [(value)]="quantity" />
+```
+
+Writing `[(value)]="quantity()"` is wrong because a function-call result is not an assignable binding target. Angular's model-input contract accepts either a writable signal or a plain assignable property at the parent boundary.
+
+### Example 1 — required quantity stepper with separate configuration
+
+```typescript
+import {Component, input, model} from '@angular/core';
+
+@Component({
+  selector: 'app-quantity-stepper',
+  template: `
+    <button type="button" (click)="decrement()" [disabled]="value() <= min()">−</button>
+    <output aria-live="polite">{{ value() }}</output>
+    <button type="button" (click)="increment()" [disabled]="value() >= max()">+</button>
+  `,
+})
+export class QuantityStepper {
+  readonly value = model.required<number>();
+  readonly min = input(1);
+  readonly max = input(99);
+
+  protected increment(): void {
+    this.value.update(current => Math.min(this.max(), current + 1));
+  }
+
+  protected decrement(): void {
+    this.value.update(current => Math.max(this.min(), current - 1));
+  }
+}
+```
+
+```typescript
+readonly quantity = signal(2);
+```
+
+```html
+<app-quantity-stepper [(value)]="quantity" [min]="1" [max]="10" />
+```
+
+`value` is the one intentionally co-owned control value. `min` and `max` remain one-way configuration. Missing `value` is a template-compile error because the model is required. This component still needs a policy for invalid initial values such as `0` or `NaN`; requiredness and two-way binding are not validation.
+
+### Example 2 — checkbox with an optional default
+
+```typescript
+import {Component, model} from '@angular/core';
+
+@Component({
+  selector: 'app-disclosure-toggle',
+  template: `
+    <label>
+      <input
+        type="checkbox"
+        [checked]="checked()"
+        (change)="checked.set(readChecked($event))"
+      />
+      Show advanced settings
+    </label>
+  `,
+})
+export class DisclosureToggle {
+  readonly checked = model(false);
+
+  protected readChecked(event: Event): boolean {
+    return (event.target as HTMLInputElement).checked;
+  }
+}
+```
+
+A parent may use `<app-disclosure-toggle [(checked)]="advanced" />`, where `advanced` is a boolean property or writable signal. The implicit output is `checkedChange`. A consumer may also bind only `[checked]` or only listen to `(checkedChange)`, but use the full two-way form only when the parent accepts the child as an editor of that value.
+
+### Example 3 — aliasing a tab selection during an API migration
+
+```typescript
+import {Component, model} from '@angular/core';
+
+@Component({
+  selector: 'app-tabs',
+  template: `
+    @for (tab of ['overview', 'history', 'audit']; track tab) {
+      <button type="button" (click)="active.set(tab)"
+              [attr.aria-selected]="active() === tab">
+        {{ tab }}
+      </button>
+    }
+  `,
+})
+export class Tabs {
+  readonly active = model('overview', {alias: 'selectedTab'});
+}
+```
+
+The template-facing pair is `selectedTab` / `selectedTabChange`, while class code reads `active()`. That can preserve an established public name, but aliases create two vocabularies and should have a migration or compatibility reason. Unlike ordinary signal inputs, model inputs do **not** support transforms. Normalize before binding or choose an explicit event contract when malformed values require rejection or explanation.
+
+### Example 4 — do not model an entire business object
+
+An order editor should not expose `order = model<Order>()` merely to avoid naming changes. That would allow a reusable child to replace a domain aggregate and would hide whether the user changed an address, applied a discount or requested submission. Prefer immutable input plus a typed patch or command:
+
+```typescript
+import {Component, input, output} from '@angular/core';
+
+type Order = Readonly<{id: string; note: string; status: string}>;
+type OrderPatch = Readonly<{note: string}>;
+
+@Component({
+  selector: 'app-order-note-editor',
+  template: `
+    <textarea #note [value]="order().note"></textarea>
+    <button type="button" (click)="noteChanged.emit({note: note.value})">Apply note</button>
+  `,
+})
+export class OrderNoteEditor {
+  readonly order = input.required<Order>();
+  readonly noteChanged = output<OrderPatch>();
+}
+```
+
+The parent can authorize, validate, persist or reject the patch. The output describes an occurrence; it is not pretending that parent and child jointly own the whole order.
+
+### Internal path and a concrete dry run
+
+```mermaid
+flowchart TD
+ P["Parent value or WritableSignal"] --> I["model input side"]
+ I --> R["Child reads ModelSignal"]
+ R --> U["User interaction"]
+ U --> W["set / update"]
+ W --> O["implicit valueChange output"]
+ O --> P
+```
+
+Assume the quantity parent signal starts at `2`, the range is 1–10 and the user presses `+` twice:
+
+| Step | Model value | Output | Parent value | Reason |
+|---:|---:|---|---:|---|
+| 1 | 2 | none | 2 | Parent-to-child binding initializes the model side |
+| 2 | 3 | `valueChange(3)` | 3 | Child `update` replaces the value and emits |
+| 3 | 4 | `valueChange(4)` | 4 | The second interaction repeats the same contract |
+| 4 | 4 | none | 4 | A later `set(4)` is equal under the signal's equality check |
+| 5 | 10 | `valueChange(10)` | 10 | Parent may also replace the value; UI reads latest state |
+
+Angular's current implementation performs the equality check before emitting the model output: `set` updates and emits only when the signal value actually changes under its equality rule, and `update` delegates to `set`. Do not build correctness around duplicate same-value emissions. A `ModelSignal` is also an `OutputRef`: programmatic subscriptions are automatically cleaned up when the declaring directive/component is destroyed.
+
+### Invariants, costs and decision boundaries
+
+- **Single-value invariant:** one model represents one coherent control value. Configuration and commands use separate APIs.
+- **Authority invariant:** choosing `model()` is an API decision that grants the child replacement authority; it is not merely shorter syntax.
+- **Naming invariant:** property `value` creates output `valueChange`; an alias changes the public pair consistently.
+- **Assignment invariant:** a two-way parent target is a writable signal or assignable property, never `someSignal()` or an arbitrary expression.
+- **Immutability invariant:** replace objects rather than mutate nested fields in place. A deep mutation neither communicates a clear event nor guarantees reactive notification.
+- **Validation invariant:** model inputs do not support transforms, and required models do not validate content. Keep normalization, domain validation and server authorization explicit.
+- **Loop invariant:** parent effects that write back to the same model must converge or guard equality. Two-way syntax does not prevent feedback loops caused by application code.
+
+For a scalar model write, the component's own update and output dispatch are O(1), plus O(s) synchronous subscriber work for `s` listeners and whatever downstream rendering or effects the new value invalidates. Updating an immutable object of `k` copied fields costs O(k) time and O(k) new output space; copying an `n`-item collection costs O(n). DOM reconciliation, persistence and network requests are separate costs—`model()` starts none of them by itself. The model signal and its output retain O(1) framework state per model, plus subscriber records.
+
+### Tests and common failures
+
+Test the public parent/child contract rather than directly overwriting a private field:
+
+| Test | Expected evidence |
+|---|---|
+| Parent initializes plain property and writable-signal hosts | Child renders the supplied value in both hosts |
+| User clicks `+` once | Child renders next value; parent receives exactly one change |
+| Child writes an equal value | No duplicate change output under the current signal equality rule |
+| Required model is omitted | Template compilation fails |
+| Aliased model is used | `selectedTab` / `selectedTabChange` are the public names |
+| Parent changes the value after creation | Child reads the replacement without emitting a child-originated command |
+| Component is destroyed | Programmatic output subscriptions owned by it are cleaned up |
+| Boundary receives min/max, malformed or unauthorized data | Explicit validation policy handles it; `model()` does not |
+
+Also test keyboard/accessibility behavior and repeated interactions in a real browser when the control promises them. A focused Angular host test can prove binding and emission, but no Angular CLI template compilation, Vitest run or browser interaction was executed for this source-only pass.
+
+**Common errors:** using `model()` for every input because `[()]` is concise; binding `[(value)]="quantity()"`; manually declaring `valueChange` beside a model and producing duplicate/conflicting APIs; expecting a transform option; mutating `modelObject().field`; hiding save/delete/navigation commands in a model; confusing component model inputs with Forms `[(ngModel)]`; assuming requiredness validates range or authorization; using an alias without documenting the public output name; normalizing from a parent effect that writes back forever; and treating two-way binding as proof of a single source of truth.
+
+**Interview variations:** `model()` versus `input` + `output`; plain property versus writable-signal parent targets; implicit `Change` output naming; required/default models; aliasing; equality and repeated writes; transforms not supported; `ModelSignal` as `WritableSignal`, `InputSignal` and `OutputRef`; two-way component binding versus `ngModel`; ControlValueAccessor/Signal Forms; immutable object updates; feedback loops; and when a semantic patch is safer than shared ownership.
+
+**Primary references:** Angular's [accepting data with inputs](https://angular.dev/guide/components/inputs#model-inputs), [two-way binding guide](https://angular.dev/guide/templates/two-way-binding), [`model` API](https://angular.dev/api/core/model), [`ModelSignal` API](https://angular.dev/api/core/ModelSignal), and current [`createModelSignal` implementation](https://github.com/angular/angular/blob/main/packages/core/src/authoring/model/model_signal.ts). The decision table, four examples, state trace, ownership invariants, cost derivation and test matrix above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
-Keep the reusable order card behind a readonly view-model input and semantic `selected` output; let it own only local view state while the page owns navigation, feature state and effects.
+Keep the reusable order card behind a readonly view-model input and semantic `selected` output; let it own only local view state while the page owns navigation, feature state and effects. Give a reusable page-size or quantity control one required `model()` value only when parent and child intentionally co-own that editable scalar; keep order aggregates readonly and report typed patches or commands instead of hiding business mutation behind two-way binding.
 
 Plan the legacy application's modernization as deployable checkpoints: capture a clean behavioral/performance baseline; use the Update Guide and supported toolchain matrix for one major-version step at a time; convert the leaf order card to standalone while its NgModule consumer remains valid; migrate the lazy orders route; then replace root bootstrap while preserving provider scopes, initializers, interceptor order and ZoneJS scheduling explicitly. Audit every template-visible timer, SDK, socket, form and SSR update for a real Angular notification, prove it in zoneless tests and a measured canary, and only then remove ZoneJS polyfills/dependency. Keep state-management and design-system rewrites outside these checkpoints, assign every `importProvidersFrom` bridge an owner/removal gate, and demonstrate the rollback after each phase. For the search page, draw the subscriber graph before adding an operator: bind a cold request once when one view owns it, expose a stable field rather than a template getter, flatten route/query changes with `switchMap`, and share only one explicitly identified query generation across overlapping consumers. Separate refresh from bounded retry, key/invalidate retained data by user and query, and prove request cardinality with `expectOne`/`match` rather than trusting the Network panel alone.
 
@@ -6468,7 +6684,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q65. This pass was bounded to Markdown lines 1362–1378 and DOCX extracted lines 911–920 for Q65; both sources say required inputs move missing configuration into template/build checking and transforms normalize incoming values at the boundary. This edition adds a required/optional/default decision table; separate read/write types; four examples; a boundary-flow diagram and update trace; purity, static-analysis, ownership and validation boundaries; a test matrix; and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q66. This pass was bounded to Markdown lines 1380–1401 and DOCX extracted lines 921–933 for Q66; both sources define `model()` as writable component state for intentional two-way, control-like APIs and warn against arbitrary bidirectional domain state. This edition adds the input/output expansion; plain-property and writable-signal parent contracts; required/default/alias rules; four examples; an internal state trace; equality, transform, validation and ownership boundaries; a test matrix; and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official Angular 22.2.2 docs. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration test, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
@@ -6476,6 +6692,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular 22 change-detection material (reviewed 2026-10-13): [`ChangeDetectionStrategy`](https://angular.dev/api/core/ChangeDetectionStrategy), [component metadata](https://angular.dev/api/core/Component), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless notifications](https://angular.dev/guide/zoneless), the [OnPush-by-default RFC](https://github.com/angular/angular/discussions/69633), [JIT issue #70262](https://github.com/angular/angular/issues/70262), open [fix PR #69898](https://github.com/angular/angular/pull/69898), and [pre-v22 partial-library issue #71107](https://github.com/angular/angular/issues/71107). Angular's release page listed 22.2.2 as the current stable version on that review date.
 - Official Angular lifecycle and render-callback material (reviewed 2026-10-13): [NG0100 error encyclopedia](https://angular.dev/errors/NG0100), [component lifecycle](https://angular.dev/guide/components/lifecycle), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), [`afterEveryRender`](https://angular.dev/api/core/afterEveryRender), [`AfterRenderOptions`](https://angular.dev/api/core/AfterRenderOptions), and [`AfterRenderRef`](https://angular.dev/api/core/AfterRenderRef). The current API pages identify these callbacks as stable since Angular 20 and were built against Angular 22.2.2 when reviewed.
 - Official Angular input-contract material (reviewed 2026-10-13): [accepting data with inputs](https://angular.dev/guide/components/inputs), [`input` overloads](https://angular.dev/api/core/input), [`InputSignal`](https://angular.dev/api/core/InputSignal), [`InputSignalWithTransform`](https://angular.dev/api/core/InputSignalWithTransform), [`booleanAttribute`](https://angular.dev/api/core/booleanAttribute), and [`numberAttribute`](https://angular.dev/api/core/numberAttribute). The current pages state that required template inputs are build-time enforced, transforms must be statically analyzable and pure, transform parameter types define accepted template values, model inputs do not support transforms, failed built-in numeric coercion yields `NaN` unless a fallback is used, and these pages were built against Angular 22.2.2 when reviewed.
+- Official Angular model-input material (reviewed 2026-10-13): [model inputs](https://angular.dev/guide/components/inputs#model-inputs), [two-way binding](https://angular.dev/guide/templates/two-way-binding), [`model`](https://angular.dev/api/core/model), [`ModelSignal`](https://angular.dev/api/core/ModelSignal), and the current [`createModelSignal`](https://github.com/angular/angular/blob/main/packages/core/src/authoring/model/model_signal.ts) implementation. The Angular 22.2.2 pages define the writable input/implicit `Change` output pair, plain-property and writable-signal parent targets, required/default/alias forms, no-transform restriction and automatic output subscription cleanup; the current source confirms that equal values are not re-emitted.
 - Official Angular application-structure and component-contract material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [signals](https://angular.dev/guide/signals), [services and DI](https://angular.dev/guide/di/creating-and-using-services), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
 - Official Angular testing material (reviewed 2026-10-11): [testing overview and Vitest setup](https://angular.dev/guide/testing), [component-testing basics](https://angular.dev/guide/testing/components-basics), [component-testing scenarios](https://angular.dev/guide/testing/components-scenarios), [testing utility APIs](https://angular.dev/guide/testing/utility-apis), [component harnesses](https://angular.dev/guide/testing/component-harnesses-overview), and [migrating from Karma to Vitest](https://angular.dev/guide/testing/migrating-to-vitest).
 - Official Angular HTTP-testing material (reviewed 2026-10-11): [testing HTTP requests](https://angular.dev/guide/http/testing), [`provideHttpClientTesting`](https://angular.dev/api/common/http/testing/provideHttpClientTesting), [`HttpTestingController`](https://angular.dev/api/common/http/testing/HttpTestingController), and [`TestRequest`](https://angular.dev/api/common/http/testing/TestRequest).
@@ -6490,5 +6707,5 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q66 (`model()` and intentional two-way component binding) in both sources. It begins at Markdown anchor line 1380 / heading line 1382 and DOCX extracted line 921; resolve the exact DOCX section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q67 (browser-only APIs during SSR) in both sources. It begins at Markdown anchor line 1403 / heading line 1405 and DOCX extracted line 937; resolve the exact section end before reading it and keep extending this one canonical guide.
 

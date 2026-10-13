@@ -49,7 +49,7 @@ See [intake manifest](INTAKE_MANIFEST.json) for source hashes, statuses and exac
 
 ## Continue next
 
-Angular Q1–Q65 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded Q66 on `model()` and intentional two-way component binding, beginning at Markdown anchor line 1380 / heading line 1382 and DOCX extracted line 921; resolve the exact DOCX section end before reading, then compare against existing Q9 ownership coverage and Q65's transform boundary. Estimated next-batch budget: approximately 6,800 tokens. This heuristic reserves about 500 tokens for bounded paired-source range resolution, 1,100 for current primary model-input research, 3,200 for distinct teaching/code/diagram/HTML, and 2,000 for validation/checkpoint work. It is not account-quota telemetry.
+Angular Q1–Q66 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded Q67 on browser-only APIs during SSR, beginning at Markdown anchor line 1403 / heading line 1405 and DOCX extracted line 937; resolve the exact section end in both sources before reading, then compare against existing SSR, hydration and render-callback coverage. Estimated next-batch budget: approximately 7,200 tokens. This heuristic reserves about 600 tokens for bounded paired-source range resolution, 1,200 for current primary SSR/platform-guard research, 3,300 for distinct teaching/code/diagram/HTML, and 2,100 for validation/checkpoint work. It is not account-quota telemetry.
 
 ## Maintain readers
 
