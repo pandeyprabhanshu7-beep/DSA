@@ -686,7 +686,7 @@
         "baseline_main_head": "43e880fd7e341834e0c5b0e9c7777effb20914fa"
       },
       "validation": "Q67 compared both source texts and adds browser-capability requirements, four examples, a request-to-hydration trace, render-callback and platform-provider boundaries, hydration/request-isolation invariants, test matrix and derived costs; deterministic builder and exact 451153-character HTML embedded-Markdown equality passed with 68 unique anchors, 207 balanced fenced blocks and 47 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration and SSR execution were not performed because the project runtime is absent.",
-      "last_successful_commit": "6aed4bf0078629c0f27ef815498376f778a543f2"
+      "last_successful_commit": "ac1bd6d8870c05010190d6637a9a6e6bddd8d86b"
     },
     {
       "id": "javascript-html-css",
@@ -868,7 +868,7 @@
     "validation": "Angular Q67 was compared in both actual source texts and enriched with browser-capability requirements, four examples, a request-to-hydration trace, render-callback and platform-provider boundaries, hydration/request-isolation invariants, test matrix and derived costs; deterministic reader generation, exact 451153-character payload equality, 68 anchors, 207 balanced fences, 47 Mermaid diagrams, inline JavaScript, JSON, relative links, local README source hash, selected-file diff and live 170-marker audit passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration and SSR execution were not performed because the project runtime is absent.",
     "estimated_next_tokens": 7000,
     "estimate_method": "Heuristic only: bounded Q68 begins at Markdown anchor line 1418 / heading line 1420 and DOCX extracted line 948; reserve ~500 tokens for paired source range resolution, ~1100 for current primary defer/SSR research, ~3300 for distinct teaching/code/diagram/HTML, and ~2100 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "6aed4bf0078629c0f27ef815498376f778a543f2",
+    "last_successful_commit": "ac1bd6d8870c05010190d6637a9a6e6bddd8d86b",
     "last_processed_at": "2026-10-13T10:46:10-04:00",
     "next_batch_decision": "Q67 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q68 and retain the conservative one-section checkpoint."
   }
