@@ -685,7 +685,7 @@
         "baseline_main_head": "9ce2b964110505493d2d91218fe6d9c1031fb7f3"
       },
       "validation": "Q66 compared both source texts and adds model input/output expansion, plain-property and writable-signal hosts, four examples, required/default/alias and no-transform rules, an equality-aware state trace, ownership/validation invariants, test matrix and derived costs; deterministic builder and exact 435856-character HTML embedded-Markdown equality passed with 67 unique anchors, 201 balanced fenced blocks and 46 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration and SSR execution were not performed because the project runtime is absent.",
-      "last_successful_commit": "cc5537a650f5294b990793f104acbfc88dba7a38"
+      "last_successful_commit": "6aed4bf0078629c0f27ef815498376f778a543f2"
     },
     {
       "id": "javascript-html-css",
@@ -867,7 +867,7 @@
     "validation": "Angular Q66 was compared in both actual source texts and enriched with model input/output expansion, plain-property and writable-signal hosts, four examples, required/default/alias and no-transform rules, an equality-aware state trace, ownership/validation invariants, test matrix and derived costs; deterministic reader generation, exact 435856-character payload equality, 67 anchors, 201 balanced fences, 46 Mermaid diagrams, inline JavaScript, JSON, relative links, local README source hash, selected-file diff and live 170-marker audit passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration and SSR execution were not performed because the project runtime is absent.",
     "estimated_next_tokens": 7200,
     "estimate_method": "Heuristic only: bounded Q67 begins at Markdown anchor line 1403 / heading line 1405 and DOCX extracted line 937; reserve ~600 tokens for paired source range resolution, ~1200 for current primary SSR/platform-guard research, ~3300 for distinct teaching/code/diagram/HTML, and ~2100 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "cc5537a650f5294b990793f104acbfc88dba7a38",
+    "last_successful_commit": "6aed4bf0078629c0f27ef815498376f778a543f2",
     "last_processed_at": "2026-10-13T09:33:44-04:00",
     "next_batch_decision": "Q66 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q67 and retain the conservative one-section checkpoint."
   }
