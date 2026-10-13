@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q66)
+# Angular 22 — Interview Foundations (Q1–Q67)
 
-> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q66 (Q66 is lines 1380–1401) with the corresponding `Angular_Interview_Workbook.docx` text (Q66 is extracted lines 921–933). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, required signal-input plus pure boundary-normalization rules, and intentional `model()` ownership for reusable value editors, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q67 (Q67 is lines 1403–1417) with the corresponding `Angular_Interview_Workbook.docx` text (Q67 is extracted lines 937–947). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, required signal-input plus pure boundary-normalization rules, intentional `model()` ownership for reusable value editors, and capability-oriented browser API boundaries for SSR, prerendering and hydration, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -70,6 +70,7 @@
 - [Q64: afterNextRender vs afterEveryRender](#q64)
 - [Q65: required signal inputs and transforms](#q65)
 - [Q66: model inputs and intentional two-way binding](#q66)
+- [Q67: browser-only APIs in SSR applications](#q67)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -6671,10 +6672,201 @@ Also test keyboard/accessibility behavior and repeated interactions in a real br
 
 **Primary references:** Angular's [accepting data with inputs](https://angular.dev/guide/components/inputs#model-inputs), [two-way binding guide](https://angular.dev/guide/templates/two-way-binding), [`model` API](https://angular.dev/api/core/model), [`ModelSignal` API](https://angular.dev/api/core/ModelSignal), and current [`createModelSignal` implementation](https://github.com/angular/angular/blob/main/packages/core/src/authoring/model/model_signal.ts). The decision table, four examples, state trace, ownership invariants, cost derivation and test matrix above are added teaching material.
 
+<a id="q67"></a>
+## Q67. How should Angular code use browser-only APIs in SSR applications?
+
+**Requirement:** render the same meaningful initial Angular-owned DOM on the server and browser while ensuring that code touching `window`, global `document`, `navigator`, `location`, storage, layout, observers or browser-only libraries is neither evaluated nor invoked on the server. Model the capability behind a platform boundary; use a browser-only render callback for DOM-dependent initialization; use Angular's platform abstractions when the operation is valid on both platforms.
+
+SSR executes application code in a server runtime to produce HTML. Prerendering executes it at build time. Neither environment promises browser globals or real layout. Later, a browser loads that HTML and Angular hydrates it by matching the existing nodes to the client view. Therefore, “the server did not throw” is only the first correctness condition: the initial DOM must also remain structurally compatible for hydration.
+
+| Need | Preferred boundary | Why |
+|---|---|---|
+| Focus, geometry, observer, browser widget | `afterNextRender` / `afterEveryRender` | Skipped during SSR and build-time prerendering |
+| Different server/browser behavior | Platform-specific DI implementations | Centralizes policy; keeps consumers platform-neutral |
+| Create server-rendered metadata/DOM | Inject `DOCUMENT`, or use `Meta`/`Title` | Uses Angular's rendering document rather than a global |
+| Current SSR request or response | `REQUEST`, `RESPONSE_INIT`, `REQUEST_CONTEXT` | Request-scoped server information; tokens can be `null` elsewhere |
+| Small unavoidable runtime capability check | `isPlatformBrowser(PLATFORM_ID)` | Guard the complete access, but do not branch initial template structure |
+
+`Renderer2` is not a universal SSR escape hatch. Angular documents narrow styling/animation benefits, but its DOM methods do not make arbitrary browser manipulation supported during SSR or prerendering. Prefer templates and bindings for structure.
+
+### Example 1 — initialize a browser-only widget after rendering
+
+Keep a stable host in the server and client template. Import the browser-dependent adapter **inside** the browser-only callback so a package that reads `window` during module evaluation cannot crash the server bundle.
+
+```typescript
+import {
+  Component, DestroyRef, ElementRef, afterNextRender, inject, viewChild
+} from '@angular/core';
+
+@Component({
+  selector: 'app-sales-chart',
+  template: `<div #host class="chart-host" role="img" aria-label="Monthly sales"></div>`,
+})
+export class SalesChart {
+  private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
+  private readonly destroyRef = inject(DestroyRef);
+
+  constructor() {
+    afterNextRender(async () => {
+      const {createSalesChart} = await import('./browser-sales-chart');
+      if (this.destroyRef.destroyed) return;
+
+      const chart = createSalesChart(this.host().nativeElement);
+      this.destroyRef.onDestroy(() => chart.destroy());
+    });
+  }
+}
+```
+
+The server emits the host element but never imports or initializes the chart adapter. The browser preserves that host, then initializes the widget. The adapter should own only the dedicated host. A render callback is browser-only, but it is **not** a promise that every component is already hydrated; a library that restructures Angular-owned nodes can still break hydration. Refactor such a library boundary, isolate a host, and treat `ngSkipHydration` as a temporary last resort.
+
+### Example 2 — select behavior with platform-specific providers
+
+Components should not repeat platform checks around every analytics or storage call. Give them one capability interface and replace its implementation in the server configuration.
+
+```typescript
+import {Injectable} from '@angular/core';
+
+export abstract class AnalyticsPort {
+  abstract track(name: string): void;
+}
+
+@Injectable()
+export class BrowserAnalytics implements AnalyticsPort {
+  track(name: string): void {
+    // Adapter is the only layer allowed to call the browser SDK.
+    window.dispatchEvent(new CustomEvent('app-analytics', {detail: {name}}));
+  }
+}
+
+@Injectable()
+export class ServerAnalytics implements AnalyticsPort {
+  track(_name: string): void {
+    // Deliberate no-op; alternatively use a server-native telemetry client.
+  }
+}
+```
+
+```typescript
+// app.config.ts
+providers: [{provide: AnalyticsPort, useClass: BrowserAnalytics}]
+
+// app.config.server.ts — merged after the shared configuration
+providers: [{provide: AnalyticsPort, useClass: ServerAnalytics}]
+```
+
+A component injects `AnalyticsPort` and calls `track` from the same semantic action on either platform. The browser global is confined to the browser implementation. Still avoid top-level browser access in that module: static imports and field initializers may execute before a method-level guard. Also avoid request data in long-lived server `useValue` providers; Angular recommends a factory for per-request values because top-level values can survive across requests.
+
+### Example 3 — use the injected rendering document for canonical metadata
+
+Some DOM work is valid during SSR because it belongs in the generated HTML. Inject the platform rendering document instead of reading global `document`:
+
+```typescript
+import {DOCUMENT} from '@angular/common';
+import {Injectable, inject} from '@angular/core';
+
+@Injectable({providedIn: 'root'})
+export class CanonicalLinkService {
+  private readonly document = inject(DOCUMENT);
+
+  setCanonical(href: string): void {
+    let link = this.document.head.querySelector<HTMLLinkElement>(
+      'link[rel="canonical"]',
+    );
+    if (!link) {
+      link = this.document.createElement('link');
+      link.rel = 'canonical';
+      this.document.head.appendChild(link);
+    }
+    link.href = href;
+  }
+}
+```
+
+During SSR, Angular supplies a server rendering `Document`; in a browser, it supplies the browser document. This abstraction supports document creation, not real viewport/layout semantics: server `scrollHeight`, focus, `matchMedia` and observer behavior are not meaningful merely because a document object exists. For title and meta tags, prefer Angular's `Title` and `Meta` services.
+
+### Example 4 — a narrow runtime guard for an optional user action
+
+When DI replacement would be heavier than the capability, guard the entire browser access. Keep the result out of the initial structural template so server and client do not render competing trees.
+
+```typescript
+import {isPlatformBrowser} from '@angular/common';
+import {Injectable, PLATFORM_ID, inject} from '@angular/core';
+
+@Injectable({providedIn: 'root'})
+export class ShareCapability {
+  private readonly browser = isPlatformBrowser(inject(PLATFORM_ID));
+
+  async share(title: string, url: string): Promise<'shared' | 'unavailable'> {
+    if (!this.browser || !navigator.share) return 'unavailable';
+    await navigator.share({title, url});
+    return 'shared';
+  }
+}
+```
+
+Call this from a click handler and provide an accessible copy-link fallback. Do **not** write `@if (isBrowser) { <app-widget/> } @else { ... }` for initial content. Angular explicitly warns that platform checks which produce different server/client template structures cause hydration mismatches and layout shifts. If the capability governs substantial client-only content, design an SSR-stable placeholder and a deliberate hydration/defer boundary rather than scattering guards.
+
+### Request-to-hydration trace
+
+```mermaid
+flowchart TD
+ R["HTTP request"] --> S["Server injector + SSR render"]
+ S --> H["Stable HTML + serialized state"]
+ H --> B["Browser loads identical DOM"]
+ B --> Y["Angular hydrates existing nodes"]
+ Y --> C["Browser render callback / capability"]
+ C --> I["Observer, focus or third-party adapter"]
+```
+
+Dry-run the chart example:
+
+1. The server imports the Angular component and renders one empty, labelled `.chart-host`; it does not import `browser-sales-chart` because the callback is skipped.
+2. The response contains that host. No server-only timestamp, random ID, browser width or storage value changes its structure.
+3. The browser builds the same Angular view and claims the existing host during hydration.
+4. After a browser render, the callback dynamically imports the chart adapter. If the component was destroyed while the import was pending, the guard stops initialization.
+5. The chart attaches only within its host; `DestroyRef` destroys it with the component.
+6. Subsequent route navigation neither leaks the chart nor leaves a server-created global singleton containing request-specific state.
+
+### Invariants, costs and failure boundaries
+
+- **Evaluation invariant:** no browser global is read at module top level, in a server-executed constructor/field initializer, or by a statically imported browser-only package.
+- **DOM-parity invariant:** server and initial browser renders produce the same Angular-owned node structure. Capability checks do not choose different initial template trees.
+- **Abstraction invariant:** prefer platform-specific providers for cross-platform behavior, render callbacks for browser DOM timing, and `DOCUMENT`/Angular services for platform-valid rendering work.
+- **Hydration invariant:** browser-only execution is not hydration-complete execution. Do not restructure nodes that Angular must claim.
+- **Request-isolation invariant:** per-request server values come from request-scoped tokens or factories, not mutable module globals or persistent `useValue` objects.
+- **Fallback invariant:** unsupported capabilities have a useful, accessible fallback; SSR output remains meaningful without the enhancement.
+- **Lifetime invariant:** observers, listeners, SDK instances and pending dynamic imports respect component destruction.
+- **Security invariant:** neither `DOCUMENT` nor `Renderer2` makes untrusted HTML safe. Keep Angular template sanitization and the Q54 trust-boundary rules.
+
+An `isPlatformBrowser` check is O(1). DI selection is O(1) per lookup aside from normal injector traversal. A one-shot render callback adds its own application work once; an observer or recurring callback costs O(e × t) for `e` delivered events and handler cost `t`. Dynamically importing a browser adapter transfers and parses its chunk once per browser cache/load policy; if the adapter has `b` bytes and initializes `n` nodes, network/parse cost is proportional to `b` and application initialization is at least O(n). Server rendering still pays component/template and serialization cost, but correctly gated browser enhancement adds no server DOM-layout cost. Always measure bundle, hydration, interaction and server-render latency separately.
+
+### Test matrix and common failures
+
+| Boundary test | Expected evidence |
+|---|---|
+| SSR and prerender the route | No `window/document/navigator` reference error; meaningful HTML exists |
+| Hydrate the server HTML | No node-mismatch diagnostic; initial structure is unchanged |
+| Browser render completes | Browser adapter initializes once, after its host exists |
+| Component is destroyed before/after dynamic import | No late initialization; observer/widget cleanup runs |
+| Server and browser inject `AnalyticsPort` | Correct implementation is selected without component branching |
+| Two concurrent SSR requests | Request-specific URL/user data cannot leak between responses |
+| Browser lacks `navigator.share` | Accessible fallback remains usable |
+| Canonical service runs twice | One canonical link is updated rather than duplicated |
+| Direct DOM library mutates child nodes | Browser hydration test catches the mismatch or boundary is explicitly isolated |
+
+Use an actual server-render build plus browser hydration test for the end-to-end contract. A unit test that defines a fake `window` can prove a branch but cannot prove server module evaluation, serialized HTML parity, layout, hydration or cleanup. Test both server and browser provider configurations, and test packages suspected of touching globals during import.
+
+**Common errors:** reading `window` in a field initializer; guarding a method after a browser-only static import has already executed; using `typeof window !== 'undefined'` throughout components instead of creating a capability boundary; rendering different `@if` trees from `isPlatformBrowser`; assuming `DOCUMENT` supplies real server layout; treating `Renderer2` as an SSR browser emulator; using `setTimeout` as a hydration signal; mutating Angular-owned DOM before it is claimed; initializing a widget twice after navigation; forgetting observer/listener teardown; putting request-specific data in a persistent server singleton; relying on local storage for server HTML; and using `ngSkipHydration` as a permanent substitute for a correct boundary.
+
+**Interview variations:** SSR versus prerender evaluation; `afterNextRender` versus platform guards; provider replacement versus branching; injected `DOCUMENT` versus global `document`; request tokens; dynamic imports and module evaluation; browser-only libraries; stable placeholders; hydration parity; third-party DOM ownership; `Renderer2` limits; request isolation; cleanup; capability fallback; and how to test a package that references `window` at import time.
+
+**Primary references:** Angular's [server-side and hybrid-rendering guide](https://angular.dev/guide/ssr), [`isPlatformBrowser`](https://angular.dev/api/common/isPlatformBrowser), [`DOCUMENT`](https://angular.dev/api/common/DOCUMENT), [DOM APIs guide](https://angular.dev/guide/components/dom-apis), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), and [hydration constraints](https://angular.dev/guide/hydration#constraints). The decision table, four examples, request-to-hydration trace, dry run, invariants, cost derivation and test matrix above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
-Keep the reusable order card behind a readonly view-model input and semantic `selected` output; let it own only local view state while the page owns navigation, feature state and effects. Give a reusable page-size or quantity control one required `model()` value only when parent and child intentionally co-own that editable scalar; keep order aggregates readonly and report typed patches or commands instead of hiding business mutation behind two-way binding.
+Keep the reusable order card behind a readonly view-model input and semantic `selected` output; let it own only local view state while the page owns navigation, feature state and effects. Give a reusable page-size or quantity control one required `model()` value only when parent and child intentionally co-own that editable scalar; keep order aggregates readonly and report typed patches or commands instead of hiding business mutation behind two-way binding. Preserve the same order-page structure during SSR and browser startup: put analytics/storage behind platform-specific providers, create canonical metadata through injected `DOCUMENT`, and initialize a browser-only chart in `afterNextRender` against one dedicated host with teardown—never make an `isPlatformBrowser` template branch or top-level `window` access the hydration boundary.
 
 Plan the legacy application's modernization as deployable checkpoints: capture a clean behavioral/performance baseline; use the Update Guide and supported toolchain matrix for one major-version step at a time; convert the leaf order card to standalone while its NgModule consumer remains valid; migrate the lazy orders route; then replace root bootstrap while preserving provider scopes, initializers, interceptor order and ZoneJS scheduling explicitly. Audit every template-visible timer, SDK, socket, form and SSR update for a real Angular notification, prove it in zoneless tests and a measured canary, and only then remove ZoneJS polyfills/dependency. Keep state-management and design-system rewrites outside these checkpoints, assign every `importProvidersFrom` bridge an owner/removal gate, and demonstrate the rollback after each phase. For the search page, draw the subscriber graph before adding an operator: bind a cold request once when one view owns it, expose a stable field rather than a template getter, flatten route/query changes with `switchMap`, and share only one explicitly identified query generation across overlapping consumers. Separate refresh from bounded retry, key/invalidate retained data by user and query, and prove request cardinality with `expectOne`/`match` rather than trusting the Network panel alone.
 
@@ -6684,7 +6876,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q66. This pass was bounded to Markdown lines 1380–1401 and DOCX extracted lines 921–933 for Q66; both sources define `model()` as writable component state for intentional two-way, control-like APIs and warn against arbitrary bidirectional domain state. This edition adds the input/output expansion; plain-property and writable-signal parent contracts; required/default/alias rules; four examples; an internal state trace; equality, transform, validation and ownership boundaries; a test matrix; and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q67. This pass was bounded to Markdown lines 1403–1417 and DOCX extracted lines 937–947 for Q67; both sources require browser-only APIs to live behind platform-aware boundaries rather than universal globals. This edition adds a platform-boundary decision table; four examples covering render callbacks, platform-specific providers, injected `DOCUMENT` and a narrow runtime guard; a request-to-hydration trace; module-evaluation, DOM-parity, request-isolation and cleanup invariants; a test matrix; and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official Angular 22.2.2 docs. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration test, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
@@ -6693,6 +6885,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular lifecycle and render-callback material (reviewed 2026-10-13): [NG0100 error encyclopedia](https://angular.dev/errors/NG0100), [component lifecycle](https://angular.dev/guide/components/lifecycle), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), [`afterEveryRender`](https://angular.dev/api/core/afterEveryRender), [`AfterRenderOptions`](https://angular.dev/api/core/AfterRenderOptions), and [`AfterRenderRef`](https://angular.dev/api/core/AfterRenderRef). The current API pages identify these callbacks as stable since Angular 20 and were built against Angular 22.2.2 when reviewed.
 - Official Angular input-contract material (reviewed 2026-10-13): [accepting data with inputs](https://angular.dev/guide/components/inputs), [`input` overloads](https://angular.dev/api/core/input), [`InputSignal`](https://angular.dev/api/core/InputSignal), [`InputSignalWithTransform`](https://angular.dev/api/core/InputSignalWithTransform), [`booleanAttribute`](https://angular.dev/api/core/booleanAttribute), and [`numberAttribute`](https://angular.dev/api/core/numberAttribute). The current pages state that required template inputs are build-time enforced, transforms must be statically analyzable and pure, transform parameter types define accepted template values, model inputs do not support transforms, failed built-in numeric coercion yields `NaN` unless a fallback is used, and these pages were built against Angular 22.2.2 when reviewed.
 - Official Angular model-input material (reviewed 2026-10-13): [model inputs](https://angular.dev/guide/components/inputs#model-inputs), [two-way binding](https://angular.dev/guide/templates/two-way-binding), [`model`](https://angular.dev/api/core/model), [`ModelSignal`](https://angular.dev/api/core/ModelSignal), and the current [`createModelSignal`](https://github.com/angular/angular/blob/main/packages/core/src/authoring/model/model_signal.ts) implementation. The Angular 22.2.2 pages define the writable input/implicit `Change` output pair, plain-property and writable-signal parent targets, required/default/alias forms, no-transform restriction and automatic output subscription cleanup; the current source confirms that equal values are not re-emitted.
+- Official Angular server/browser-boundary material (reviewed 2026-10-13): [server-side and hybrid rendering](https://angular.dev/guide/ssr), [`isPlatformBrowser`](https://angular.dev/api/common/isPlatformBrowser), [`DOCUMENT`](https://angular.dev/api/common/DOCUMENT), [using DOM APIs](https://angular.dev/guide/components/dom-apis), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), and [hydration constraints](https://angular.dev/guide/hydration#constraints). The Angular 22.2.2 pages state that browser globals and layout capabilities are not available during SSR; render callbacks are browser-only; platform-specific providers are preferred over scattered runtime checks; platform-driven template differences can cause hydration mismatch/layout shift; `DOCUMENT` represents the current rendering document; render callbacks are not a hydration-completion guarantee; and Angular-owned server/client DOM structure must match.
 - Official Angular application-structure and component-contract material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [signals](https://angular.dev/guide/signals), [services and DI](https://angular.dev/guide/di/creating-and-using-services), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
 - Official Angular testing material (reviewed 2026-10-11): [testing overview and Vitest setup](https://angular.dev/guide/testing), [component-testing basics](https://angular.dev/guide/testing/components-basics), [component-testing scenarios](https://angular.dev/guide/testing/components-scenarios), [testing utility APIs](https://angular.dev/guide/testing/utility-apis), [component harnesses](https://angular.dev/guide/testing/component-harnesses-overview), and [migrating from Karma to Vitest](https://angular.dev/guide/testing/migrating-to-vitest).
 - Official Angular HTTP-testing material (reviewed 2026-10-11): [testing HTTP requests](https://angular.dev/guide/http/testing), [`provideHttpClientTesting`](https://angular.dev/api/common/http/testing/provideHttpClientTesting), [`HttpTestingController`](https://angular.dev/api/common/http/testing/HttpTestingController), and [`TestRequest`](https://angular.dev/api/common/http/testing/TestRequest).
@@ -6707,5 +6900,5 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q67 (browser-only APIs during SSR) in both sources. It begins at Markdown anchor line 1403 / heading line 1405 and DOCX extracted line 937; resolve the exact section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q68 (`@defer` triggers and trigger selection) in both sources. It begins at Markdown anchor line 1418 / heading line 1420 and DOCX extracted line 948; resolve the exact section end before reading it and keep extending this one canonical guide.
 

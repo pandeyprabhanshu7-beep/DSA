@@ -15,7 +15,7 @@ if (embedded !== markdown) throw new Error('embedded Markdown differs from guide
 
 const anchors = [...markdown.matchAll(/<a id="([^"]+)"><\/a>/g)].map(match => match[1]);
 if (new Set(anchors).size !== anchors.length) throw new Error('duplicate explicit anchor');
-for (const expected of [...Array.from({length: 66}, (_, index) => `q${index + 1}`), 'exercise']) {
+for (const expected of [...Array.from({length: 67}, (_, index) => `q${index + 1}`), 'exercise']) {
   if (!anchors.includes(expected)) throw new Error(`missing anchor: ${expected}`);
 }
 
