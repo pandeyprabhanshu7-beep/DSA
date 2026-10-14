@@ -14,7 +14,7 @@
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 3",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 2",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 1",
-    "Angular_Interview_Mermaid_Workbook.md Q1-Q68",
+    "Angular_Interview_Mermaid_Workbook.md Q1-Q74 plus rapid-fire items 1-20",
     "src/README.md excerpt"
   ],
   "files": [
@@ -165,10 +165,10 @@
         "### Interview-ready code:"
       ],
       "completed_sections": [
-        "Q1-Q71"
+        "Q1-Q74 plus rapid-fire items 1-20"
       ],
-      "processed_range": "latest bounded read: lines 1470-1483 for Q71, bounded by the next anchor at line 1484",
-      "next_section": "Q72 signal/change-detection performance traps begin at anchor line 1484 / heading line 1486"
+      "processed_range": "latest bounded read: rapid-fire items 11-20 at lines 1580-1618, bounded by item 21 at line 1620",
+      "next_section": "rapid-fire items 21-30 begin at line 1620; resolve the exact item-30 boundary before reading beyond it"
     },
     {
       "relative_path": "untitled/DSA V2/Striver_Graph_DSA_Deep_Study_Guide_Visual.md",
@@ -847,27 +847,27 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "Second rapid-fire Angular bank module: bounded items 11-20 consolidation against canonical Q1-Q74 and rapid-fire 1-10",
+    "section": "Third rapid-fire Angular bank module: bounded items 21-30 consolidation against canonical Q1-Q74 and rapid-fire 1-20",
     "status": "QUEUED",
-    "estimated_tokens": 7200,
-    "estimate_method": "Heuristic only: rapid-fire items 11-20 begin at Markdown line 1580 and DOCX extracted line 1058; reserve ~1000 tokens for bounded paired-source range resolution, ~1200 for targeted primary-source refresh, ~3000 for distinct consolidation/teaching/HTML, and ~2000 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 7600,
+    "estimate_method": "Heuristic only: rapid-fire items 21-30 begin at Markdown line 1620 and DOCX extracted line 1078; reserve ~1000 tokens for bounded paired-source range resolution, ~1500 for targeted primary-source refresh, ~3100 for distinct consolidation/teaching/HTML, and ~2000 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "readers": "Canonical Angular reader rebuilt from Markdown; exact 584971-character embedded payload equality, 76 unique anchors, 247 balanced fences, 49 relative links, fragment targets and responsive/search/Mermaid hooks checked. Local-project README HTML source hash matches its Markdown.",
-    "diagrams": "The rapid-fire resolver-to-keyed-view flow is embedded in the canonical payload; 56 Mermaid diagrams total; browser visual QA not executed",
-    "last_processed_at": "2026-10-14T06:27:29-04:00"
+    "readers": "Canonical Angular reader rebuilt from Markdown; exact 606874-character embedded payload equality, 77 unique anchors, 253 balanced fences, fragment targets and responsive/search/Mermaid hooks checked. Local-project README HTML source hash matches its Markdown.",
+    "diagrams": "The rapid-fire route-to-form flow is embedded in the canonical payload; 57 Mermaid diagrams total; browser visual QA not executed",
+    "last_processed_at": "2026-10-14T07:31:56-04:00"
   },
   "angular_intake_checkpoint": {
-    "last_processed_at": "2026-10-14T06:27:29-04:00",
+    "last_processed_at": "2026-10-14T07:31:56-04:00",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q74 plus rapid-fire items 1-10; latest bounded source ranges are Markdown lines 1536-1578 and DOCX extracted lines 1037-1057, bounded by item 11 at Markdown line 1580 / DOCX line 1058",
-    "status": "PUBLISHED",
-    "validation": "Rapid-fire items 1-10 agree across both source texts and are consolidated as an answer ladder with four connected examples, a resolver-to-keyed-view trace, invariants, verification drills and derived costs while retaining Q1-Q74 as the deep canonical coverage; deterministic reader generation and exact 584971-character payload equality passed with 76 unique anchors, 247 balanced fences, 56 Mermaid diagrams, inline JavaScript, JSON, 49 relative links, local README source hash and live 170-marker checks; Angular CLI build, TypeScript/template compilation, TestBed/router execution, controlled-browser focus/DOM-reuse tests and SSR tests were not performed because the project runtime/browser are absent",
-    "content_commit": "2336e70b9115535f84a913297eade84842fd4b8c",
-    "estimated_next_tokens": 7200,
-    "estimate_method": "Heuristic from rapid-fire items 11-20 starting at Markdown line 1580 and DOCX extracted line 1058, plus bounded source resolution, targeted primary-source refresh, distinct consolidation/teaching/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "processed": "Q1–Q74 plus rapid-fire items 1-20; latest bounded source ranges are Markdown lines 1580-1618 and DOCX extracted lines 1058-1077, bounded by item 21 at Markdown line 1620 / DOCX line 1078",
+    "status": "VALIDATED_PENDING_PUBLISH",
+    "validation": "Rapid-fire items 11-20 agree across both source texts and are consolidated as an answer ladder with four connected examples, a route-to-form trace, invariants, verification drills and derived costs while retaining Q1-Q74 as the deep canonical coverage; deterministic reader generation and exact 606874-character payload equality passed with 77 unique anchors, 253 balanced fences, 57 Mermaid diagrams, inline JavaScript, JSON, fragment targets, local README source hash, selected-file diff and live 170-marker checks; Angular CLI build, TypeScript/template compilation, TestBed/router/RxJS virtual-time/CVA/browser tests were not performed because the Angular application runtime is absent",
+    "content_commit": null,
+    "estimated_next_tokens": 7600,
+    "estimate_method": "Heuristic from rapid-fire items 21-30 starting at Markdown line 1620 and DOCX extracted line 1078, plus bounded source resolution, targeted primary-source refresh, distinct consolidation/teaching/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }

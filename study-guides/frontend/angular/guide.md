@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q74 + rapid-fire 1–10)
+# Angular 22 — Interview Foundations (Q1–Q74 + rapid-fire 1–20)
 
-> **Current bounded edition, 2026-10-14.** Reconciled `Angular_Interview_Mermaid_Workbook.md` through rapid-fire items 1–10 (lines 1536–1578, bounded by item 11 at line 1580) with the corresponding `Angular_Interview_Workbook.docx` text (extracted lines 1037–1057, bounded by item 11 at line 1058). The paired sources agree. Q1–Q74 remain the deep canonical explanations; the first rapid-fire module adds a retrieval-oriented answer ladder, four connected examples, a state trace, invariants, tests and explicit links back to the deep chapters instead of duplicating them. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-14.** Reconciled `Angular_Interview_Mermaid_Workbook.md` through rapid-fire items 1–20 (lines 1536–1618, bounded by item 21 at line 1620) with the corresponding `Angular_Interview_Workbook.docx` text (extracted lines 1037–1077, bounded by item 21 at line 1078). The paired sources agree. Q1–Q74 remain the deep canonical explanations; the two rapid-fire modules add retrieval-oriented answer ladders, connected examples, state traces, invariants, tests and explicit links back to the deep chapters instead of duplicating them. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -79,6 +79,7 @@
 - [Q73: immutable row edits and identity](#q73)
 - [Q74: ZoneJS/zoneless library compatibility](#q74)
 - [Rapid-fire drill 1: items 1–10](#rapid-fire-1)
+- [Rapid-fire drill 2: items 11–20](#rapid-fire-2)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -8662,6 +8663,296 @@ The snippets were reviewed against current Angular APIs, but this repository doe
 
 **Primary references (reviewed 2026-10-14):** Angular's [`@for`/`@empty` control-flow guide](https://angular.dev/guide/templates/control-flow), [`@let` template-variable guide](https://angular.dev/guide/templates/variables), [`DestroyRef`](https://angular.dev/api/core/DestroyRef), [`WritableSignal.asReadonly`](https://angular.dev/api/core/WritableSignal), [signals guide](https://angular.dev/guide/signals), [OnPush subtree guide](https://angular.dev/best-practices/skipping-subtrees), [dependency-provider guide](https://angular.dev/guide/di/defining-dependency-providers), [`InjectionToken`](https://angular.dev/api/core/InjectionToken), [creating and using services](https://angular.dev/guide/di/creating-and-using-services), [route data resolvers](https://angular.dev/guide/routing/data-resolvers), and [`ResolveFn`](https://angular.dev/api/router/ResolveFn). The answer ladder, connected examples, trace, invariants, tests and cost derivation above are added teaching material.
 
+<a id="rapid-fire-2"></a>
+## Rapid-fire drill 2 — routing, RxJS and forms (items 11–20)
+
+This drill is a recall layer over the deeper chapters. Start with the 15-second answer, add the caveat only when the interviewer probes, and use the linked chapter for the full design discussion.
+
+| # | Prompt | 15-second answer | Boundary that prevents a shallow answer | Deep links |
+|---:|---|---|---|---|
+| 11 | Preloading strategy? | It decides which lazy route bundles the router may fetch in the background after initial navigation, trading bandwidth and parse work now for faster later navigation. | `PreloadAllModules` is aggressive; a custom `PreloadingStrategy` can inspect route data and connection/product policy. Preloading code does not activate a route or fetch its business data. | [Q38](#q38), [Q45](#q45), [Q68](#q68) |
+| 12 | `CanDeactivate` guard? | It asks whether navigation may leave the current route, commonly protecting a dirty editor from accidental data loss. | It is a client-side UX boundary, not authorization or durable data protection. Cover browser/tab close separately and keep the backend authoritative. | [Q39](#q39), [Q55](#q55) |
+| 13 | `shareReplay`? | It shares one upstream subscription and replays a bounded number of recent emissions to later subscribers. | State `bufferSize`, `refCount`, source lifetime and invalidation explicitly. In current RxJS 7 source, errors reset, completion is retained, and ref-count reset follows `refCount`; pin the package before relying on those details. | [Q33](#q33), [Q57](#q57), [Q69](#q69), [Q71](#q71) |
+| 14 | `take(1)` versus `first()`? | Both can emit one matching value and unsubscribe; if a finite source completes empty, `take(1)` completes silently while `first()` raises `EmptyError` unless given a default. | Neither invents a timeout. A source that neither emits nor completes can leave both waiting; `first(predicate)` may skip values until one matches. | [Q28](#q28), [Q32](#q32) |
+| 15 | `debounceTime` versus `distinctUntilChanged`? | `debounceTime` waits for a quiet period; `distinctUntilChanged` suppresses consecutive equal values. Search usually normalizes, debounces, then removes repeats. | The default comparison is reference/strict equality, so separately allocated equal objects need a key selector or comparator. Neither cancels an HTTP request; a flattening operator does. | [Q30](#q30), [Q42](#q42), [Q60](#q60) |
+| 16 | `tap`? | It observes notifications for logging, metrics or other side effects without intentionally transforming the emitted value. | It is not a state-transform operator. A thrown `tap` callback error becomes an error notification, so telemetry code must not be assumed harmless. | [Q28](#q28), [Q32](#q32), [Q40](#q40) |
+| 17 | `catchError` placement? | Inside `switchMap`, it can recover one request and keep the outer query stream alive; outside, it replaces or terminates the whole composed stream after an error. | Return an Observable from the handler, preserve cancellation, and do not turn every domain failure into an indistinguishable empty list. | [Q41](#q41), [Q70](#q70) |
+| 18 | `finalize`? | It runs cleanup when that subscription ends by completion, error or unsubscription—including cancellation by `switchMap`. | It does not mean “success.” Put success-only work in the success path and make shared loading indicators generation-safe. | [Q32](#q32), [Q42](#q42), [Q58](#q58) |
+| 19 | `FormGroup` versus `FormArray`? | A `FormGroup` models a fixed or keyed set of named controls; a `FormArray` models an ordered collection whose length can change. | Choose from domain identity, not screen appearance. Dynamic rows may still be `FormGroup`s inside a `FormArray`, and stable business IDs should travel in the row model. | [Q35](#q35), [Q36](#q36), [Q37](#q37) |
+| 20 | `ControlValueAccessor` (CVA)? | It is the adapter that lets Angular forms write to a custom control and receive its value, touched and disabled changes like a native input. | `writeValue` is model-to-view and must not call the registered change callback. User interaction calls `onChange`; blur-equivalent interaction calls `onTouched`; disabled state flows separately. | [Q35](#q35), [Q36](#q36), [Q66](#q66) |
+
+### Example 1 — selective preloading and a dirty-editor exit gate
+
+The preload policy answers “may the router fetch this lazy code after startup?” The guard answers “may this attempted navigation leave the active editor?” They are independent decisions.
+
+```typescript
+import {inject, Injectable} from '@angular/core';
+import {
+  CanDeactivateFn, PreloadingStrategy, provideRouter, Route, Routes,
+  withPreloading,
+} from '@angular/router';
+import {Observable, of} from 'rxjs';
+
+@Injectable({providedIn: 'root'})
+export class ProductPreloader implements PreloadingStrategy {
+  preload(route: Route, load: () => Observable<unknown>): Observable<unknown> {
+    return route.data?.['preload'] === true ? load() : of(null);
+  }
+}
+
+export interface DirtyAware {
+  hasUnsavedChanges(): boolean;
+}
+
+export const confirmDiscard: CanDeactivateFn<DirtyAware> = component =>
+  !component.hasUnsavedChanges() || window.confirm('Discard unsaved changes?');
+
+const routes: Routes = [
+  {
+    path: 'orders',
+    loadChildren: () => import('./orders/orders.routes').then(m => m.ORDER_ROUTES),
+    data: {preload: true},
+  },
+  {
+    path: 'orders/:id/edit',
+    loadComponent: () => import('./order-editor').then(m => m.OrderEditor),
+    canDeactivate: [confirmDiscard],
+  },
+];
+
+export const appRouter = provideRouter(
+  routes,
+  withPreloading(ProductPreloader),
+);
+```
+
+Three cases belong in the explanation:
+
+1. Initial navigation succeeds without waiting for the orders bundle; after navigation, the router may call the policy and download that bundle in the background.
+2. Later navigation to `/orders` can avoid bundle-download latency, but component creation, resolver/API work and rendering still cost time.
+3. Leaving a dirty editor invokes `confirmDiscard`; a returned `false` cancels router navigation. A browser close/reload needs a narrowly scoped `beforeunload` policy, while server-side authorization and persistence remain separate.
+
+Do not preload every route merely because it is lazy. Measure transfer bytes, parse/compile work, cache behavior and the probability of the next navigation. A policy might additionally consider product priority or connection hints, but must remain deterministic and testable.
+
+### Example 2 — one search generation owns its error and cleanup
+
+Normalize before comparing; debounce user bursts; cancel stale HTTP subscriptions with `switchMap`; recover the request inside the flattening boundary so later queries still work. `defer` makes each request generation own its loading transition, and the inner `finalize` runs when that generation succeeds, fails or is cancelled.
+
+```typescript
+import {DestroyRef, inject, signal} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {
+  catchError, debounceTime, defer, distinctUntilChanged, finalize,
+  map, Observable, of, switchMap, tap,
+} from 'rxjs';
+
+type SearchState<T> =
+  | {kind: 'idle'; items: readonly T[]}
+  | {kind: 'ready'; items: readonly T[]}
+  | {kind: 'error'; message: string; items: readonly T[]};
+
+const destroyRef = inject(DestroyRef);
+const busy = signal(false);
+
+const state$: Observable<SearchState<OrderSummary>> = queryControl.valueChanges.pipe(
+  map(value => value.trim()),
+  debounceTime(250),
+  distinctUntilChanged(),
+  switchMap(query => query === ''
+    ? of({kind: 'idle', items: []} as const)
+    : defer(() => {
+        busy.set(true);
+        return orderApi.search(query).pipe(
+          tap(items => audit.record('search-result', {query, count: items.length})),
+          map(items => ({kind: 'ready', items} as const)),
+          catchError(error => of({
+            kind: 'error',
+            message: userSafeMessage(error),
+            items: [],
+          } as const)),
+          finalize(() => busy.set(false)),
+        );
+      }),
+  ),
+  takeUntilDestroyed(destroyRef),
+);
+```
+
+With input events `a@0 ms`, `an@80`, `ang@160`, `ang@500`, `angu@900`, a 250 ms debounce emits `ang@410`; the consecutive duplicate at 500 schedules another `ang` but `distinctUntilChanged` drops it; `angu@1150` starts the next request. `switchMap` unsubscribes the `ang` request before subscribing to `angu`, so the old generation's `finalize` executes during cancellation. Angular `HttpClient` responds to unsubscription by aborting the client request, but the origin may already have started work.
+
+For an `HttpClient` request, an added `take(1)` is usually redundant because a successful request emits once and completes. Use the semantic difference when the source contract actually permits empty completion:
+
+| Finite source | `take(1)` | `first()` | `first(undefined, fallback)` |
+|---|---|---|---|
+| emits `A, B`, then completes | emits `A`, completes | emits `A`, completes | emits `A`, completes |
+| completes empty | completes empty | errors with `EmptyError` | emits `fallback`, completes |
+| never emits and never completes | waits | waits | waits |
+
+### Example 3 — sharing is not an invalidation policy
+
+This service exposes one stable shared stream. Overlapping subscribers to the current generation share one request and receive the latest result. A mutation calls `refresh()` explicitly; a failed generation is not silently converted into a permanent cached empty user.
+
+```typescript
+import {Injectable, inject} from '@angular/core';
+import {HttpClient} from '@angular/common/http';
+import {shareReplay, startWith, Subject, switchMap} from 'rxjs';
+
+@Injectable({providedIn: 'root'})
+export class CurrentUserQuery {
+  private readonly http = inject(HttpClient);
+  private readonly refreshes = new Subject<void>();
+
+  readonly value$ = this.refreshes.pipe(
+    startWith(undefined),
+    switchMap(() => this.http.get<CurrentUser>('/api/me')),
+    shareReplay({bufferSize: 1, refCount: true}),
+  );
+
+  refresh(): void {
+    this.refreshes.next();
+  }
+}
+```
+
+The configuration is part of the contract: the replay buffer is one value; `refCount: true` allows disconnection when the last subscriber leaves; a new refresh creates a new inner request. It still does not define TTL, identity scope, logout clearing, mutation ordering, SSR isolation or memory budgets. If the product requires retained data with those rules, model a cache with explicit keys and invalidation rather than calling `shareReplay` “the cache.” See [Q69](#q69) and [Q71](#q71).
+
+### Example 4 — dynamic aliases and a native-like rating control
+
+Use named controls for the stable order fields and an array for the variable aliases. Each array row can itself be a group when it contains several fields.
+
+```typescript
+import {FormArray, FormControl, FormGroup, Validators} from '@angular/forms';
+
+type AliasRow = FormGroup<{
+  id: FormControl<string>;
+  label: FormControl<string>;
+}>;
+
+const orderForm = new FormGroup({
+  customerName: new FormControl('', {nonNullable: true, validators: [Validators.required]}),
+  rating: new FormControl<number | null>(null),
+  aliases: new FormArray<AliasRow>([]),
+});
+
+function addAlias(id: string): void {
+  orderForm.controls.aliases.push(new FormGroup({
+    id: new FormControl(id, {nonNullable: true}),
+    label: new FormControl('', {nonNullable: true}),
+  }));
+}
+```
+
+A CVA bridges the `rating` control to a custom component. The important part is directionality:
+
+```typescript
+import {
+  ChangeDetectionStrategy, ChangeDetectorRef, Component, forwardRef, inject,
+} from '@angular/core';
+import {ControlValueAccessor, NG_VALUE_ACCESSOR} from '@angular/forms';
+
+@Component({
+  selector: 'app-rating',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @for (score of scores; track score) {
+      <button type="button"
+              [disabled]="disabled"
+              [attr.aria-pressed]="score === value"
+              (click)="choose(score)"
+              (blur)="markTouched()">{{ score }}</button>
+    }
+  `,
+  providers: [{
+    provide: NG_VALUE_ACCESSOR,
+    useExisting: forwardRef(() => RatingControl),
+    multi: true,
+  }],
+})
+export class RatingControl implements ControlValueAccessor {
+  private readonly cdr = inject(ChangeDetectorRef);
+  readonly scores = [1, 2, 3, 4, 5] as const;
+  value: number | null = null;
+  disabled = false;
+
+  private onChange: (value: number | null) => void = () => {};
+  private onTouched: () => void = () => {};
+
+  writeValue(value: number | null): void {
+    this.value = value;              // model -> view; never call onChange here
+    this.cdr.markForCheck();
+  }
+
+  registerOnChange(fn: (value: number | null) => void): void {
+    this.onChange = fn;
+  }
+
+  registerOnTouched(fn: () => void): void {
+    this.onTouched = fn;
+  }
+
+  setDisabledState(disabled: boolean): void {
+    this.disabled = disabled;
+    this.cdr.markForCheck();
+  }
+
+  choose(value: number): void {
+    if (this.disabled || value === this.value) return;
+    this.value = value;
+    this.onChange(value);             // user view -> form model, exactly once
+  }
+
+  markTouched(): void {
+    this.onTouched();
+  }
+}
+```
+
+For a composite control, define what counts as “touched,” expose accessible semantics and focus behavior, propagate validation intentionally, and test IME/keyboard behavior where applicable. CVA adapts form mechanics; it does not decide the domain's valid rating or save policy.
+
+### One route-to-form state trace
+
+```mermaid
+sequenceDiagram
+  participant R as Router
+  participant P as Preloader
+  participant F as Form
+  participant C as CVA
+  R->>P: Initial navigation completes
+  P->>P: Fetch selected lazy bundle
+  R->>F: Activate editor later
+  F->>C: writeValue + disabled state
+  C->>F: onChange after user edit
+  F->>F: Form becomes dirty
+  R->>F: CanDeactivate before leaving
+  F-->>R: allow or cancel
+```
+
+The trace exposes two easily confused directions. Router preloading changes code availability before activation; it does not create the form. After activation, the form writes model state into the CVA. Only user interaction travels back through the registered change callback. Dirty state then becomes input to a later navigation decision.
+
+### Invariants, costs and failure modes
+
+- **Routing invariant:** preloading may fetch code but never grants access, activates a route or substitutes for required resolver data. A deactivation guard is advisory client UX; server checks remain authoritative.
+- **Stream invariant:** each query generation has one explicit owner, cancellation boundary, error policy and cleanup path. `tap` does not transform data; `catchError` returns a replacement Observable; `finalize` describes termination, not success.
+- **Sharing invariant:** all overlapping consumers intentionally share the same identity-scoped value. Replay size, ref-count behavior and invalidation are explicit and tested against the pinned RxJS version.
+- **Forms invariant:** the model-to-view path (`writeValue`) never echoes through `onChange`; the user-to-model path emits once per accepted interaction; touched and disabled state remain independent.
+- **Collection invariant:** `FormGroup` keys express named domain fields; `FormArray` order expresses a variable collection. Business identity is not inferred from the current index.
+
+For `e` raw input events, the normalization/comparison pipeline performs O(`e`) application work and retains O(1) previous scalar state for `distinctUntilChanged`; it can start at most `u ≤ e` post-debounce distinct request generations. Each returned list of `n` results still costs O(`n`) to decode/map and O(`n`) output storage. `shareReplay({bufferSize: 1})` retains O(1) emissions but O(`s`) bytes for the retained value of size `s`; “one value” is not “constant memory” with respect to payload size. A `FormGroup` retains one control graph node per named field, while a `FormArray` retains one per element; rendering or validating all `n` rows is at least O(`n`) application work. Inserting/removing a middle array row may shift later indices and UI views, so stable row IDs and keyed rendering remain important. Preloading moves bundle transfer and parse work earlier rather than deleting it; total bytes can increase when a preloaded feature is never visited.
+
+**Common failures:** preloading business API data accidentally; using a guard as security; `window.confirm` without a testable abstraction; treating `shareReplay(1)` as a complete cache policy; leaving `refCount` implicit; using `first()` on optional empty input; comparing object references when business keys matter; logging secrets in `tap`; placing the only `catchError` outside a long-lived query stream; assuming `finalize` means success; toggling one global spinner from overlapping streams; choosing `FormArray` only because controls appear in a list; calling `onChange` inside `writeValue`; forgetting `multi: true` on `NG_VALUE_ACCESSOR`; ignoring disabled, touched, keyboard and accessibility behavior.
+
+### Verification drill
+
+1. **Preloading:** with a fake `load`, assert an opted-in route invokes it once and an unmarked route does not. In a router test, prove initial navigation does not await the preload, a clean editor leaves immediately, a dirty editor covers confirm/cancel, and backend denial still wins after any client guard.
+2. **Operator semantics:** use a virtual-time test for burst/duplicate input and assert exact request subscriptions. Assert `switchMap` unsubscribes the stale request; an inner failure yields an error state and a later query still succeeds; `finalize` runs once on completion, error and cancellation; a throwing `tap` handler reaches the error path. Separately assert empty completion for `take(1)` and `EmptyError` for `first()`.
+3. **Sharing:** subscribe twice concurrently and assert one HTTP request plus the same result; unsubscribe both before completion and assert teardown under the pinned configuration; flush an error and prove the next subscription can retry; call `refresh()` after a mutation and assert a new request. Add logout/principal-scope and SSR request-isolation tests if the stream crosses those boundaries.
+4. **Forms/CVA:** add, remove and reorder alias rows while preserving IDs and expected values. Call `writeValue(4)` and assert the view changes without invoking `onChange`; simulate one user choice and assert exactly one change callback; blur and assert touched; disable and assert interaction is blocked; re-enable and verify keyboard/focus/accessibility behavior.
+
+The TypeScript was contract-reviewed against current Angular and RxJS documentation, but this repository has no Angular CLI workspace for compiling or running these fragments. The deterministic Markdown/HTML reader validator checks structure and payload equivalence; router/TestBed, virtual-time RxJS, CVA DOM/accessibility and browser `beforeunload` tests remain explicit executable work for a consuming application.
+
+**Primary references (reviewed 2026-10-14):** Angular's [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [customizing route behavior](https://angular.dev/guide/routing/customizing-route-behavior), [route guards](https://angular.dev/guide/routing/route-guards), [`FormGroup`](https://angular.dev/api/forms/FormGroup), [`FormArray`](https://angular.dev/api/forms/FormArray), [`ControlValueAccessor`](https://angular.dev/api/forms/ControlValueAccessor) and [`NG_VALUE_ACCESSOR`](https://angular.dev/api/forms/NG_VALUE_ACCESSOR); RxJS [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), [`take`](https://rxjs.dev/api/operators/take), [`first`](https://rxjs.dev/api/operators/first), [`debounceTime`](https://rxjs.dev/api/operators/debounceTime), [`distinctUntilChanged`](https://rxjs.dev/api/operators/distinctUntilChanged), [`tap`](https://rxjs.dev/api/operators/tap), [`catchError`](https://rxjs.dev/api/operators/catchError), [`finalize`](https://rxjs.dev/api/operators/finalize), and the current [`shareReplay` implementation](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/shareReplay.ts). The answer ladder, examples, trace, invariants, cost derivation and tests above are added teaching material; RxJS reset semantics remain tied to the pinned package version.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -8675,7 +8966,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected through Q1–Q74 and rapid-fire items 1–10. This pass was bounded to Markdown lines 1536–1578 and DOCX extracted lines 1037–1057, with item 11 at Markdown line 1580 / DOCX line 1058 as the next boundary. The ten paired answers agree. This edition consolidates them into a retrieval-oriented answer ladder with four connected examples, a resolver-to-keyed-view trace, invariants, verification drills and deep links to the richer Q1–Q74 chapters rather than duplicating those chapters. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected through Q1–Q74 and rapid-fire items 1–20. The latest bounded pass covered Markdown lines 1580–1618 and DOCX extracted lines 1058–1077, with item 21 at Markdown line 1620 / DOCX line 1078 as the next boundary. The ten new paired answers agree. This edition consolidates items 11–20 into a retrieval-oriented answer ladder with four connected examples, a route-to-form trace, invariants, cost derivations, verification drills and deep links to the richer Q1–Q74 chapters rather than duplicating them. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked current Angular sources. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI build, TypeScript/template compilation, TestBed/router execution, controlled-browser focus/DOM-reuse test, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
@@ -8706,6 +8997,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular identity and row-update material (reviewed 2026-10-14): [signals](https://angular.dev/guide/signals), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), [`@for` control flow](https://angular.dev/guide/templates/control-flow), [NG0955 duplicate keys](https://angular.dev/errors/NG0955), [NG0956 DOM recreation](https://angular.dev/errors/NG0956), and the current [`signalSetFn`](https://github.com/angular/angular/blob/main/packages/core/primitives/signals/src/signal.ts). Current Angular 22.2.2 documentation and source distinguish default `Object.is` signal equality, OnPush input-reference behavior and key-based view reuse; readonly signals do not provide deep immutability. The four-layer model, transition, examples, trace, diagram, tests, proof and cost derivation are added teaching material.
 - Official Angular dual-runtime library material (reviewed 2026-10-14): [zoneless compatibility and testing](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`NgZone`](https://angular.dev/api/core/NgZone), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), [`PendingTasks`](https://angular.dev/api/core/PendingTasks), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [Angular Package Format](https://angular.dev/tools/libraries/angular-package-format). Current Angular 22.2.2 guidance defines explicit zoneless notification paths, explains the dynamic user-component host exception, warns against zone-state event streams, preserves `NgZone.run`/`runOutsideAngular` compatibility, makes TestBed zoneless by default, and requires Angular packages as peers plus supported partial-Ivy publication. The matrices, adapter, examples, trace, verification strategy, invariants, proof and cost model are added teaching material.
 - Official Angular rapid-fire items 1–10 material (reviewed 2026-10-14): [`@for` and `@empty`](https://angular.dev/guide/templates/control-flow), [`@let`](https://angular.dev/guide/templates/variables), [`DestroyRef`](https://angular.dev/api/core/DestroyRef), [`WritableSignal`](https://angular.dev/api/core/WritableSignal), [signals](https://angular.dev/guide/signals), [OnPush subtree skipping](https://angular.dev/best-practices/skipping-subtrees), [dependency providers](https://angular.dev/guide/di/defining-dependency-providers), [`InjectionToken`](https://angular.dev/api/core/InjectionToken), [services](https://angular.dev/guide/di/creating-and-using-services), [data resolvers](https://angular.dev/guide/routing/data-resolvers), and [`ResolveFn`](https://angular.dev/api/router/ResolveFn). Current documentation defines stable-key reconciliation, empty fallbacks, view-scoped nonassignable `@let`, destruction-scope cleanup, shallow readonly signals, token object identity, root environment provision and the resolver activation gate. The answer ladder, examples, trace, tests and costs are added teaching material.
+- Official Angular/RxJS rapid-fire items 11–20 material (reviewed 2026-10-14): Angular's [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [customizing route behavior](https://angular.dev/guide/routing/customizing-route-behavior), [route guards](https://angular.dev/guide/routing/route-guards), [`FormGroup`](https://angular.dev/api/forms/FormGroup), [`FormArray`](https://angular.dev/api/forms/FormArray), [`ControlValueAccessor`](https://angular.dev/api/forms/ControlValueAccessor) and [`NG_VALUE_ACCESSOR`](https://angular.dev/api/forms/NG_VALUE_ACCESSOR); RxJS [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), [`take`](https://rxjs.dev/api/operators/take), [`first`](https://rxjs.dev/api/operators/first), [`debounceTime`](https://rxjs.dev/api/operators/debounceTime), [`distinctUntilChanged`](https://rxjs.dev/api/operators/distinctUntilChanged), [`tap`](https://rxjs.dev/api/operators/tap), [`catchError`](https://rxjs.dev/api/operators/catchError), [`finalize`](https://rxjs.dev/api/operators/finalize), and the current [`shareReplay` source](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/shareReplay.ts). Current contracts distinguish code preloading from activation, UX guards from authorization, cancellation from success, keyed and ordered form collections, and the model/view directions of a value accessor. The answer ladder, examples, trace, tests and costs are added teaching material; RxJS reset details remain package-version-sensitive.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded rapid-fire items 11–20 in both sources, beginning at Markdown line 1580 and DOCX extracted line 1058. Resolve the exact item-20 boundary before reading beyond it, consolidate against the richer canonical chapters rather than duplicating them, and keep extending this one canonical guide.
+- **Next:** continue with bounded rapid-fire items 21–30 in both sources, beginning at Markdown line 1620 and DOCX extracted line 1078. Resolve the exact item-30 boundary before reading beyond it, consolidate against the richer canonical chapters rather than duplicating them, and keep extending this one canonical guide.
 
