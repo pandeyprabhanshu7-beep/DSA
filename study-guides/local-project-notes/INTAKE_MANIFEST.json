@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "f4b77af97cc38f8b5da9296349eccd36848511f6",
+  "last_successful_commit": "2c89690bbc57ceab228cb3642d460ffda9a91c22",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -864,9 +864,9 @@
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
     "processed": "Q1–Q71; latest bounded source ranges are Markdown lines 1470-1483 and DOCX extracted lines 987-997 for Q71",
-    "status": "VALIDATED_PENDING_PUBLISH",
+    "status": "PUBLISHED",
     "validation": "Q71 adds a cache contract matrix, complete identity-key model, four scenarios, keyed TTL plus single-flight and generation-fenced TypeScript, a state diagram and mutation trace, HTTP-validator/SSR boundaries, independent request-cardinality/freshness/recovery tests, invariants and derived costs; deterministic builder and exact 519871-character payload equality passed with 72 unique anchors, 229 balanced fences and 52 Mermaid diagrams; inline JavaScript, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed; Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution and live HTTP calls were not performed because the project runtime is absent",
-    "content_commit": null,
+    "content_commit": "2c89690bbc57ceab228cb3642d460ffda9a91c22",
     "estimated_next_tokens": 8200,
     "estimate_method": "Heuristic from bounded Q72 starting at Markdown anchor line 1484 / heading line 1486 and DOCX extracted line 998, plus paired source range resolution, primary Angular performance research, distinct explanation/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
