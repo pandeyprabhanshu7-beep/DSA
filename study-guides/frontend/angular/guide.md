@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q69)
+# Angular 22 — Interview Foundations (Q1–Q70)
 
-> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q69 (Q69 is lines 1431–1444) with the corresponding `Angular_Interview_Workbook.docx` text (Q69 is extracted lines 959–969). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, required signal-input plus pure boundary-normalization rules, intentional `model()` ownership for reusable value editors, capability-oriented browser API boundaries, evidence-based `@defer` trigger selection across CSR, SSR and incremental hydration, and a race-safe single-flight access-token refresh protocol with bounded request replay, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q70 (Q70 is lines 1445–1469, bounded by the next anchor at line 1470) with the corresponding `Angular_Interview_Workbook.docx` text (Q70 is extracted lines 970–986). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, required signal-input plus pure boundary-normalization rules, intentional `model()` ownership for reusable value editors, capability-oriented browser API boundaries, evidence-based `@defer` trigger selection across CSR, SSR and incremental hydration, a race-safe single-flight access-token refresh protocol with bounded request replay, and explicit inner-versus-outer `catchError` recovery lifetimes around `switchMap`, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -73,6 +73,7 @@
 - [Q67: browser-only APIs in SSR applications](#q67)
 - [Q68: @defer triggers across CSR and SSR](#q68)
 - [Q69: single-flight token refresh interceptor](#q69)
+- [Q70: catchError placement with switchMap](#q70)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -5304,7 +5305,7 @@ import {
 } from '@angular/common/http/testing';
 import {TestBed} from '@angular/core/testing';
 import {ActivatedRoute, ParamMap, convertToParamMap} from '@angular/router';
-import {Subject} from 'rxjs';
+import {catchError, of, Subject, switchMap} from 'rxjs';
 
 it('cancels stale A when route B arrives', () => {
   const params = new Subject<ParamMap>();
@@ -7322,6 +7323,276 @@ This is single-flight only inside the interceptor/session instance. Separate tab
 
 **Primary references:** Angular's [interceptor guide](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [HTTP testing guide](https://angular.dev/guide/http/testing), [`HttpContext`](https://angular.dev/api/common/http/HttpContext) and [`HttpContextToken`](https://angular.dev/api/common/http/HttpContextToken); the RxJS [`shareReplay` implementation and contract](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/shareReplay.ts); and OAuth 2.0 Security Best Current Practice [RFC 9700 §4.14](https://www.rfc-editor.org/rfc/rfc9700.html#section-4.14). The state machine, code composition, four scenarios, packet trace, dry run, cost derivation and test strategy above are added teaching material.
 
+<a id="q70"></a>
+## Q70. Why does `catchError` placement matter with `switchMap`?
+
+**Requirement:** choose the lifetime that should survive a failure. An Observable error is terminal for the subscription that receives it. `catchError` does not resume the failed source; it unsubscribes from that upstream and subscribes to the replacement Observable returned by the selector. Therefore placement defines the recovery boundary:
+
+- `source$.pipe(switchMap(makeRequest), catchError(recover))` catches at the **outer workflow**. If `recover` returns `of(...)` or `EMPTY`, that replacement emits/completes and the subscription to `source$` is gone. Later source values are not processed.
+- `source$.pipe(switchMap(value => makeRequest(value).pipe(catchError(recover))))` catches one **inner operation**. That request is replaced, while `switchMap` remains subscribed to `source$`; later source values may start new requests.
+
+Ask one question before writing the operator chain: **should this error end one request or the whole workflow?** Operator indentation is executable lifetime design, not formatting.
+
+| Contract | Catch location | After one failure | Appropriate example |
+|---|---|---|---|
+| Each query may fail independently | Inside `switchMap` | Later queries still work | Typeahead/search |
+| Any step invalidates the workflow | Outside `switchMap` | Workflow moves to terminal fallback/error | One-shot bootstrap |
+| Recover selected statuses only | Inner classify/rethrow, optional outer fatal handler | Recoverable request continues; fatal class ends workflow | 404 empty result, 401 session failure |
+| Mutation must not look successful after failure | Usually inner mapping to an explicit failure state or rethrow | Caller sees failure; no fake success | Save/payment command |
+
+### Example 1 — keep a typeahead alive with an inner boundary
+
+Model loading, success and failure as distinguishable values. Returning `[]` for an error makes “no matches” indistinguishable from “request failed,” so an explicit state is safer for most user interfaces.
+
+```typescript
+import {HttpClient, HttpErrorResponse} from '@angular/common/http';
+import {inject, Injectable} from '@angular/core';
+import {
+  catchError,
+  distinctUntilChanged,
+  map,
+  Observable,
+  of,
+  startWith,
+  switchMap,
+} from 'rxjs';
+
+type Product = Readonly<{id: string; name: string}>;
+type SearchState =
+  | Readonly<{kind: 'idle'}>
+  | Readonly<{kind: 'loading'; query: string}>
+  | Readonly<{kind: 'ready'; query: string; items: readonly Product[]}>
+  | Readonly<{kind: 'error'; query: string; message: string}>;
+
+@Injectable()
+export class ProductSearch {
+  private readonly http = inject(HttpClient);
+
+  connect(query$: Observable<string>): Observable<SearchState> {
+    return query$.pipe(
+      map(query => query.trim()),
+      distinctUntilChanged(),
+      switchMap(query => query === ''
+        ? of<SearchState>({kind: 'idle'})
+        : this.http.get<readonly Product[]>('/api/products', {
+            params: {q: query},
+          }).pipe(
+            map(items => ({kind: 'ready', query, items}) as const),
+            startWith({kind: 'loading', query} as const),
+            catchError(error => of<SearchState>({
+              kind: 'error',
+              query,
+              message: userMessage(error),
+            })),
+          )),
+    );
+  }
+}
+
+function userMessage(error: unknown): string {
+  if (error instanceof HttpErrorResponse && error.status === 0) {
+    return 'The network is unavailable. Try again.';
+  }
+  return 'Search failed. Try again.';
+}
+```
+
+The state carries `query`, so a template or logger can associate each result with the operation that produced it. `switchMap` unsubscribes the prior inner subscription when a newer query arrives. Angular documents that unsubscribing an `HttpClient` Observable aborts the in-progress client request; that is client resource cleanup, not proof that an already-started server computation or side effect was rolled back.
+
+### Example 2 — see why an outer catch stops later queries
+
+This superficially similar chain has a different lifetime:
+
+```typescript
+const results$ = query$.pipe(
+  switchMap(query => http.get<readonly Product[]>('/api/products', {
+    params: {q: query},
+  })),
+  catchError(error => {
+    reportSearchFailure(error);
+    return of<readonly Product[]>([]);
+  }),
+);
+```
+
+When request A errors, that error crosses `switchMap` and reaches the outer `catchError`. The handler replaces the entire upstream—including the subscription to `query$`—with `of([])`. It emits once and completes. Query B cannot revive that completed subscription. Returning `EMPTY` would complete without a fallback value; returning `throwError(() => error)` would preserve terminal failure. None resumes `query$` automatically.
+
+```mermaid
+flowchart TB
+  S["query$ subscription"] --> O["Option 1: outer catch"]
+  O --> OA["request A errors"]
+  OA --> OC["replace whole workflow"]
+  OC --> OX["fallback completes; B unseen"]
+  S --> I["Option 2: inner catch"]
+  I --> IA["request A errors"]
+  IA --> IR["replace request A only"]
+  IR --> IK["B starts a new request"]
+```
+
+The two branches in the diagram are alternatives. An outer handler can still be valuable when a fatal error must terminate a one-shot workflow, but it should be deliberate.
+
+### Example 3 — recover locally, escalate a fatal class
+
+Sometimes the boundary depends on the error. Handle an expected absence inside the request, but rethrow authentication failure for a session-level owner:
+
+```typescript
+import {HttpErrorResponse} from '@angular/common/http';
+import {catchError, of, switchMap, throwError} from 'rxjs';
+
+const detail$ = selectedId$.pipe(
+  switchMap(id => api.load(id).pipe(
+    catchError(error => {
+      if (error instanceof HttpErrorResponse && error.status === 404) {
+        return of({kind: 'missing', id} as const);
+      }
+      return throwError(() => error);
+    }),
+  )),
+  catchError(error => {
+    sessionBoundary.fail(error);
+    return of({kind: 'fatal'} as const); // terminal replacement by design
+  }),
+);
+```
+
+The 404 belongs to one selected record, so a later ID remains possible. A rethrown 401/403/network/programming failure reaches the outer policy and ends this subscription after its fatal state. Do not indiscriminately swallow authentication errors, malformed payloads or programmer defects as empty domain data.
+
+### Example 4 — mutations need truthful failure semantics
+
+`switchMap` is often right for replaceable reads, not arbitrary writes: a newer subscription cancels observation of the prior request but may not undo a server-side mutation. For a save command, use an admission operator that matches the product contract (often `exhaustMap` for “ignore duplicate clicks” or `concatMap` for an ordered queue), preserve an idempotency key when replay is allowed, and emit an explicit failure state or rethrow:
+
+```typescript
+import {catchError, exhaustMap, map, of} from 'rxjs';
+
+const saveState$ = saveClicks$.pipe(
+  exhaustMap(command => api.save(command).pipe(
+    map(order => ({kind: 'saved', order}) as const),
+    catchError(error => of({
+      kind: 'save-failed',
+      commandId: command.id,
+      error,
+    } as const)),
+  )),
+);
+```
+
+Returning `of(null)` or `of([])` here can make a failed write look successful. Error placement cannot supply server idempotency, authorization, transaction rollback or exactly-once execution.
+
+### State trace: subscription ownership
+
+Treat the active outer subscription as the state that must be preserved. For queries `A` then `B`, where A's request fails and B's succeeds:
+
+| Step | Outer `catchError` | Inner `catchError` |
+|---:|---|---|
+| 1. `query$` emits A | Subscribe to request A | Subscribe to request A |
+| 2. request A errors | Error escapes `switchMap` | Inner handler replaces only A with `error(A)` |
+| 3. recovery emits | Outer fallback emits, then completes | `switchMap` forwards `error(A)`; outer stays subscribed |
+| 4. `query$` emits B | Ignored: subscription is closed | Cancel current inner if needed; subscribe to request B |
+| 5. request B succeeds | No value | Forward `ready(B)` |
+
+A compact marble view makes the terminal boundary visible:
+
+```text
+query$:                  -A-----B--------
+request(A):                --#
+request(B):                      --b|
+outer catch result:       ---([]|)         // B is never observed
+inner catch result:       ---error(A)---b-- // outer subscription survives
+```
+
+### Invariants and correctness argument
+
+- **Inner-recovery invariant:** after an inner error is replaced, the `switchMap` subscription to the source is still open unless the source itself completes/errors or the consumer unsubscribes.
+- **Outer-recovery invariant:** an outer `catchError` subscribes to its replacement after upstream failure; it does not reconnect to the original source unless the replacement explicitly does so.
+- **Identity invariant:** every UI state that may arrive asynchronously carries the query/ID that produced it; an error is not mislabeled as an empty success.
+- **Cancellation invariant:** only the latest replaceable read may publish through `switchMap`; cancellation is not a server rollback guarantee.
+- **Escalation invariant:** only errors covered by a named local policy become normal values; unknown/fatal errors are rethrown or owned by an explicit terminal boundary.
+
+For the inner design, assume the outer source remains subscribed. Each source value creates at most one active inner subscription. If that inner succeeds, `switchMap` forwards its result. If it errors, the inner `catchError` replaces it with a finite state, so no error reaches the outer subscriber and the source subscription remains. Inductively, every later source value can create another inner. In the outer design, the first uncaught inner error terminates the `switchMap` output; RxJS transfers control to the replacement, so later source values cannot reach the original chain. This proves the observed lifetime difference.
+
+### Independent tests: prove both value and liveness
+
+The high-value assertion is not merely “a fallback appeared”; it is “a later source value still starts a request”:
+
+```typescript
+import {HttpClient, provideHttpClient} from '@angular/common/http';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
+import {TestBed} from '@angular/core/testing';
+import {Subject} from 'rxjs';
+import {afterEach, beforeEach, expect, it} from 'vitest';
+
+let http: HttpClient;
+let testing: HttpTestingController;
+
+beforeEach(() => {
+  TestBed.configureTestingModule({providers: [
+    provideHttpClient(),
+    provideHttpClientTesting(),
+  ]});
+  http = TestBed.inject(HttpClient);
+  testing = TestBed.inject(HttpTestingController);
+});
+
+afterEach(() => testing.verify());
+
+it('inner catch keeps later queries alive', () => {
+  const query$ = new Subject<string>();
+  const seen: string[] = [];
+  query$.pipe(
+    switchMap(query => http.get<string>(`/api/search?q=${query}`).pipe(
+      catchError(() => of(`error:${query}`)),
+    )),
+  ).subscribe(value => seen.push(value));
+
+  query$.next('A');
+  testing.expectOne('/api/search?q=A').flush('down', {
+    status: 503, statusText: 'Unavailable',
+  });
+  query$.next('B');
+  testing.expectOne('/api/search?q=B').flush('ready:B');
+
+  expect(seen).toEqual(['error:A', 'ready:B']);
+});
+
+it('outer catch replaces and completes the workflow', () => {
+  const query$ = new Subject<string>();
+  const seen: string[] = [];
+  let completed = false;
+  query$.pipe(
+    switchMap(query => http.get<string>(`/api/search?q=${query}`)),
+    catchError(() => of('workflow-fallback')),
+  ).subscribe({
+    next: value => seen.push(value),
+    complete: () => completed = true,
+  });
+
+  query$.next('A');
+  testing.expectOne('/api/search?q=A').flush('down', {
+    status: 503, statusText: 'Unavailable',
+  });
+  query$.next('B');
+
+  expect(seen).toEqual(['workflow-fallback']);
+  expect(completed).toBe(true);
+  expect(testing.match('/api/search?q=B')).toHaveLength(0);
+});
+```
+
+Add cases for a prior request cancelled by a newer query, source completion, a replacement that itself errors, 404 local recovery, 401 escalation, empty-query bypass, and subscriber teardown. `HttpTestingController` provides a controlled backend; these tests do not open a network socket.
+
+### Cost, boundaries and common failures
+
+For `m` source values and emitted result sizes `k₁…kₘ`, operator coordination is O(m); mapping/constructing outputs is O(Σkᵢ) when every successful response is materialized. At most one inner subscription is active per `switchMap` subscriber, so coordination state is O(1), plus the current request/response and rendered result O(k). Each explicit fallback costs its own construction size. Network/server work is outside this client Big-O and can outlive client cancellation. With outer recovery, processing stops at the first escaping error, so later-source work is zero because the original workflow has terminated—not because it recovered more efficiently.
+
+**Common errors:** placing `catchError` outside by habit; returning `[]` for every failure; returning the caught Observable and accidentally retrying forever; nested subscriptions; confusing unsubscription with rollback; using `switchMap` for non-replaceable writes; allowing `finalize` from a cancelled old request to clear a newer request's spinner; losing the query/ID in the fallback; swallowing 401/403 or validation defects; and testing only the first fallback instead of later liveness.
+
+**Interview variations:** `retry` inside versus outside the flattening operator; `switchMap` versus `mergeMap`/`concatMap`/`exhaustMap`; per-item failure in `forkJoin`; `materialize` for error-as-data; local UI state versus global error policy; cancellation-aware loading ownership; `EMPTY` versus `of(fallback)` versus rethrow; fatal-session escalation; and proving subscription lifetime with marbles or `HttpTestingController` request counts.
+
+**Primary references:** RxJS's current [`catchError` implementation and contract](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/catchError.ts) and [`switchMap` implementation and contract](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/switchMap.ts); Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests) and [HTTP testing guide](https://angular.dev/guide/http/testing). The explicit recovery-boundary model, four examples, diagram, lifetime trace, proof, tests and cost derivation above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -7335,7 +7606,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q69. This pass was bounded to Markdown lines 1431–1444 and DOCX extracted lines 959–969 for Q69; both sources require one shared refresh while concurrent failed requests wait, replay with the new token, recursion prevention, explicit failure/logout behavior and attention to replay safety. This edition adds a token-generation race guard; trusted-origin, one-retry and mutation-idempotency invariants; a functional interceptor and bypassed refresh call; four scenarios; a three-request packet trace and dry run; request-cardinality tests; multi-context/security boundaries; and derived network, latency and retained-state costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q70. This pass was bounded to Markdown lines 1445–1471 and DOCX extracted lines 970–986 for Q70; both sources say that an outer `catchError` can replace/terminate the whole source workflow, while handling inside `switchMap` confines recovery to one inner request so later source values remain possible. This edition adds an explicit recovery-boundary model; four scenarios; typed per-query UI state; local-recovery/fatal-escalation and mutation examples; a subscription-lifetime diagram, dry run and proof; liveness-focused HTTP tests; cancellation/error/loading boundaries; and derived coordination, output and retained-state costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official Angular 22.2.2, RxJS and OAuth sources. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration test, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
@@ -7347,6 +7618,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular server/browser-boundary material (reviewed 2026-10-13): [server-side and hybrid rendering](https://angular.dev/guide/ssr), [`isPlatformBrowser`](https://angular.dev/api/common/isPlatformBrowser), [`DOCUMENT`](https://angular.dev/api/common/DOCUMENT), [using DOM APIs](https://angular.dev/guide/components/dom-apis), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), and [hydration constraints](https://angular.dev/guide/hydration#constraints). The Angular 22.2.2 pages state that browser globals and layout capabilities are not available during SSR; render callbacks are browser-only; platform-specific providers are preferred over scattered runtime checks; platform-driven template differences can cause hydration mismatch/layout shift; `DOCUMENT` represents the current rendering document; render callbacks are not a hydration-completion guarantee; and Angular-owned server/client DOM structure must match.
 - Official Angular deferrable-view material (reviewed 2026-10-13): [`@defer`](https://angular.dev/guide/templates/defer), [incremental hydration](https://angular.dev/guide/incremental-hydration), [hydration](https://angular.dev/guide/hydration), and [server/hybrid rendering](https://angular.dev/guide/ssr). The Angular 22.2.2 pages distinguish render, prefetch and hydrate triggers; state that ordinary SSR/SSG emits the placeholder without invoking regular triggers; document that incremental hydration plus a hydrate trigger emits the main block and delays client interactivity; and require regular placeholders for later CSR navigations.
 - Official Angular/RxJS/OAuth refresh-concurrency material (reviewed 2026-10-13): Angular's [interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [HTTP testing](https://angular.dev/guide/http/testing), [`HttpContext`](https://angular.dev/api/common/http/HttpContext) and [`HttpContextToken`](https://angular.dev/api/common/http/HttpContextToken); RxJS's current [`shareReplay`](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/shareReplay.ts) implementation; and [RFC 9700 §4.14](https://www.rfc-editor.org/rfc/rfc9700.html#section-4.14). Angular documents immutable request cloning, mutable retry context and cold HTTP observables; RFC 9700 requires sender-constrained or rotated refresh tokens for public clients. Sharing/reset details remain tied to the pinned RxJS version.
+- Official Angular/RxJS error-boundary material (reviewed 2026-10-13): Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests) and [HTTP testing](https://angular.dev/guide/http/testing), plus RxJS's current [`catchError`](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/catchError.ts) and [`switchMap`](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/switchMap.ts) implementations. Angular documents that unsubscribing an `HttpClient` Observable aborts the in-progress client request and that its test backend can flush controlled error responses; RxJS operator implementation remains package-version-sensitive.
 - Official Angular application-structure and component-contract material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [signals](https://angular.dev/guide/signals), [services and DI](https://angular.dev/guide/di/creating-and-using-services), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
 - Official Angular testing material (reviewed 2026-10-11): [testing overview and Vitest setup](https://angular.dev/guide/testing), [component-testing basics](https://angular.dev/guide/testing/components-basics), [component-testing scenarios](https://angular.dev/guide/testing/components-scenarios), [testing utility APIs](https://angular.dev/guide/testing/utility-apis), [component harnesses](https://angular.dev/guide/testing/component-harnesses-overview), and [migrating from Karma to Vitest](https://angular.dev/guide/testing/migrating-to-vitest).
 - Official Angular HTTP-testing material (reviewed 2026-10-11): [testing HTTP requests](https://angular.dev/guide/http/testing), [`provideHttpClientTesting`](https://angular.dev/api/common/http/testing/provideHttpClientTesting), [`HttpTestingController`](https://angular.dev/api/common/http/testing/HttpTestingController), and [`TestRequest`](https://angular.dev/api/common/http/testing/TestRequest).
@@ -7361,5 +7633,5 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q70 (`catchError` placement with `switchMap`) in both sources. It begins at Markdown anchor line 1445 / heading line 1447 and DOCX extracted line 970; resolve the exact section end before reading it and keep extending this one canonical guide.
+- **Next:** continue with bounded Q71 (cache route/detail data) in both sources. It begins at Markdown anchor line 1470 / heading line 1472 and DOCX extracted line 987; resolve the exact section end before reading it, compare with existing route/store/request-sharing coverage, and keep extending this one canonical guide.
 

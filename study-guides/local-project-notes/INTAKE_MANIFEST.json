@@ -165,10 +165,10 @@
         "### Interview-ready code:"
       ],
       "completed_sections": [
-        "Q1-Q69"
+        "Q1-Q70"
       ],
-      "processed_range": "latest bounded read: lines 1431-1444 for Q69",
-      "next_section": "Q70 catchError placement with switchMap begins at anchor line 1445 / heading line 1447"
+      "processed_range": "latest bounded read: lines 1445-1469 for Q70, bounded by the next anchor at line 1470",
+      "next_section": "Q71 route/detail caching begins at anchor line 1470 / heading line 1472"
     },
     {
       "relative_path": "untitled/DSA V2/Striver_Graph_DSA_Deep_Study_Guide_Visual.md",
@@ -847,27 +847,27 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "catchError placement with switchMap: bounded Q70 comparison against canonical error-ownership, cancellation and flattening coverage",
+    "section": "route/detail caching: bounded Q71 comparison against canonical route-state, signal-store and request-sharing coverage",
     "status": "QUEUED",
-    "estimated_tokens": 7000,
-    "estimate_method": "Heuristic only: Q70 begins at Markdown anchor line 1445 / heading line 1447 and DOCX extracted line 970; reserve ~500 tokens for paired source range resolution, ~1100 for current primary Angular/RxJS research, ~3300 for distinct teaching/code/diagram/HTML, and ~2100 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 8000,
+    "estimate_method": "Heuristic only: Q71 begins at Markdown anchor line 1470 / heading line 1472 and DOCX extracted line 987; reserve ~650 tokens for paired source range resolution, ~1300 for current primary Angular/RxJS caching research, ~3950 for distinct teaching/code/diagram/HTML, and ~2100 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "readers": "Canonical Angular reader rebuilt from Markdown; exact 485029-character embedded payload equality, 70 unique anchors, 219 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked. Local-project README HTML source hash matches its Markdown.",
-    "diagrams": "The Q69 refresh state machine and three-request packet trace are embedded in the canonical payload; 50 Mermaid diagrams total; browser visual QA not executed",
-    "last_processed_at": "2026-10-13T19:25:04-04:00"
+    "readers": "Canonical Angular reader rebuilt from Markdown; exact 500576-character embedded payload equality, 71 unique anchors, 226 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked. Local-project README HTML source hash matches its Markdown.",
+    "diagrams": "The Q70 subscription-lifetime diagram is embedded in the canonical payload; 51 Mermaid diagrams total; browser visual QA not executed",
+    "last_processed_at": "2026-10-13T21:08:21-04:00"
   },
   "angular_intake_checkpoint": {
-    "last_processed_at": "2026-10-13T19:25:04-04:00",
+    "last_processed_at": "2026-10-13T21:08:21-04:00",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q69; latest bounded source ranges are Markdown lines 1431-1444 and DOCX extracted lines 959-969 for Q69",
-    "status": "PUBLISHED",
-    "validation": "Q69 adds a shared refresh flight, token-generation race guard, recursion and one-retry boundaries, four scenarios, a packet trace, request-cardinality tests, mutation replay safety and derived costs; deterministic builder and exact 485029-character payload equality passed with 70 unique anchors, 219 balanced fences and 50 Mermaid diagrams; inline JavaScript, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed; Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution and live auth-server calls were not performed because the project runtime is absent",
-    "content_commit": "4a72b9b0b17e1e8cefa1e18a9ca2fb9beff2fb61",
-    "estimated_next_tokens": 7000,
-    "estimate_method": "Heuristic from bounded Q70 starting at Markdown anchor line 1445 / heading line 1447 and DOCX extracted line 970, plus paired source range resolution, primary Angular/RxJS research, distinct explanation/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "processed": "Q1–Q70; latest bounded source ranges are Markdown lines 1445-1469 and DOCX extracted lines 970-986 for Q70",
+    "status": "READY_TO_PUBLISH",
+    "validation": "Q70 adds explicit inner-versus-outer recovery lifetimes, four examples, typed per-query state, a subscription trace and proof, liveness-focused HTTP tests, cancellation boundaries and derived costs; deterministic builder and exact 500576-character payload equality passed with 71 unique anchors, 226 balanced fences and 51 Mermaid diagrams; inline JavaScript, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed; Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution and live HTTP calls were not performed because the project runtime is absent",
+    "content_commit": null,
+    "estimated_next_tokens": 8000,
+    "estimate_method": "Heuristic from bounded Q71 starting at Markdown anchor line 1470 / heading line 1472 and DOCX extracted line 987, plus paired source range resolution, primary Angular/RxJS caching research, distinct explanation/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }

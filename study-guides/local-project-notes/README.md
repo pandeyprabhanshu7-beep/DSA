@@ -49,7 +49,7 @@ See [intake manifest](INTAKE_MANIFEST.json) for source hashes, statuses and exac
 
 ## Continue next
 
-Angular Q1–Q69 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded Q70 on `catchError` placement with `switchMap`, beginning at Markdown anchor line 1445 / heading line 1447 and DOCX extracted line 970; resolve the exact section end in both sources before reading, then compare against existing error-ownership, cancellation and flattening coverage. Estimated next-batch budget: approximately 7,000 tokens. This heuristic reserves about 500 tokens for bounded paired-source range resolution, 1,100 for current primary Angular/RxJS research, 3,300 for distinct teaching/code/diagram/HTML, and 2,100 for validation/checkpoint work. It is not account-quota telemetry.
+Angular Q1–Q70 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded Q71 on route/detail caching, beginning at Markdown anchor line 1470 / heading line 1472 and DOCX extracted line 987; resolve the exact section end in both sources before reading, then compare against existing route-state, signal-store and request-sharing coverage. Estimated next-batch budget: approximately 8,000 tokens. This heuristic reserves about 650 tokens for bounded paired-source range resolution, 1,300 for current primary Angular/RxJS caching research, 3,950 for distinct teaching/code/diagram/HTML, and 2,100 for validation/checkpoint work. It is not account-quota telemetry.
 
 ## Maintain readers
 
