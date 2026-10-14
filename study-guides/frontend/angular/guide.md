@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q70)
+# Angular 22 — Interview Foundations (Q1–Q71)
 
-> **Current bounded edition, 2026-10-13.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q70 (Q70 is lines 1445–1469, bounded by the next anchor at line 1470) with the corresponding `Angular_Interview_Workbook.docx` text (Q70 is extracted lines 970–986). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, required signal-input plus pure boundary-normalization rules, intentional `model()` ownership for reusable value editors, capability-oriented browser API boundaries, evidence-based `@defer` trigger selection across CSR, SSR and incremental hydration, a race-safe single-flight access-token refresh protocol with bounded request replay, and explicit inner-versus-outer `catchError` recovery lifetimes around `switchMap`, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-14.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q71 (Q71 is lines 1470–1483, bounded by the next anchor at line 1484) with the corresponding `Angular_Interview_Workbook.docx` text (Q71 is extracted lines 987–997). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, required signal-input plus pure boundary-normalization rules, intentional `model()` ownership for reusable value editors, capability-oriented browser API boundaries, evidence-based `@defer` trigger selection across CSR, SSR and incremental hydration, a race-safe single-flight access-token refresh protocol with bounded request replay, explicit inner-versus-outer `catchError` recovery lifetimes around `switchMap`, and policy-driven route/detail caching with complete keys, single-flight misses, freshness, mutation invalidation and memory bounds, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -74,6 +74,7 @@
 - [Q68: @defer triggers across CSR and SSR](#q68)
 - [Q69: single-flight token refresh interceptor](#q69)
 - [Q70: catchError placement with switchMap](#q70)
+- [Q71: route/detail data caching](#q71)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -7593,12 +7594,302 @@ For `m` source values and emitted result sizes `k₁…kₘ`, operator coordinat
 
 **Primary references:** RxJS's current [`catchError` implementation and contract](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/catchError.ts) and [`switchMap` implementation and contract](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/switchMap.ts); Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests) and [HTTP testing guide](https://angular.dev/guide/http/testing). The explicit recovery-boundary model, four examples, diagram, lifetime trace, proof, tests and cost derivation above are added teaching material.
 
+<a id="q71"></a>
+## Q71. How would you cache route or detail data?
+
+**Requirement:** define the cache as a policy-owned data structure, not as one RxJS operator. Name its owner and lifetime; construct a complete identity key; separate concurrent-request deduplication from retained reuse; define freshness, invalidation and mutation behavior; bound memory; isolate security scopes; and prove request cardinality plus stale-data behavior.
+
+Angular `HttpClient` Observables are cold: each subscription can send another backend request. Sharing one Observable can coalesce overlapping subscriptions, but `shareReplay(1)` alone does not answer **which entity** the value belongs to, **how long** it is valid, **what mutation** makes it stale, **which user** may read it, or **when memory is released**. The cache is the policy; a signal store, `Map`, Observable registry, interceptor or formal state library is only a storage and coordination mechanism.
+
+### Start with the contract
+
+| Decision | Example policy | Failure when omitted |
+|---|---|---|
+| Owner and lifetime | Product repository, application-scoped; clear on logout | A component-local cache vanishes too early, or a root cache survives the wrong identity |
+| Complete key | tenant + user/permission scope + locale + representation + product ID | Correct data for one context leaks into another |
+| Concurrent miss policy | One in-flight request per key | Resolver, component and header issue duplicate GETs |
+| Freshness | Fresh for 30 seconds from successful response | Data is immortal, or TTL starts before a slow response arrives |
+| Mutation policy | On successful update, write through or invalidate product and dependent lists | Navigating back shows pre-mutation data |
+| Failure policy | Do not promote an error to a successful cached value | A transient 503 becomes a long-lived empty result |
+| Memory policy | Route scope, maximum-entry LRU, or explicit eviction | A `Map` grows for every visited ID |
+| Server/browser policy | Per-request cache on SSR; deliberate transfer to the browser | One server user's data crosses requests, or hydration refetches unexpectedly |
+
+**Key rule:** if two requests may legitimately return different bytes, they need different keys. A useful conceptual key is
+`[tenantId, principalOrPermissionScope, locale, resourceType, id, representationVersion]`.
+Never rely on an entity ID alone for user-sensitive or localized results. Normalize only fields whose equivalence is part of the API contract; for example, do not lowercase an opaque case-sensitive ID.
+
+### Four concrete scenarios
+
+1. **Back navigation within the freshness window.** `/products/42` loads successfully at 10:00:00. Returning at 10:00:20 may synchronously reuse the retained value. At 10:00:31 it must revalidate or fetch because freshness expired.
+2. **Resolver and component overlap.** Both request tenant A's product 42 before the first response. They receive one shared in-flight result and the backend sees one GET. That is request coalescing; it is distinct from retaining the result after completion.
+3. **Successful edit.** A PATCH for product 42 succeeds. The repository either replaces the cached detail with the authoritative response and invalidates affected list/query keys, or invalidates them all and fetches later. Invalidating before a failed mutation would discard valid data without gaining correctness.
+4. **Identity switch.** Tenant A's `42` and tenant B's `42` are different keys. Logout clears identity-scoped entries. A root cache must never let the new principal observe the prior principal's data; an SSR cache must be scoped to one server request unless its content is demonstrably public.
+
+### Minimal keyed TTL plus single-flight implementation
+
+This example deliberately keeps policy visible. It stores one entry object per complete key, reuses a fresh value, shares one active miss, starts TTL on success, preserves an expired last-known value only as stale state, avoids caching errors as data, and uses a generation fence so an invalidated old request cannot repopulate the cache.
+
+```typescript
+import {HttpClient} from '@angular/common/http';
+import {inject, Injectable, InjectionToken} from '@angular/core';
+import {
+  defer,
+  filter,
+  finalize,
+  map,
+  Observable,
+  of,
+  shareReplay,
+  tap,
+} from 'rxjs';
+
+type ProductDto = Readonly<{id: string; display_name: string}>;
+type Product = Readonly<{id: string; name: string}>;
+type DataScope = Readonly<{
+  tenantId: string;
+  principalScope: string;
+  locale: string;
+}>;
+
+type Entry<T> = {
+  generation: number;
+  value?: T;
+  expiresAt: number;
+  inFlight$?: Observable<T>;
+};
+
+export const CACHE_NOW = new InjectionToken<() => number>('CACHE_NOW', {
+  factory: () => Date.now,
+});
+
+@Injectable({providedIn: 'root'})
+export class ProductDetailRepository {
+  private readonly http = inject(HttpClient);
+  private readonly now = inject(CACHE_NOW);
+  private readonly entries = new Map<string, Entry<Product>>();
+  private readonly ttlMs = 30_000;
+
+  get(scope: DataScope, id: string): Observable<Product> {
+    const key = this.key(scope, id);
+    let entry = this.entries.get(key);
+    const now = this.now();
+
+    if (entry?.value !== undefined && now < entry.expiresAt) {
+      return of(entry.value);
+    }
+    if (entry?.inFlight$) {
+      return entry.inFlight$;
+    }
+
+    if (!entry) {
+      entry = {generation: 0, expiresAt: 0};
+      this.entries.set(key, entry);
+    }
+
+    const ownedEntry = entry;
+    const ownedGeneration = entry.generation;
+    let request$: Observable<Product>;
+
+    request$ = defer(() => this.http.get<ProductDto>(
+      `/api/products/${encodeURIComponent(id)}`,
+    )).pipe(
+      map(dto => ({id: dto.id, name: dto.display_name})),
+      // An invalidation replaces the Map entry, so an older response completes
+      // without publishing or becoming the current cached value.
+      filter(() => this.entries.get(key) === ownedEntry &&
+        ownedEntry.generation === ownedGeneration),
+      tap(product => {
+        ownedEntry.value = product;
+        ownedEntry.expiresAt = this.now() + this.ttlMs;
+      }),
+      finalize(() => {
+        if (ownedEntry.inFlight$ === request$) {
+          ownedEntry.inFlight$ = undefined;
+        }
+        if (this.entries.get(key) === ownedEntry &&
+            ownedEntry.value === undefined) {
+          this.entries.delete(key); // errors are retryable misses
+        }
+      }),
+      shareReplay({bufferSize: 1, refCount: false}),
+    );
+
+    ownedEntry.inFlight$ = request$;
+    return request$;
+  }
+
+  invalidate(scope: DataScope, id: string): void {
+    const key = this.key(scope, id);
+    const oldGeneration = this.entries.get(key)?.generation ?? -1;
+    this.entries.set(key, {
+      generation: oldGeneration + 1,
+      expiresAt: 0,
+    });
+  }
+
+  writeThrough(scope: DataScope, product: Product): void {
+    const key = this.key(scope, product.id);
+    const nextGeneration = (this.entries.get(key)?.generation ?? -1) + 1;
+    this.entries.set(key, {
+      generation: nextGeneration,
+      value: product,
+      expiresAt: this.now() + this.ttlMs,
+    });
+  }
+
+  clearAllIdentityData(): void {
+    this.entries.clear();
+  }
+
+  private key(scope: DataScope, id: string): string {
+    return JSON.stringify([
+      scope.tenantId,
+      scope.principalScope,
+      scope.locale,
+      'product-detail-v1',
+      id,
+    ]);
+  }
+}
+```
+
+The stable `request$` is stored **before** callers subscribe. Defining `http.get(...).pipe(shareReplay(...))` inside a method and returning a newly constructed Observable on every call does not deduplicate calls across those invocations. Conversely, retaining one shared Observable forever may retain stale values forever. This implementation makes the in-flight and retained phases separate fields.
+
+`refCount: false` lets the started HTTP request finish even if the first view unsubscribes, which can be appropriate for a reusable read cache. If cancellation when no consumer remains is a requirement, use a pinned RxJS sharing/reset configuration and test it; reset behavior is package-version-sensitive. In either design, client unsubscription is not proof that origin work stopped.
+
+The example still needs a production memory bound. Put the repository in a route injector if its useful lifetime is the route subtree, or add a tested maximum-entry LRU/idle eviction policy. Do not evict a live entry without defining what its current subscribers observe. A formal store is valuable when entities, list membership, optimistic writes and dependent queries need normalized updates; it does not remove the need for the same keys and invalidation rules.
+
+### Entry state and invalidation trace
+
+```mermaid
+stateDiagram-v2
+  [*] --> Missing
+  Missing --> Loading: first miss
+  Loading --> Fresh: success + TTL
+  Loading --> Missing: error
+  Fresh --> Fresh: hit before expiry
+  Fresh --> Stale: TTL expires
+  Stale --> Loading: next read
+  Fresh --> Missing: invalidate
+  Stale --> Missing: invalidate
+```
+
+Suppose resolver R and component C request the same key, then an edit succeeds:
+
+| Time | Event | Entry state | Backend consequence |
+|---:|---|---|---|
+| 0 ms | R calls `get(42)` | `Loading`, store `inFlight$` | GET 42 starts on subscription |
+| 2 ms | C calls `get(42)` | Return the same `inFlight$` | No second GET |
+| 80 ms | Response arrives | Map DTO; set value and `expiresAt = now + 30s` | Both subscribers receive the same product |
+| 81 ms | Request completes | Clear `inFlight$`; retain fresh value | Entry is reusable |
+| 10 s | Another read | Return `of(value)` | No GET |
+| 12 s | PATCH succeeds | `writeThrough` detail; invalidate dependent lists | No stale detail survives |
+| 43 s | Read after TTL | Create a new single flight | One new GET |
+
+If invalidation happens while the original GET is active, `invalidate` replaces the entry and increments its generation. The old response fails the identity/generation filter, so it cannot overwrite post-mutation state. Existing subscribers complete without that obsolete value; their UI must already model completion/empty/error according to the calling workflow.
+
+### Freshness is a product choice, not a magic duration
+
+- **TTL:** simple and bounded-stale, but every duration is a correctness/latency trade-off. Start it when a response is accepted, not when a slow request began.
+- **Version or event invalidation:** use mutation results, WebSocket/server events or a domain version to invalidate precisely. Account for missed events and reconnect gaps.
+- **HTTP validation:** when the origin supplies validators, retain `ETag` or `Last-Modified` and send a conditional request. A `304 Not Modified` saves representation transfer, but still costs a round trip. RFC 9111 defines cache freshness, validation and invalidation semantics; an application memory cache should not pretend to be a standards-compliant HTTP cache without implementing those rules.
+- **Stale-while-revalidate:** show a known value immediately and refresh in the background, while representing “stale” distinctly when correctness matters. Do not silently apply it to prices, permissions or inventory whose contract requires current data.
+- **No retained cache:** often correct for highly volatile, sensitive or mutation-heavy data. In-flight deduplication can still remove simultaneous duplicates.
+
+Global HTTP interceptors work well for cross-cutting protocol policy, but broad response caching there can hide domain dependencies and unsafe keys. Keep domain-aware invalidation near the repository/store. Never cache unsafe mutations merely because an operator can replay them.
+
+### Independent tests: prove cardinality, freshness and recovery
+
+```typescript
+import {provideHttpClient} from '@angular/common/http';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
+import {TestBed} from '@angular/core/testing';
+import {afterEach, beforeEach, expect, it} from 'vitest';
+
+const scope = {
+  tenantId: 'tenant-a',
+  principalScope: 'reader-7',
+  locale: 'en-US',
+} as const;
+
+let now = 1_000;
+let repository: ProductDetailRepository;
+let testing: HttpTestingController;
+
+beforeEach(() => {
+  now = 1_000;
+  TestBed.configureTestingModule({providers: [
+    provideHttpClient(),
+    provideHttpClientTesting(),
+    {provide: CACHE_NOW, useValue: () => now},
+  ]});
+  repository = TestBed.inject(ProductDetailRepository);
+  testing = TestBed.inject(HttpTestingController);
+});
+
+afterEach(() => testing.verify());
+
+it('coalesces a miss, reuses fresh data, then refetches after TTL', () => {
+  const seen: Product[] = [];
+  repository.get(scope, '42').subscribe(value => seen.push(value));
+  repository.get(scope, '42').subscribe(value => seen.push(value));
+
+  const first = testing.expectOne('/api/products/42');
+  first.flush({id: '42', display_name: 'Keyboard'});
+  expect(seen.map(value => value.name)).toEqual(['Keyboard', 'Keyboard']);
+
+  repository.get(scope, '42').subscribe(value => seen.push(value));
+  testing.expectNone('/api/products/42');
+  expect(seen).toHaveLength(3);
+
+  now += 30_001;
+  repository.get(scope, '42').subscribe(value => seen.push(value));
+  testing.expectOne('/api/products/42')
+    .flush({id: '42', display_name: 'Keyboard v2'});
+  expect(seen.at(-1)?.name).toBe('Keyboard v2');
+});
+
+it('does not cache an HTTP error as a value', () => {
+  repository.get(scope, '42').subscribe({error: () => undefined});
+  testing.expectOne('/api/products/42').flush('down', {
+    status: 503,
+    statusText: 'Unavailable',
+  });
+
+  repository.get(scope, '42').subscribe();
+  testing.expectOne('/api/products/42')
+    .flush({id: '42', display_name: 'Recovered'});
+});
+```
+
+Also test: different tenant/user/locale keys; a mutation racing an old GET; invalidate versus write-through after success and after failure; logout clearing all identity data; exact TTL boundary; multiple late subscribers; eviction at the maximum size; an evicted in-flight entry; malformed DTO rejection; 404 policy; SSR request isolation; transferred server state; and list/detail dependency invalidation. `HttpTestingController.match()` is useful for asserting exact request counts rather than trusting a visual Network-panel impression.
+
+### Invariants, correctness and derived cost
+
+- **Isolation:** a value is returned only for the exact complete key and cache scope that produced it.
+- **Single flight:** at most one stored `inFlight$` exists for a key generation; all overlapping callers receive it.
+- **Freshness:** a retained value is a fresh hit only when `now < expiresAt`; expiry equality is stale.
+- **Commit point:** a TTL begins only after a valid response is accepted; errors are not promoted to successful values.
+- **Mutation ordering:** a successful mutation advances/replaces the relevant generation before an older read can publish.
+- **Bounded retention:** production policy limits entry count, byte weight or injector lifetime, and clears identity data at its security boundary.
+
+For a `Map` with `n` keys, expected lookup, insert and exact-key invalidation are O(1). Key construction is O(k) in the key length; DTO-to-domain mapping and output construction are O(r) in response size. An LRU with a hash map plus linked ordering can keep lookup/refresh/eviction O(1), while retaining O(n + Σrᵢ) key, metadata and response space. Invalidating `d` dependent query keys is O(d) unless a reverse dependency index is maintained; that index trades additional update and memory cost for targeted invalidation. A full scan eviction or tenant-clear is O(n). Network, server computation and browser HTTP-cache behavior are outside this client data-structure Big-O.
+
+**Common errors:** `shareReplay(1)` inside a method that constructs a new stream per call; caching by ID while omitting tenant, principal, locale or representation; infinite TTL; starting TTL at request creation; caching `[]` after an error; caching 401/403 responses across login changes; invalidating only the detail while leaving list aggregates stale; accepting an old in-flight response after a mutation; unbounded `Map` growth; returning mutable cached objects; assuming an interceptor knows domain dependencies; sharing a root cache across SSR requests; treating transfer state as permanent browser freshness; relying on client cache for authorization; and confusing HTTP/browser caching with application-store retention.
+
+**Interview variations:** TTL versus ETag validation; cache-aside versus write-through; stale-while-revalidate; negative caching; `share` versus `shareReplay` reset semantics; signal map versus Observable registry versus NgRx entity store; route-scoped versus root ownership; LRU by count versus byte weight; tag/dependency invalidation; optimistic update rollback; WebSocket version events; offline persistence and schema migration; SSR request scope and hydration transfer; cross-tab invalidation; and observability metrics for hit, stale, coalesced, eviction and error rates.
+
+**Primary references:** Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests), [HTTP interceptor guide](https://angular.dev/guide/http/interceptors), [route data resolver guide](https://angular.dev/guide/routing/data-resolvers), [HTTP testing guide](https://angular.dev/guide/http/testing) and [`HttpTestingController` API](https://angular.dev/api/common/http/testing/HttpTestingController); RxJS's current [`shareReplay` implementation and contract](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/shareReplay.ts); and HTTP caching standard [RFC 9111](https://www.rfc-editor.org/rfc/rfc9111.html). The policy matrix, complete-key model, four scenarios, generation-fenced implementation, state diagram, trace, invariants, tests and cost derivation above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
 Keep the reusable order card behind a readonly view-model input and semantic `selected` output; let it own only local view state while the page owns navigation, feature state and effects. Give a reusable page-size or quantity control one required `model()` value only when parent and child intentionally co-own that editable scalar; keep order aggregates readonly and report typed patches or commands instead of hiding business mutation behind two-way binding. Preserve the same order-page structure during SSR and browser startup: put analytics/storage behind platform-specific providers, create canonical metadata through injected `DOCUMENT`, and initialize a browser-only chart in `afterNextRender` against one dedicated host with teardown—never make an `isPlatformBrowser` template branch or top-level `window` access the hydration boundary.
 
-Plan the legacy application's modernization as deployable checkpoints: capture a clean behavioral/performance baseline; use the Update Guide and supported toolchain matrix for one major-version step at a time; convert the leaf order card to standalone while its NgModule consumer remains valid; migrate the lazy orders route; then replace root bootstrap while preserving provider scopes, initializers, interceptor order and ZoneJS scheduling explicitly. Audit every template-visible timer, SDK, socket, form and SSR update for a real Angular notification, prove it in zoneless tests and a measured canary, and only then remove ZoneJS polyfills/dependency. Keep state-management and design-system rewrites outside these checkpoints, assign every `importProvidersFrom` bridge an owner/removal gate, and demonstrate the rollback after each phase. For the search page, draw the subscriber graph before adding an operator: bind a cold request once when one view owns it, expose a stable field rather than a template getter, flatten route/query changes with `switchMap`, and share only one explicitly identified query generation across overlapping consumers. Separate refresh from bounded retry, key/invalidate retained data by user and query, and prove request cardinality with `expectOne`/`match` rather than trusting the Network panel alone.
+Plan the legacy application's modernization as deployable checkpoints: capture a clean behavioral/performance baseline; use the Update Guide and supported toolchain matrix for one major-version step at a time; convert the leaf order card to standalone while its NgModule consumer remains valid; migrate the lazy orders route; then replace root bootstrap while preserving provider scopes, initializers, interceptor order and ZoneJS scheduling explicitly. Audit every template-visible timer, SDK, socket, form and SSR update for a real Angular notification, prove it in zoneless tests and a measured canary, and only then remove ZoneJS polyfills/dependency. Keep state-management and design-system rewrites outside these checkpoints, assign every `importProvidersFrom` bridge an owner/removal gate, and demonstrate the rollback after each phase. For the search page, draw the subscriber graph before adding an operator: bind a cold request once when one view owns it, expose a stable field rather than a template getter, flatten route/query changes with `switchMap`, and share only one explicitly identified query generation across overlapping consumers. Separate in-flight deduplication from retained caching; key detail data by tenant, principal scope, locale, representation and ID; start TTL on successful response; generation-fence old reads; invalidate/write through after successful mutations and logout; bound memory and SSR scope; and prove request cardinality, expiry, recovery and isolation with `expectOne`/`match` rather than trusting the Network panel alone.
 
 Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Make its immutable order view model a required signal input, use a pure transform only for a small representation boundary such as trimming an optional label, and test both the missing-binding compile failure and the transform's accepted write types; do not mistake requiredness or coercion for domain validation. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly. Put each RxJS/signal bridge at one stable owner: adapt an existing stream once with `toSignal`, move signal state into RxJS once when debounce/cancellation is required, and test stabilized rather than imaginary per-write emissions. Initialize one imperative chart with `afterNextRender`, give it a dedicated host and explicit destructor, and place geometric writes before reads. Use `afterEveryRender` only for a genuinely recurring render concern, guard signal writes against equality, prove automatic/early cleanup, and keep SSR output correct without either browser-only callback. Do not equate completed Angular rendering with browser paint or completed hydration.
 
@@ -7606,7 +7897,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q70. This pass was bounded to Markdown lines 1445–1471 and DOCX extracted lines 970–986 for Q70; both sources say that an outer `catchError` can replace/terminate the whole source workflow, while handling inside `switchMap` confines recovery to one inner request so later source values remain possible. This edition adds an explicit recovery-boundary model; four scenarios; typed per-query UI state; local-recovery/fatal-escalation and mutation examples; a subscription-lifetime diagram, dry run and proof; liveness-focused HTTP tests; cancellation/error/loading boundaries; and derived coordination, output and retained-state costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Both **actual Library source texts** were inspected for Q1–Q71. This pass was bounded to Markdown lines 1470–1485 and DOCX extracted lines 987–997 for Q71; both sources say that a route/detail cache needs an owner, key, freshness rule, invalidation events and memory policy, that in-flight deduplication differs from retained reuse, and that `shareReplay(1)` alone is not a complete cache strategy. This edition adds a cache contract matrix; complete identity-key model; four scenarios; keyed TTL, single-flight and generation-fenced TypeScript; a state diagram and mutation trace; HTTP-validator and SSR boundaries; cardinality/freshness/recovery tests; invariants; and derived key, response, dependency-index and eviction costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
 - Code snippets and traces were checked conceptually against the linked official Angular 22.2.2, RxJS and OAuth sources. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration test, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
@@ -7619,6 +7910,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular deferrable-view material (reviewed 2026-10-13): [`@defer`](https://angular.dev/guide/templates/defer), [incremental hydration](https://angular.dev/guide/incremental-hydration), [hydration](https://angular.dev/guide/hydration), and [server/hybrid rendering](https://angular.dev/guide/ssr). The Angular 22.2.2 pages distinguish render, prefetch and hydrate triggers; state that ordinary SSR/SSG emits the placeholder without invoking regular triggers; document that incremental hydration plus a hydrate trigger emits the main block and delays client interactivity; and require regular placeholders for later CSR navigations.
 - Official Angular/RxJS/OAuth refresh-concurrency material (reviewed 2026-10-13): Angular's [interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [HTTP testing](https://angular.dev/guide/http/testing), [`HttpContext`](https://angular.dev/api/common/http/HttpContext) and [`HttpContextToken`](https://angular.dev/api/common/http/HttpContextToken); RxJS's current [`shareReplay`](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/shareReplay.ts) implementation; and [RFC 9700 §4.14](https://www.rfc-editor.org/rfc/rfc9700.html#section-4.14). Angular documents immutable request cloning, mutable retry context and cold HTTP observables; RFC 9700 requires sender-constrained or rotated refresh tokens for public clients. Sharing/reset details remain tied to the pinned RxJS version.
 - Official Angular/RxJS error-boundary material (reviewed 2026-10-13): Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests) and [HTTP testing](https://angular.dev/guide/http/testing), plus RxJS's current [`catchError`](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/catchError.ts) and [`switchMap`](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/switchMap.ts) implementations. Angular documents that unsubscribing an `HttpClient` Observable aborts the in-progress client request and that its test backend can flush controlled error responses; RxJS operator implementation remains package-version-sensitive.
+- Official Angular/RxJS/HTTP caching material (reviewed 2026-10-14): Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [route data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP testing](https://angular.dev/guide/http/testing) and [`HttpTestingController`](https://angular.dev/api/common/http/testing/HttpTestingController); RxJS's current [`shareReplay`](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/shareReplay.ts) implementation; and [RFC 9111](https://www.rfc-editor.org/rfc/rfc9111.html). Angular documents that each subscription to a cold `HttpClient` Observable can make a backend request and identifies caching until time or mutation invalidation as an interceptor use case; RxJS reset details remain package-version-sensitive; RFC 9111 defines HTTP cache freshness, validation and unsafe-method invalidation rather than an application store's domain policy.
 - Official Angular application-structure and component-contract material (reviewed 2026-10-11): [coding style guide](https://angular.dev/style-guide), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [signals](https://angular.dev/guide/signals), [services and DI](https://angular.dev/guide/di/creating-and-using-services), [workspace file structure](https://angular.dev/reference/configs/file-structure), [workspace configuration](https://angular.dev/reference/configs/workspace-config), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [route loading strategies](https://angular.dev/guide/routing/loading-strategies).
 - Official Angular testing material (reviewed 2026-10-11): [testing overview and Vitest setup](https://angular.dev/guide/testing), [component-testing basics](https://angular.dev/guide/testing/components-basics), [component-testing scenarios](https://angular.dev/guide/testing/components-scenarios), [testing utility APIs](https://angular.dev/guide/testing/utility-apis), [component harnesses](https://angular.dev/guide/testing/component-harnesses-overview), and [migrating from Karma to Vitest](https://angular.dev/guide/testing/migrating-to-vitest).
 - Official Angular HTTP-testing material (reviewed 2026-10-11): [testing HTTP requests](https://angular.dev/guide/http/testing), [`provideHttpClientTesting`](https://angular.dev/api/common/http/testing/provideHttpClientTesting), [`HttpTestingController`](https://angular.dev/api/common/http/testing/HttpTestingController), and [`TestRequest`](https://angular.dev/api/common/http/testing/TestRequest).
@@ -7633,5 +7925,5 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q71 (cache route/detail data) in both sources. It begins at Markdown anchor line 1470 / heading line 1472 and DOCX extracted line 987; resolve the exact section end before reading it, compare with existing route/store/request-sharing coverage, and keep extending this one canonical guide.
+- **Next:** continue with bounded Q72 (signal/change-detection performance traps) in both sources. It begins at Markdown anchor line 1484 / heading line 1486 and DOCX extracted line 998; resolve the exact section end before reading it, compare with existing Q14–Q22, Q48, Q58, Q61 and Q62 coverage, and keep extending this one canonical guide.
 

@@ -219,8 +219,8 @@
       "modified_at": "2026-09-08T00:10:00.775386Z",
       "size_bytes": 74372,
       "status": "READY",
-      "last_read_at": "2026-10-13",
-      "selection": "Q1–Q70 content read and compared; Q71 onward remains unpromoted"
+      "last_read_at": "2026-10-14",
+      "selection": "Q1–Q71 content read and compared; Q72 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
@@ -341,8 +341,8 @@
       "modified_at": "2026-08-31T14:40:43.673563Z",
       "size_bytes": 62355,
       "status": "READY",
-      "last_read_at": "2026-10-13",
-      "selection": "Q1–Q70 content read and compared; Q71 onward remains unpromoted"
+      "last_read_at": "2026-10-14",
+      "selection": "Q1–Q71 content read and compared; Q72 onward remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Workbook.docx",
@@ -642,8 +642,8 @@
         "Angular_Interview_Mermaid_Workbook.md",
         "Angular_Interview_Workbook.docx"
       ],
-      "last_processed_at": "2026-10-13T21:08:21-04:00",
-      "next_action": "Continue with bounded Angular Q71 on route/detail caching. It begins at Markdown anchor line 1470 / heading line 1472 and DOCX extracted line 987; resolve the exact section end in both sources before reading, compare with existing route-state, signal-store and request-sharing coverage, and merge only distinct teaching value into the canonical guide.",
+      "last_processed_at": "2026-10-14T00:55:31-04:00",
+      "next_action": "Continue with bounded Angular Q72 on signal/change-detection performance traps. It begins at Markdown anchor line 1484 / heading line 1486 and DOCX extracted line 998; resolve the exact section end in both sources before reading, compare with existing Q14–Q22, Q48, Q58, Q61 and Q62 coverage, and merge only distinct teaching value into the canonical guide.",
       "priority": 15,
       "processed_sections": [
         "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)",
@@ -679,16 +679,17 @@
         "Browser-only APIs during SSR: Q67 (capability boundaries, browser-only render callbacks, platform-specific providers, injected document access, narrow platform guards, hydration parity, request isolation and derived costs)",
         "Deferrable-view trigger selection across CSR and SSR: Q68 (fetch/render/hydrate clocks, viewport/interaction/idle/when trade-offs, fallback geometry, incremental hydration, event replay, verification and derived costs)",
         "Single-flight token refresh: Q69 (shared refresh flight, token-generation race guard, one-retry and recursion boundaries, mutation replay safety, request-cardinality tests and derived costs)",
-        "RxJS error recovery boundaries: Q70 (inner-versus-outer catchError placement, source-subscription lifetime, typed per-query state, fatal escalation, liveness tests and derived costs)"
+        "RxJS error recovery boundaries: Q70 (inner-versus-outer catchError placement, source-subscription lifetime, typed per-query state, fatal escalation, liveness tests and derived costs)",
+        "Route/detail caching: Q71 (complete identity keys, separate single-flight and retained phases, TTL commit point, generation-fenced invalidation, mutation/list dependencies, SSR isolation, memory bounds and request-cardinality tests)"
       ],
       "source_revision": {
         "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
-        "source_markdown_lines": "1445-1469 for Q70, bounded by the next anchor at line 1470; earlier Q1-Q69 retained",
-        "source_docx": "Angular_Interview_Workbook.docx extracted lines 970-986 for Q70",
-        "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-13",
-        "baseline_main_head": "4945d72c26d97fe91e02e55bc7232c38154f84db"
+        "source_markdown_lines": "1470-1483 for Q71, bounded by the next anchor at line 1484; earlier Q1-Q70 retained",
+        "source_docx": "Angular_Interview_Workbook.docx extracted lines 987-997 for Q71",
+        "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-14",
+        "baseline_main_head": "18751fd76915576caa204d523f96d67938dd6351"
       },
-      "validation": "Q70 compared both source texts and adds explicit inner-versus-outer recovery lifetimes, four examples, typed per-query state, a subscription trace and proof, liveness-focused HTTP tests, cancellation boundaries and derived costs; deterministic builder and exact 500576-character HTML embedded-Markdown equality passed with 71 unique anchors, 226 balanced fenced blocks and 51 Mermaid diagrams; inline JavaScript syntax, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution and live HTTP calls were not performed because the project runtime is absent.",
+      "validation": "Q71 compared both source texts and adds a cache contract matrix, complete identity-key model, four scenarios, keyed TTL plus single-flight and generation-fenced TypeScript, a state diagram and mutation trace, HTTP-validator/SSR boundaries, independent request-cardinality/freshness/recovery tests, invariants and derived costs; deterministic builder and exact 519871-character HTML embedded-Markdown equality passed with 72 unique anchors, 229 balanced fenced blocks and 52 Mermaid diagrams; inline JavaScript, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution and live HTTP calls were not performed because the project runtime is absent.",
       "last_successful_commit": "f4b77af97cc38f8b5da9296349eccd36848511f6"
     },
     {
@@ -822,7 +823,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q70 are processed. Continue with bounded Angular Q71 on route/detail caching, starting at Markdown anchor line 1470 / heading line 1472 and DOCX extracted line 987; resolve the exact section end in both sources before reading and compare against existing route-state, signal-store and request-sharing coverage before merging.",
+    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q71 are processed. Continue with bounded Angular Q72 on signal/change-detection performance traps, starting at Markdown anchor line 1484 / heading line 1486 and DOCX extracted line 998; resolve the exact section end in both sources before reading and compare against existing Q14–Q22, Q48, Q58, Q61 and Q62 coverage before merging.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -868,11 +869,11 @@
       "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)"
     ],
     "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
-    "validation": "Angular Q70 was compared in both actual source texts and enriched with explicit inner-versus-outer recovery lifetimes, four examples, typed per-query state, a subscription trace and proof, liveness-focused HTTP tests, cancellation boundaries and derived costs; deterministic reader generation, exact 500576-character payload equality, 71 anchors, 226 balanced fences, 51 Mermaid diagrams, inline JavaScript, JSON, relative links, local README source hash, selected-file diff and live 170-marker audit passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution and live HTTP calls were not performed because the project runtime is absent.",
-    "estimated_next_tokens": 8000,
-    "estimate_method": "Heuristic only: bounded Q71 begins at Markdown anchor line 1470 / heading line 1472 and DOCX extracted line 987; reserve ~650 tokens for paired source range resolution, ~1300 for current primary Angular/RxJS caching research, ~3950 for distinct teaching/code/diagram/HTML, and ~2100 for validation/checkpoint. This is not account-quota telemetry.",
+    "validation": "Angular Q71 was compared in both actual source texts and enriched with a cache contract matrix, complete identity-key model, four scenarios, keyed TTL plus single-flight and generation-fenced TypeScript, a state diagram and mutation trace, HTTP-validator/SSR boundaries, independent request-cardinality/freshness/recovery tests, invariants and derived costs; deterministic reader generation, exact 519871-character payload equality, 72 anchors, 229 balanced fences, 52 Mermaid diagrams, inline JavaScript, JSON, relative links, local README source hash, selected-file diff and live 170-marker audit passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution and live HTTP calls were not performed because the project runtime is absent.",
+    "estimated_next_tokens": 8200,
+    "estimate_method": "Heuristic only: bounded Q72 begins at Markdown anchor line 1484 / heading line 1486 and DOCX extracted line 998; reserve ~700 tokens for paired source range resolution, ~1350 for current primary Angular performance research, ~4000 for distinct teaching/code/diagram/HTML, and ~2150 for validation/checkpoint. This is not account-quota telemetry.",
     "last_successful_commit": "f4b77af97cc38f8b5da9296349eccd36848511f6",
-    "last_processed_at": "2026-10-13T21:08:21-04:00",
-    "next_batch_decision": "Q70 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q71 and retain the conservative one-section checkpoint."
+    "last_processed_at": "2026-10-14T00:55:31-04:00",
+    "next_batch_decision": "Q71 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q72 and retain the conservative one-section checkpoint."
   }
 }
