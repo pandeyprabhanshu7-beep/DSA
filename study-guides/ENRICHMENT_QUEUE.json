@@ -693,7 +693,7 @@
         "baseline_main_head": "e08cb2ea9fc301dce3350846630f481ea0c6181e"
       },
       "validation": "Q74 compared both source texts and adds an application/library scheduler boundary, compatibility and packaging matrices, typed external-callback adapter, four cases, dual-mode trace and TestBed strategy, dynamic-host/SSR/render constraints, invariants, proof and derived costs. Independent Node checks passed 20000 seeded normalization/deduplication/cleanup trials and 481168 assertions. Deterministic builder and exact 570769-character HTML embedded-Markdown equality passed with 75 unique anchors, 242 balanced fenced blocks and 55 Mermaid diagrams; inline JavaScript, JSON, relative-link and live 170-marker checks passed. Angular CLI library build, TypeScript/template compilation, zone-based or zoneless TestBed execution, Vitest/JIT execution, controlled-browser and SSR tests were not performed because the project runtime/browser are absent.",
-      "last_successful_commit": "26b332267ec86d23e4f52e019b5be7071038b46f"
+      "last_successful_commit": "d6e2392acd1aac5d32bc118b38c39bd16aa4a23d"
     },
     {
       "id": "javascript-html-css",
@@ -875,7 +875,7 @@
     "validation": "Angular Q74 was compared in both actual source texts and enriched with an application/library scheduler boundary, compatibility and packaging matrices, typed external-callback adapter, four cases, dual-mode trace and TestBed strategy, dynamic-host/SSR/render constraints, invariants, proof and derived costs; independent Node checks passed 20000 seeded normalization/deduplication/cleanup trials and 481168 assertions. Deterministic reader generation, exact 570769-character payload equality, 75 anchors, 242 balanced fences, 55 Mermaid diagrams, inline JavaScript, JSON, relative links and live 170-marker audit passed. Angular CLI library build, TypeScript/template compilation, zone-based or zoneless TestBed execution, Vitest/JIT execution, controlled-browser and SSR tests were not performed because the project runtime/browser are absent.",
     "estimated_next_tokens": 6500,
     "estimate_method": "Heuristic only: the first rapid-fire bank module starts at Markdown anchor line 1536 / heading line 1538 and DOCX extracted line 1037; reserve ~900 tokens for bounded paired-source range resolution, ~900 for targeted primary-source refresh, ~2700 for distinct consolidation/teaching/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "26b332267ec86d23e4f52e019b5be7071038b46f",
+    "last_successful_commit": "d6e2392acd1aac5d32bc118b38c39bd16aa4a23d",
     "last_processed_at": "2026-10-14T05:48:44-04:00",
     "next_batch_decision": "Q74 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before the rapid-fire bank and retain the conservative one-section checkpoint."
   }
