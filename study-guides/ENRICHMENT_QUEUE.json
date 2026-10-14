@@ -229,7 +229,10 @@
       "version_id": null,
       "modified_at": "2026-09-08T00:10:00.753196Z",
       "size_bytes": 77677,
-      "status": "DISCOVERED"
+      "status": "IN_PROGRESS",
+      "last_read_at": "2026-10-14",
+      "sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
+      "selection": "Read and selected as the broader structural source; Q1-Q4 at lines 166-291 were compared and promoted, while Q5-Q72, rapid-fire and revision material remain queued."
     },
     {
       "name": "DSA_Tree_FAANG_Mermaid_Question_Workbook.md",
@@ -351,7 +354,10 @@
       "version_id": null,
       "modified_at": "2026-08-31T14:40:39.905787Z",
       "size_bytes": 64737,
-      "status": "DISCOVERED"
+      "status": "IN_PROGRESS",
+      "last_read_at": "2026-10-14",
+      "sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
+      "selection": "Extracted and compared through paragraphs 21-81; Q1-Q4 corroborate the Mermaid edition but this older DOCX is not promoted as a competing canonical guide."
     },
     {
       "name": "DSA_Graph_FAANG_Question_Workbook.docx",
@@ -703,14 +709,27 @@
       "id": "javascript-html-css",
       "domain": "Frontend",
       "canonical_target": "study-guides/frontend/javascript-html-css/",
-      "target_exists": false,
-      "status": "DISCOVERED",
+      "target_exists": true,
+      "status": "IN_PROGRESS",
       "source_names": [
         "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
         "JavaScript_HTML_CSS_Interview_Workbook.docx"
       ],
-      "last_processed_at": null,
-      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "last_processed_at": "2026-10-14T17:58:51-04:00",
+      "next_action": "Compare and deepen Q5-Q10 only: primitive/reference values, equality, null/undefined/NaN, shallow/deep copy, map/filter/reduce, optional chaining and nullish coalescing.",
+      "completed_sections": [
+        "Q1-Q4: bindings, declaration instantiation and TDZ, lexical scope, and per-iteration loop capture"
+      ],
+      "source_revision": {
+        "source_markdown_sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
+        "source_markdown_lines": "166-291 for Q1-Q4, bounded by the Q5 anchor at line 292",
+        "source_docx_sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
+        "source_docx_range": "extracted paragraphs 21-81 for Q1-Q4, bounded by Q5",
+        "retrieval": "Both bounded source texts read from ChatGPT Library on 2026-10-14",
+        "baseline_main_head": "232fdb33f12ef2052944177e4716f0e39fe19748"
+      },
+      "validation": "The canonical guide contains four connected examples, two Mermaid environment diagrams, four requirement/trace cards and five executable Node assertions. Deterministic reader generation and exact embedded-Markdown equality passed with 6 unique anchors, 8 balanced fenced blocks, 2 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all assertions. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. Browser rendering was not executed; local-project README regeneration was unavailable because the Python markdown package is absent.",
+      "last_successful_commit": "b177a9133249af386236c4aceec47f8df2b22b5b",
       "priority": 16
     },
     {
@@ -830,7 +849,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q74 plus rapid-fire items 1-39 are processed. Rotate fairly to the confirmed JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md + JavaScript_HTML_CSS_Interview_Workbook.docx pair; resolve and compare only the first bounded question group before creating or extending one canonical frontend guide. The Angular Final Revision Sheet remains queued for a later pass.",
+    "next_action": "Core advanced-tree sections 1-10, Angular Q1-Q74 plus rapid-fire items 1-39, and JavaScript/HTML/CSS Q1-Q4 are processed. Continue the confirmed JavaScript_HTML_CSS paired sources with Q5-Q10 only; the remaining JavaScript/HTML/CSS questions and Angular Final Revision Sheet stay queued.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -873,14 +892,15 @@
       "Advanced trees section 4: Red-Black Tree Insertion and Deletion",
       "Advanced trees section 3: AVL Tree Insertion and Deletion",
       "Advanced trees section 2: Binary Search Tree Core (merged into canonical BST-6 and BST-7)",
-      "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)"
+      "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)",
+      "JavaScript/HTML/CSS Q1-Q4: binding scope, declaration instantiation/TDZ, lexical lookup and per-iteration loop capture"
     ],
-    "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
-    "validation": "Rapid-fire items 31-39 were compared in both actual source texts and consolidated into the canonical Angular guide as a retrieval-oriented answer ladder with four examples, a request-to-profile trace, invariants, verification drills and derived costs. Deterministic reader generation and exact 648428-character payload equality passed with 79 unique anchors, 267 balanced fences, 59 Mermaid diagrams, inline JavaScript, JSON, fragment targets, relative links, local README source hash, selected-file diff and live 170-marker checks. All nine content-commit remote blob hashes matched; no GitHub status checks were configured. Angular CLI build, TypeScript/template compilation, TestBed/CDK viewport execution, SSR/transfer-cache tests, browser/DevTools profiling and ng update were not performed because the Angular workspace/runtime/browser/package graph are absent.",
-    "estimated_next_tokens": 7800,
-    "estimate_method": "Heuristic only: reserve ~1200 tokens to resolve and compare the first bounded JavaScript/HTML/CSS question group across paired sources, ~1600 for current primary references, ~3000 for consolidation/examples/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
+    "processed_section": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md lines 166-291 (SHA-256 742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0) and JavaScript_HTML_CSS_Interview_Workbook.docx extracted paragraphs 21-81 (SHA-256 790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb): Q1-Q4 promoted into the new canonical frontend guide",
+    "validation": "Q1-Q4 were compared in both actual source texts and consolidated into one canonical guide with four connected examples, two environment diagrams, explicit requirements, dry-run tables, current primary references and five executable Node assertions. Deterministic reader generation and exact 9624-character embedded-Markdown equality passed with 6 unique anchors, 8 balanced fences, 2 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all assertions. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. Browser rendering was not executed; local-project README regeneration was unavailable because the Python markdown package is absent.",
+    "estimated_next_tokens": 7600,
+    "estimate_method": "Heuristic only: reserve ~1000 tokens to compare JavaScript/HTML/CSS Q5-Q10 across paired sources, ~1500 for current primary references, ~3100 for examples/traces/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
     "last_successful_commit": "b177a9133249af386236c4aceec47f8df2b22b5b",
-    "last_processed_at": "2026-10-14T16:16:21-04:00",
-    "next_batch_decision": "Rapid-fire items 31-39 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before the JavaScript/HTML/CSS source-resolution pass and retain the conservative one-section checkpoint."
+    "last_processed_at": "2026-10-14T17:58:51-04:00",
+    "next_batch_decision": "JavaScript/HTML/CSS Q1-Q4 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q5-Q10 and retain the conservative one-section checkpoint."
   }
 }
