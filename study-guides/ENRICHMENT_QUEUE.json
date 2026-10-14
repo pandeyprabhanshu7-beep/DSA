@@ -694,7 +694,7 @@
         "baseline_main_head": "344a4dc65f73e6a20756b6ee52bc2d6edfc94675"
       },
       "validation": "Rapid-fire items 1-10 were compared in both source texts and consolidated into an answer ladder with four connected examples, a resolver-to-keyed-view trace, invariants, verification drills and derived costs while linking to the richer Q1-Q74 chapters. Deterministic reader generation and exact 584971-character HTML embedded-Markdown equality passed with 76 unique anchors, 247 balanced fenced blocks and 56 Mermaid diagrams; inline JavaScript, JSON, 49 relative links, local README source hash and live 170-marker checks passed. Angular CLI build, TypeScript/template compilation, TestBed/router execution, controlled-browser focus/DOM-reuse tests and SSR tests were not performed because the project runtime/browser are absent.",
-      "last_successful_commit": "d6e2392acd1aac5d32bc118b38c39bd16aa4a23d"
+      "last_successful_commit": "2336e70b9115535f84a913297eade84842fd4b8c"
     },
     {
       "id": "javascript-html-css",
@@ -876,7 +876,7 @@
     "validation": "Rapid-fire items 1-10 were compared in both actual source texts and consolidated into the canonical Angular guide as a retrieval-oriented answer ladder with four examples, a resolver-to-keyed-view trace, invariants, verification drills and derived costs. Deterministic reader generation and exact 584971-character payload equality passed with 76 unique anchors, 247 balanced fences, 56 Mermaid diagrams, inline JavaScript, JSON, 49 relative links, local README source hash and live 170-marker checks. Angular CLI build, TypeScript/template compilation, TestBed/router execution, controlled-browser focus/DOM-reuse tests and SSR tests were not performed because the project runtime/browser are absent.",
     "estimated_next_tokens": 7200,
     "estimate_method": "Heuristic only: rapid-fire items 11-20 begin at Markdown line 1580 and DOCX extracted line 1058; reserve ~1000 tokens for bounded paired-source range resolution, ~1200 for targeted primary-source refresh, ~3000 for distinct consolidation/teaching/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "d6e2392acd1aac5d32bc118b38c39bd16aa4a23d",
+    "last_successful_commit": "2336e70b9115535f84a913297eade84842fd4b8c",
     "last_processed_at": "2026-10-14T06:27:29-04:00",
     "next_batch_decision": "Rapid-fire items 1-10 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before items 11-20 and retain the conservative one-section checkpoint."
   }
