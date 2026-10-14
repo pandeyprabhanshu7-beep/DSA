@@ -49,7 +49,7 @@ See [intake manifest](INTAKE_MANIFEST.json) for source hashes, statuses and exac
 
 ## Continue next
 
-Angular Q1–Q71 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded Q72 on signal/change-detection performance traps, beginning at Markdown anchor line 1484 / heading line 1486 and DOCX extracted line 998; resolve the exact section end in both sources before reading, then compare against existing Q14–Q22, Q48, Q58, Q61 and Q62 coverage. Estimated next-batch budget: approximately 8,200 tokens. This heuristic reserves about 700 tokens for bounded paired-source range resolution, 1,350 for current primary Angular performance research, 4,000 for distinct teaching/code/diagram/HTML, and 2,150 for validation/checkpoint work. It is not account-quota telemetry.
+Angular Q1–Q72 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded Q73 on same-reference row mutation, identity and OnPush design, beginning at Markdown anchor line 1498 / heading line 1500 and DOCX extracted line 1009; resolve the exact section end in both sources before reading, then compare against Q15, Q18, Q48, Q61, Q62 and Q72. Estimated next-batch budget: approximately 8,400 tokens. This heuristic reserves about 700 tokens for bounded paired-source range resolution, 1,200 for current primary Angular identity research, 4,200 for distinct teaching/code/diagram/HTML, and 2,300 for validation/checkpoint work. It is not account-quota telemetry.
 
 ## Maintain readers
 

@@ -7884,6 +7884,168 @@ For a `Map` with `n` keys, expected lookup, insert and exact-key invalidation ar
 
 **Primary references:** Angular's [making HTTP requests](https://angular.dev/guide/http/making-requests), [HTTP interceptor guide](https://angular.dev/guide/http/interceptors), [route data resolver guide](https://angular.dev/guide/routing/data-resolvers), [HTTP testing guide](https://angular.dev/guide/http/testing) and [`HttpTestingController` API](https://angular.dev/api/common/http/testing/HttpTestingController); RxJS's current [`shareReplay` implementation and contract](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/shareReplay.ts); and HTTP caching standard [RFC 9111](https://www.rfc-editor.org/rfc/rfc9111.html). The policy matrix, complete-key model, four scenarios, generation-fenced implementation, state diagram, trace, invariants, tests and cost derivation above are added teaching material.
 
+<a id="q72"></a>
+## Q72. How do you profile signal and change-detection performance?
+
+**Requirement:** reproduce one slow user interaction with production-sized data, record evidence, identify whether the dominant cost is **too many change-detection passes**, **too much work in one checked component**, **an over-broad signal dependency**, or **browser DOM/layout/paint work**, and change only the measured hot path. A computed signal running is not itself a defect; the defect is unacceptable user-visible latency, frame loss, resource use, or work that violates an agreed budget.
+
+Start with a falsifiable statement such as: “typing one character checks 600 components and spends 90 ms sorting 5,000 rows.” Do not start with “signals are slow” or “make everything OnPush.” Angular DevTools attributes change-detection cycles to components and lifecycle hooks; Chrome's Angular track correlates Angular work with other JavaScript, layout and paint. The tools answer different parts of the same question.
+
+### Measurement loop and evidence map
+
+1. **Choose one interaction and budget.** Fix the route, data volume, device/browser class and build mode. Record cold start separately from a warmed interaction. Examples: type in the order filter, expand a row, receive one WebSocket update, or switch tabs.
+2. **Record a baseline.** In Angular DevTools, record the interaction and inspect cycle count, trigger, duration, components checked and the hottest component/hook. In a development build, enable the Chrome Angular track with `ng.enableProfiling()` or `enableProfiling()` and correlate Angular events with scripting, layout and paint.
+3. **Inspect the reactive graph.** In Angular DevTools' Signals view, select the hot component. Follow producers, computeds, effects and the template; give nodes `debugName`s so an unexpected wide dependency is recognizable. This graph requires an Angular 19+ development build.
+4. **Form one hypothesis.** Add a temporary counter or performance mark around the suspected derivation only in a diagnostic build. Change one thing, replay the same interaction and compare the same metrics. Confirm output, focus, accessibility and stale-state behavior as well as time.
+5. **Keep or revert.** Retain the change only if repeated traces improve the target without moving cost elsewhere. Dev-mode timings include instrumentation overhead, so use them to locate work and confirm the final user metric in the deployment-like build and hardware profile your team supports.
+
+| Trace evidence | Likely owner | First investigation |
+|---|---|---|
+| many short cycles from timers or third-party callbacks | scheduling/ZoneJS pollution | trigger column, timer/listener ownership; zoneless compatibility or a narrow `NgZone.runOutsideAngular` boundary in ZoneJS apps |
+| one long component/template bar | synchronous template or lifecycle work | functions/getters, filtering/sorting, serialization, hooks and algorithmic complexity |
+| hot ancestor and a large descendant tree | wide dependency or dirty boundary | which template reads the signal, input identity, event location and subtree boundaries |
+| Angular work is short but the frame is long | DOM/layout/paint or another script | Chrome main-thread flame chart, node count, forced layout and third-party code |
+| a computed/effect reruns on unrelated state | accidental reactive edge | Signals graph, conditional reads, incidental reads and effect-based state propagation |
+
+### A narrow, observable design
+
+This component owns one expensive derivation. Repeated template reads reuse its cached value until a tracked source changes, rows retain business identity, and signal names appear in the DevTools graph. The counter is diagnostics, not production telemetry.
+
+```typescript
+import {ChangeDetectionStrategy, Component, computed, signal} from '@angular/core';
+
+type Order = Readonly<{
+  id: string;
+  customer: string;
+  totalCents: number;
+}>;
+
+@Component({
+  selector: 'app-order-table',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <label>
+      Search
+      <input [value]="query()" (input)="setQuery($event)" />
+    </label>
+    <p>{{visibleOrders().length}} matching orders</p>
+    <table>
+      @for (order of visibleOrders(); track order.id) {
+        <tr><td>{{order.customer}}</td><td>{{order.totalCents}}</td></tr>
+      }
+    </table>
+  `,
+})
+export class OrderTable {
+  readonly orders = signal<readonly Order[]>([], {debugName: 'orders'});
+  readonly query = signal('', {debugName: 'orderQuery'});
+  readonly theme = signal<'light' | 'dark'>('light', {debugName: 'theme'});
+
+  private derivationRuns = 0;
+  readonly visibleOrders = computed(() => {
+    this.derivationRuns++;
+    const term = this.query().trim().toLocaleLowerCase();
+    return this.orders()
+      .filter(order => order.customer.toLocaleLowerCase().includes(term))
+      .toSorted((a, b) => b.totalCents - a.totalCents);
+  }, {debugName: 'visibleOrders'});
+
+  setQuery(event: Event): void {
+    this.query.set((event.target as HTMLInputElement).value);
+  }
+
+  replaceOrder(replacement: Order): void {
+    this.orders.update(items =>
+      items.map(item => item.id === replacement.id ? replacement : item),
+    );
+  }
+
+  diagnosticRunCount(): number {
+    return this.derivationRuns;
+  }
+}
+```
+
+Angular tracks only signals actually read by a computed during its latest run. Here `theme` has no edge to `visibleOrders`; changing it must not invalidate this cache. `computed` is lazy and memoized: a relevant source change invalidates the cached value, and the derivation runs on the next read. It is still synchronous—the first read after a change pays the full filter/sort/output-allocation cost.
+
+```mermaid
+flowchart LR
+  O["orders"] --> V["visibleOrders computed"]
+  Q["query"] --> V
+  V --> T["OrderTable template"]
+  T --> D["tracked row DOM"]
+  H["theme"] --> S["shell template"]
+```
+
+The desired graph has no edge from `theme` to the table derivation and no effect copying `visibleOrders` into a second writable signal. If a page-level template reads the whole store merely to pass a small projection down, the page becomes an additional consumer and can widen work. Put the read at the narrowest owner that needs it, without scattering domain ownership.
+
+### Four common traps and repairs
+
+1. **Expensive template method.** `@for (order of filterAndSort(orders(), query()); track order.id)` performs filtering, sorting and array construction whenever that binding is evaluated. Moving a pure derivation to `computed` avoids recalculation while its tracked inputs are unchanged; improving the algorithm, paging on the server or virtualizing measured DOM pressure may matter more. A pure pipe is another last-result cache boundary for pure template transforms.
+2. **Broad dependency fan-out.** A dashboard template reads one large `state()` object, so an unrelated clock, banner or theme replacement invalidates the same consumer as the table. Split state by update cadence or expose narrow computed projections, then read each projection in its owning subtree. Do not use `untracked` to hide a value that semantically affects the result; that creates stale output.
+3. **Identity mistakes at both extremes.** `orders().push(newOrder)` mutates the same array without `set`/`update`, so consumers may never be notified. Recreating every row/object on every polling response does the opposite: it sends needless identity changes into tracking and DOM reconciliation. Use immutable writes at the state boundary and preserve unchanged row identities plus `track order.id`. Signals use `Object.is` equality by default. A custom deep equality function can suppress equivalent outputs, but it adds comparison cost on writes and can hide a meaningful change if its definition is wrong; measure that trade-off.
+4. **Effect as a state conveyor.** An effect that reads `orders`, computes `visible`, then writes another signal adds an asynchronous propagation step and may create extra cycles, stale intermediate states or feedback loops. Prefer `computed` for synchronous derived state and `linkedSignal` only when the derived value must also be deliberately writable. Reserve effects for synchronization with imperative, non-signal APIs. In ZoneJS applications, also inspect timer/SDK callbacks that schedule cycles without changing visible state; in zoneless applications, verify that external callbacks notify Angular through a template-read signal, `AsyncPipe`, `markForCheck`, `setInput` or a bound listener.
+
+### Step-by-step invalidation trace
+
+Assume 5,000 orders and one template read of `visibleOrders()` per synchronization pass:
+
+| Step | Action | Cached derivation state | Work on next template read |
+|---:|---|---|---|
+| 1 | first render | no cached value | filter 5,000, sort matches, allocate result; run count 1 |
+| 2 | the same pass reads it again | valid | return cached array; run count stays 1 |
+| 3 | `theme.set('dark')` | still valid; no dependency edge | no filter/sort; run count stays 1 |
+| 4 | `query.set('ada')` | invalid, but lazy | no derivation until a consumer reads |
+| 5 | template reads after notification | recomputed and cached | filter/sort once; run count 2 |
+| 6 | replace one order immutably | invalid | recompute on read; unchanged row IDs let DOM reconciliation retain other rows |
+| 7 | mutate `orders()[0]` in place | no signal write occurred | **bug:** cache can remain valid and UI can be stale |
+
+This separates **notification**, **derivation** and **DOM synchronization**. A signal write does not prove that an expensive computed was eagerly executed, and a fast Angular pass does not prove that browser layout or paint is cheap.
+
+### Verification: behavior, graph and performance budget
+
+Use an ordinary unit test to prove memoization and dependency shape, then use a browser profile for time. A timing assertion in a shared CI runner is usually noisy; assert a stable work budget such as derivation count or rendered-row count and keep end-to-end latency budgets in a controlled environment.
+
+```typescript
+it('does not invalidate the order derivation for unrelated theme state', () => {
+  const fixture = TestBed.createComponent(OrderTable);
+  const component = fixture.componentInstance;
+  component.orders.set([
+    {id: 'o1', customer: 'Ada', totalCents: 3000},
+    {id: 'o2', customer: 'Grace', totalCents: 5000},
+  ]);
+
+  expect(component.visibleOrders().map(order => order.id)).toEqual(['o2', 'o1']);
+  expect(component.diagnosticRunCount()).toBe(1);
+  component.theme.set('dark');
+  expect(component.visibleOrders().map(order => order.id)).toEqual(['o2', 'o1']);
+  expect(component.diagnosticRunCount()).toBe(1);
+
+  component.query.set('ada');
+  expect(component.diagnosticRunCount()).toBe(1); // invalidation is lazy
+  expect(component.visibleOrders().map(order => order.id)).toEqual(['o1']);
+  expect(component.diagnosticRunCount()).toBe(2);
+});
+```
+
+Add tests for immutable replacement, same-reference mutation rejection in your store API, stable row nodes/focus after reorder, duplicate IDs, empty/large lists, rapid updates, effect cleanup, and a real zoneless notification path. In a browser, capture the same interaction before and after; save the Angular DevTools profile when peer review matters. A Signals graph inspection is evidence about dependency topology, not a substitute for a time trace.
+
+### Invariants, correctness and derived costs
+
+- **Dependency invariant:** a derived value reads every signal that semantically determines it and no merely incidental signal; dynamic branches may add or remove edges on each execution.
+- **Single-source invariant:** synchronous derived data lives in a computed, not in a writable mirror maintained by an effect.
+- **Identity invariant:** state updates notify through `set`/`update`, while unchanged business entities keep stable keys and preferably stable object identity.
+- **Measurement invariant:** before/after profiles replay the same interaction, data scale and environment, and acceptance includes correct output and UI state.
+- **Scheduling invariant:** every template-visible external update has a documented Angular notification path; no optimization depends on a forced test-only `detectChanges()` call.
+
+Let `c` be the number of binding evaluations, `u` the number of relevant source updates that are subsequently observed, `n` the input rows, `m` the matching rows and `v` the DOM rows whose rendered representation actually changes. Filtering plus comparison sorting in a template method costs O(`c·(n + m log m)`) time and constructs O(`c·m`) total result references over those evaluations. A computed reduces derivation to O(`u·(n + m log m)`) and O(`u·m`) total output construction; it does **not** make each recomputation constant time. Its retained cache is O(`m`). Keyed reconciliation still inspects the produced collection and performs DOM work related to changes; browser layout/paint depend on rendered node count and CSS, not only Angular's derivation cost. A deep equality function over an `m`-item result adds up to O(`m`) comparison per candidate value and can trade that cost for fewer downstream invalidations. Pagination or virtualization changes rendered DOM space from O(`n`) toward O(page size) or O(viewport + buffer), with explicit accessibility and state-retention trade-offs.
+
+**Common errors:** profiling tiny mock data; comparing different routes/build modes; reading DevTools instrumentation as production timing; optimizing every computed run; counting signal writes instead of derivation reads; calling a heavy getter multiple times from a template; mutating a signaled collection in place; recreating every row; tracking by index or a non-unique key; using deep equality everywhere; using `untracked` to conceal a true input; copying derived state through effects; assuming OnPush or zoneless removes all change detection; calling `detectChanges()` repeatedly to mask a missing notification; ignoring layout/paint and third-party scripts; or improving the average while a worst-case interaction still misses its budget.
+
+**Interview variations:** Angular DevTools versus Chrome trace; signals graph and `debugName`; `computed` versus pure pipe versus manual memoization; dynamic dependencies and `untracked`; signal equality cost; OnPush subtree boundaries; ZoneJS pollution versus zoneless notification bugs; list keys and DOM retention; server paging versus virtual scrolling; high-frequency streams and backpressure; render callbacks and forced layout; SSR/hydration profile differences; Web Vitals versus framework-local measurements; and deterministic work-budget tests versus flaky wall-clock assertions.
+
+**Primary references:** Angular's [runtime performance overview](https://angular.dev/best-practices/performance), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [Signals graph](https://angular.dev/tools/devtools/signals), [signals guide](https://angular.dev/guide/signals), [slow-computation guide](https://angular.dev/best-practices/slow-computations), [zoneless notification guide](https://angular.dev/guide/zoneless) and [skipping-subtrees guide](https://angular.dev/best-practices/skipping-subtrees). The measurement loop, evidence table, four traps, component example, dependency diagram, invalidation trace, verification plan, invariants and cost derivation above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -7924,6 +8086,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular/RxJS stale-route material (reviewed 2026-10-12): Angular's [route-state guide](https://angular.dev/guide/routing/read-route-state), [`ActivatedRoute`](https://angular.dev/api/router/ActivatedRoute), [making HTTP requests](https://angular.dev/guide/http/making-requests), and [HTTP testing](https://angular.dev/guide/http/testing), plus RxJS [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`distinctUntilChanged`](https://rxjs.dev/api/operators/distinctUntilChanged), and [`catchError`](https://rxjs.dev/api/operators/catchError). Angular documents that route snapshots are static and that unsubscribing an `HttpClient` observable aborts the in-progress client request; the guide does not infer that this necessarily halts already-started origin work.
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
+- Official Angular signal/change-detection profiling material (reviewed 2026-10-14): [runtime performance overview](https://angular.dev/best-practices/performance), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [Signals graph](https://angular.dev/tools/devtools/signals), [signals](https://angular.dev/guide/signals), [slow computations](https://angular.dev/best-practices/slow-computations), [zoneless](https://angular.dev/guide/zoneless) and [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees). Current Angular 22.2.2 pages document the profiler's cycle/component evidence, development-only Chrome integration, Angular 19+ development signal graph, lazy memoized computed values with dynamic dependencies, `Object.is` default equality and notification paths. The measurement model, examples, diagram, trace, invariants, tests and cost derivation are added teaching material.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q72 (signal/change-detection performance traps) in both sources. It begins at Markdown anchor line 1484 / heading line 1486 and DOCX extracted line 998; resolve the exact section end before reading it, compare with existing Q14–Q22, Q48, Q58, Q61 and Q62 coverage, and keep extending this one canonical guide.
+- **Next:** continue with bounded Q73 (same-reference row mutation, identity and OnPush design) in both sources. It begins at Markdown anchor line 1498 / heading line 1500 and DOCX extracted line 1009; resolve its exact end before reading it, compare with Q15, Q18, Q48, Q61, Q62 and Q72, and keep extending this one canonical guide.
 

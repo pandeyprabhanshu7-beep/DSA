@@ -847,27 +847,27 @@
   ],
   "next_batch": {
     "source": "Angular_Interview_Mermaid_Workbook.md + Angular_Interview_Workbook.docx",
-    "section": "signal/change-detection performance traps: bounded Q72 comparison against canonical signals, zoneless and performance coverage",
+    "section": "same-reference row mutation, identity and OnPush design: bounded Q73 comparison against canonical signals/list/change-detection coverage",
     "status": "QUEUED",
-    "estimated_tokens": 8200,
-    "estimate_method": "Heuristic only: Q72 begins at Markdown anchor line 1484 / heading line 1486 and DOCX extracted line 998; reserve ~700 tokens for paired source range resolution, ~1350 for current primary Angular performance research, ~4000 for distinct teaching/code/diagram/HTML, and ~2150 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 8400,
+    "estimate_method": "Heuristic only: Q73 begins at Markdown anchor line 1498 / heading line 1500 and DOCX extracted line 1009; reserve ~700 tokens for paired source range resolution, ~1200 for current primary Angular identity research, ~4200 for distinct teaching/code/diagram/HTML, and ~2300 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "readers": "Canonical Angular reader rebuilt from Markdown; exact 519871-character embedded payload equality, 72 unique anchors, 229 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked. Local-project README HTML source hash matches its Markdown.",
-    "diagrams": "The Q71 cache-entry state diagram is embedded in the canonical payload; 52 Mermaid diagrams total; browser visual QA not executed",
-    "last_processed_at": "2026-10-14T00:55:31-04:00"
+    "readers": "Canonical Angular reader rebuilt from Markdown; exact 536392-character embedded payload equality, 73 unique anchors, 232 balanced fences, local links, fragment targets and responsive/search/Mermaid hooks checked. Local-project README HTML source hash matches its Markdown.",
+    "diagrams": "The Q72 signal-dependency graph is embedded in the canonical payload; 53 Mermaid diagrams total; browser visual QA not executed",
+    "last_processed_at": "2026-10-14T02:08:01-04:00"
   },
   "angular_intake_checkpoint": {
-    "last_processed_at": "2026-10-14T00:55:31-04:00",
+    "last_processed_at": "2026-10-14T02:08:01-04:00",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q71; latest bounded source ranges are Markdown lines 1470-1483 and DOCX extracted lines 987-997 for Q71",
-    "status": "PUBLISHED",
-    "validation": "Q71 adds a cache contract matrix, complete identity-key model, four scenarios, keyed TTL plus single-flight and generation-fenced TypeScript, a state diagram and mutation trace, HTTP-validator/SSR boundaries, independent request-cardinality/freshness/recovery tests, invariants and derived costs; deterministic builder and exact 519871-character payload equality passed with 72 unique anchors, 229 balanced fences and 52 Mermaid diagrams; inline JavaScript, JSON, relative-link, local README source-hash, selected-file diff and live 170-marker checks passed; Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution and live HTTP calls were not performed because the project runtime is absent",
-    "content_commit": "2c89690bbc57ceab228cb3642d460ffda9a91c22",
-    "estimated_next_tokens": 8200,
-    "estimate_method": "Heuristic from bounded Q72 starting at Markdown anchor line 1484 / heading line 1486 and DOCX extracted line 998, plus paired source range resolution, primary Angular performance research, distinct explanation/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "processed": "Q1–Q72; latest bounded source ranges are Markdown lines 1484-1497 and DOCX extracted lines 998-1008 for Q72",
+    "status": "VALIDATED_PENDING_PUBLISH",
+    "validation": "Q72 adds a repeatable profiling loop, evidence-to-owner matrix, named signal graph, four concrete traps, Angular component code, 5,000-row invalidation trace, work-budget test, invariants and derived costs; deterministic builder and exact 536392-character payload equality passed with 73 unique anchors, 232 balanced fences and 53 Mermaid diagrams; inline JavaScript, JSON, relative-link and live 170-marker checks passed; Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, Angular/Chrome DevTools recording, controlled-browser execution and live timing were not performed because the project runtime/browser are absent",
+    "content_commit": null,
+    "estimated_next_tokens": 8400,
+    "estimate_method": "Heuristic from bounded Q73 starting at Markdown anchor line 1498 / heading line 1500 and DOCX extracted line 1009, plus paired source range resolution, primary Angular identity research, distinct explanation/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
