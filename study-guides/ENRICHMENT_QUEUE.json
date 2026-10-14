@@ -696,7 +696,7 @@
         "baseline_main_head": "e53d489615bb97fb58d6c265006e56f03a8313d3"
       },
       "validation": "Rapid-fire items 21-30 were compared in both source texts and consolidated into an answer ladder with four connected examples, a delivery-to-interaction trace, invariants, verification drills and derived costs while linking to the richer Q1-Q74 chapters. Deterministic reader generation and exact 626901-character HTML embedded-Markdown equality passed with 78 unique anchors, 259 balanced fenced blocks and 58 Mermaid diagrams; inline JavaScript, JSON, fragment targets, local README source hash, selected-file diff and live 170-marker checks passed. Angular CLI build, TypeScript/template compilation, TestBed/HTTP execution, SSR/hydration/event-replay tests, HMR observation, Shadow DOM browser assertions and dual-mode ZoneJS/zoneless tests were not performed because the Angular application runtime/browser are absent.",
-      "last_successful_commit": "c33b62a26adf5b20d1462dd59815a632ed4d14b7"
+      "last_successful_commit": "6c244f97c0c80a6367f49a911b4ac7ebff030268"
     },
     {
       "id": "javascript-html-css",
@@ -878,7 +878,7 @@
     "validation": "Rapid-fire items 21-30 were compared in both actual source texts and consolidated into the canonical Angular guide as a retrieval-oriented answer ladder with four examples, a delivery-to-interaction trace, invariants, verification drills and derived costs. Deterministic reader generation and exact 626901-character payload equality passed with 78 unique anchors, 259 balanced fences, 58 Mermaid diagrams, inline JavaScript, JSON, fragment targets, local README source hash, selected-file diff and live 170-marker checks. Angular CLI build, TypeScript/template compilation, TestBed/HTTP execution, SSR/hydration/event-replay tests, HMR observation, Shadow DOM browser assertions and dual-mode ZoneJS/zoneless tests were not performed because the Angular application runtime/browser are absent.",
     "estimated_next_tokens": 7400,
     "estimate_method": "Heuristic only: rapid-fire items 31-39 begin at Markdown line 1660 and DOCX extracted line 1098; reserve ~900 tokens for bounded paired-source range resolution, ~1500 for targeted primary-source refresh, ~3000 for distinct consolidation/teaching/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "c33b62a26adf5b20d1462dd59815a632ed4d14b7",
+    "last_successful_commit": "6c244f97c0c80a6367f49a911b4ac7ebff030268",
     "last_processed_at": "2026-10-14T16:07:00-04:00",
     "next_batch_decision": "Rapid-fire items 21-30 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before items 31-39 and retain the conservative one-section checkpoint."
   }
