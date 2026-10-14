@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q74)
+# Angular 22 — Interview Foundations (Q1–Q74 + rapid-fire 1–10)
 
-> **Current bounded edition, 2026-10-14.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q74 (Q74 is lines 1522–1534, bounded by the rapid-fire bank anchor at line 1536) with the corresponding `Angular_Interview_Workbook.docx` text (Q74 begins at extracted line 1026 and ends before the rapid-fire bank). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, layered payment idempotency, route-keyed stale-result cancellation, production-budgeted list profiling, the Angular 22 OnPush-default migration contract, explicit RxJS/signal adapter rules, application-wide render-callback contracts, required input and `model()` ownership, SSR-safe browser API boundaries, evidence-based `@defer` triggers, race-safe token refresh, inner-versus-outer RxJS recovery, policy-driven route/detail caching, a four-layer signal/OnPush/tracked-DOM/domain identity model for immutable row updates, and a dual-runtime contract for libraries consumed by ZoneJS and zoneless applications, with diagrams, tests, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-14.** Reconciled `Angular_Interview_Mermaid_Workbook.md` through rapid-fire items 1–10 (lines 1536–1578, bounded by item 11 at line 1580) with the corresponding `Angular_Interview_Workbook.docx` text (extracted lines 1037–1057, bounded by item 11 at line 1058). The paired sources agree. Q1–Q74 remain the deep canonical explanations; the first rapid-fire module adds a retrieval-oriented answer ladder, four connected examples, a state trace, invariants, tests and explicit links back to the deep chapters instead of duplicating them. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -78,6 +78,7 @@
 - [Q72: profile signal/change-detection performance](#q72)
 - [Q73: immutable row edits and identity](#q73)
 - [Q74: ZoneJS/zoneless library compatibility](#q74)
+- [Rapid-fire drill 1: items 1–10](#rapid-fire-1)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -8500,6 +8501,167 @@ The design is correct because the adapter normalizes first, rejects equal values
 
 **Primary references:** Angular's [zoneless guide](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`NgZone`](https://angular.dev/api/core/NgZone), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), [`PendingTasks`](https://angular.dev/api/core/PendingTasks), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [Angular Package Format](https://angular.dev/tools/libraries/angular-package-format). The compatibility matrix, adapter, four cases, dual-mode trace, testing strategy, invariants, proof and cost model above are added teaching material.
 
+<a id="rapid-fire-1"></a>
+## Rapid-fire drill 1 — templates, lifetime, state, DI and resolvers (items 1–10)
+
+**Requirement:** answer each prompt accurately in about 15 seconds, add one decisive caveat, and know which deep chapter to open when the interviewer asks “why?” These are retrieval cards, not ten new canonical chapters.
+
+| # | Prompt | 15-second answer | Decisive caveat | Deepen at |
+|---:|---|---|---|---|
+| 1 | Why `track` in `@for`? | It gives Angular a stable key that maps data items to existing views, minimizing DOM create/move/remove work when a collection changes. | Use a unique, stable business key for mutable/reorderable data; `$index` is appropriate only when position is identity, such as a truly static list. Duplicate keys are invalid, and object-reference tracking can recreate views after refetches. | [Q6](#q6), [Q48](#q48), [Q61](#q61), [Q73](#q73) |
+| 2 | What does `@empty` do? | It renders a fallback block when an `@for` collection has no items. | It represents **empty**, not loading or failure; model those states separately. | [Q6](#q6), [Q52](#q52) |
+| 3 | What is `@let`? | It declares a view-scoped template variable whose expression Angular keeps up to date, so a value can be reused and narrowed locally. | Unlike JavaScript `let`, it cannot be reassigned; it is not a promise of memoization or a replacement for `computed` state. | [Q6](#q6), [Q14](#q14), [Q34](#q34) |
+| 4 | What is `DestroyRef`? | It registers cleanup against the destruction scope in which it was injected—normally a component/directive or an injector. | The scope depends on the injection context; registering cleanup in a root service does not make it component-scoped. `onDestroy` also returns an unregister function. | [Q7](#q7), [Q32](#q32), [Q58](#q58), [Q74](#q74) |
+| 5 | Why `asReadonly()`? | It exposes a read-only `Signal<T>` so consumers can observe state while the owner retains `set`/`update`. | It removes the signal's write API; it does **not** deep-freeze an object stored inside the signal. | [Q14](#q14), [Q43](#q43), [Q44](#q44), [Q73](#q73) |
+| 6 | Why immutable updates with signals/OnPush? | Replacing the changed path creates observable reference changes and preserves old snapshots, making notification and OnPush input checks predictable. | Copy only the changed path and preserve stable domain IDs; cloning every entity wastes work, while `asReadonly()` cannot prevent deep mutation. | [Q20](#q20), [Q48](#q48), [Q61](#q61), [Q73](#q73) |
+| 7 | What is a provider token? | It is the runtime lookup key an injector uses to select a provider recipe and return a dependency. | A TypeScript interface is erased at runtime and cannot be the key; a class can be its own token. | [Q23](#q23), [Q25](#q25), [Q26](#q26) |
+| 8 | When use `InjectionToken`? | Use it for interfaces, configuration, primitives, functions, multi-provider extension points, or any dependency without a suitable class token. | Token identity is the `InjectionToken` object, not its debug-description string; importing two separately constructed tokens creates two keys. | [Q23](#q23), [Q25](#q25), [Q26](#q26) |
+| 9 | What does `providedIn: 'root'` mean? | Angular provides the service from the root environment injector, normally yielding one shared instance in that application and enabling tree-shaking when unused. | A nearer route/component provider can shadow it and create a scoped instance; “singleton” is relative to an injector hierarchy, not every process or SSR request. | [Q23](#q23), [Q43](#q43), [Q44](#q44), [Q67](#q67) |
+| 10 | Main resolver risk? | A resolver is on the navigation critical path: the router waits before route activation, so slow, hanging or failing work delays, blocks or cancels the destination unless handled. | Resolve only first-paint essentials, ensure Observable resolvers emit/complete, define error/redirect behavior, and load optional data non-blockingly in the feature. | [Q38](#q38), [Q39](#q39), [Q60](#q60), [Q71](#q71) |
+
+### Four connected examples
+
+**1. One template expresses derived, ready and empty states.** `@let` aliases a value for this view; `@for` reconciles by the order ID; `@empty` is reached only when the ready collection is empty. Loading and failure remain explicit rather than masquerading as emptiness.
+
+```html
+@let vm = ordersVm();
+@if (vm.kind === 'loading') {
+  <p>Loading orders…</p>
+} @else if (vm.kind === 'error') {
+  <p role="alert">{{ vm.message }}</p>
+} @else {
+  <ul>
+    @for (order of vm.orders; track order.id) {
+      <li>{{ order.id }} — {{ order.total | currency }}</li>
+    } @empty {
+      <li>No orders yet.</li>
+    }
+  </ul>
+}
+```
+
+If `[A, B]` becomes `[B, A]`, stable keys let Angular move/reuse the two keyed views. Tracking by `$index` instead says “position 0 is the same view,” which can attach focus or local child state to the wrong business row. If the ready result becomes `[]`, both item views leave and the `@empty` view enters.
+
+**2. A store owns writes and lifetime; consumers receive a readonly signal.** The state transition replaces only the array and changed order. The timer is disposed with the service's injector scope.
+
+```typescript
+import {DestroyRef, Injectable, inject, signal} from '@angular/core';
+
+type Order = Readonly<{id: string; status: 'draft' | 'ready'}>;
+
+@Injectable()
+export class OrderStore {
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly writableOrders = signal<readonly Order[]>([]);
+  readonly orders = this.writableOrders.asReadonly();
+
+  constructor() {
+    const timer = setInterval(() => this.refresh(), 30_000);
+    this.destroyRef.onDestroy(() => clearInterval(timer));
+  }
+
+  markReady(id: string): void {
+    this.writableOrders.update(orders =>
+      orders.map(order => order.id === id ? {...order, status: 'ready'} : order)
+    );
+  }
+
+  private refresh(): void {
+    // Replace state from a real repository result; omitted in this focused example.
+  }
+}
+```
+
+Providing this store at a route or component gives route/component lifetime; `providedIn: 'root'` would give root-injector lifetime. A consumer can still mutate a nested mutable value obtained from `orders()` if the model permits it, so readonly domain types and immutable commands remain part of the contract.
+
+**3. A token carries configuration that has no runtime class.** The interface disappears after TypeScript compilation; the token survives as the injector key.
+
+```typescript
+import {Injectable, InjectionToken, inject} from '@angular/core';
+
+export interface ApiConfig {
+  readonly baseUrl: string;
+  readonly timeoutMs: number;
+}
+
+export const API_CONFIG = new InjectionToken<ApiConfig>('api.config', {
+  providedIn: 'root',
+  factory: () => ({baseUrl: '/api', timeoutMs: 5_000}),
+});
+
+@Injectable({providedIn: 'root'})
+export class OrderRepository {
+  private readonly config = inject(API_CONFIG);
+}
+```
+
+The description `api.config` helps debugging but is not the identity. Tests or route providers can override this exact imported token; constructing `new InjectionToken<ApiConfig>('api.config')` again would not override it.
+
+**4. Keep only required first-paint data on the resolver path.** A missing ID redirects; the order is essential to activate the editor, while recommendations remain optional feature-owned work.
+
+```typescript
+import {inject} from '@angular/core';
+import {RedirectCommand, ResolveFn, Router} from '@angular/router';
+
+export const orderResolver: ResolveFn<Order | RedirectCommand> = route => {
+  const id = route.paramMap.get('id');
+  if (!id) return new RedirectCommand(inject(Router).parseUrl('/orders'));
+  return inject(OrderRepository).getRequired(id); // finite result or explicit error policy
+};
+
+export const routes = [{
+  path: 'orders/:id',
+  loadComponent: () => import('./order-editor').then(m => m.OrderEditor),
+  resolve: {order: orderResolver},
+}];
+```
+
+An optional recommendation panel should start after activation (or use an appropriate resource/deferred boundary), exposing loading/error/empty states. A resolver does not authorize the API request; the server still verifies the caller and order access.
+
+### End-to-end state trace
+
+```mermaid
+flowchart TD
+ N["Navigation /orders/42"] --> R["Resolver requests essential order"]
+ R -->|"success"| DI["Route injector creates OrderStore"]
+ R -->|"redirect/error"| X["No editor activation"]
+ DI --> S["Private writable signal publishes immutable snapshot"]
+ S --> T["Template aliases with @let"]
+ T --> L["@for reuses views by order.id or @empty renders"]
+```
+
+1. The router matches the lazy route and runs the resolver before activation.
+2. DI resolves `OrderRepository` by its provider token; that repository reads the exact `API_CONFIG` token.
+3. A finite successful result permits activation; slow work adds directly to perceived navigation latency.
+4. The route injector creates the store. Its private writable signal publishes a snapshot; consumers get only `Signal<readonly Order[]>`.
+5. The template reads the signal, aliases a value with `@let`, and reconciles keyed views. When the route injector is destroyed, `DestroyRef` runs registered cleanup.
+
+### Invariants, costs and interview traps
+
+- **Identity invariant:** each rendered item has one unique, stable key for its business lifetime. Tracking expresses view identity; immutable replacement expresses data change. They solve different problems.
+- **State invariant:** only the owner writes the signal, every accepted update publishes a new changed path, and prior snapshots remain unchanged.
+- **Lifetime invariant:** cleanup is registered in the same scope that owns the resource. A root-scoped cleanup intentionally lasts longer than a component-scoped cleanup.
+- **DI invariant:** caller and provider share the same runtime token object; scope determines instance lifetime, and child injectors may shadow ancestors.
+- **Navigation invariant:** every resolver either produces a finite accepted value, redirects, or reaches an intentional error policy. Optional work does not enter the activation gate.
+- **View-state invariant:** loading, failure, ready-empty and ready-nonempty are distinct states; `@empty` covers only the last two's empty case.
+
+For `n` items, a list refresh must examine the collection and evaluate keys, so the application-level lower bound is O(`n`) time; keyed reconciliation then performs DOM work proportional to the actual insertions, removals and moves rather than blindly rebuilding all `n` views. Rendering `n` rows also necessarily creates O(`n`) output nodes/references unless virtualization or paging bounds the visible result. The immutable `map` update above is O(`n`) time and O(`n`) result references with O(1) new entity objects for one match. A normalized keyed store can make lookup expected O(1), but materializing an ordered `n`-row result is still O(`n`). Token lookup follows injector ancestors until a provider is found—conceptually O(h) for hierarchy depth `h`, although framework internals optimize common paths. Registering one destroy callback is O(1) application work. Resolver-added navigation latency is its critical-path latency: concurrently independent resolver work approaches the slowest branch, while dependent sequential work sums; rendering cost begins only after activation.
+
+**Common traps:** using `$index` for a sortable list; treating `@empty` as a loading state; claiming `@let` caches an expensive expression; registering component cleanup in a root service; exposing the writable signal; believing `asReadonly()` freezes nested objects; mutating an input while retaining its reference under OnPush; using a TypeScript interface as a token; recreating an `InjectionToken` with the same description; assuming root means one instance across SSR requests; putting every API call in a resolver; returning a never-completing stream; swallowing resolver errors without a UX policy; and treating a resolver or route guard as server authorization.
+
+### Verification drill
+
+Test four layers independently:
+
+1. Render `[A, B]`, reorder to `[B, A]`, and assert business-row DOM/focus state follows IDs; separately assert duplicate IDs fail the test contract and `[]` renders only the `@empty` state.
+2. Hold the pre-update snapshot, run `markReady('A')`, and assert a new array/new A/same B plus an unchanged old A; assert the consumer type lacks `set`/`update` and document that runtime deep mutation still needs domain discipline.
+3. Override the imported `API_CONFIG` token in a focused injector test and assert the repository sees the override; prove a separately constructed same-description token does not match. Create/destroy the store's owning injector and assert cleanup executes exactly once.
+4. In a router test, keep the resolver pending and assert the editor has not activated; resolve once and assert activation/data; then cover redirect, rejection and a never-completing Observable with a bounded timeout. Load optional recommendations after activation and prove their failure leaves the editor usable.
+
+The snippets were reviewed against current Angular APIs, but this repository does not contain an Angular CLI workspace for compiling these fragments. The deterministic reader/payload validator covers document structure; framework compilation, TestBed/router execution, browser focus reuse and SSR behavior remain explicitly unexecuted checks.
+
+**Primary references (reviewed 2026-10-14):** Angular's [`@for`/`@empty` control-flow guide](https://angular.dev/guide/templates/control-flow), [`@let` template-variable guide](https://angular.dev/guide/templates/variables), [`DestroyRef`](https://angular.dev/api/core/DestroyRef), [`WritableSignal.asReadonly`](https://angular.dev/api/core/WritableSignal), [signals guide](https://angular.dev/guide/signals), [OnPush subtree guide](https://angular.dev/best-practices/skipping-subtrees), [dependency-provider guide](https://angular.dev/guide/di/defining-dependency-providers), [`InjectionToken`](https://angular.dev/api/core/InjectionToken), [creating and using services](https://angular.dev/guide/di/creating-and-using-services), [route data resolvers](https://angular.dev/guide/routing/data-resolvers), and [`ResolveFn`](https://angular.dev/api/router/ResolveFn). The answer ladder, connected examples, trace, invariants, tests and cost derivation above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -8513,8 +8675,8 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q74. This pass was bounded to Markdown lines 1522–1534 and DOCX extracted lines 1026–1033 for Q74; both sources require explicit Angular notifications and testing in ZoneJS and zoneless consumers instead of depending on patched async timing. This edition adds the application/library ownership boundary, compatibility and packaging matrices, a typed callback adapter, four examples, a dual-mode trace and TestBed strategy, dynamic-host/SSR/render-timing constraints, invariants, proof and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
-- Code snippets and traces were checked conceptually against the linked official Angular 22.2.2 sources, and the adapter's normalization/deduplication/cleanup policy was exercised independently in Node with deterministic and randomized events. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI library build, TypeScript/template compilation, zone-based or zoneless TestBed run, Vitest/JIT execution, controlled-browser test, SSR test or live server call was executed** during this source-comparison pass.
+- Both **actual Library source texts** were inspected through Q1–Q74 and rapid-fire items 1–10. This pass was bounded to Markdown lines 1536–1578 and DOCX extracted lines 1037–1057, with item 11 at Markdown line 1580 / DOCX line 1058 as the next boundary. The ten paired answers agree. This edition consolidates them into a retrieval-oriented answer ladder with four connected examples, a resolver-to-keyed-view trace, invariants, verification drills and deep links to the richer Q1–Q74 chapters rather than duplicating those chapters. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Code snippets and traces were checked conceptually against the linked current Angular sources. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI build, TypeScript/template compilation, TestBed/router execution, controlled-browser focus/DOM-reuse test, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-12): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), [Signals/computed](https://angular.dev/guide/signals#computed-signals-are-both-lazily-evaluated-and-memoized), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
@@ -8543,6 +8705,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular signal/change-detection profiling material (reviewed 2026-10-14): [runtime performance overview](https://angular.dev/best-practices/performance), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [Signals graph](https://angular.dev/tools/devtools/signals), [signals](https://angular.dev/guide/signals), [slow computations](https://angular.dev/best-practices/slow-computations), [zoneless](https://angular.dev/guide/zoneless) and [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees). Current Angular 22.2.2 pages document the profiler's cycle/component evidence, development-only Chrome integration, Angular 19+ development signal graph, lazy memoized computed values with dynamic dependencies, `Object.is` default equality and notification paths. The measurement model, examples, diagram, trace, invariants, tests and cost derivation are added teaching material.
 - Official Angular identity and row-update material (reviewed 2026-10-14): [signals](https://angular.dev/guide/signals), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), [`@for` control flow](https://angular.dev/guide/templates/control-flow), [NG0955 duplicate keys](https://angular.dev/errors/NG0955), [NG0956 DOM recreation](https://angular.dev/errors/NG0956), and the current [`signalSetFn`](https://github.com/angular/angular/blob/main/packages/core/primitives/signals/src/signal.ts). Current Angular 22.2.2 documentation and source distinguish default `Object.is` signal equality, OnPush input-reference behavior and key-based view reuse; readonly signals do not provide deep immutability. The four-layer model, transition, examples, trace, diagram, tests, proof and cost derivation are added teaching material.
 - Official Angular dual-runtime library material (reviewed 2026-10-14): [zoneless compatibility and testing](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`NgZone`](https://angular.dev/api/core/NgZone), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), [`PendingTasks`](https://angular.dev/api/core/PendingTasks), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [Angular Package Format](https://angular.dev/tools/libraries/angular-package-format). Current Angular 22.2.2 guidance defines explicit zoneless notification paths, explains the dynamic user-component host exception, warns against zone-state event streams, preserves `NgZone.run`/`runOutsideAngular` compatibility, makes TestBed zoneless by default, and requires Angular packages as peers plus supported partial-Ivy publication. The matrices, adapter, examples, trace, verification strategy, invariants, proof and cost model are added teaching material.
+- Official Angular rapid-fire items 1–10 material (reviewed 2026-10-14): [`@for` and `@empty`](https://angular.dev/guide/templates/control-flow), [`@let`](https://angular.dev/guide/templates/variables), [`DestroyRef`](https://angular.dev/api/core/DestroyRef), [`WritableSignal`](https://angular.dev/api/core/WritableSignal), [signals](https://angular.dev/guide/signals), [OnPush subtree skipping](https://angular.dev/best-practices/skipping-subtrees), [dependency providers](https://angular.dev/guide/di/defining-dependency-providers), [`InjectionToken`](https://angular.dev/api/core/InjectionToken), [services](https://angular.dev/guide/di/creating-and-using-services), [data resolvers](https://angular.dev/guide/routing/data-resolvers), and [`ResolveFn`](https://angular.dev/api/router/ResolveFn). Current documentation defines stable-key reconciliation, empty fallbacks, view-scoped nonassignable `@let`, destruction-scope cleanup, shallow readonly signals, token object identity, root environment provision and the resolver activation gate. The answer ladder, examples, trace, tests and costs are added teaching material.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with the first bounded rapid-fire bank module (items 1–10) in both sources. It begins at Markdown anchor line 1536 / heading line 1538 and DOCX extracted line 1037; resolve the exact item-10 boundary before reading beyond it, consolidate answers with the richer canonical Q1–Q74 material instead of duplicating it, and keep extending this one canonical guide.
+- **Next:** continue with bounded rapid-fire items 11–20 in both sources, beginning at Markdown line 1580 and DOCX extracted line 1058. Resolve the exact item-20 boundary before reading beyond it, consolidate against the richer canonical chapters rather than duplicating them, and keep extending this one canonical guide.
 

@@ -49,7 +49,7 @@ See [intake manifest](INTAKE_MANIFEST.json) for source hashes, statuses and exac
 
 ## Continue next
 
-Angular Q1–Q74 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded rapid-fire module (items 1–10), beginning at Markdown anchor line 1536 / heading line 1538 and DOCX extracted line 1037; resolve the exact item-10 boundary in both sources before reading beyond it, then consolidate against the richer canonical answers rather than duplicating them. Estimated next-batch budget: approximately 6,500 tokens. This heuristic reserves about 900 tokens for bounded paired-source range resolution, 900 for targeted primary-source refresh, 2,700 for distinct consolidation/teaching/HTML, and 2,000 for validation/checkpoint work. It is not account-quota telemetry.
+Angular Q1–Q74 plus rapid-fire items 1–10 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded rapid-fire module (items 11–20), beginning at Markdown line 1580 and DOCX extracted line 1058; resolve the exact item-20 boundary in both sources before reading beyond it, then consolidate against the richer canonical answers rather than duplicating them. Estimated next-batch budget: approximately 7,200 tokens. This heuristic reserves about 1,000 tokens for bounded paired-source range resolution, 1,200 for targeted primary-source refresh, 3,000 for distinct consolidation/teaching/HTML, and 2,000 for validation/checkpoint work. It is not account-quota telemetry.
 
 ## Maintain readers
 
