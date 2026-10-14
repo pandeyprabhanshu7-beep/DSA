@@ -695,7 +695,7 @@
         "baseline_main_head": "d0103aabe1e9c4266a7307f39c3d4dc315966b2d"
       },
       "validation": "Rapid-fire items 11-20 were compared in both source texts and consolidated into an answer ladder with four connected examples, a route-to-form trace, invariants, verification drills and derived costs while linking to the richer Q1-Q74 chapters. Deterministic reader generation and exact 606874-character HTML embedded-Markdown equality passed with 77 unique anchors, 253 balanced fenced blocks and 57 Mermaid diagrams; inline JavaScript, JSON, fragment targets, local README source hash, selected-file diff and live 170-marker checks passed. Angular CLI build, TypeScript/template compilation, TestBed/router/RxJS virtual-time/CVA/browser tests were not performed because the Angular application runtime is absent.",
-      "last_successful_commit": "2336e70b9115535f84a913297eade84842fd4b8c"
+      "last_successful_commit": "c33b62a26adf5b20d1462dd59815a632ed4d14b7"
     },
     {
       "id": "javascript-html-css",
@@ -877,7 +877,7 @@
     "validation": "Rapid-fire items 11-20 were compared in both actual source texts and consolidated into the canonical Angular guide as a retrieval-oriented answer ladder with four examples, a route-to-form trace, invariants, verification drills and derived costs. Deterministic reader generation and exact 606874-character payload equality passed with 77 unique anchors, 253 balanced fences, 57 Mermaid diagrams, inline JavaScript, JSON, fragment targets, local README source hash, selected-file diff and live 170-marker checks. Angular CLI build, TypeScript/template compilation, TestBed/router/RxJS virtual-time/CVA/browser tests were not performed because the Angular application runtime is absent.",
     "estimated_next_tokens": 7600,
     "estimate_method": "Heuristic only: rapid-fire items 21-30 begin at Markdown line 1620 and DOCX extracted line 1078; reserve ~1000 tokens for bounded paired-source range resolution, ~1500 for targeted primary-source refresh, ~3100 for distinct consolidation/teaching/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "2336e70b9115535f84a913297eade84842fd4b8c",
+    "last_successful_commit": "c33b62a26adf5b20d1462dd59815a632ed4d14b7",
     "last_processed_at": "2026-10-14T07:31:56-04:00",
     "next_batch_decision": "Rapid-fire items 11-20 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before items 21-30 and retain the conservative one-section checkpoint."
   }
