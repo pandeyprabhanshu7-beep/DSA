@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q74 + rapid-fire 1–20)
+# Angular 22 — Interview Foundations (Q1–Q74 + rapid-fire 1–30)
 
-> **Current bounded edition, 2026-10-14.** Reconciled `Angular_Interview_Mermaid_Workbook.md` through rapid-fire items 1–20 (lines 1536–1618, bounded by item 21 at line 1620) with the corresponding `Angular_Interview_Workbook.docx` text (extracted lines 1037–1077, bounded by item 21 at line 1078). The paired sources agree. Q1–Q74 remain the deep canonical explanations; the two rapid-fire modules add retrieval-oriented answer ladders, connected examples, state traces, invariants, tests and explicit links back to the deep chapters instead of duplicating them. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-14.** Reconciled `Angular_Interview_Mermaid_Workbook.md` through rapid-fire items 1–30 (lines 1536–1658, bounded by item 31 at line 1660) with the corresponding `Angular_Interview_Workbook.docx` text (extracted lines 1037–1097, bounded by item 31 at line 1098). The paired sources agree. Q1–Q74 remain the deep canonical explanations; the three rapid-fire modules add retrieval-oriented answer ladders, connected examples, state traces, invariants, tests and explicit links back to the deep chapters instead of duplicating them. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -80,6 +80,7 @@
 - [Q74: ZoneJS/zoneless library compatibility](#q74)
 - [Rapid-fire drill 1: items 1–10](#rapid-fire-1)
 - [Rapid-fire drill 2: items 11–20](#rapid-fire-2)
+- [Rapid-fire drill 3: items 21–30](#rapid-fire-3)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -8953,6 +8954,199 @@ The TypeScript was contract-reviewed against current Angular and RxJS documentat
 
 **Primary references (reviewed 2026-10-14):** Angular's [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [customizing route behavior](https://angular.dev/guide/routing/customizing-route-behavior), [route guards](https://angular.dev/guide/routing/route-guards), [`FormGroup`](https://angular.dev/api/forms/FormGroup), [`FormArray`](https://angular.dev/api/forms/FormArray), [`ControlValueAccessor`](https://angular.dev/api/forms/ControlValueAccessor) and [`NG_VALUE_ACCESSOR`](https://angular.dev/api/forms/NG_VALUE_ACCESSOR); RxJS [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), [`take`](https://rxjs.dev/api/operators/take), [`first`](https://rxjs.dev/api/operators/first), [`debounceTime`](https://rxjs.dev/api/operators/debounceTime), [`distinctUntilChanged`](https://rxjs.dev/api/operators/distinctUntilChanged), [`tap`](https://rxjs.dev/api/operators/tap), [`catchError`](https://rxjs.dev/api/operators/catchError), [`finalize`](https://rxjs.dev/api/operators/finalize), and the current [`shareReplay` implementation](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/shareReplay.ts). The answer ladder, examples, trace, invariants, cost derivation and tests above are added teaching material; RxJS reset semantics remain tied to the pinned package version.
 
+<a id="rapid-fire-3"></a>
+## Rapid-fire drill 3 — HTTP, hydration and platform boundaries (items 21–30)
+
+Use the short answer first, then name the boundary that makes it correct. These cards deliberately connect delivery-time concerns (SSR, hydration and HMR) to compile-time and runtime boundaries (template types, style isolation, rendering and scheduling).
+
+| # | Prompt | 15-second answer | Boundary that prevents a shallow answer | Deep links |
+|---:|---|---|---|---|
+| 21 | HTTP interceptor ordering? | Functional interceptors form a nested chain in the order passed to `withInterceptors`: requests travel forward through that order; response events unwind through the same wrappers in reverse. | A short-circuiting interceptor may skip the backend and later interceptors. DI-based order can become difficult to predict across hierarchical providers, so current Angular guidance prefers functional interceptors. | [Q40](#q40), [Q53](#q53), [Q69](#q69) |
+| 22 | What is a hydration mismatch? | The client hydrator cannot reconcile the DOM structure it expected from the server annotations with the DOM it actually finds, so Angular reports a hydration error instead of safely reusing that subtree. | Structure includes Angular-created comments and relevant whitespace. Invalid HTML, server/client branching, native DOM mutation and third-party scripts can cause mismatches; event replay does not repair them. | [Q46](#q46), [Q47](#q47), [Q67](#q67), [Q68](#q68) |
+| 23 | Event replay with SSR? | It captures supported browser events that happen after server HTML is visible but before the relevant client listeners are ready, then replays them after hydration. | It is a narrow interaction bridge, not a general event log or duplicate-submit guarantee. Handlers must still be idempotent where the business action demands it. | [Q47](#q47), [Q59](#q59), [Q68](#q68) |
+| 24 | What is incremental hydration for? | It leaves selected server-rendered `@defer` regions dehydrated and hydrates them when a `hydrate` trigger fires, reducing initial client work while retaining server content. | Hydration is hierarchical: a triggered child requires dehydrated ancestors first. Hydrate triggers govern the initial SSR load; ordinary `@defer` triggers still govern later client-side renders. | [Q45](#q45), [Q47](#q47), [Q68](#q68) |
+| 25 | What is HMR? | Hot module replacement applies supported development-time template/style changes without a full page reload, shortening the edit-feedback loop. | It is a dev-server optimization, not production behavior or a correctness guarantee. Support is builder/version-specific; current Angular application-build documentation says general JavaScript HMR is not supported. | [Q2](#q2), [Q4](#q4), [Q56](#q56) |
+| 26 | What is strict template checking? | With `strictTemplates`, Angular type-checks template expressions, bindings, embedded views, local references and directive/component input contracts using TypeScript-aware generated checks. | It catches type-contract errors, not runtime domain rules or API truth. Fix narrow library typings selectively; globally disabling strictness trades away coverage. | [Q4](#q4), [Q5](#q5), [Q35](#q35), [Q65](#q65) |
+| 27 | What is `ViewEncapsulation.Emulated`? | Angular rewrites component CSS selectors and adds generated attributes to hosts/template elements so those compiled component styles normally target that component's view. | It is selector rewriting in the normal document, not a browser security or DOM boundary. Global styles can still affect the component, and dynamically added nodes need the expected scoped attributes to match. | [Q11](#q11), [Q12](#q12), [Q50](#q50) |
+| 28 | What is `ViewEncapsulation.ShadowDom`? | Angular attaches a native shadow root and renders the component view/styles inside the browser's real Shadow DOM boundary. | The boundary changes CSS inheritance, selectors, event retargeting, querying, projection and theming. It is stronger isolation, not automatically the right default for an application design system. | [Q11](#q11), [Q12](#q12), [Q50](#q50) |
+| 29 | When use `Renderer2`? | Use it for a custom renderer or focused imperative DOM operation/listener that cannot be expressed cleanly through templates, bindings or host metadata. | `Renderer2` is not proof that arbitrary code is SSR- or hydration-safe. Prefer declarative Angular APIs; own listener teardown and delay browser-only work to an appropriate render boundary. | [Q27](#q27), [Q64](#q64), [Q67](#q67) |
+| 30 | When use `NgZone` in modern apps? | Mainly at legacy async-library boundaries or to keep noisy work outside ZoneJS-driven checks and re-enter only for meaningful updates. | `run` and `runOutsideAngular` remain compatible in zoneless apps but are not the notification mechanism there. Signals, `AsyncPipe`, `markForCheck` and framework-owned input/listener updates provide explicit notifications. | [Q21](#q21), [Q22](#q22), [Q58](#q58), [Q74](#q74) |
+
+### Example 1 — prove the interceptor stack instead of memorizing a slogan
+
+The array is the request order. Each interceptor wraps `next`, so response-side operators observe events while the call stack unwinds.
+
+```typescript
+import {
+  HttpEventType, HttpInterceptorFn, provideHttpClient, withInterceptors,
+} from '@angular/common/http';
+import {tap} from 'rxjs';
+
+function traced(name: string): HttpInterceptorFn {
+  return (request, next) => {
+    console.log(`${name}: request`);
+    return next(request).pipe(tap({next: event => {
+      if (event.type === HttpEventType.Response) console.log(`${name}: response`);
+    }}));
+  };
+}
+
+export const authInterceptor = traced('auth');
+export const correlationInterceptor = traced('correlation');
+
+export const httpProviders = provideHttpClient(withInterceptors([
+  authInterceptor,
+  correlationInterceptor,
+]));
+```
+
+For one successful response, the observable ordering is `auth request → correlation request → backend → correlation response → auth response`. If `authInterceptor` returns a synthetic error or cached response without calling `next`, neither `correlationInterceptor` nor the backend runs. Put security-sensitive allowlisting before credential attachment, and test exact order because moving retry, cache, metrics or error translation changes semantics.
+
+### Example 2 — one server DOM, delayed interactivity and replay
+
+Current Angular 22 documentation enables incremental hydration with `provideClientHydration()`; opting out is explicit. A hydrate trigger keeps the server-rendered purchase control visible but delays the client boundary until interaction.
+
+```typescript
+import {bootstrapApplication, provideClientHydration} from '@angular/platform-browser';
+
+bootstrapApplication(App, {
+  providers: [provideClientHydration()],
+});
+```
+
+```html
+@defer (on idle; hydrate on interaction) {
+  <purchase-panel [productId]="productId" />
+} @placeholder {
+  <div class="purchase-skeleton" aria-hidden="true"></div>
+}
+```
+
+On the initial SSR load, the server renders the main purchase panel. The browser initially displays that real DOM without the client component being hydrated. A supported interaction can be captured, triggers hydration of this boundary (and any dehydrated ancestor), and is replayed after listeners exist. On a later client-side route navigation, there is no server boundary to hydrate, so the ordinary `on idle` trigger controls rendering. The placeholder remains necessary for that CSR path.
+
+Four outcomes make the contract concrete:
+
+| Case | Server/client condition | Expected result |
+|---|---|---|
+| Matching DOM | Same valid structure and configuration | Existing nodes are claimed; listener becomes active |
+| Early click | Supported event before boundary hydration | Event is queued and replayed once; business idempotency still applies |
+| Invalid table | Browser inserts an omitted `<tbody>` | Node mismatch in development; fix the markup rather than normalizing with a timer |
+| Script mutation | A third-party script moves/adds nodes before hydration | Hydration can fail; defer the script or isolate/refactor the boundary |
+
+### Example 3 — strict templates and style boundaries solve different problems
+
+Strict template checking rejects an incompatible binding at build time. Encapsulation decides how the resulting DOM is styled at runtime.
+
+```typescript
+import {Component, ViewEncapsulation, input} from '@angular/core';
+
+@Component({
+  selector: 'price-badge',
+  template: `<strong>{{ amount().toFixed(2) }}</strong>`,
+  styles: [`strong { color: var(--price-color, #075985); }`],
+  encapsulation: ViewEncapsulation.Emulated,
+})
+export class PriceBadge {
+  readonly amount = input.required<number>();
+}
+```
+
+With `strictTemplates: true`, `<price-badge [amount]="order.totalLabel" />` fails when `totalLabel` is a `string`; the compiler does not wait for `.toFixed` to fail in a browser. Under `Emulated`, Angular scopes the compiled `strong` selector with generated attributes, but the host remains in the normal DOM and a global `strong { font-weight: 400 }` rule can still participate in the cascade. Switching to `ShadowDom` creates a shadow root: document selectors no longer reach internal `strong`, and consumers need deliberate CSS custom properties, `::part` contracts or other supported theming APIs. That change can also affect tests, projections and event/query assumptions; it is not a cosmetic toggle.
+
+### Example 4 — contain an imperative, ZoneJS-era event source
+
+Templates and host bindings should handle ordinary DOM behavior. When an imperative high-frequency API is unavoidable, initialize it after browser rendering, register through `Renderer2`, keep raw events outside ZoneJS-driven checks, and re-enter only for a bounded meaningful update.
+
+```typescript
+import {
+  DestroyRef, Directive, ElementRef, NgZone, Renderer2,
+  afterNextRender, inject, signal,
+} from '@angular/core';
+
+@Directive({selector: 'canvas[pointerSample]'})
+export class PointerSampleDirective {
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly element = inject(ElementRef<HTMLCanvasElement>);
+  private readonly renderer = inject(Renderer2);
+  private readonly zone = inject(NgZone);
+  readonly latestX = signal(0);
+
+  constructor() {
+    afterNextRender(() => {
+      let frame = 0;
+      let pendingX = 0;
+      const remove = this.zone.runOutsideAngular(() =>
+        this.renderer.listen(this.element.nativeElement, 'pointermove', (event: PointerEvent) => {
+          pendingX = event.offsetX;
+          if (frame) return;
+          frame = requestAnimationFrame(() => {
+            frame = 0;
+            this.zone.run(() => this.latestX.set(pendingX));
+          });
+        })
+      );
+
+      this.destroyRef.onDestroy(() => {
+        remove();
+        if (frame) cancelAnimationFrame(frame);
+      });
+    });
+  }
+}
+```
+
+The request-animation-frame gate changes `e` pointer events into at most `f` visible updates, where `f` is the rendered-frame count. In a zoneless host, `NgZone.run` does not provide the notification; the signal write does. Keeping `NgZone` here is a compatibility adapter for a shared ZoneJS/zoneless library, not a requirement for new declarative component code. This example is intentionally browser-only and scheduled by `afterNextRender`; server output must already be correct without it.
+
+### Delivery-to-interaction trace
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant B as Browser DOM
+  participant H as Hydrator
+  participant C as Component boundary
+  participant A as API chain
+  H->>B: Match server annotations and DOM
+  alt structure mismatch
+    H-->>B: Report hydration mismatch
+  else structure matches
+    U->>B: Early supported event
+    B->>H: Capture event
+    H->>C: Hydrate boundary and ancestors
+    H->>C: Replay captured event
+    C->>A: Request through ordered interceptors
+    A-->>C: Response unwinds in reverse
+  end
+```
+
+This is a sequence of distinct guarantees. DOM matching permits reuse; event replay bridges a listener-timing gap; incremental hydration chooses when a boundary becomes interactive; interceptor ordering governs a later HTTP observable. None of them substitutes for idempotency, authorization, valid HTML or backend integrity.
+
+### Invariants, costs and common failures
+
+- **Chain invariant:** every interceptor either delegates exactly once with an intentional request or deliberately short-circuits. Registration order and retry location are test-visible API behavior.
+- **Hydration invariant:** server and client produce the same valid Angular-owned DOM structure until it is claimed. Event replay preserves eligible interaction; it cannot reconcile divergent structure.
+- **Boundary invariant:** a dehydrated child cannot become interactive before required dehydrated ancestors. Initial-load hydrate triggers and later CSR render triggers are separate clocks.
+- **Type invariant:** every template expression is assignable in its narrowed embedded-view context. Compile-time compatibility does not validate prices, permissions or other domain facts.
+- **Style invariant:** Emulated provides generated-selector scoping; Shadow DOM provides a native tree/style boundary. Neither is a security mechanism.
+- **Imperative-work invariant:** the owner chooses browser timing, notification, teardown and event-rate policy. `Renderer2` abstracts operations; it does not choose those policies.
+- **Scheduler invariant:** in zoneless mode, visible state changes must reach an Angular notification path. `NgZone.run` alone is not that path.
+
+For `k` interceptors, one fully delegated request and each response notification cross O(`k`) wrappers, plus backend and payload processing; repeated retries multiply downstream work after the retry position. Hydration must inspect/claim O(`d`) relevant DOM nodes and retain framework metadata proportional to the hydrated tree; incremental hydration defers a subset of client code/work rather than eliminating eventual work. Event replay retains O(`r`) queued event records until their boundaries hydrate, so long-lived dehydrated interactive areas require product and memory scrutiny. Strict template checking adds build-time work roughly proportional to generated template type-check code but removes an entire class of browser-only feedback. Emulated CSS adds generated scoping attributes/selectors to component output; Shadow DOM adds a shadow root per host and browser-native boundary costs. The pointer adapter processes O(`e`) raw events but schedules at most O(`f`) state writes with O(1) retained latest state.
+
+**Common failures:** assuming response order matches request order; registering DI interceptors across injector layers and claiming a deterministic order; retrying after auth refresh at the wrong chain position; using event replay as duplicate-payment protection; hiding a mismatch with `ngSkipHydration` permanently; branching server/client templates on browser globals; assuming incremental hydration affects later CSR navigation; depending on HMR-preserved state; disabling all strict template checks for one bad library type; calling Emulated “Shadow DOM”; expecting global CSS to style Shadow DOM internals; using `Renderer2` for work a binding expresses; mutating DOM before hydration; leaking the function returned by `listen`; using `NgZone.run` as a zoneless change notification; and optimizing event frequency before measuring it.
+
+### Verification drill
+
+1. **HTTP chain:** configure three named functional interceptors, flush one request and assert forward request/reverse response logs. Move retry around metrics/auth and assert the changed attempt counts. Add a short-circuit and prove later interceptors/backend do not run.
+2. **Hydration:** render the same route on server/client and assert no NG05xx error plus node reuse. Then introduce invalid table structure, pre-hydration native DOM mutation and configuration-dependent branching one at a time; each test must fail for the intended reason. Cover early replay once and a duplicate-submit idempotency key separately.
+3. **Incremental boundary:** assert SSR contains the main block, the client initially leaves it dehydrated, interaction hydrates ancestors then child, and the captured event runs after attachment. Navigate to the same block through CSR and prove the ordinary render trigger—not the hydrate trigger—controls it.
+4. **Compiler/styles:** keep a compile-test fixture where a `string` cannot bind to `input.required<number>()`; cover nullability and an embedded `@for` variable. In a real browser, verify Emulated-generated attributes, then run a Shadow DOM variant and assert a document selector cannot reach the internal element while the documented theming token can.
+5. **Imperative adapter:** dispatch many pointer events in one frame and assert one state update with the latest coordinate. Destroy before/after a scheduled frame and assert listener/frame cleanup. Run the behavior suite in ZoneJS and zoneless hosts; prove the signal write updates both and that removing the notification fails the zoneless test.
+
+The document validator can prove payload, anchors, code-fence balance and reader JavaScript syntax. This repository still has no Angular application workspace, SSR server, browser runner or pinned package install, so `ng build`, template compilation, TestBed/HTTP execution, hydration/event-replay tests, HMR observation, Shadow DOM browser assertions and dual-mode ZoneJS/zoneless execution remain explicit unexecuted checks.
+
+**Primary references (reviewed 2026-10-14):** Angular's [HTTP interceptor guide](https://angular.dev/guide/http/interceptors) and [HTTP client setup](https://angular.dev/guide/http/setup); [hydration guide](https://angular.dev/guide/hydration), [NG0500 mismatch reference](https://angular.dev/errors/NG0500) and [incremental hydration guide](https://angular.dev/guide/incremental-hydration); [application build-system/HMR guide](https://angular.dev/tools/cli/build-system-migration) and [`ng serve`](https://angular.dev/cli/serve); [strict template-checking guide](https://angular.dev/tools/cli/template-typecheck); [component styling](https://angular.dev/guide/components/styling) and [`ViewEncapsulation`](https://angular.dev/api/core/ViewEncapsulation); [`Renderer2`](https://angular.dev/api/core/Renderer2), [`NgZone`](https://angular.dev/api/core/NgZone), [zoneless guide](https://angular.dev/guide/zoneless) and [`afterNextRender`](https://angular.dev/api/core/afterNextRender). The ladder, examples, outcomes, trace, invariants, cost derivation and test design are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -8966,8 +9160,8 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected through Q1–Q74 and rapid-fire items 1–20. The latest bounded pass covered Markdown lines 1580–1618 and DOCX extracted lines 1058–1077, with item 21 at Markdown line 1620 / DOCX line 1078 as the next boundary. The ten new paired answers agree. This edition consolidates items 11–20 into a retrieval-oriented answer ladder with four connected examples, a route-to-form trace, invariants, cost derivations, verification drills and deep links to the richer Q1–Q74 chapters rather than duplicating them. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
-- Code snippets and traces were checked conceptually against the linked current Angular sources. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI build, TypeScript/template compilation, TestBed/router execution, controlled-browser focus/DOM-reuse test, SSR test or live server call was executed** during this source-comparison pass.
+- Both **actual Library source texts** were inspected through Q1–Q74 and rapid-fire items 1–30. The latest bounded pass covered Markdown lines 1620–1658 and DOCX extracted lines 1078–1097, with item 31 at Markdown line 1660 / DOCX line 1098 as the next boundary. The ten paired answers agree. This edition consolidates items 21–30 into a retrieval-oriented answer ladder with four connected examples, a delivery-to-interaction trace, invariants, cost derivations, verification drills and deep links to the richer Q1–Q74 chapters rather than duplicating them. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Code snippets and traces were checked conceptually against the linked current Angular sources. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI build, TypeScript/template compilation, TestBed/HTTP execution, SSR/hydration/event-replay run, HMR observation, Shadow DOM browser assertion or dual-mode ZoneJS/zoneless test was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-12): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), [Signals/computed](https://angular.dev/guide/signals#computed-signals-are-both-lazily-evaluated-and-memoized), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
@@ -8998,6 +9192,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular dual-runtime library material (reviewed 2026-10-14): [zoneless compatibility and testing](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`NgZone`](https://angular.dev/api/core/NgZone), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), [`PendingTasks`](https://angular.dev/api/core/PendingTasks), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [Angular Package Format](https://angular.dev/tools/libraries/angular-package-format). Current Angular 22.2.2 guidance defines explicit zoneless notification paths, explains the dynamic user-component host exception, warns against zone-state event streams, preserves `NgZone.run`/`runOutsideAngular` compatibility, makes TestBed zoneless by default, and requires Angular packages as peers plus supported partial-Ivy publication. The matrices, adapter, examples, trace, verification strategy, invariants, proof and cost model are added teaching material.
 - Official Angular rapid-fire items 1–10 material (reviewed 2026-10-14): [`@for` and `@empty`](https://angular.dev/guide/templates/control-flow), [`@let`](https://angular.dev/guide/templates/variables), [`DestroyRef`](https://angular.dev/api/core/DestroyRef), [`WritableSignal`](https://angular.dev/api/core/WritableSignal), [signals](https://angular.dev/guide/signals), [OnPush subtree skipping](https://angular.dev/best-practices/skipping-subtrees), [dependency providers](https://angular.dev/guide/di/defining-dependency-providers), [`InjectionToken`](https://angular.dev/api/core/InjectionToken), [services](https://angular.dev/guide/di/creating-and-using-services), [data resolvers](https://angular.dev/guide/routing/data-resolvers), and [`ResolveFn`](https://angular.dev/api/router/ResolveFn). Current documentation defines stable-key reconciliation, empty fallbacks, view-scoped nonassignable `@let`, destruction-scope cleanup, shallow readonly signals, token object identity, root environment provision and the resolver activation gate. The answer ladder, examples, trace, tests and costs are added teaching material.
 - Official Angular/RxJS rapid-fire items 11–20 material (reviewed 2026-10-14): Angular's [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [customizing route behavior](https://angular.dev/guide/routing/customizing-route-behavior), [route guards](https://angular.dev/guide/routing/route-guards), [`FormGroup`](https://angular.dev/api/forms/FormGroup), [`FormArray`](https://angular.dev/api/forms/FormArray), [`ControlValueAccessor`](https://angular.dev/api/forms/ControlValueAccessor) and [`NG_VALUE_ACCESSOR`](https://angular.dev/api/forms/NG_VALUE_ACCESSOR); RxJS [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), [`take`](https://rxjs.dev/api/operators/take), [`first`](https://rxjs.dev/api/operators/first), [`debounceTime`](https://rxjs.dev/api/operators/debounceTime), [`distinctUntilChanged`](https://rxjs.dev/api/operators/distinctUntilChanged), [`tap`](https://rxjs.dev/api/operators/tap), [`catchError`](https://rxjs.dev/api/operators/catchError), [`finalize`](https://rxjs.dev/api/operators/finalize), and the current [`shareReplay` source](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/shareReplay.ts). Current contracts distinguish code preloading from activation, UX guards from authorization, cancellation from success, keyed and ordered form collections, and the model/view directions of a value accessor. The answer ladder, examples, trace, tests and costs are added teaching material; RxJS reset details remain package-version-sensitive.
+- Official Angular rapid-fire items 21–30 material (reviewed 2026-10-14): [HTTP interceptors](https://angular.dev/guide/http/interceptors), [HTTP client setup](https://angular.dev/guide/http/setup), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), [NG0500](https://angular.dev/errors/NG0500), [application build system and HMR](https://angular.dev/tools/cli/build-system-migration), [strict template checking](https://angular.dev/tools/cli/template-typecheck), [component styling](https://angular.dev/guide/components/styling), [`ViewEncapsulation`](https://angular.dev/api/core/ViewEncapsulation), [`Renderer2`](https://angular.dev/api/core/Renderer2), [`NgZone`](https://angular.dev/api/core/NgZone), [zoneless](https://angular.dev/guide/zoneless) and [`afterNextRender`](https://angular.dev/api/core/afterNextRender). Current Angular 22.2.2 documentation defines functional interceptor order, exact-DOM hydration constraints, event replay, default incremental hydration with an explicit opt-out, builder-scoped HMR, template type checks, generated versus native style boundaries, imperative-renderer operations and scheduler-neutral explicit notifications. The ladder, examples, outcome matrix, trace, tests and costs are added teaching material.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded rapid-fire items 21–30 in both sources, beginning at Markdown line 1620 and DOCX extracted line 1078. Resolve the exact item-30 boundary before reading beyond it, consolidate against the richer canonical chapters rather than duplicating them, and keep extending this one canonical guide.
+- **Next:** continue with the final bounded rapid-fire items 31–39 in both sources, beginning at Markdown line 1660 and DOCX extracted line 1098. Resolve the exact end-of-bank boundary before processing the following revision sheet, consolidate against the richer canonical chapters rather than duplicating them, and keep extending this one canonical guide.
 
