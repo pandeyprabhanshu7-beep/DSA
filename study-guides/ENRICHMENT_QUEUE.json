@@ -692,7 +692,7 @@
         "baseline_main_head": "df1414a3ed9a601e60f6d902186dec8122e8a736"
       },
       "validation": "Q73 compared both source texts and adds a four-layer identity model, typed nested-copy transition, four examples, reference/rendering trace, no-op and version policy, tests, proof and derived costs; independent Node checks passed 20000 seeded randomized trials and 120003 assertions. Deterministic builder and exact 552884-character HTML embedded-Markdown equality passed with 74 unique anchors, 238 balanced fenced blocks and 54 Mermaid diagrams; inline JavaScript, JSON, relative-link and live 170-marker checks passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution and controlled-browser focus/reorder testing were not performed because the project runtime/browser are absent.",
-      "last_successful_commit": "5b0349441ee15bc07e6fcec1b355426f8e9ad978"
+      "last_successful_commit": "26b332267ec86d23e4f52e019b5be7071038b46f"
     },
     {
       "id": "javascript-html-css",
@@ -874,7 +874,7 @@
     "validation": "Angular Q73 was compared in both actual source texts and enriched with a four-layer identity model, typed nested-copy transition, four examples, reference/rendering trace, no-op and version policy, tests, proof and derived costs; independent Node checks passed 20000 seeded randomized trials and 120003 assertions. Deterministic reader generation, exact 552884-character payload equality, 74 anchors, 238 balanced fences, 54 Mermaid diagrams, inline JavaScript, JSON, relative links and live 170-marker audit passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution and controlled-browser focus/reorder testing were not performed because the project runtime/browser are absent.",
     "estimated_next_tokens": 8300,
     "estimate_method": "Heuristic only: bounded Q74 begins at Markdown anchor line 1522 / heading line 1524 and DOCX extracted line 1026; reserve ~700 tokens for paired source range resolution, ~1300 for current primary Angular compatibility research, ~4000 for distinct teaching/code/diagram/HTML, and ~2300 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "5b0349441ee15bc07e6fcec1b355426f8e9ad978",
+    "last_successful_commit": "26b332267ec86d23e4f52e019b5be7071038b46f",
     "last_processed_at": "2026-10-14T04:38:05-04:00",
     "next_batch_decision": "Q73 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q74 and retain the conservative one-section checkpoint."
   }

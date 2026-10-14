@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "5b0349441ee15bc07e6fcec1b355426f8e9ad978",
+  "last_successful_commit": "26b332267ec86d23e4f52e019b5be7071038b46f",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -864,9 +864,9 @@
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
     "processed": "Q1–Q73; latest bounded source ranges are Markdown lines 1498-1521 and DOCX extracted lines 1009-1025 for Q73",
-    "status": "VALIDATED_PENDING_PUBLISH",
+    "status": "PUBLISHED",
     "validation": "Q73 adds a four-layer identity model, typed nested-copy transition, four examples, reference/rendering trace, no-op and version policy, tests, proof and derived costs; independent Node checks passed 20000 seeded randomized trials and 120003 assertions; deterministic builder and exact 552884-character payload equality passed with 74 unique anchors, 238 balanced fences and 54 Mermaid diagrams; inline JavaScript, JSON, relative-link and live 170-marker checks passed; Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution and controlled-browser focus/reorder testing were not performed because the project runtime/browser are absent",
-    "content_commit": null,
+    "content_commit": "26b332267ec86d23e4f52e019b5be7071038b46f",
     "estimated_next_tokens": 8300,
     "estimate_method": "Heuristic from bounded Q74 starting at Markdown anchor line 1522 / heading line 1524 and DOCX extracted line 1026, plus paired source range resolution, primary Angular compatibility research, distinct explanation/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
