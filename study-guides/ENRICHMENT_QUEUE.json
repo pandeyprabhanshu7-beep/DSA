@@ -220,7 +220,7 @@
       "size_bytes": 74372,
       "status": "READY",
       "last_read_at": "2026-10-14",
-      "selection": "Q1–Q74 plus rapid-fire items 1–30 read and compared; items 31–39 remain unpromoted"
+      "selection": "Q1–Q74 plus rapid-fire items 1–39 read and compared; Final Revision Sheet remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
@@ -342,7 +342,7 @@
       "size_bytes": 62355,
       "status": "READY",
       "last_read_at": "2026-10-14",
-      "selection": "Q1–Q74 plus rapid-fire items 1–30 read and compared; items 31–39 remain unpromoted"
+      "selection": "Q1–Q74 plus rapid-fire items 1–39 read and compared; Final Revision Sheet remains unpromoted"
     },
     {
       "name": "JavaScript_HTML_CSS_Interview_Workbook.docx",
@@ -642,8 +642,8 @@
         "Angular_Interview_Mermaid_Workbook.md",
         "Angular_Interview_Workbook.docx"
       ],
-      "last_processed_at": "2026-10-14T16:07:00-04:00",
-      "next_action": "Continue with the final bounded rapid-fire Angular bank items 31-39. They begin at Markdown line 1660 and DOCX extracted line 1098; resolve the exact end-of-bank boundary in both sources before processing the following revision sheet, consolidate against the richer canonical chapters rather than duplicating them, and merge only distinct teaching value.",
+      "last_processed_at": "2026-10-14T16:16:21-04:00",
+      "next_action": "Angular Q1-Q74 and rapid-fire items 1-39 are promoted. The Final Revision Sheet begins at Markdown line 1696 / DOCX extracted line 1118 and remains unprocessed; rotate fairly to the confirmed JavaScript/HTML/CSS source pair before the next Angular pass.",
       "priority": 15,
       "processed_sections": [
         "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)",
@@ -686,16 +686,17 @@
         "ZoneJS/zoneless library compatibility: Q74 (application-owned scheduler choice, explicit notification paths, typed external-callback adapter, dynamic-host and SSR/render constraints, packaging matrix, cross-mode testing, proof and derived costs)",
         "Rapid-fire bank items 1-10 (retrieval-oriented answer ladder for track/@empty/@let, DestroyRef, readonly signals, immutable updates, DI tokens/root scope and resolver risk; four connected examples, lifecycle trace, invariants, tests and derived costs linked to Q1-Q74)",
         "Rapid-fire bank items 11-20 (retrieval-oriented answer ladder for preloading, CanDeactivate, shareReplay, take/first, debounce/distinct, tap, catchError/finalize and reactive-form/CVA contracts; four connected examples, route-to-form trace, invariants, tests and derived costs linked to Q1-Q74)",
-        "Rapid-fire bank items 21-30 (retrieval-oriented answer ladder for interceptor order, hydration mismatch/event replay/incremental hydration, HMR, strict templates, Emulated/ShadowDom, Renderer2 and NgZone; four connected examples, delivery-to-interaction trace, invariants, tests and derived costs linked to Q1-Q74)"
+        "Rapid-fire bank items 21-30 (retrieval-oriented answer ladder for interceptor order, hydration mismatch/event replay/incremental hydration, HMR, strict templates, Emulated/ShadowDom, Renderer2 and NgZone; four connected examples, delivery-to-interaction trace, invariants, tests and derived costs linked to Q1-Q74)",
+        "Rapid-fire bank items 31-39 (retrieval-oriented answer ladder for runOutsideAngular, facades, template policy/cost, virtual scrolling, route rendering modes, transfer cache, DevTools and version alignment; four connected examples, request-to-profile trace, invariants, tests and derived costs linked to Q1-Q74)"
       ],
       "source_revision": {
         "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
-        "source_markdown_lines": "1620-1658 for rapid-fire items 21-30, bounded by item 31 at line 1660; earlier Q1-Q74 and rapid-fire items 1-20 retained",
-        "source_docx": "Angular_Interview_Workbook.docx extracted lines 1078-1097 for rapid-fire items 21-30, bounded by item 31 at line 1098",
+        "source_markdown_lines": "1660-1694 for rapid-fire items 31-39, bounded by the Final Revision Sheet anchor at line 1696; earlier Q1-Q74 and rapid-fire items 1-30 retained",
+        "source_docx": "Angular_Interview_Workbook.docx extracted lines 1098-1115 for rapid-fire items 31-39, bounded by the Final Revision Sheet at line 1118",
         "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-14",
-        "baseline_main_head": "e53d489615bb97fb58d6c265006e56f03a8313d3"
+        "baseline_main_head": "6c948164fcc9edb34618d0b2c06735a9844f6cdf"
       },
-      "validation": "Rapid-fire items 21-30 were compared in both source texts and consolidated into an answer ladder with four connected examples, a delivery-to-interaction trace, invariants, verification drills and derived costs while linking to the richer Q1-Q74 chapters. Deterministic reader generation and exact 626901-character HTML embedded-Markdown equality passed with 78 unique anchors, 259 balanced fenced blocks and 58 Mermaid diagrams; inline JavaScript, JSON, fragment targets, local README source hash, selected-file diff and live 170-marker checks passed. Angular CLI build, TypeScript/template compilation, TestBed/HTTP execution, SSR/hydration/event-replay tests, HMR observation, Shadow DOM browser assertions and dual-mode ZoneJS/zoneless tests were not performed because the Angular application runtime/browser are absent.",
+      "validation": "Rapid-fire items 31-39 were compared in both source texts and consolidated into an answer ladder with four connected examples, a request-to-profile trace, invariants, verification drills and derived costs while linking to the richer Q1-Q74 chapters. Deterministic reader generation and exact 648428-character HTML embedded-Markdown equality passed with 79 unique anchors, 267 balanced fenced blocks and 59 Mermaid diagrams; inline JavaScript, JSON, fragment targets, relative links, local README source hash, selected-file diff and live 170-marker checks passed. Remote blob equality remains pending publication. Angular CLI build, TypeScript/template compilation, TestBed/CDK viewport execution, SSR/transfer-cache tests, browser/DevTools profiling and ng update were not performed because the Angular workspace/runtime/browser/package graph are absent.",
       "last_successful_commit": "6c244f97c0c80a6367f49a911b4ac7ebff030268"
     },
     {
@@ -829,7 +830,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q74 plus rapid-fire items 1-30 are processed. Continue with the final bounded Angular rapid-fire items 31-39, starting at Markdown line 1660 and DOCX extracted line 1098; resolve the exact end-of-bank boundary before processing the following revision sheet and consolidate against the richer canonical answers rather than duplicating them.",
+    "next_action": "Core advanced-tree sections 1-10 and Angular Q1-Q74 plus rapid-fire items 1-39 are processed. Rotate fairly to the confirmed JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md + JavaScript_HTML_CSS_Interview_Workbook.docx pair; resolve and compare only the first bounded question group before creating or extending one canonical frontend guide. The Angular Final Revision Sheet remains queued for a later pass.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -875,11 +876,11 @@
       "Advanced trees section 1: Tree Mental Model & Taxonomy (merged into canonical BT-1 and BT-3)"
     ],
     "processed_section": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md lines 24-196; source SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1; distinct material merged into canonical BT-1 and BT-3 rather than creating a duplicate module",
-    "validation": "Rapid-fire items 21-30 were compared in both actual source texts and consolidated into the canonical Angular guide as a retrieval-oriented answer ladder with four examples, a delivery-to-interaction trace, invariants, verification drills and derived costs. Deterministic reader generation and exact 626901-character payload equality passed with 78 unique anchors, 259 balanced fences, 58 Mermaid diagrams, inline JavaScript, JSON, fragment targets, local README source hash, selected-file diff and live 170-marker checks. Angular CLI build, TypeScript/template compilation, TestBed/HTTP execution, SSR/hydration/event-replay tests, HMR observation, Shadow DOM browser assertions and dual-mode ZoneJS/zoneless tests were not performed because the Angular application runtime/browser are absent.",
-    "estimated_next_tokens": 7400,
-    "estimate_method": "Heuristic only: rapid-fire items 31-39 begin at Markdown line 1660 and DOCX extracted line 1098; reserve ~900 tokens for bounded paired-source range resolution, ~1500 for targeted primary-source refresh, ~3000 for distinct consolidation/teaching/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
+    "validation": "Rapid-fire items 31-39 were compared in both actual source texts and consolidated into the canonical Angular guide as a retrieval-oriented answer ladder with four examples, a request-to-profile trace, invariants, verification drills and derived costs. Deterministic reader generation and exact 648428-character payload equality passed with 79 unique anchors, 267 balanced fences, 59 Mermaid diagrams, inline JavaScript, JSON, fragment targets, relative links, local README source hash, selected-file diff and live 170-marker checks. Remote blob equality remains pending publication. Angular CLI build, TypeScript/template compilation, TestBed/CDK viewport execution, SSR/transfer-cache tests, browser/DevTools profiling and ng update were not performed because the Angular workspace/runtime/browser/package graph are absent.",
+    "estimated_next_tokens": 7800,
+    "estimate_method": "Heuristic only: reserve ~1200 tokens to resolve and compare the first bounded JavaScript/HTML/CSS question group across paired sources, ~1600 for current primary references, ~3000 for consolidation/examples/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
     "last_successful_commit": "6c244f97c0c80a6367f49a911b4ac7ebff030268",
-    "last_processed_at": "2026-10-14T16:07:00-04:00",
-    "next_batch_decision": "Rapid-fire items 21-30 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before items 31-39 and retain the conservative one-section checkpoint."
+    "last_processed_at": "2026-10-14T16:16:21-04:00",
+    "next_batch_decision": "Rapid-fire items 31-39 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before the JavaScript/HTML/CSS source-resolution pass and retain the conservative one-section checkpoint."
   }
 }

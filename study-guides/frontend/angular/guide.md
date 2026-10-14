@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q74 + rapid-fire 1–30)
+# Angular 22 — Interview Foundations (Q1–Q74 + rapid-fire 1–39)
 
-> **Current bounded edition, 2026-10-14.** Reconciled `Angular_Interview_Mermaid_Workbook.md` through rapid-fire items 1–30 (lines 1536–1658, bounded by item 31 at line 1660) with the corresponding `Angular_Interview_Workbook.docx` text (extracted lines 1037–1097, bounded by item 31 at line 1098). The paired sources agree. Q1–Q74 remain the deep canonical explanations; the three rapid-fire modules add retrieval-oriented answer ladders, connected examples, state traces, invariants, tests and explicit links back to the deep chapters instead of duplicating them. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-14.** Reconciled `Angular_Interview_Mermaid_Workbook.md` through rapid-fire items 1–39 (lines 1536–1694, bounded by the Final Revision Sheet at line 1696) with the corresponding `Angular_Interview_Workbook.docx` text (extracted lines 1037–1115, bounded by the Final Revision Sheet at line 1118). The paired sources agree. Q1–Q74 remain the deep canonical explanations; the four rapid-fire modules add retrieval-oriented answer ladders, connected examples, state traces, invariants, tests and explicit links back to the deep chapters instead of duplicating them. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -81,6 +81,7 @@
 - [Rapid-fire drill 1: items 1–10](#rapid-fire-1)
 - [Rapid-fire drill 2: items 11–20](#rapid-fire-2)
 - [Rapid-fire drill 3: items 21–30](#rapid-fire-3)
+- [Rapid-fire drill 4: items 31–39](#rapid-fire-4)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -9147,6 +9148,259 @@ The document validator can prove payload, anchors, code-fence balance and reader
 
 **Primary references (reviewed 2026-10-14):** Angular's [HTTP interceptor guide](https://angular.dev/guide/http/interceptors) and [HTTP client setup](https://angular.dev/guide/http/setup); [hydration guide](https://angular.dev/guide/hydration), [NG0500 mismatch reference](https://angular.dev/errors/NG0500) and [incremental hydration guide](https://angular.dev/guide/incremental-hydration); [application build-system/HMR guide](https://angular.dev/tools/cli/build-system-migration) and [`ng serve`](https://angular.dev/cli/serve); [strict template-checking guide](https://angular.dev/tools/cli/template-typecheck); [component styling](https://angular.dev/guide/components/styling) and [`ViewEncapsulation`](https://angular.dev/api/core/ViewEncapsulation); [`Renderer2`](https://angular.dev/api/core/Renderer2), [`NgZone`](https://angular.dev/api/core/NgZone), [zoneless guide](https://angular.dev/guide/zoneless) and [`afterNextRender`](https://angular.dev/api/core/afterNextRender). The ladder, examples, outcomes, trace, invariants, cost derivation and test design are added teaching material.
 
+<a id="rapid-fire-4"></a>
+## Rapid-fire drill 4 — ownership, rendering and performance operations (items 31–39)
+
+Start with the compact answer, then state who owns the policy. These final cards connect runtime scheduling, application boundaries, template cost, DOM scale, server delivery, hydration reuse, diagnosis and upgrades. They are a recall layer over the deeper chapters, not nine competing architectures.
+
+| # | Prompt | 15-second answer | Boundary that prevents a shallow answer | Deep links |
+|---:|---|---|---|---|
+| 31 | What is `runOutsideAngular`? | In a ZoneJS application it starts work in Angular's parent zone so the work and async tasks it schedules do not trigger zone-driven change detection; call `run` only when a meaningful application update must re-enter. | It is a legacy-compatible optimization boundary, not a zoneless notification API. In zoneless mode the visible update still needs a signal write, `markForCheck`, `AsyncPipe`, an input/listener update or another documented notification. | [Q21](#q21), [Q22](#q22), [Q58](#q58), [Q74](#q74) |
+| 32 | What is a facade? | A facade is a feature-facing API that hides store, service and transport details behind state queries and named commands chosen for its consumers. | It is an application pattern, not an Angular primitive. Keep domain policy below it, avoid pass-through methods for every dependency, and scope it to the state lifetime it owns. | [Q43](#q43), [Q44](#q44), [Q50](#q50), [Q51](#q51) |
+| 33 | Why avoid business logic in templates? | Templates should declaratively bind already modeled state; business rules in expressions are harder to type, unit-test, reuse and reason about, and they run in the rendering path. | Small presentation expressions are normal. Move policy and expensive derivation to typed domain/facade code or `computed`; do not replace clear bindings with an all-knowing component. | [Q4](#q4), [Q15](#q15), [Q44](#q44), [Q50](#q50) |
+| 34 | Why avoid function calls in hot templates? | Angular may evaluate a template call whenever that view is checked, so a call can repeatedly allocate, sort, filter or trigger accidental side effects. | A tiny pure getter is not automatically a problem—profile first. For signal-derived data, `computed` gives explicit dependencies plus lazy memoization; pure pipes are another input-keyed option. | [Q13](#q13), [Q15](#q15), [Q48](#q48), [Q72](#q72) |
+| 35 | What is virtual scrolling? | It maintains the full logical scroll range but renders only a moving viewport window plus buffer, bounding live DOM work for a large collection. | It does not reduce API payload, client filtering or accessibility/keyboard design by itself. Stable identity, item-size strategy, focus restoration and real-browser tests remain required. | [Q48](#q48), [Q61](#q61), [Q72](#q72), [Q73](#q73) |
+| 36 | What is route-level rendering mode? | A `ServerRoute` can choose per URL whether Angular renders on each request (`Server`), at build time (`Prerender`) or in the browser (`Client`). | The choice is a route delivery policy, not a component change-detection mode. Base it on SEO, personalization, freshness, server cost, build cardinality and browser-only dependencies. | [Q46](#q46), [Q47](#q47), [Q67](#q67), [Q68](#q68) |
+| 37 | What is transfer cache? | During SSR Angular can serialize eligible `HttpClient` responses into the document so client hydration reuses them instead of repeating the same initial request. | It is a one-transition server-to-browser reuse mechanism, not a general application cache. Current defaults exclude credentialed/private/no-cache responses; keep user-specific data out unless isolation is proved. | [Q46](#q46), [Q47](#q47), [Q57](#q57), [Q71](#q71) |
+| 38 | What is Angular DevTools useful for? | It inspects component/directive state and injector/router trees, profiles change-detection work, and visualizes/debugs signal dependencies in a running development build. | A profile is evidence from the recorded journey, not proof of every workload. Reproduce production-sized data, separate scripting/layout/network costs, change one variable and re-measure. | [Q48](#q48), [Q61](#q61), [Q72](#q72) |
+| 39 | How should Angular versions align? | Since Angular 9, framework and CLI major versions are synchronized; update `@angular/core` and `@angular/cli` together with `ng update` and honor the official Node, TypeScript and RxJS compatibility table. | Major equality alone is insufficient: library peer ranges, builders, Angular Material/CDK, TypeScript, Node and migrations must also be supported. Upgrade one major step at a time and validate behavior. | [Q4](#q4), [Q56](#q56), [Q62](#q62), [Q74](#q74) |
+
+### Example 1 — a facade owns feature semantics; `NgZone` owns only a legacy boundary
+
+The facade gives components a stable vocabulary: `orders`, `visibleOrders`, `setQuery` and `connect`. It does not expose a socket, mutable signal or `NgZone`. A noisy legacy feed is adapted outside the Angular zone; only a coalesced accepted snapshot re-enters, and the signal write is the notification that also works in a zoneless host.
+
+```typescript
+import {DestroyRef, Injectable, NgZone, computed, inject, signal} from '@angular/core';
+
+type Order = Readonly<{id: string; customer: string; total: number}>;
+type RemoveListener = () => void;
+interface LegacyOrderFeed {
+  onSnapshot(listener: (orders: readonly Order[]) => void): RemoveListener;
+}
+
+@Injectable()
+export class OrdersFacade {
+  private readonly zone = inject(NgZone);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly state = signal<readonly Order[]>([]);
+  private readonly query = signal('');
+
+  readonly orders = this.state.asReadonly();
+  readonly visibleOrders = computed(() => {
+    const needle = this.query().trim().toLocaleLowerCase();
+    return needle === ''
+      ? this.state()
+      : this.state().filter(order => order.customer.toLocaleLowerCase().includes(needle));
+  });
+
+  setQuery(value: string): void {
+    this.query.set(value);
+  }
+
+  connect(feed: LegacyOrderFeed): void {
+    this.zone.runOutsideAngular(() => {
+      let frame = 0;
+      let latest: readonly Order[] = [];
+      const remove = feed.onSnapshot(orders => {
+        latest = orders;
+        if (frame !== 0) return;
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          this.zone.run(() => this.state.set(latest));
+        });
+      });
+
+      this.destroyRef.onDestroy(() => {
+        remove();
+        if (frame !== 0) cancelAnimationFrame(frame);
+      });
+    });
+  }
+}
+```
+
+Four outcomes expose the ownership contract:
+
+1. One component reads `visibleOrders()` and calls `setQuery`; replacing the store later does not change that component API.
+2. A burst of 500 feed callbacks in one animation frame produces at most one accepted signal update with the latest snapshot.
+3. Destroying the route-scoped facade removes the producer and pending frame; a root-scoped facade would intentionally live longer.
+4. In ZoneJS mode, the raw callbacks avoid repeated zone-triggered checks. In zoneless mode, the `state.set`—not `zone.run`—notifies Angular.
+
+The facade is valuable only if it owns a coherent boundary. A class that merely renames `http.get`, `store.select` and `store.dispatch` one-for-one adds indirection without insulating consumers or expressing feature commands.
+
+### Example 2 — move policy and repeated derivation out of the template
+
+This template call looks compact but mixes a pricing rule, filtering, sorting and currency formatting in a rendering expression. Every check of the view can call it again, and the returned array allocates a new identity even when inputs did not change.
+
+```html
+<!-- Avoid this in a hot table. -->
+@for (order of eligibleSortedOrders(orders(), customerTier()); track order.id) {
+  <order-row [order]="order" [discountLabel]="discountFor(order)" />
+}
+```
+
+Model domain policy as a pure typed function and cache reactive presentation derivations with `computed`. The template becomes a projection, while the policy can be tested without rendering.
+
+```typescript
+import {computed, signal} from '@angular/core';
+
+type Tier = 'standard' | 'gold';
+type PricedOrder = Order & Readonly<{discountRate: number}>;
+
+function priceOrders(orders: readonly Order[], tier: Tier): readonly PricedOrder[] {
+  const discountRate = tier === 'gold' ? 0.10 : 0;
+  return orders
+    .filter(order => order.total > 0)
+    .map(order => ({...order, discountRate}))
+    .sort((a, b) => b.total - a.total);
+}
+
+readonly tier = signal<Tier>('standard');
+readonly pricedOrders = computed(() => priceOrders(this.orders(), this.tier()));
+```
+
+```html
+@for (order of pricedOrders(); track order.id) {
+  <order-row [order]="order" />
+}
+```
+
+If `orders` and `tier` have not changed, repeated reads return the memoized computed value. When either dependency changes, the derivation is invalidated and recalculated on its next read. That is a cache with explicit reactive dependencies—not permission to hide I/O, mutation or time-dependent work inside the computation. A pure pipe is often appropriate when derivation naturally belongs to input values and only the last input tuple needs caching.
+
+### Example 3 — virtualize rendered rows, not the rest of the cost model
+
+The CDK viewport bounds rendered row views while retaining the logical scroll extent. Fixed-size rows provide a cheap offset calculation; stable domain IDs preserve row identity as the window moves.
+
+```typescript
+import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import {ScrollingModule} from '@angular/cdk/scrolling';
+
+@Component({
+  selector: 'orders-viewport',
+  imports: [ScrollingModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: [`.viewport { display: block; height: 480px; } .row { height: 48px; }`],
+  template: `
+    <cdk-virtual-scroll-viewport itemSize="48" minBufferPx="192" maxBufferPx="384"
+                                 class="viewport">
+      <div class="row"
+           *cdkVirtualFor="let order of visibleOrders(); trackBy: trackById">
+        {{ order.customer }} — {{ order.total }}
+      </div>
+    </cdk-virtual-scroll-viewport>
+  `,
+})
+export class OrdersViewport {
+  readonly orders = input.required<readonly Order[]>();
+  readonly query = input('');
+  readonly visibleOrders = computed(() => {
+    const needle = this.query().trim().toLocaleLowerCase();
+    return this.orders().filter(order =>
+      order.customer.toLocaleLowerCase().includes(needle)
+    );
+  });
+  readonly trackById = (_: number, order: Order) => order.id;
+}
+```
+
+Virtualization changes rendered DOM from O(`n`) rows to approximately O(`v + b`) rows for visible count `v` and buffer `b`. This example still filters all `n` client records in O(`n`) time, retains O(`n`) data, and downloads the original payload. If those dominate, add server paging/filtering or a bounded client index. Variable-height rows require a compatible strategy and measurement; keyboard focus that leaves the window needs an intentional active-item policy; screen-reader semantics and scroll-to-item behavior need real-browser tests.
+
+### Example 4 — choose delivery per route and reuse only safe initial HTTP data
+
+The server-route table distinguishes three workloads instead of choosing one rendering mode for the whole application.
+
+```typescript
+// app.routes.server.ts
+import {RenderMode, ServerRoute} from '@angular/ssr';
+
+export const serverRoutes: ServerRoute[] = [
+  {path: 'catalog', renderMode: RenderMode.Prerender},
+  {path: 'account', renderMode: RenderMode.Server},
+  {path: 'admin', renderMode: RenderMode.Client},
+  {path: '**', renderMode: RenderMode.Server},
+];
+```
+
+| Route | Why this mode might fit | Operational test |
+|---|---|---|
+| `/catalog` | Stable, crawlable content can be produced at build time | Build cardinality, freshness and static-host fallback |
+| `/account` | Personalized first response benefits from request-time SSR | Request isolation, latency, auth and cache headers |
+| `/admin` | Authenticated tool can accept browser-only startup and avoid server rendering | Bundle/startup cost, loading UX and browser API behavior |
+| fallback | SSR provides populated HTML for uncategorized public routes | Origin capacity, errors and time-to-first-byte |
+
+For eligible server `HttpClient` reads, transfer cache can prevent an immediate duplicate browser request during hydration. Configure the boundary conservatively and let the documented exclusions protect credentialed/private responses.
+
+```typescript
+import {
+  provideClientHydration,
+  withHttpTransferCacheOptions,
+} from '@angular/platform-browser';
+
+export const hydrationProviders = [
+  provideClientHydration(withHttpTransferCacheOptions({
+    filter: request => request.method === 'GET'
+      && request.url.startsWith('/api/catalog')
+      && !request.url.includes('/personalized'),
+    includeRequestsWithAuthHeaders: false,
+    includeRequestsWithCredentials: false,
+  })),
+];
+```
+
+Expected request cardinality is one origin request during SSR and zero duplicate client requests for the same eligible initial read. A later refresh is an ordinary new request. Do not enable authenticated, credentialed, `private`, `no-cache`, `no-store` or `Set-Cookie` responses merely to improve a waterfall; user isolation and freshness take precedence. When server and client use different origins, configure the documented origin mapping instead of producing keys that cannot match.
+
+### Request-to-profile trace
+
+```mermaid
+sequenceDiagram
+  participant R as Route policy
+  participant S as Server/build renderer
+  participant O as Origin API
+  participant B as Browser hydration
+  participant V as Virtual viewport
+  participant D as Angular DevTools
+  R->>S: Choose Client, Server or Prerender
+  opt Server or Prerender needs eligible data
+    S->>O: Fetch initial catalog once
+    O-->>S: Safe cacheable response
+    S-->>B: HTML + transfer-cache entry
+    B->>B: Reuse entry during hydration
+  end
+  B->>V: Publish logical collection
+  V->>V: Render visible window + buffer
+  D->>V: Record representative interaction
+  D-->>R: Evidence for the next policy change
+```
+
+Follow the trace in both directions. Delivery mode changes where and when work occurs; transfer cache removes one eligible duplicate fetch; virtualization bounds live row views; DevTools helps identify whether the remaining bottleneck is change detection. None proves that origin latency, payload bytes, filtering, layout, memory or accessibility is solved.
+
+### Invariants, costs and failure modes
+
+- **Scheduling invariant:** work excluded from ZoneJS-driven checks crosses back only for accepted visible updates, and every visible update reaches an explicit Angular notification path.
+- **Facade invariant:** components depend on feature language, not transport/store mechanics; domain invariants remain authoritative below the presentation facade.
+- **Template invariant:** rendering expressions are pure and bounded. Business policy and expensive repeated derivation have typed owners with independent tests.
+- **Viewport invariant:** logical item identity is stable across window reuse; rendered-row count is bounded and focus/accessibility behavior is specified.
+- **Rendering invariant:** each route mode is chosen from freshness, personalization, SEO, build scale, browser constraints and origin cost—not from a global slogan.
+- **Transfer invariant:** only explicitly safe, equivalent initial server/client requests are reused. Credential, tenant and cache-control boundaries are preserved.
+- **Evidence invariant:** performance decisions begin and end with the same representative journey and production-scale data; one profile is not a universal benchmark.
+- **Compatibility invariant:** framework, CLI, builder, CDK/Material, TypeScript, Node, RxJS and library peer ranges form one tested combination; update migrations are committed and reviewed.
+
+For `e` legacy callbacks coalesced into `f` animation frames, the adapter observes O(`e`) callbacks but performs at most O(`f`) signal writes with O(1) pending-frame state; snapshot payload handling remains proportional to its data. Filtering and sorting `n` rows costs O(`n log n`) time in the example because sorting dominates, and the computed retains O(`n`) output until invalidated. A virtual viewport reduces live row views to O(`v + b`) but does not change the O(`n`) filter or retained-data cost. SSR adds request-time server compute and origin latency; prerender shifts that work toward the build and can multiply by route-parameter cardinality; CSR shifts render/data startup to the browser. Transfer cache can remove one matching initial client request and its payload/latency, but the serialized entry increases HTML/transfer memory. Profiling adds development overhead only while recording; optimization value comes from comparing like-for-like measurements. A major upgrade includes dependency resolution, migrations, build/test work and rollout risk that Big-O notation does not usefully summarize—track changed packages, migration diffs, failed checks and canary telemetry instead.
+
+**Common failures:** wrapping all callbacks in `runOutsideAngular` without measuring; assuming `zone.run` updates a zoneless view; building a facade that leaks the store; putting authorization or pricing policy in a component getter; treating every template call as forbidden instead of profiling; using `computed` for I/O or side effects; virtualizing before fixing an O(`n²`) transformation; forgetting a viewport height or stable key; promising accessibility without keyboard/screen-reader tests; selecting SSR for every route; prerendering unbounded parameter space; transferring personalized data; confusing transfer cache with TTL/invalidation storage; profiling tiny development data; optimizing only Angular time while layout or network dominates; aligning core and CLI majors while ignoring TypeScript/Node/CDK peers; using `--force` to suppress an incompatible peer graph; and skipping intermediate migrations.
+
+### Verification drill
+
+1. **Scheduler/facade:** feed 1,000 callbacks across controlled animation frames and assert one state write per frame with the final snapshot. Run the same behavior in ZoneJS and zoneless hosts, destroy mid-frame, and prove producer/frame cleanup. Replace the facade internals with a fake while the component test remains unchanged.
+2. **Template derivation:** retain input references and read the computed repeatedly; assert the pure policy runs once until a dependency changes, then once on the next read. Cover tier/order changes, empty input and equal-content new references. Keep the policy's domain tests independent of Angular.
+3. **Viewport:** load 100,000 logical rows, assert the DOM row budget stays near viewport plus buffers, scroll first/middle/last, reorder/refetch with stable IDs, and verify focus/selection follows the business row. Measure filtering and retained memory separately from DOM rendering.
+4. **Rendering/transfer:** request prerender, server and client routes and assert their expected artifact/request behavior. For one eligible catalog read, prove one server origin call and client reuse; then prove auth, credentials, `private`/`no-store`, `Set-Cookie`, filtered endpoints and a later refresh do not reuse the unsafe/stale entry. Run concurrent SSR requests for different users and assert isolation.
+5. **Operations/versioning:** capture a baseline profile for the same production-sized route, apply one change, and compare change-detection, scripting, layout, network, heap and rendered-node metrics. In CI, assert `ng version`, lockfile peers, production build, tests and smoke routes against the official compatibility matrix; dry-run or review every `ng update` migration before canary rollout.
+
+The document validator can check payload identity, anchors, fences, links and reader JavaScript. This repository still has no Angular workspace, installed CDK/runtime, SSR server, browser runner or package graph, so Angular compilation, TestBed, CDK viewport, SSR/transfer-cache, DevTools/browser profiling and `ng update` execution remain explicit unexecuted checks.
+
+**Primary references (reviewed 2026-10-14):** Angular's [`NgZone` API](https://angular.dev/api/core/NgZone), [zoneless guide](https://angular.dev/guide/zoneless), [signals/computed guide](https://angular.dev/guide/signals), [slow-computation guide](https://angular.dev/best-practices/slow-computations), [dependency-injection services guide](https://angular.dev/guide/di/creating-and-using-services), [runtime-performance overview](https://angular.dev/best-practices/runtime-performance), and Angular Components' [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md) and [`CdkVirtualScrollViewport` source](https://github.com/angular/components/blob/main/src/cdk/scrolling/virtual-scroll-viewport.ts); Angular's [server/hybrid-rendering and transfer-cache guide](https://angular.dev/guide/ssr), [DevTools overview](https://angular.dev/tools/devtools), [DevTools profiler](https://angular.dev/tools/devtools/profiler), [DevTools signal graph](https://angular.dev/tools/devtools/signals), [version compatibility](https://angular.dev/reference/versions), [Update Guide](https://angular.dev/update-guide), and [`ng update`](https://angular.dev/cli/update). The facade boundary, four examples, route/transfer table, trace, invariants, cost derivation and test design are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -9160,8 +9414,8 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected through Q1–Q74 and rapid-fire items 1–30. The latest bounded pass covered Markdown lines 1620–1658 and DOCX extracted lines 1078–1097, with item 31 at Markdown line 1660 / DOCX line 1098 as the next boundary. The ten paired answers agree. This edition consolidates items 21–30 into a retrieval-oriented answer ladder with four connected examples, a delivery-to-interaction trace, invariants, cost derivations, verification drills and deep links to the richer Q1–Q74 chapters rather than duplicating them. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
-- Code snippets and traces were checked conceptually against the linked current Angular sources. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI build, TypeScript/template compilation, TestBed/HTTP execution, SSR/hydration/event-replay run, HMR observation, Shadow DOM browser assertion or dual-mode ZoneJS/zoneless test was executed** during this source-comparison pass.
+- Both **actual Library source texts** were inspected through Q1–Q74 and rapid-fire items 1–39. The latest bounded pass covered Markdown lines 1660–1694 and DOCX extracted lines 1098–1115, each ending before the Final Revision Sheet. The nine paired answers agree. This edition consolidates items 31–39 into a retrieval-oriented answer ladder with four connected examples, a request-to-profile trace, invariants, cost derivations, verification drills and deep links to the richer Q1–Q74 chapters rather than duplicating them. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Code snippets and traces were checked conceptually against the linked current Angular sources. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI build, TypeScript/template compilation, TestBed/CDK viewport execution, SSR/transfer-cache run, browser/DevTools profiling or `ng update` migration was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-12): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), [Signals/computed](https://angular.dev/guide/signals#computed-signals-are-both-lazily-evaluated-and-memoized), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
