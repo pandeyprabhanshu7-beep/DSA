@@ -49,7 +49,7 @@ See [intake manifest](INTAKE_MANIFEST.json) for source hashes, statuses and exac
 
 ## Continue next
 
-Angular Q1–Q73 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded Q74 on ZoneJS/zoneless compatibility across application and library boundaries, beginning at Markdown anchor line 1522 / heading line 1524 and DOCX extracted line 1026; resolve the exact section end in both sources before reading, then compare against Q20, Q21, Q56, Q58, Q62 and Q72. Estimated next-batch budget: approximately 8,300 tokens. This heuristic reserves about 700 tokens for bounded paired-source range resolution, 1,300 for current primary Angular compatibility research, 4,000 for distinct teaching/code/diagram/HTML, and 2,300 for validation/checkpoint work. It is not account-quota telemetry.
+Angular Q1–Q74 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with one bounded rapid-fire module (items 1–10), beginning at Markdown anchor line 1536 / heading line 1538 and DOCX extracted line 1037; resolve the exact item-10 boundary in both sources before reading beyond it, then consolidate against the richer canonical answers rather than duplicating them. Estimated next-batch budget: approximately 6,500 tokens. This heuristic reserves about 900 tokens for bounded paired-source range resolution, 900 for targeted primary-source refresh, 2,700 for distinct consolidation/teaching/HTML, and 2,000 for validation/checkpoint work. It is not account-quota telemetry.
 
 ## Maintain readers
 

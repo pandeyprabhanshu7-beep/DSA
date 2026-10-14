@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q73)
+# Angular 22 — Interview Foundations (Q1–Q74)
 
-> **Current bounded edition, 2026-10-14.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q73 (Q73 is lines 1498–1521, bounded by the next anchor at line 1522) with the corresponding `Angular_Interview_Workbook.docx` text (Q73 is extracted lines 1009–1025). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, layered payment idempotency, route-keyed stale-result cancellation, production-budgeted list profiling, the Angular 22 OnPush-default migration contract, explicit RxJS/signal adapter rules, application-wide render-callback contracts, required input and `model()` ownership, SSR-safe browser API boundaries, evidence-based `@defer` triggers, race-safe token refresh, inner-versus-outer RxJS recovery, policy-driven route/detail caching, and a four-layer signal/OnPush/tracked-DOM/domain identity model for immutable row updates, with diagrams, tests, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-14.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q74 (Q74 is lines 1522–1534, bounded by the rapid-fire bank anchor at line 1536) with the corresponding `Angular_Interview_Workbook.docx` text (Q74 begins at extracted line 1026 and ends before the rapid-fire bank). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, layered payment idempotency, route-keyed stale-result cancellation, production-budgeted list profiling, the Angular 22 OnPush-default migration contract, explicit RxJS/signal adapter rules, application-wide render-callback contracts, required input and `model()` ownership, SSR-safe browser API boundaries, evidence-based `@defer` triggers, race-safe token refresh, inner-versus-outer RxJS recovery, policy-driven route/detail caching, a four-layer signal/OnPush/tracked-DOM/domain identity model for immutable row updates, and a dual-runtime contract for libraries consumed by ZoneJS and zoneless applications, with diagrams, tests, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -77,6 +77,7 @@
 - [Q71: route/detail data caching](#q71)
 - [Q72: profile signal/change-detection performance](#q72)
 - [Q73: immutable row edits and identity](#q73)
+- [Q74: ZoneJS/zoneless library compatibility](#q74)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -8283,12 +8284,228 @@ The transition is correct because it rejects every state in which the target is 
 
 **Primary references:** Angular's [signals guide](https://angular.dev/guide/signals), [skipping component subtrees guide](https://angular.dev/best-practices/skipping-subtrees), [`@for` control-flow guide](https://angular.dev/guide/templates/control-flow), [NG0955 duplicate-key diagnostic](https://angular.dev/errors/NG0955), [NG0956 DOM-recreation diagnostic](https://angular.dev/errors/NG0956), and current [`signalSetFn` implementation](https://github.com/angular/angular/blob/main/packages/core/primitives/signals/src/signal.ts). The four-layer identity model, typed transition, examples, trace, diagram, verification plan, invariants, proof and cost derivation above are added teaching material.
 
+<a id="q74"></a>
+## Q74. How should a shared library support ZoneJS and zoneless applications?
+
+**Requirement:** publish one library artifact whose public behavior is correct when the consuming application uses ZoneJS or Angular's zoneless scheduler. The library must not detect the host mode, import `zone.js`, or rely on a patched timer/Promise/event as the reason a view refreshes. Every template-visible transition needs an Angular-recognized notification; render timing, SSR stability, packaging and tests need explicit contracts of their own.
+
+Angular 21+ applications are zoneless by default, while older or deliberately opted-in applications can still use `provideZoneChangeDetection()`. That is an **application bootstrap choice**. A reusable library should expose Angular components/providers and work under either choice rather than install a second scheduler or ask consumers to call `detectChanges()`.
+
+### Compatibility contract
+
+| Boundary | Library rule | Why it works in both hosts |
+|---|---|---|
+| Template state | Write a template-read signal, let `AsyncPipe` mark, call `ChangeDetectorRef.markForCheck()`, set an input through Angular, or handle a bound listener | These are Angular notification mechanisms; a patched async task is not the contract |
+| External callback | Acquire outside Angular when useful, re-enter narrowly with `NgZone.run`, then perform a real notification | Re-entry preserves ZoneJS performance semantics; signal/mark notification preserves zoneless correctness |
+| Render timing | Use `afterNextRender`/`afterEveryRender` or the exact browser observer/event needed | `NgZone.onStable` and related zone-state streams do not describe zoneless rendering |
+| SSR stability | Register custom awaited work with `PendingTasks` (or `pendingUntilEvent`) | Server serialization cannot infer arbitrary untracked work without ZoneJS |
+| Packaging | Keep `@angular/*` as peer dependencies, do not import/bundle `zone.js`, publish supported partial-Ivy output | The application owns the Angular runtime and scheduler choice |
+| Verification | Run the same public-behavior suite with explicit zone-based and zoneless TestBed providers | One green mode cannot establish cross-mode compatibility |
+
+Do not equate `OnPush` with zoneless. `OnPush` is a useful design pressure because it exposes missing notifications and limits normal subtree checks, but a `Default` component can be zoneless-compatible when it notifies Angular explicitly. There is one important host exception: a library shell that dynamically creates unknown user components with `ViewContainerRef.createComponent` may need `Default`, because forcing an `OnPush` ancestor could prevent a child that still relies on ZoneJS-style eager checks from refreshing. Ordinary content projection or a `TemplateRef` input is not that dynamic-host case.
+
+### A dual-runtime third-party adapter
+
+The library starts the noisy feed outside Angular, normalizes and deduplicates values, then re-enters only for a semantic state change. The signal write is the zoneless notification; `NgZone.run` keeps the callback inside Angular's zone for legacy hosts. Neither path checks whether ZoneJS exists.
+
+```typescript
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, NgZone,
+  inject, signal
+} from '@angular/core';
+
+export type Feed = {
+  subscribe(listener: (raw: string) => void): () => void;
+};
+
+export function normalizeStatus(raw: string): string {
+  return raw.trim().replace(/\s+/g, ' ');
+}
+
+@Component({
+  selector: 'shared-feed-status',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<output aria-live="polite">{{ status() }}</output>`,
+})
+export class FeedStatus {
+  private readonly zone = inject(NgZone);
+  private readonly destroyRef = inject(DestroyRef);
+  readonly status = signal('disconnected');
+
+  connect(feed: Feed): void {
+    this.zone.runOutsideAngular(() => {
+      const unsubscribe = feed.subscribe(raw => {
+        const next = normalizeStatus(raw);
+        if (next === this.status()) return;
+
+        this.zone.run(() => this.status.set(next));
+      });
+      this.destroyRef.onDestroy(unsubscribe);
+    });
+  }
+}
+```
+
+**Key lines:** `if (next === this.status()) return` prevents duplicate work; `zone.run(...)` preserves the legacy host's zone boundary; and `status.set(next)` is the scheduler-independent notification. If the integration owns a plain field instead, set it and call `markForCheck()` in the same narrow re-entry. Do not substitute `detectChanges()`—that forces a synchronous local check and can hide an ownership/scheduling defect.
+
+For an Observable integration, expose or adapt the stream once and bind it with `AsyncPipe`, or create one `toSignal` at a stable owner. Both give Angular a documented notification path and cleanup model. A raw callback still needs an adapter like the one above.
+
+### Four concrete compatibility cases
+
+1. **Timer updates a signal.** `setInterval(() => count.update(n => n + 1))` refreshes a template reading `count()` in both modes. The timer firing is not the guarantee; the signal write is. Clear the interval on destruction.
+2. **Legacy SDK updates a plain field.** Assigning `this.message = value` from an SDK callback is incomplete. Re-enter narrowly for a ZoneJS consumer and call `markForCheck()` (or replace the field with a template-read signal) for zoneless notification.
+3. **Library waits for a render.** `ngZone.onStable.pipe(take(1))` can work accidentally in a ZoneJS app but never emits as a useful render signal in a zoneless app. Use `afterNextRender` for one completed Angular render, or `MutationObserver`/`ResizeObserver` when the actual requirement is DOM mutation/size.
+4. **Custom async work affects SSR HTML.** A library begins an async configuration load not already tracked by `HttpClient`. Wrap it in `PendingTasks.run`, update a template-read signal, and let stability return only after the promise settles. Always clean up a manually added task in `finally`.
+
+```typescript
+import {Injectable, PendingTasks, inject, signal} from '@angular/core';
+
+@Injectable()
+export class RemoteBadgeModel {
+  private readonly pending = inject(PendingTasks);
+  readonly label = signal('Loading');
+
+  load(readLabel: () => Promise<string>): void {
+    this.pending.run(async () => {
+      this.label.set(await readLabel());
+    });
+  }
+}
+```
+
+`PendingTasks` controls application stability for SSR/tests; it does not itself mark a view dirty. The signal write does that. Conversely, a signal write does not tell SSR to await arbitrary surrounding async work; the pending-task registration does that. Keep those two responsibilities separate.
+
+### Callback trace in both hosts
+
+```mermaid
+sequenceDiagram
+ participant F as External feed
+ participant A as Library adapter
+ participant Z as NgZone boundary
+ participant S as Template signal
+ participant C as Angular scheduler
+ F->>A: raw " Ready  "
+ A->>A: normalize + compare
+ A->>Z: run accepted update
+ Z->>S: set("Ready")
+ S->>C: notify dirty consumer
+ C-->>S: render output
+ Note over Z,C: ZoneJS host also re-enters its zone; zoneless host relies on the signal notification
+```
+
+| Step | ZoneJS application | Zoneless application | Shared invariant |
+|---:|---|---|---|
+| 1 | Feed callback may originate outside Angular's zone | No patched-zone assumption exists | Adapter owns the boundary |
+| 2 | `NgZone.run` re-enters Angular's zone | Call remains compatible | No host-mode branch |
+| 3 | Signal changes from `disconnected` to `Ready` | Same state transition | Equal normalized values are suppressed |
+| 4 | Zone activity and the dirty signal allow synchronization | Dirty signal schedules synchronization | View observes `Ready` |
+| 5 | Component is destroyed | Component is destroyed | Feed subscription is removed exactly once |
+
+### Packaging and public API constraints
+
+- Declare the Angular packages used by the library in `peerDependencies`; do not ship a private second copy of `@angular/core`. Do not add `zone.js` merely to make tests pass.
+- Build the distributable with the Angular library pipeline and partial-Ivy format. The consuming application's Angular version must be at least the version used to build the library, and the declared supported range must match the versions actually tested.
+- Keep scheduler choice out of the component API. Avoid inputs such as `useZone` or ambient checks such as `typeof Zone !== 'undefined'`; they multiply code paths and still do not prove correct notification.
+- Avoid `NgZone.onMicrotaskEmpty`, `onUnstable`, `onStable` and `isStable` as execution gates. In zoneless mode the event streams do not provide the expected events and `isStable` is not a useful work gate. Use render callbacks, direct browser observers, or `PendingTasks` according to the real requirement.
+- Preserve `NgZone.run`/`runOutsideAngular` where they delimit noisy third-party work. Angular explicitly documents them as zoneless-compatible; removing them can regress ZoneJS consumers.
+- Do not mutate application bootstrap from a library provider. `provideZonelessChangeDetection()` and `provideZoneChangeDetection()` belong to the consuming application or its explicit test configuration.
+
+### Cross-mode verification
+
+Run the **same assertions** in separate, isolated configurations; do not switch providers inside one TestBed instance. `TestBed` currently uses zoneless change detection by default, so the ZoneJS row must opt in explicitly and have the ZoneJS testing environment available.
+
+```typescript
+import {
+  EnvironmentProviders, InjectionToken, Provider,
+  provideZoneChangeDetection, provideZonelessChangeDetection
+} from '@angular/core';
+import {TestBed} from '@angular/core/testing';
+
+class FakeFeed implements Feed {
+  private readonly listeners = new Set<(raw: string) => void>();
+
+  subscribe(listener: (raw: string) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  emit(raw: string): void {
+    for (const listener of this.listeners) listener(raw);
+  }
+
+  get listenerCount(): number {
+    return this.listeners.size;
+  }
+}
+
+const FEED = new InjectionToken<FakeFeed>('test feed');
+const createFakeFeed = (): FakeFeed => new FakeFeed();
+
+type Mode = Readonly<{
+  name: string;
+  providers: readonly (Provider | EnvironmentProviders)[];
+}>;
+
+const MODES: readonly Mode[] = [
+  {name: 'zone', providers: [provideZoneChangeDetection()]},
+  {name: 'zoneless', providers: [provideZonelessChangeDetection()]},
+];
+
+for (const mode of MODES) {
+  describe(mode.name, () => {
+    beforeEach(() => TestBed.configureTestingModule({
+      imports: [FeedStatus],
+      providers: [...mode.providers, {provide: FEED, useFactory: createFakeFeed}],
+    }));
+
+    it('renders an external callback and removes the listener', async () => {
+      const fixture = TestBed.createComponent(FeedStatus);
+      const feed = TestBed.inject(FEED);
+      fixture.componentInstance.connect(feed);
+      await fixture.whenStable();
+
+      feed.emit(' Ready  ');
+      await fixture.whenStable();
+      expect(fixture.nativeElement.textContent).toContain('Ready');
+
+      feed.emit('Ready');
+      await fixture.whenStable();
+      expect(feed.listenerCount).toBe(1);
+
+      fixture.destroy();
+      expect(feed.listenerCount).toBe(0);
+    });
+  });
+}
+```
+
+A production suite should also cover: signal, `AsyncPipe` and plain-field-plus-`markForCheck` paths; same-value suppression; callback errors; destroy during an event; dynamic user-component hosting; reactive-form programmatic updates; one-shot render hooks; SSR success/error cleanup with `PendingTasks`; and package installation/build against the lowest and highest supported Angular minors. Avoid a `fixture.detectChanges()` after the callback—it would make a missing notification look correct. `fakeAsync`/`flushMicrotasks` require ZoneJS and therefore cannot be the only test model for a zoneless-compatible package.
+
+### Invariants, correctness and costs
+
+- **Notification invariant:** every transition visible in a template reaches Angular through a documented notification API, independent of async monkey patching.
+- **Mode-ownership invariant:** only the consuming application chooses zone-based or zoneless scheduling; the library has one public behavior in both.
+- **Boundary invariant:** noisy work may start outside Angular, but each accepted visible update crosses a narrow boundary and emits exactly one semantic notification.
+- **Timing invariant:** render completion, browser observation and SSR stability use separate APIs; none is inferred from a ZoneJS event stream.
+- **Lifetime invariant:** subscriptions, listeners, timers, observers, render registrations and pending-task cleanup share an explicit owner and are released on every success/error/destroy path.
+- **Packaging invariant:** the application and library resolve the same Angular runtime, and the tested version range equals the declared range.
+
+For `e` external events, normalization of strings of maximum length `L` costs O(`eL`) time. If `u ≤ e` events produce distinct visible values, only `u` updates re-enter and notify Angular; the adapter retains O(1) current state plus the unsubscribe closure. Rendering cost is O(the bindings/views checked plus DOM writes), not O(1) merely because the adapter is constant-space. Starting every callback inside the Angular zone can move work toward `e` zone-triggered checks; filtering outside and re-entering only accepted changes moves library-caused synchronization toward `u`. `markForCheck()` schedules/marks ordinary work; it does not erase downstream rendering cost. A two-mode suite roughly doubles the framework cases, but catches an entire class of scheduler assumptions before consumers do.
+
+The design is correct because the adapter normalizes first, rejects equal values without crossing the Angular boundary, and for every accepted value performs both legacy-safe re-entry and a scheduler-independent signal notification before rendering. Cleanup is registered with the owning component. Therefore the rendered value is not dependent on a patched callback, duplicate normalized events do not create library updates, and destruction removes the external producer in either host mode. SSR work requires the additional stability registration shown above; the proof does not pretend that a render notification alone delays serialization.
+
+**Common errors:** importing `zone.js` from library code; listing `@angular/core` in ordinary dependencies; detecting a global `Zone`; assuming `NgZone.run` alone is the zoneless notification; assuming `OnPush` alone schedules a check; using `Default` as a substitute for notification; mutating a plain field in an external callback; calling `detectChanges()` after every event or in tests; waiting on `NgZone.onStable`; confusing render completion with paint; forgetting `PendingTasks` for custom SSR work; leaking a pending task on rejection; forcing all dynamic user components beneath an `OnPush` host; duplicating adapter creation; failing to tear down listeners; testing only TestBed's default mode; or declaring an Angular peer range wider than the compatibility matrix.
+
+**Interview variations:** signal versus `markForCheck`; `AsyncPipe` and `toSignal`; ZoneJS event coalescing; high-frequency SDK feeds; dynamic component hosts; Reactive Forms in zoneless mode; `afterNextRender` versus `MutationObserver`; SSR `PendingTasks`; `pendingUntilEvent`; fakeAsync restrictions; partial-Ivy and peer dependencies; minimum-supported-version CI; component harnesses; and how to profile `e` external events versus `u` visible updates.
+
+**Primary references:** Angular's [zoneless guide](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`NgZone`](https://angular.dev/api/core/NgZone), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), [`PendingTasks`](https://angular.dev/api/core/PendingTasks), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [Angular Package Format](https://angular.dev/tools/libraries/angular-package-format). The compatibility matrix, adapter, four cases, dual-mode trace, testing strategy, invariants, proof and cost model above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
 Keep the reusable order card behind a readonly view-model input and semantic `selected` output; let it own only local view state while the page owns navigation, feature state and effects. Give a reusable page-size or quantity control one required `model()` value only when parent and child intentionally co-own that editable scalar; keep order aggregates readonly and report typed patches or commands instead of hiding business mutation behind two-way binding. Preserve the same order-page structure during SSR and browser startup: put analytics/storage behind platform-specific providers, create canonical metadata through injected `DOCUMENT`, and initialize a browser-only chart in `afterNextRender` against one dedicated host with teardown—never make an `isPlatformBrowser` template branch or top-level `window` access the hydration boundary.
 
-Plan the legacy application's modernization as deployable checkpoints: capture a clean behavioral/performance baseline; use the Update Guide and supported toolchain matrix for one major-version step at a time; convert the leaf order card to standalone while its NgModule consumer remains valid; migrate the lazy orders route; then replace root bootstrap while preserving provider scopes, initializers, interceptor order and ZoneJS scheduling explicitly. Audit every template-visible timer, SDK, socket, form and SSR update for a real Angular notification, prove it in zoneless tests and a measured canary, and only then remove ZoneJS polyfills/dependency. Keep state-management and design-system rewrites outside these checkpoints, assign every `importProvidersFrom` bridge an owner/removal gate, and demonstrate the rollback after each phase. For the search page, draw the subscriber graph before adding an operator: bind a cold request once when one view owns it, expose a stable field rather than a template getter, flatten route/query changes with `switchMap`, and share only one explicitly identified query generation across overlapping consumers. Separate in-flight deduplication from retained caching; key detail data by tenant, principal scope, locale, representation and ID; start TTL on successful response; generation-fence old reads; invalidate/write through after successful mutations and logout; bound memory and SSR scope; and prove request cardinality, expiry, recovery and isolation with `expectOne`/`match` rather than trusting the Network panel alone.
+Plan the legacy application's modernization as deployable checkpoints: capture a clean behavioral/performance baseline; use the Update Guide and supported toolchain matrix for one major-version step at a time; convert the leaf order card to standalone while its NgModule consumer remains valid; migrate the lazy orders route; then replace root bootstrap while preserving provider scopes, initializers, interceptor order and ZoneJS scheduling explicitly. Audit every template-visible timer, SDK, socket, form and SSR update for a real Angular notification, prove it in zoneless tests and a measured canary, and only then remove ZoneJS polyfills/dependency. Make the shared design-system package scheduler-neutral: keep Angular packages as peers, never import ZoneJS, preserve useful `NgZone` boundaries while notifying through signals/`AsyncPipe`/`markForCheck`, use render hooks and `PendingTasks` for their actual contracts, and run the same package behavior suite in explicit zone-based and zoneless hosts. Keep state-management and design-system rewrites outside these checkpoints, assign every `importProvidersFrom` bridge an owner/removal gate, and demonstrate the rollback after each phase. For the search page, draw the subscriber graph before adding an operator: bind a cold request once when one view owns it, expose a stable field rather than a template getter, flatten route/query changes with `switchMap`, and share only one explicitly identified query generation across overlapping consumers. Separate in-flight deduplication from retained caching; key detail data by tenant, principal scope, locale, representation and ID; start TTL on successful response; generation-fence old reads; invalidate/write through after successful mutations and logout; bound memory and SSR scope; and prove request cardinality, expiry, recovery and isolation with `expectOne`/`match` rather than trusting the Network panel alone.
 
 Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Make its immutable order view model a required signal input, use a pure transform only for a small representation boundary such as trimming an optional label, and test both the missing-binding compile failure and the transform's accepted write types; do not mistake requiredness or coercion for domain validation. Route row edits through one owning command: validate ID/version, replace the collection and changed row/nested path, retain untouched references, treat a semantic no-op explicitly, and track the stable ID so new data identity does not destroy row DOM identity. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly. Put each RxJS/signal bridge at one stable owner: adapt an existing stream once with `toSignal`, move signal state into RxJS once when debounce/cancellation is required, and test stabilized rather than imaginary per-write emissions. Initialize one imperative chart with `afterNextRender`, give it a dedicated host and explicit destructor, and place geometric writes before reads. Use `afterEveryRender` only for a genuinely recurring render concern, guard signal writes against equality, prove automatic/early cleanup, and keep SSR output correct without either browser-only callback. Do not equate completed Angular rendering with browser paint or completed hydration.
 
@@ -8296,8 +8513,8 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q73. This pass was bounded to Markdown lines 1498–1521 and DOCX extracted lines 1009–1025 for Q73; both sources prefer an explicit owner and immutable collection update for a same-reference row-mutation bug. This edition adds the missing separation among signal equality, OnPush scheduling, tracked DOM identity and domain versioning; a typed nested-copy transition; four examples; reference trace; diagram; pure/framework/browser test boundaries; concurrency rules; invariants; proof; and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
-- Code snippets and traces were checked conceptually against the linked official Angular 22.2.2 sources, and the pure transition was exercised independently in Node with deterministic examples plus randomized oracle checks. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser focus/reorder test, hydration test, SSR test or live server call was executed** during this source-comparison pass.
+- Both **actual Library source texts** were inspected for Q1–Q74. This pass was bounded to Markdown lines 1522–1534 and DOCX extracted lines 1026–1033 for Q74; both sources require explicit Angular notifications and testing in ZoneJS and zoneless consumers instead of depending on patched async timing. This edition adds the application/library ownership boundary, compatibility and packaging matrices, a typed callback adapter, four examples, a dual-mode trace and TestBed strategy, dynamic-host/SSR/render-timing constraints, invariants, proof and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Code snippets and traces were checked conceptually against the linked official Angular 22.2.2 sources, and the adapter's normalization/deduplication/cleanup policy was exercised independently in Node with deterministic and randomized events. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI library build, TypeScript/template compilation, zone-based or zoneless TestBed run, Vitest/JIT execution, controlled-browser test, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-12): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), [Signals/computed](https://angular.dev/guide/signals#computed-signals-are-both-lazily-evaluated-and-memoized), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
@@ -8325,6 +8542,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Official Angular signal/change-detection profiling material (reviewed 2026-10-14): [runtime performance overview](https://angular.dev/best-practices/performance), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [Signals graph](https://angular.dev/tools/devtools/signals), [signals](https://angular.dev/guide/signals), [slow computations](https://angular.dev/best-practices/slow-computations), [zoneless](https://angular.dev/guide/zoneless) and [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees). Current Angular 22.2.2 pages document the profiler's cycle/component evidence, development-only Chrome integration, Angular 19+ development signal graph, lazy memoized computed values with dynamic dependencies, `Object.is` default equality and notification paths. The measurement model, examples, diagram, trace, invariants, tests and cost derivation are added teaching material.
 - Official Angular identity and row-update material (reviewed 2026-10-14): [signals](https://angular.dev/guide/signals), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), [`@for` control flow](https://angular.dev/guide/templates/control-flow), [NG0955 duplicate keys](https://angular.dev/errors/NG0955), [NG0956 DOM recreation](https://angular.dev/errors/NG0956), and the current [`signalSetFn`](https://github.com/angular/angular/blob/main/packages/core/primitives/signals/src/signal.ts). Current Angular 22.2.2 documentation and source distinguish default `Object.is` signal equality, OnPush input-reference behavior and key-based view reuse; readonly signals do not provide deep immutability. The four-layer model, transition, examples, trace, diagram, tests, proof and cost derivation are added teaching material.
+- Official Angular dual-runtime library material (reviewed 2026-10-14): [zoneless compatibility and testing](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [`NgZone`](https://angular.dev/api/core/NgZone), [`afterNextRender`](https://angular.dev/api/core/afterNextRender), [`PendingTasks`](https://angular.dev/api/core/PendingTasks), [creating libraries](https://angular.dev/tools/libraries/creating-libraries), and [Angular Package Format](https://angular.dev/tools/libraries/angular-package-format). Current Angular 22.2.2 guidance defines explicit zoneless notification paths, explains the dynamic user-component host exception, warns against zone-state event streams, preserves `NgZone.run`/`runOutsideAngular` compatibility, makes TestBed zoneless by default, and requires Angular packages as peers plus supported partial-Ivy publication. The matrices, adapter, examples, trace, verification strategy, invariants, proof and cost model are added teaching material.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q74 (ZoneJS/zoneless compatibility across application and library boundaries) in both sources. It begins at Markdown anchor line 1522 / heading line 1524 and DOCX extracted line 1026; resolve its exact end before reading it, compare with Q20, Q21, Q56, Q58, Q62 and Q72, and keep extending this one canonical guide.
+- **Next:** continue with the first bounded rapid-fire bank module (items 1–10) in both sources. It begins at Markdown anchor line 1536 / heading line 1538 and DOCX extracted line 1037; resolve the exact item-10 boundary before reading beyond it, consolidate answers with the richer canonical Q1–Q74 material instead of duplicating it, and keep extending this one canonical guide.
 
