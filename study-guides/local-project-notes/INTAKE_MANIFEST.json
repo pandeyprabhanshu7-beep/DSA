@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "6c244f97c0c80a6367f49a911b4ac7ebff030268",
+  "last_successful_commit": "b177a9133249af386236c4aceec47f8df2b22b5b",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -864,9 +864,9 @@
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
     "processed": "Q1–Q74 plus rapid-fire items 1-39; latest bounded source ranges are Markdown lines 1660-1694 and DOCX extracted lines 1098-1115, each bounded by the Final Revision Sheet",
-    "status": "VALIDATED_PENDING_PUBLISH",
-    "validation": "Rapid-fire items 31-39 agree across both source texts and are consolidated as an answer ladder with four connected examples, a request-to-profile trace, invariants, verification drills and derived costs while retaining Q1-Q74 as the deep canonical coverage; deterministic reader generation and exact 648428-character payload equality passed with 79 unique anchors, 267 balanced fences, 59 Mermaid diagrams, inline JavaScript, JSON, fragment targets, relative links, local README source hash, selected-file diff and live 170-marker checks; remote blob equality remains pending publication; Angular CLI build, TypeScript/template compilation, TestBed/CDK viewport execution, SSR/transfer-cache tests, browser/DevTools profiling and ng update were not performed because the Angular workspace/runtime/browser/package graph are absent",
-    "content_commit": null,
+    "status": "PUBLISHED",
+    "validation": "Rapid-fire items 31-39 agree across both source texts and are consolidated as an answer ladder with four connected examples, a request-to-profile trace, invariants, verification drills and derived costs while retaining Q1-Q74 as the deep canonical coverage; deterministic reader generation and exact 648428-character payload equality passed with 79 unique anchors, 267 balanced fences, 59 Mermaid diagrams, inline JavaScript, JSON, fragment targets, relative links, local README source hash, selected-file diff and live 170-marker checks; all nine content-commit remote blob hashes matched and no GitHub status checks were configured; Angular CLI build, TypeScript/template compilation, TestBed/CDK viewport execution, SSR/transfer-cache tests, browser/DevTools profiling and ng update were not performed because the Angular workspace/runtime/browser/package graph are absent",
+    "content_commit": "b177a9133249af386236c4aceec47f8df2b22b5b",
     "estimated_next_tokens": 7800,
     "estimate_method": "Heuristic for the first bounded JavaScript/HTML/CSS paired-source section plus source resolution, targeted primary-source refresh, consolidation/teaching/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
