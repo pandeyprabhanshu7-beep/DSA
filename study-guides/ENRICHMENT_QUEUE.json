@@ -691,7 +691,7 @@
         "baseline_main_head": "1b3a210aaad1162aa952d3f14b266f8d65020252"
       },
       "validation": "Q72 compared both source texts and adds a repeatable profiling loop, evidence-to-owner matrix, named signal graph, four concrete traps, Angular component code, 5,000-row invalidation trace, work-budget test, invariants and derived costs; deterministic builder and exact 536392-character HTML embedded-Markdown equality passed with 73 unique anchors, 232 balanced fenced blocks and 53 Mermaid diagrams; inline JavaScript, JSON, relative-link and live 170-marker checks passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, Angular/Chrome DevTools recording, controlled-browser execution and live timing were not performed because the project runtime/browser are absent.",
-      "last_successful_commit": "2c89690bbc57ceab228cb3642d460ffda9a91c22"
+      "last_successful_commit": "5b0349441ee15bc07e6fcec1b355426f8e9ad978"
     },
     {
       "id": "javascript-html-css",
@@ -873,7 +873,7 @@
     "validation": "Angular Q72 was compared in both actual source texts and enriched with a repeatable profiling loop, evidence-to-owner matrix, named signal graph, four concrete traps, Angular component code, 5,000-row invalidation trace, work-budget test, invariants and derived costs; deterministic reader generation, exact 536392-character payload equality, 73 anchors, 232 balanced fences, 53 Mermaid diagrams, inline JavaScript, JSON, relative links and live 170-marker audit passed. Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, Angular/Chrome DevTools recording, controlled-browser execution and live timing were not performed because the project runtime/browser are absent.",
     "estimated_next_tokens": 8400,
     "estimate_method": "Heuristic only: bounded Q73 begins at Markdown anchor line 1498 / heading line 1500 and DOCX extracted line 1009; reserve ~700 tokens for paired source range resolution, ~1200 for current primary Angular identity research, ~4200 for distinct teaching/code/diagram/HTML, and ~2300 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "2c89690bbc57ceab228cb3642d460ffda9a91c22",
+    "last_successful_commit": "5b0349441ee15bc07e6fcec1b355426f8e9ad978",
     "last_processed_at": "2026-10-14T02:08:01-04:00",
     "next_batch_decision": "Q72 was completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q73 and retain the conservative one-section checkpoint."
   }

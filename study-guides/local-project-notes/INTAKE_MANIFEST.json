@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "2c89690bbc57ceab228cb3642d460ffda9a91c22",
+  "last_successful_commit": "5b0349441ee15bc07e6fcec1b355426f8e9ad978",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -864,9 +864,9 @@
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
     "processed": "Q1–Q72; latest bounded source ranges are Markdown lines 1484-1497 and DOCX extracted lines 998-1008 for Q72",
-    "status": "VALIDATED_PENDING_PUBLISH",
+    "status": "PUBLISHED",
     "validation": "Q72 adds a repeatable profiling loop, evidence-to-owner matrix, named signal graph, four concrete traps, Angular component code, 5,000-row invalidation trace, work-budget test, invariants and derived costs; deterministic builder and exact 536392-character payload equality passed with 73 unique anchors, 232 balanced fences and 53 Mermaid diagrams; inline JavaScript, JSON, relative-link and live 170-marker checks passed; Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, Angular/Chrome DevTools recording, controlled-browser execution and live timing were not performed because the project runtime/browser are absent",
-    "content_commit": null,
+    "content_commit": "5b0349441ee15bc07e6fcec1b355426f8e9ad978",
     "estimated_next_tokens": 8400,
     "estimate_method": "Heuristic from bounded Q73 starting at Markdown anchor line 1498 / heading line 1500 and DOCX extracted line 1009, plus paired source range resolution, primary Angular identity research, distinct explanation/diagram/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
