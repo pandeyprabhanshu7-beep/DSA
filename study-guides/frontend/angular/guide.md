@@ -1,6 +1,6 @@
-# Angular 22 — Interview Foundations (Q1–Q71)
+# Angular 22 — Interview Foundations (Q1–Q73)
 
-> **Current bounded edition, 2026-10-14.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q71 (Q71 is lines 1470–1483, bounded by the next anchor at line 1484) with the corresponding `Angular_Interview_Workbook.docx` text (Q71 is extracted lines 987–997). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, a layered duplicate-payment defense combining RxJS admission control with server idempotency, route-keyed stale-result cancellation with explicit loading ownership, a production-budgeted 5,000-row table investigation, the Angular 22 OnPush-default migration contract—including the current JIT/AOT discrepancy—explicit `toSignal`/`toObservable` boundary, timing and lifetime rules, application-wide render-callback phase, cleanup, SSR and hydration contracts, required signal-input plus pure boundary-normalization rules, intentional `model()` ownership for reusable value editors, capability-oriented browser API boundaries, evidence-based `@defer` trigger selection across CSR, SSR and incremental hydration, a race-safe single-flight access-token refresh protocol with bounded request replay, explicit inner-versus-outer `catchError` recovery lifetimes around `switchMap`, and policy-driven route/detail caching with complete keys, single-flight misses, freshness, mutation invalidation and memory bounds, with diagrams, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
+> **Current bounded edition, 2026-10-14.** Reconciled `Angular_Interview_Mermaid_Workbook.md` Q1–Q73 (Q73 is lines 1498–1521, bounded by the next anchor at line 1522) with the corresponding `Angular_Interview_Workbook.docx` text (Q73 is extracted lines 1009–1025). The paired sources agree; this edition adds explicit contracts, scenario families, reactive state, routing and HTTP traces, modern signal/resource, forms and DI APIs, route-level rendering, hydration, measured list-performance guidance, lifecycle-stability diagnosis, large-application dependency boundaries, pragmatic component ownership, behavior-focused component and HTTP testing, context-aware XSS defenses, a client-guard/server-authorization threat boundary, a reversible NgModule/ZoneJS modernization sequence, subscription-topology diagnosis for duplicate HTTP requests, explicit third-party callback notification boundaries for zoneless rendering, layered payment idempotency, route-keyed stale-result cancellation, production-budgeted list profiling, the Angular 22 OnPush-default migration contract, explicit RxJS/signal adapter rules, application-wide render-callback contracts, required input and `model()` ownership, SSR-safe browser API boundaries, evidence-based `@defer` triggers, race-safe token refresh, inner-versus-outer RxJS recovery, policy-driven route/detail caching, and a four-layer signal/OnPush/tracked-DOM/domain identity model for immutable row updates, with diagrams, tests, costs and caveats. It is **not** a claim that an Angular or Spring application was compiled. Angular 22 is the current major release; earlier decorator and NgModule APIs remain supported.
 
 ## Contents
 
@@ -75,6 +75,8 @@
 - [Q69: single-flight token refresh interceptor](#q69)
 - [Q70: catchError placement with switchMap](#q70)
 - [Q71: route/detail data caching](#q71)
+- [Q72: profile signal/change-detection performance](#q72)
+- [Q73: immutable row edits and identity](#q73)
 - [Integrated exercise and references](#exercise)
 
 ## The architecture at a glance
@@ -8046,6 +8048,241 @@ Let `c` be the number of binding evaluations, `u` the number of relevant source 
 
 **Primary references:** Angular's [runtime performance overview](https://angular.dev/best-practices/performance), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [Signals graph](https://angular.dev/tools/devtools/signals), [signals guide](https://angular.dev/guide/signals), [slow-computation guide](https://angular.dev/best-practices/slow-computations), [zoneless notification guide](https://angular.dev/guide/zoneless) and [skipping-subtrees guide](https://angular.dev/best-practices/skipping-subtrees). The measurement loop, evidence table, four traps, component example, dependency diagram, invalidation trace, verification plan, invariants and cost derivation above are added teaching material.
 
+<a id="q73"></a>
+## Q73. How should a table row edit update signal state without identity bugs?
+
+**Requirement:** give one owner the authority to replace table state through a typed command. A successful edit must produce a new collection reference and a new reference for the changed row, preserve references for unchanged rows, copy every nested object that actually changes, keep the row's stable business ID, and define missing-row, duplicate-ID, no-op and stale-version behavior. The template should track that stable ID. Do not mutate an object obtained from a signal and then rely on `markForCheck`, `detectChanges` or an unrelated event to make the mutation visible.
+
+This is not merely a preference for spread syntax. There are four different identities and mechanisms:
+
+| Layer | Identity or trigger | What it guarantees | What it does **not** guarantee |
+|---|---|---|---|
+| writable signal | the signal's equality function; `Object.is` by default | a non-equal `set`/`update` notifies reactive consumers | deep immutability or a correct domain transition |
+| `OnPush` child input | a new bound input value, plus other documented notification paths such as a handled event or a template-read signal change | schedules/checks the appropriate view subtree | that an in-place input mutation will look new |
+| `@for` list reconciliation | the `track` key, preferably a unique stable ID | maps an entity to its existing view/DOM nodes across collection replacements and reorders | signal notification, row-object equality or correct edits |
+| domain state | ID, version and command policy | defines which row may change and whether an edit is valid | framework rendering by itself |
+
+An immutable update aligns these layers: the collection signal sees a new value, a row component receives a new input only for the changed row, and `track row.id` can retain the row's DOM/component instance rather than destroying it. Stable DOM identity and new data identity are complementary, not contradictory.
+
+### One pure transition, one state owner
+
+Keep the writable signal private and expose a readonly view. `asReadonly()` removes the public `set`/`update` API, but it does not freeze arrays or objects, so readonly TypeScript types and a controlled command still matter.
+
+```typescript
+import {Injectable, Signal, signal} from '@angular/core';
+
+type RowId = string;
+type RowStatus = 'draft' | 'approved' | 'rejected';
+
+type Address = Readonly<{
+  city: string;
+  countryCode: string;
+}>;
+
+type Row = Readonly<{
+  id: RowId;
+  name: string;
+  status: RowStatus;
+  address: Address;
+  version: number;
+}>;
+
+type RowPatch = Readonly<{
+  name?: string;
+  status?: RowStatus;
+  city?: string;
+  expectedVersion: number;
+}>;
+
+export function patchOneRow(
+  rows: readonly Row[],
+  id: RowId,
+  patch: RowPatch,
+): readonly Row[] {
+  const indexes = rows
+    .map((row, index) => row.id === id ? index : -1)
+    .filter(index => index >= 0);
+
+  if (indexes.length !== 1) {
+    throw new Error(indexes.length === 0
+      ? `Unknown row: ${id}`
+      : `Duplicate row id: ${id}`);
+  }
+
+  const index = indexes[0];
+  const current = rows[index];
+  if (current.version !== patch.expectedVersion) {
+    throw new Error(
+      `Version conflict for ${id}: expected ${patch.expectedVersion}, actual ${current.version}`,
+    );
+  }
+
+  const name = patch.name ?? current.name;
+  const status = patch.status ?? current.status;
+  const city = patch.city ?? current.address.city;
+  const changed = name !== current.name
+    || status !== current.status
+    || city !== current.address.city;
+
+  if (!changed) return rows; // semantic no-op: preserve every identity
+
+  const updated: Row = {
+    ...current,
+    name,
+    status,
+    address: city === current.address.city
+      ? current.address
+      : {...current.address, city},
+    version: current.version + 1,
+  };
+
+  return rows.map((row, candidate) => candidate === index ? updated : row);
+}
+
+@Injectable({providedIn: 'root'})
+export class RowStore {
+  private readonly _rows = signal<readonly Row[]>([]);
+  readonly rows: Signal<readonly Row[]> = this._rows.asReadonly();
+
+  edit(id: RowId, patch: RowPatch): void {
+    this._rows.update(rows => patchOneRow(rows, id, patch));
+  }
+}
+```
+
+The transition validates the whole command before constructing the replacement. It changes neither `id` nor the original array, returns the original array for a semantic no-op, copies `address` only when `city` changes, and increments the version only for a real edit. In a production system, return a typed result such as `updated | no-op | not-found | conflict` instead of parsing exception messages; the thrown errors keep this interview-sized example concise.
+
+The `??` operator is intentional. `patch.name || current.name` would reject a deliberately empty string; if an empty name is invalid, validate that domain rule explicitly rather than smuggling it into fallback syntax. An API patch also needs a field allow-list—never spread an untrusted request object over a domain entity because it could overwrite `id`, `version` or server-owned fields.
+
+```html
+<tbody>
+  @for (row of store.rows(); track row.id) {
+    <tr>
+      <td>{{ row.name }}</td>
+      <td>{{ row.status }}</td>
+      <td>{{ row.address.city }}</td>
+    </tr>
+  }
+</tbody>
+```
+
+### Four examples that expose the contract
+
+Assume the original collection is `A0 = [R1, R2, R3]`, where the suffix names an object identity rather than a value.
+
+1. **Scalar edit:** approve row `R2`. The result is `A1 = [R1, R2′, R3]`: `A1 !== A0`, `R2′ !== R2`, and the two untouched row references are exactly preserved. The signal notifies; an `OnPush` row child bound to `R2′` receives a new input; rows 1 and 3 retain both data and tracked view identity.
+2. **Nested edit:** change only `R2.address.city`. The update creates `R2′` and `Address2′`. A shallow `{...R2, address: R2.address}` followed by `address.city = ...` would still corrupt the old snapshot because spread is shallow. Unchanged nested objects may keep their references.
+3. **No-op edit:** submit the same name, status and city at the expected version. The pure function returns `A0`; the default equality suppresses notification. This avoids a false version increment, recomputation and rendering work. Product requirements may still record an attempted command separately, but that audit event is not a fake state change.
+4. **Invalid or stale edit:** an unknown ID, duplicate ID, or mismatched expected version fails before any state is published. For a server round trip, retain the optimistic command and previous snapshot or inverse patch, then accept the authoritative version or roll back/rebase on conflict. New references cannot solve lost updates; version policy does.
+
+### Reference and rendering trace
+
+Suppose the user changes row `r2` from `draft` to `approved`:
+
+| Step | State/reference observation | Framework consequence |
+|---:|---|---|
+| 1 | signal holds `A0 = [R1, R2, R3]` | table template has a reactive edge to the signal |
+| 2 | command validates one `r2` at version 7 | no state is published during validation |
+| 3 | transition constructs `R2′` at version 8 and `A1 = [R1, R2′, R3]` | old snapshot remains internally consistent |
+| 4 | `signal.update` compares `A0` and `A1` with `Object.is` | values differ, so consumers are notified |
+| 5 | `@for` evaluates `track row.id` | keys `r1`, `r2`, `r3` still map to existing views; no row is mistaken for another |
+| 6 | bindings/input for keyed `r2` receive `R2′`; other rows retain `R1`/`R3` | the changed row updates while stable DOM state such as focus is eligible for reuse |
+
+```mermaid
+flowchart TD
+  C["Edit command: id + patch + version"] --> O["State owner validates"]
+  O --> N["New array; changed row copied"]
+  N --> S["Signal notifies consumers"]
+  S --> K["@for tracks stable row.id"]
+  K --> V["Reuse keyed views; refresh bindings"]
+```
+
+There are two independent comparisons: the signal compares the collection value, while the repeater compares track keys. Replacing the array does not imply recreating all row DOM. Conversely, a stable track key cannot rescue a mutation that never notified the template.
+
+### Why forced checks are not a state model
+
+These three tempting writes are observably different from a valid transition:
+
+```typescript
+// 1. No signal write at all.
+store.rows()[0].status = 'approved'; // readonly types should reject this
+
+// 2. The array is mutated, then the same reference is returned.
+rows.update(current => {
+  (current as Row[])[0] = {...current[0], status: 'approved'};
+  return current;
+});
+
+// 3. A nested object is shared with the old snapshot and mutated.
+rows.update(current => current.map(row => row.id === id
+  ? {...row, address: row.address}
+  : row));
+rows()[0].address.city = 'Pune';
+```
+
+With default equality, case 2 passes the same array back to `signalSetFn`, so no value change is published. Case 3 initially publishes a new row/array but then aliases and mutates the old nested object; history, memoized selectors and rollback snapshots can all observe the later mutation. Calling `markForCheck()` can schedule a view check and calling `detectChanges()` can run one, but neither creates the missing state version, repairs aliased history, or notifies non-view consumers. A screen that “looks fixed” after a click may only be benefiting from that event's change-detection path.
+
+The same issue appears at an `OnPush` boundary:
+
+```html
+@for (row of store.rows(); track row.id) {
+  <app-row [row]="row" />
+}
+```
+
+If the parent mutates `row.status` while preserving `row`, the child's bound input has the same reference. Angular documents that an `OnPush` component is not checked merely because an object behind an equal input reference was mutated. A handled event or another signal may later cause a check, which explains inconsistent symptoms, but the input contract is still broken. With `[row]="R2′"`, the changed child gets a new input while children receiving `R1` and `R3` keep theirs.
+
+### Verification at three boundaries
+
+The pure transition is the cheapest and most exhaustive test target:
+
+```typescript
+it('copies only the edited row and changed nested object', () => {
+  const before = [
+    {id: 'r1', name: 'Ada', status: 'draft', address: {city: 'Delhi', countryCode: 'IN'}, version: 3},
+    {id: 'r2', name: 'Grace', status: 'draft', address: {city: 'London', countryCode: 'GB'}, version: 7},
+  ] as const;
+
+  const after = patchOneRow(before, 'r2', {city: 'Bristol', expectedVersion: 7});
+
+  expect(after).not.toBe(before);
+  expect(after[0]).toBe(before[0]);
+  expect(after[1]).not.toBe(before[1]);
+  expect(after[1].address).not.toBe(before[1].address);
+  expect(after[1]).toEqual({...before[1], address: {...before[1].address, city: 'Bristol'}, version: 8});
+  expect(before[1].address.city).toBe('London');
+});
+
+it('preserves the complete snapshot for a semantic no-op', () => {
+  const before = seedRows();
+  expect(patchOneRow(before, 'r2', {
+    status: before[1].status,
+    expectedVersion: before[1].version,
+  })).toBe(before);
+});
+```
+
+Add pure tests for scalar updates, empty-string policy, unknown IDs, duplicate IDs, stale versions and unchanged nested references. Then add an Angular component test proving that a signal command refreshes an `OnPush` row child without an arbitrary `fixture.detectChanges()` used as the notification mechanism. Finally, use a browser test to retain focus/selection while editing and reordering, assert unique IDs, and verify that keyed rows are reused. Those framework/browser tests answer questions the pure function cannot.
+
+### Invariants, correctness and costs
+
+- **Ownership invariant:** only the state owner exposes commands that can replace the collection; consumers see readonly state.
+- **Entity invariant:** exactly one row matches the command ID, and a valid edit never changes that ID.
+- **Snapshot invariant:** prior arrays, rows and changed nested objects are never mutated after publication.
+- **Structural-sharing invariant:** a real edit creates a new collection and changed path, while untouched rows and nested objects retain references; a semantic no-op retains the original collection.
+- **Concurrency invariant:** the command's expected version matches the current version before publication; server reconciliation has an explicit accept, rollback or rebase rule.
+- **Rendering invariant:** the list uses a unique stable business key, never index for a reorderable table, so data replacement and DOM identity remain decoupled.
+
+For `n` rows, the example's uniqueness validation and replacement maps each traverse the collection, so time is O(`n`) with two O(`n`) reference arrays in the changed case; the temporary index list is O(number of matches), which becomes O(`n`) only for badly duplicated data. A one-pass implementation can validate and construct candidates together but must still avoid publishing a partial answer. The returned collection contains O(`n`) references, while only O(1) row/nested objects are newly allocated for this fixed-size patch. A no-op still validates in O(`n`) time but returns the original collection without result allocation beyond the validation temporaries. A normalized `Map<RowId, Row>` gives expected O(1) lookup/update with structural-copy costs determined by the chosen persistent or copied map, yet materializing an ordered table array is still O(`n`) time and output references unless order is stored separately and consumed incrementally.
+
+The transition is correct because it rejects every state in which the target is not unique or the version is stale; for an accepted no-op it returns the unchanged valid snapshot; and for an accepted change it substitutes exactly one row, retains all other row references, copies the changed nested path, preserves the stable ID and advances the version once. Therefore no published snapshot is partially mutated and each accepted edit has one deterministic successor.
+
+**Common errors:** mutating `rows()[i]`; mutating then returning the same array from `update`; copying the row but not a changed nested object; recreating every row; spreading an untrusted patch over `id` or `version`; using truthiness instead of an explicit patch contract; tracking by `$index` in a sortable/filterable table; using row-object identity as the track key; duplicate IDs; incrementing a version for a no-op; ignoring stale server responses; treating `asReadonly()` as deep freezing; adding deep equality to conceal mutable writes; calling `detectChanges()` until a flaky UI appears current; and assuming new object identity alone resolves concurrent edits.
+
+**Interview variations:** entity-map normalization; NgRx reducers or SignalStore updaters; optimistic update/rollback; JSON Patch versus domain commands; server ETags or version columns; row-level versus collection-level signals; custom signal equality; bulk edit atomicity; reorder and selection retention; virtualized tables; immutable development checks; audit/event sourcing; undo/redo; SSR hydration identity; and profiling allocation versus rendering cost.
+
+**Primary references:** Angular's [signals guide](https://angular.dev/guide/signals), [skipping component subtrees guide](https://angular.dev/best-practices/skipping-subtrees), [`@for` control-flow guide](https://angular.dev/guide/templates/control-flow), [NG0955 duplicate-key diagnostic](https://angular.dev/errors/NG0955), [NG0956 DOM-recreation diagnostic](https://angular.dev/errors/NG0956), and current [`signalSetFn` implementation](https://github.com/angular/angular/blob/main/packages/core/primitives/signals/src/signal.ts). The four-layer identity model, typed transition, examples, trace, diagram, verification plan, invariants, proof and cost derivation above are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -8053,14 +8290,14 @@ Keep the reusable order card behind a readonly view-model input and semantic `se
 
 Plan the legacy application's modernization as deployable checkpoints: capture a clean behavioral/performance baseline; use the Update Guide and supported toolchain matrix for one major-version step at a time; convert the leaf order card to standalone while its NgModule consumer remains valid; migrate the lazy orders route; then replace root bootstrap while preserving provider scopes, initializers, interceptor order and ZoneJS scheduling explicitly. Audit every template-visible timer, SDK, socket, form and SSR update for a real Angular notification, prove it in zoneless tests and a measured canary, and only then remove ZoneJS polyfills/dependency. Keep state-management and design-system rewrites outside these checkpoints, assign every `importProvidersFrom` bridge an owner/removal gate, and demonstrate the rollback after each phase. For the search page, draw the subscriber graph before adding an operator: bind a cold request once when one view owns it, expose a stable field rather than a template getter, flatten route/query changes with `switchMap`, and share only one explicitly identified query generation across overlapping consumers. Separate in-flight deduplication from retained caching; key detail data by tenant, principal scope, locale, representation and ID; start TTL on successful response; generation-fence old reads; invalidate/write through after successful mutations and logout; bound memory and SSR scope; and prove request cardinality, expiry, recovery and isolation with `expectOne`/`match` rather than trusting the Network panel alone.
 
-Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Make its immutable order view model a required signal input, use a pure transform only for a small representation boundary such as trimming an optional label, and test both the missing-binding compile failure and the transform's accepted write types; do not mistake requiredness or coercion for domain validation. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly. Put each RxJS/signal bridge at one stable owner: adapt an existing stream once with `toSignal`, move signal state into RxJS once when debounce/cancellation is required, and test stabilized rather than imaginary per-write emissions. Initialize one imperative chart with `afterNextRender`, give it a dedicated host and explicit destructor, and place geometric writes before reads. Use `afterEveryRender` only for a genuinely recurring render concern, guard signal writes against equality, prove automatic/early cleanup, and keep SSR output correct without either browser-only callback. Do not equate completed Angular rendering with browser paint or completed hydration.
+Test the card through its input, rendered DOM and semantic output; test the page through controlled loading/empty/ready dependency states and navigation effect. Make its immutable order view model a required signal input, use a pure transform only for a small representation boundary such as trimming an optional label, and test both the missing-binding compile failure and the transform's accepted write types; do not mistake requiredness or coercion for domain validation. Route row edits through one owning command: validate ID/version, replace the collection and changed row/nested path, retain untouched references, treat a semantic no-op explicitly, and track the stable ID so new data identity does not destroy row DOM identity. Test the order API separately with the HTTP testing backend: subscribe, assert method/full URL/body/headers, flush success and status/network failures, await the mapped result and verify no request remains. Treat order notes as untrusted data: interpolate plain text, sanitize genuinely rich HTML for its destination, forbid generic trust-bypass pipes, construct executable resource URLs only from fixed origins plus validated IDs, and enforce/test CSP and Trusted Types. Use a real browser for promised focus/layout behavior, and do not assert private signals or call click handlers directly. Put each RxJS/signal bridge at one stable owner: adapt an existing stream once with `toSignal`, move signal state into RxJS once when debounce/cancellation is required, and test stabilized rather than imaginary per-write emissions. Initialize one imperative chart with `afterNextRender`, give it a dedicated host and explicit destructor, and place geometric writes before reads. Use `afterEveryRender` only for a genuinely recurring render concern, guard signal writes against equality, prove automatic/early cleanup, and keep SSR output correct without either browser-only callback. Do not equate completed Angular rendering with browser paint or completed hydration.
 
 Place `/orders/:id` behind one public orders feature entry point. Keep order domain rules independent of Angular UI and concrete HTTP code, map DTOs in data access, inject the repository port at route composition, expose workflow state through a route-scoped facade, and prove import rules reject reverse/deep dependencies. Design `/orders/:id` as a lazy route group. Redirect unsigned users with a returned `UrlTree`, resolve only the order essential for first paint, and explain why backend authorization still owns access control. On the server, deny unmatched endpoints, derive identity from verified credentials, enforce broad request rules plus order/tenant ownership near the domain operation, and make mutation authorization atomic with the write. Resolve an application-wide HTTP service by DI and provide one scoped `DraftSession` per editor subtree. Add a typed configuration token, a backwards-compatible `useExisting` alias and a multi-provider audit hook list; explain instance identity and the token lookup path. Register ordered functional interceptors for allowlisted-origin authentication, correlation and bounded retry; keep domain error translation in the order service and presentation policy in the component. Expose the selected order through a signal-aware request boundary. Display loading/error/empty states, filter n returned orders in O(n) time and O(n) result space, and track visible rows by immutable IDs. Use `computed` for derived filters, `linkedSignal` for a selection that must remain valid, and OnPush-compatible notifications for visible state. Profile the production-sized order list, preserve row identity during refresh/reorder, virtualize or paginate only when DOM pressure is measured, and derive data, view and rendered-DOM costs. Split a parent page, editor child and projected card shell. Pass the immutable draft down, emit Save up, query only DOM owned by the relevant component, and prevent synchronous child initialization from rewriting an already-checked parent binding; demonstrate the NG0100 trace and repair the ownership rather than adding a timer. Cancel superseded reads with `switchMap`. Use `combineLatest` for live filter inputs and `forkJoin` for a finite parallel dashboard load; state the first-emission and completion contracts. Prevent duplicate saves with an explicit `exhaustMap` or queued `concatMap` policy, and explain why client unsubscription does not roll back a server mutation. Share one current-user HTTP generation with an explicit replay/reset/invalidation policy, key it by identity, and prove that two overlapping views do not duplicate the request. Bind the view model once with `AsyncPipe`, alias its discriminated loading/ready/error state, and use `takeUntilDestroyed` for imperative route side effects. Build an editor form with an explicit typed model, a cross-field rule and a finite server-backed uniqueness check; justify Reactive Forms, Signal Forms or template-driven forms, show `PENDING`, define the network-error policy and explain the atomic server constraint. Add a keyboard-accessible host-metadata directive and a legacy SDK callback; explain whether to adapt the callback to a signal or call `markForCheck`. Choose component signals, a route-scoped signal service, NgRx SignalStore or Global Store for each state owner and justify the ceremony. For a scoped order-draft store, keep writable state private, expose readonly/computed views, express named commands, preserve atomic snapshots, and define save concurrency, failure recovery and injector-destruction behavior. Choose CSR, SSR or prerendering separately for the public catalog, account and editor routes; derive build, origin and browser costs. Defer only the non-critical recommendation panel, separate prefetch from render triggers and preserve layout. Hydrate the server-rendered purchase boundary on interaction, explain event replay and prove the server/client DOM is identical. Test: forbidden import direction, deep import, dependency cycle, malformed DTO, route-provider teardown, lazy chunk failure, guard redirect, `CanMatch` fallback, concurrent guards, resolver failure, direct unauthenticated API call, authenticated other-owner and cross-tenant API calls, role revocation, alternate service entry point and ownership change concurrent with mutation, interceptor ordering, auth-origin leakage prevention, refresh recursion, unsafe mutation retry, two editor scopes, missing/optional provider, alias identity, duplicate multi contribution, empty list, reordered list with focused child state, duplicate list key, virtual viewport first/last navigation, rendered-row budget, removed selection, child-after-view parent mutation, impure binding getter, DOM measurement in browser and SSR, A→B request race, route destruction during a request, duplicate Save clicks, a never-completing forkJoin source, a combineLatest source without an initial value, two subscribers to cold and shared HTTP sources, late replay subscriber, logout cache invalidation, repeated `async` use, an `@if`-destroyed async view, partial versus exact form writes, disabled-value serialization, cross-field validation, never-completing async validation, uniqueness race, validation-service failure, 401/403/404/409/network failures, malformed payload, same-reference input mutation, missing zoneless notification, detach/reattach cleanup, component recreation without stale observers, host keyboard behavior, feature-store duplicate IDs, writes during save, failed-save item retention, provider-scope recreation, and SSR work registered with `PendingTasks`. Do **not** claim route guards, request cancellation or client validation enforce backend authorization, rollback or integrity.
 
 ## Verification and primary sources
 
-- Both **actual Library source texts** were inspected for Q1–Q71. This pass was bounded to Markdown lines 1470–1485 and DOCX extracted lines 987–997 for Q71; both sources say that a route/detail cache needs an owner, key, freshness rule, invalidation events and memory policy, that in-flight deduplication differs from retained reuse, and that `shareReplay(1)` alone is not a complete cache strategy. This edition adds a cache contract matrix; complete identity-key model; four scenarios; keyed TTL, single-flight and generation-fenced TypeScript; a state diagram and mutation trace; HTTP-validator and SSR boundaries; cardinality/freshness/recovery tests; invariants; and derived key, response, dependency-index and eviction costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
-- Code snippets and traces were checked conceptually against the linked official Angular 22.2.2, RxJS and OAuth sources. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser execution, hydration test, SSR test or live server call was executed** during this source-comparison pass.
+- Both **actual Library source texts** were inspected for Q1–Q73. This pass was bounded to Markdown lines 1498–1521 and DOCX extracted lines 1009–1025 for Q73; both sources prefer an explicit owner and immutable collection update for a same-reference row-mutation bug. This edition adds the missing separation among signal equality, OnPush scheduling, tracked DOM identity and domain versioning; a typed nested-copy transition; four examples; reference trace; diagram; pure/framework/browser test boundaries; concurrency rules; invariants; proof; and derived costs. The Markdown source hash is `b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e` per the intake manifest. No DOCX byte hash is claimed.
+- Code snippets and traces were checked conceptually against the linked official Angular 22.2.2 sources, and the pure transition was exercised independently in Node with deterministic examples plus randomized oracle checks. The deterministic reader validator and JavaScript syntax checks were executed, but **no Angular CLI template compilation, TypeScript compilation, Vitest/JIT execution, controlled-browser focus/reorder test, hydration test, SSR test or live server call was executed** during this source-comparison pass.
 - Official Angular (reviewed 2026-10-11): [supported versions](https://angular.dev/reference/versions), [release timetable](https://angular.dev/reference/releases), [components/imports](https://angular.dev/guide/components/importing), [inputs and model](https://angular.dev/guide/components/inputs), [outputs](https://angular.dev/guide/components/outputs), [lifecycle](https://angular.dev/guide/components/lifecycle), [queries](https://angular.dev/guide/components/queries), [content projection](https://angular.dev/guide/components/content-projection), [pipes](https://angular.dev/guide/templates/pipes), [AOT compiler](https://angular.dev/tools/cli/aot-compiler), [control flow](https://angular.dev/guide/templates/control-flow), [signals](https://angular.dev/guide/signals), [services](https://angular.dev/guide/di/creating-and-using-services), [linkedSignal](https://angular.dev/guide/signals/linked-signal), [resource](https://angular.dev/guide/signals/resource), [httpResource](https://angular.dev/guide/http/http-resource), [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [route guards](https://angular.dev/guide/routing/route-guards), [data resolvers](https://angular.dev/guide/routing/data-resolvers), [HTTP interceptors](https://angular.dev/guide/http/interceptors), [making HTTP requests](https://angular.dev/guide/http/making-requests), [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees), [zoneless](https://angular.dev/guide/zoneless), [`ChangeDetectorRef`](https://angular.dev/api/core/ChangeDetectorRef), [hierarchical injectors](https://angular.dev/guide/di/hierarchical-dependency-injection), [defining providers](https://angular.dev/guide/di/defining-dependency-providers), [injection context](https://angular.dev/guide/di/dependency-injection-context), [`inject`](https://angular.dev/api/core/inject), [`HostBinding`](https://angular.dev/api/core/HostBinding), [`HostListener`](https://angular.dev/api/core/HostListener), [`AsyncPipe`](https://angular.dev/api/common/AsyncPipe), [`takeUntilDestroyed`](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed), [forms comparison](https://angular.dev/guide/forms), [Reactive Forms](https://angular.dev/guide/forms/reactive-forms), [Signal Forms](https://angular.dev/guide/forms/signals/overview), [Signal Forms validation](https://angular.dev/guide/forms/signals/validation), [form validation](https://angular.dev/guide/forms/form-validation), [`AsyncValidatorFn`](https://angular.dev/api/forms/AsyncValidatorFn), [`afterNextRender`](https://angular.dev/api/core/afterNextRender).
 - Official Angular rendering and hydration (reviewed 2026-10-11): [`@defer`](https://angular.dev/guide/templates/defer), [server and hybrid rendering](https://angular.dev/guide/ssr), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), and the deprecated [`withIncrementalHydration`](https://angular.dev/api/platform-browser/withIncrementalHydration) API reference.
 - Official Angular performance material (reviewed 2026-10-12): [`@for` tracking](https://angular.dev/guide/templates/control-flow#why-is-track-in-for-blocks-important), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [slow computations](https://angular.dev/best-practices/slow-computations), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), [Signals/computed](https://angular.dev/guide/signals#computed-signals-are-both-lazily-evaluated-and-memoized), and the Angular Components repository's [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md).
@@ -8087,6 +8324,7 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official NgRx (reviewed 2026-10-11): [Global Store](https://ngrx.io/guide/store), [Effects](https://ngrx.io/guide/effects), [Signals and SignalStore](https://ngrx.io/guide/signals), and the [NgRx platform repository](https://github.com/ngrx/platform). NgRx APIs are version-sensitive; choose and pin the package version that matches the application's Angular version.
 - Official RxJS (reviewed 2026-10-11): [overview](https://rxjs.dev/guide/overview), [Subject variants](https://rxjs.dev/guide/subject), [`switchMap`](https://rxjs.dev/api/operators/switchMap), [`mergeMap`](https://rxjs.dev/api/operators/mergeMap), [`concatMap`](https://rxjs.dev/api/operators/concatMap), [`exhaustMap`](https://rxjs.dev/api/operators/exhaustMap), [`combineLatest`](https://rxjs.dev/api/index/function/combineLatest), [`forkJoin`](https://rxjs.dev/api/index/function/forkJoin), [`share`](https://rxjs.dev/api/operators/share), [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), and the current [share](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share.ts), [shareReplay](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/share-replay.ts) and [Subject](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/subject.ts) source contracts. RxJS reset details are version-sensitive; the guide's concrete Angular code uses the RxJS 7 configuration shape.
 - Official Angular signal/change-detection profiling material (reviewed 2026-10-14): [runtime performance overview](https://angular.dev/best-practices/performance), [Angular DevTools profiler](https://angular.dev/tools/devtools/profiler), [Chrome DevTools profiling integration](https://angular.dev/best-practices/profiling-with-chrome-devtools), [Signals graph](https://angular.dev/tools/devtools/signals), [signals](https://angular.dev/guide/signals), [slow computations](https://angular.dev/best-practices/slow-computations), [zoneless](https://angular.dev/guide/zoneless) and [skipping subtrees](https://angular.dev/best-practices/skipping-subtrees). Current Angular 22.2.2 pages document the profiler's cycle/component evidence, development-only Chrome integration, Angular 19+ development signal graph, lazy memoized computed values with dynamic dependencies, `Object.is` default equality and notification paths. The measurement model, examples, diagram, trace, invariants, tests and cost derivation are added teaching material.
+- Official Angular identity and row-update material (reviewed 2026-10-14): [signals](https://angular.dev/guide/signals), [skipping component subtrees](https://angular.dev/best-practices/skipping-subtrees), [`@for` control flow](https://angular.dev/guide/templates/control-flow), [NG0955 duplicate keys](https://angular.dev/errors/NG0955), [NG0956 DOM recreation](https://angular.dev/errors/NG0956), and the current [`signalSetFn`](https://github.com/angular/angular/blob/main/packages/core/primitives/signals/src/signal.ts). Current Angular 22.2.2 documentation and source distinguish default `Object.is` signal equality, OnPush input-reference behavior and key-based view reuse; readonly signals do not provide deep immutability. The four-layer model, transition, examples, trace, diagram, tests, proof and cost derivation are added teaching material.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with bounded Q73 (same-reference row mutation, identity and OnPush design) in both sources. It begins at Markdown anchor line 1498 / heading line 1500 and DOCX extracted line 1009; resolve its exact end before reading it, compare with Q15, Q18, Q48, Q61, Q62 and Q72, and keep extending this one canonical guide.
+- **Next:** continue with bounded Q74 (ZoneJS/zoneless compatibility across application and library boundaries) in both sources. It begins at Markdown anchor line 1522 / heading line 1524 and DOCX extracted line 1026; resolve its exact end before reading it, compare with Q20, Q21, Q56, Q58, Q62 and Q72, and keep extending this one canonical guide.
 
