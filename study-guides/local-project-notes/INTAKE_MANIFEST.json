@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "ebba849e215ead6a2c698748012b0f2da541ba5c",
+  "last_successful_commit": "7b2027f1c13778a3fbf7e3d9ea072c67f20d61cf",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -894,8 +894,8 @@
     "docx_source_file_id": "file_0000000037888211b9c20e5f69be6b09",
     "processed": "Q1-Q30; latest bounded range is Markdown lines 843-968 and DOCX rendered lines 606-691 for Q25-Q30, each bounded by Q31; earlier Q1-Q24 retained",
     "status": "PUBLISHED",
-    "validation": "Both actual source texts agree on Q25-Q30 and were consolidated with exact requirements, four connected example groups, four new Mermaid diagrams, cancellation/propagation/rendering/CORS traces, storage and security policy boundaries, current primary references and deterministic assertions. Deterministic reader generation and exact 59047-character embedded-Markdown equality passed with 32 unique anchors, 44 balanced fenced blocks, 12 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 27 scenario groups. JSON, fragment targets, relative links, selected-file diff and the published 170-marker placeholder invariant passed; selected files do not alter marker-bearing paths. Remote blob verification is pending publication; browser DOM/render/CORS integration and Mermaid visual QA were not executed.",
-    "content_commit": "ebba849e215ead6a2c698748012b0f2da541ba5c",
+    "validation": "Both actual source texts agree on Q25-Q30 and were consolidated with exact requirements, four connected example groups, four new Mermaid diagrams, cancellation/propagation/rendering/CORS traces, storage and security policy boundaries, current primary references and deterministic assertions. Deterministic reader generation and exact 59047-character embedded-Markdown equality passed with 32 unique anchors, 44 balanced fenced blocks, 12 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 27 scenario groups. JSON, fragment targets, relative links, selected-file diff and the published 170-marker placeholder invariant passed; selected files do not alter marker-bearing paths. All nine content-commit remote blob hashes matched and no GitHub status checks were configured; browser DOM/render/CORS integration and Mermaid visual QA were not executed.",
+    "content_commit": "7b2027f1c13778a3fbf7e3d9ea072c67f20d61cf",
     "next_section": "Q31-Q36 only: default-action versus propagation control, semantic HTML, async/defer, accessible forms, viewport configuration, and responsive images",
     "estimated_next_tokens": 7600,
     "estimate_method": "Heuristic for Q31-Q36 paired-source comparison, current primary references, examples/traces/HTML and validation/checkpoint reserves; not actual quota percentage"
