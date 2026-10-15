@@ -5,7 +5,7 @@ description: Incremental, source-reconciled frontend interview guide with execut
 
 # JavaScript, HTML and CSS Interview Guide
 
-This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q18**: execution fundamentals, value semantics, and the function/object model through memoization. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
+This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q24**: execution fundamentals, value semantics, the function/object model, and asynchronous JavaScript through debounce and throttle. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
 
 ## Module map
 
@@ -27,6 +27,12 @@ This is the canonical incremental guide for the paired JavaScript/HTML/CSS workb
 - [Q16 — Function forms](#q16)
 - [Q17 — Currying and partial application](#q17)
 - [Q18 — Memoization](#q18)
+- [Q19 — Event-loop ordering](#q19)
+- [Q20 — `async` and `await`](#q20)
+- [Q21 — Promise combinators](#q21)
+- [Q22 — Async error boundaries](#q22)
+- [Q23 — Debounce](#q23)
+- [Q24 — Throttle](#q24)
 - [Source provenance and verification](#sources)
 - [Next bounded section](#next)
 
@@ -744,6 +750,260 @@ console.log(square(4), square(4), computations); // 16 16 1
 
 The `has` check is essential because cached results may legitimately be `0`, `false`, or `undefined`. A `Map` uses object identity for object keys; structurally equal object literals are different keys. JSON stringification is not a universal structural key because order, unsupported values, cycles, and serialization cost matter. Memoizing time-, user-, locale-, permission-, or database-dependent work without including those dependencies and an invalidation policy returns stale or unsafe results.
 
+## Asynchronous JavaScript: separate scheduling from execution
+
+JavaScript promises do not create a second JavaScript thread. The host runs tasks such as timer callbacks; ECMAScript promise reactions run as jobs, which browsers integrate with the microtask queue. A useful browser model is:
+
+```mermaid
+flowchart TD
+    Task[Run one task to completion] --> Checkpoint[Perform microtask checkpoint]
+    Checkpoint --> Empty{Microtask queue empty?}
+    Empty -->|no| Microtask[Run oldest microtask]
+    Microtask --> Empty
+    Empty -->|yes| Render[Possible rendering update]
+    Render --> Next[Choose another runnable task]
+```
+
+This is a scheduling model, not a promise that every task source is globally FIFO. A zero-millisecond timer means “eligible after the minimum delay,” not “execute immediately.” Microtasks queued by other microtasks are drained in the same checkpoint; an unbounded microtask chain can therefore delay rendering and later tasks.
+
+<a id="q19"></a>
+
+## Q19. How do you predict event-loop output?
+
+### Requirement
+
+First run the current script to completion. Record promise reactions and `queueMicrotask` callbacks in registration order. At the checkpoint, keep draining microtasks—including newly queued ones—before a later timer task can run.
+
+### Example 15 — a nested microtask joins the same checkpoint
+
+```javascript
+const output = [];
+
+output.push("A");
+setTimeout(() => output.push("timer"), 0);
+Promise.resolve().then(() => {
+  output.push("promise-1");
+  queueMicrotask(() => output.push("nested"));
+});
+queueMicrotask(() => output.push("microtask-1"));
+output.push("B");
+
+// after the timer: A, B, promise-1, microtask-1, nested, timer
+```
+
+Trace:
+
+| Step | Running work | Microtask queue after step | Output |
+|---:|---|---|---|
+| 1 | current script | — | `A` |
+| 2 | register timer task | — | `A` |
+| 3 | register promise reaction | `promise-1` | `A` |
+| 4 | `queueMicrotask` | `promise-1`, `microtask-1` | `A` |
+| 5 | finish script | unchanged | `A, B` |
+| 6 | run promise reaction | `microtask-1`, `nested` | `A, B, promise-1` |
+| 7 | drain remaining microtasks | empty | `…, microtask-1, nested` |
+| 8 | timer task becomes selected | empty | `…, timer` |
+
+Do not say “promises always beat timers” without scope. A promise reaction registered inside a later timer obviously cannot run before the code that registers it. Analyze one task and its following checkpoint at a time.
+
+<a id="q20"></a>
+
+## Q20. What do `async` and `await` actually do?
+
+### Requirement
+
+Calling an `async` function returns a promise. `await expression` obtains a promise from the expression, suspends only that async function, and schedules its continuation after settlement. The JavaScript thread is free to run other work. Even an already-fulfilled promise does not make the continuation run inline with the current stack.
+
+### Example 16 — start independent work before awaiting it
+
+```javascript
+async function loadDashboard(loadUser, loadOrders) {
+  const userPromise = loadUser();     // starts now
+  const ordersPromise = loadOrders(); // starts now
+  const [user, orders] = await Promise.all([userPromise, ordersPromise]);
+  return { user, orders };
+}
+```
+
+Compare the timelines:
+
+| Shape | Timeline | Approximate wall time for 80 ms + 120 ms jobs |
+|---|---|---:|
+| serial | start user → await → start orders → await | 200 ms |
+| concurrent | start both → await both | 120 ms |
+
+Concurrency is correct only when the operations are independent and the resource budget permits it. If the second operation needs the first result, serial `await` expresses the real dependency. For a large input collection, use a concurrency limit rather than launching every operation at once.
+
+<a id="q21"></a>
+
+## Q21. When should you use `Promise.all`, `allSettled`, `race`, or `any`?
+
+### Requirement
+
+Choose the success condition before choosing the API. Each method accepts an iterable and returns a new promise; none of them cancels losing or rejected input operations.
+
+| Combinator | Returned promise fulfills when | Rejects when | Output ordering / reason |
+|---|---|---|---|
+| `Promise.all` | every input fulfills | first observed rejection | values stay in input order |
+| `Promise.allSettled` | every input settles | not because an input rejects | result records stay in input order |
+| `Promise.race` | first input settles successfully | first input settles by rejection | first settlement wins |
+| `Promise.any` | first input fulfills | every input rejects | rejects with `AggregateError` |
+
+### Example 17 — select semantics, then handle the non-winners
+
+```javascript
+const audit = await Promise.allSettled([
+  Promise.resolve({ region: "east", latency: 42 }),
+  Promise.reject(new Error("west unavailable"))
+]);
+// [{ status: "fulfilled", value: ... }, { status: "rejected", reason: ... }]
+
+const firstHealthy = await Promise.any([
+  Promise.reject(new Error("east unavailable")),
+  Promise.resolve({ region: "west", latency: 55 })
+]);
+// { region: "west", latency: 55 }
+```
+
+Important edge cases:
+
+- `Promise.all([])` and `Promise.allSettled([])` fulfill with `[]`.
+- `Promise.any([])` rejects with an `AggregateError` because no input can fulfill.
+- `Promise.race([])` remains pending because no input can settle it.
+- “Fail fast” does not mean “stop the other jobs.” Connect explicit cancellation when wasted work or stale effects matter.
+
+<a id="q22"></a>
+
+## Q22. Where should asynchronous errors be handled?
+
+### Requirement
+
+Await or return every promise so its failure remains in the caller's chain. Catch an error only where the code can add useful context, recover, translate it into a domain result, or perform cleanup. Otherwise let it propagate to the operation's owner.
+
+```javascript
+async function loadUser(fetchImpl, id) {
+  try {
+    const response = await fetchImpl(`/api/users/${encodeURIComponent(id)}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    throw new Error(`Could not load user ${id}`, { cause: error });
+  }
+}
+```
+
+`fetch()` rejects for failures such as a network error or abort, but an HTTP 404 or 500 normally arrives as a `Response`; checking `response.ok` creates the application-level failure. Preserve the original error as `cause` rather than replacing all diagnostic information.
+
+One subtle boundary:
+
+```javascript
+async function notCaught() {
+  try {
+    return failingOperation(); // rejection occurs after this try block returns
+  } catch {
+    return "fallback";
+  }
+}
+
+async function caughtHere() {
+  try {
+    return await failingOperation(); // rejection is thrown at this await
+  } catch {
+    return "fallback";
+  }
+}
+```
+
+Both functions return promises; the difference is where the rejection is observed. Use `finally` for cleanup that must run for either outcome, but do not return from `finally` because that can replace the original result or error.
+
+<a id="q23"></a>
+
+## Q23. How do you implement debounce without losing the latest call?
+
+### Requirement
+
+Debounce is the “after silence” policy: every call replaces the pending timer, and one trailing invocation uses the latest arguments and receiver. This is appropriate when intermediate events are disposable, such as autocomplete text or resize recomputation.
+
+```javascript
+function debounce(fn, wait) {
+  let timerId;
+  return function debounced(...args) {
+    const receiver = this;
+    clearTimeout(timerId);
+    timerId = setTimeout(() => {
+      timerId = undefined;
+      fn.apply(receiver, args);
+    }, wait);
+  };
+}
+```
+
+Dry run for calls at 0, 40, and 90 ms with `wait = 100`:
+
+| Time | Event | Pending deadline | Invocation |
+|---:|---|---:|---|
+| 0 | call `"a"` | 100 | — |
+| 40 | call `"ab"`; cancel prior timer | 140 | — |
+| 90 | call `"abc"`; cancel prior timer | 190 | — |
+| 190 | quiet period completes | none | `fn("abc")` |
+
+Production wrappers may also expose `cancel()` and `flush()`. Define leading/trailing behavior explicitly instead of combining options until calls can fire twice at one boundary.
+
+<a id="q24"></a>
+
+## Q24. How does throttle differ from debounce?
+
+### Requirement
+
+Throttle is the “at most once per interval” policy. It suits continuous signals such as scroll sampling when periodic progress matters. A leading-plus-trailing version invokes immediately, then remembers the latest suppressed call for the end of the window.
+
+```mermaid
+flowchart LR
+    Need{Are intermediate updates useful?}
+    Need -->|no; wait for quiet| Debounce[Debounce trailing call]
+    Need -->|yes; cap frequency| Throttle[Throttle leading or trailing]
+    Debounce --> Search[Search or resize result]
+    Throttle --> Scroll[Scroll or pointer sampling]
+```
+
+```javascript
+function throttle(fn, wait) {
+  let lastInvoke = -Infinity;
+  let timerId;
+  let pending;
+
+  return function throttled(...args) {
+    const now = Date.now();
+    pending = { receiver: this, args };
+    const remaining = wait - (now - lastInvoke);
+
+    const invoke = () => {
+      lastInvoke = Date.now();
+      timerId = undefined;
+      const call = pending;
+      pending = undefined;
+      fn.apply(call.receiver, call.args);
+    };
+
+    if (remaining <= 0) {
+      if (timerId !== undefined) clearTimeout(timerId);
+      invoke();
+    } else if (timerId === undefined) {
+      timerId = setTimeout(invoke, remaining);
+    }
+  };
+}
+```
+
+| Policy | Burst at 0, 40, 90 ms; wait 100 ms | Best fit |
+|---|---|---|
+| trailing debounce | only latest call at 190 ms | final value matters |
+| leading + trailing throttle | first call at 0 ms, latest suppressed call near 100 ms | periodic progress matters |
+
+Timers are host scheduling requests, not hard real-time deadlines. Long tasks can delay either wrapper. For visual updates, `requestAnimationFrame` may be a better pacing mechanism because it aligns work with rendering rather than an arbitrary millisecond interval.
+
 ## Decision checklist
 
 - Use `const` by default when the binding should not change; use `let` when reassignment is part of the model.
@@ -760,6 +1020,11 @@ The `has` check is essential because cached results may legitimately be `0`, `fa
 - For normal-function `this`, read the call expression; for arrow `this`, read the creation environment.
 - For prototype questions, separate own properties, inherited properties, and the `.prototype` property on constructors.
 - For memoization, define input equivalence, falsy-result handling, eviction, freshness, and invalidation before discussing speed.
+- For event-loop output, finish the current task, drain the entire microtask checkpoint, then consider a later task.
+- For `await`, distinguish dependency ordering from independent work that can be started together.
+- For promise combinators, name the required success condition and remember that settlement does not cancel sibling work.
+- For async errors, keep the promise in the caller's chain and catch only at a meaningful ownership boundary.
+- Choose debounce when only the final value matters; choose throttle when bounded periodic progress matters.
 
 <a id="sources"></a>
 
@@ -767,9 +1032,9 @@ The `has` check is essential because cached results may legitimately be `0`, `fa
 
 Paired source comparison performed through 2026-10-15:
 
-- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–662. The newly processed Q11–Q18 range is lines 448–662, bounded by the Q19 anchor at line 663.
-- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 292–445 for Q11–Q18, bounded by Q19 at rendered line 446 (source paragraphs 152–249). It agrees on all eight topics but is not promoted as a competing guide.
-- The repository edition adds exact requirements, four connected examples, `this`-precedence and prototype diagrams, call/lookup traces, class semantic caveats, bounded memoization, executable assertions, and current normative links.
+- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–842. The newly processed Q19–Q24 range is lines 665–842, bounded by Q25 at line 843.
+- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 446–605 for Q19–Q24, bounded by Q25 at rendered line 606. It agrees on all six topics but is not promoted as a competing guide.
+- The repository edition adds exact requirements, four connected example groups, event-loop and rate-limiting diagrams, task/microtask and timing traces, promise edge cases, contextual error propagation, deterministic executable assertions, and current normative links.
 
 Primary references checked through 2026-10-15:
 
@@ -790,9 +1055,15 @@ Primary references checked through 2026-10-15:
 - [ECMAScript — ordinary property lookup](https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-ordinary-object-internal-methods-and-internal-slots-get-p-receiver)
 - [ECMAScript — class definitions](https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-class-definitions)
 - [ECMAScript — arrow function definitions](https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-arrow-function-definitions)
+- [HTML Living Standard — event loops and microtask checkpoints](https://html.spec.whatwg.org/multipage/webappapis.html#event-loops)
+- [ECMAScript 2026 — async functions](https://tc39.es/ecma262/2026/multipage/ecmascript-language-functions-and-classes.html#sec-async-function-definitions)
+- [ECMAScript 2026 — promise combinators and reactions](https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise-objects)
+- [ECMAScript 2026 — error cause](https://tc39.es/ecma262/2026/multipage/fundamental-objects.html#sec-installerrorcause)
+- [Fetch Standard — fetch and network errors](https://fetch.spec.whatwg.org/#fetch-method)
+- [HTML Living Standard — timers](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#timers)
 
 <a id="next"></a>
 
 ## Next bounded section
 
-Continue with source Q19–Q24: event-loop ordering, promise chains, async/await error handling, parallel promise combinators, callback conversion, and cancellation. Re-read both sources at that boundary before editing this canonical guide.
+Continue with source Q25–Q30: fetch cancellation, event propagation/delegation, rendering-pipeline costs, browser storage, and same-origin/CORS behavior. Re-read both sources at that boundary before editing this canonical guide.

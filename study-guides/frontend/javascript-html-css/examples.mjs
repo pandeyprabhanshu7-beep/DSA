@@ -241,6 +241,200 @@ export function memoizationExample() {
   return {results, zeroResults, computations};
 }
 
+export async function eventLoopOrderingExample() {
+  const output = [];
+  return new Promise((resolve) => {
+    output.push('A');
+    setTimeout(() => {
+      output.push('timer');
+      resolve(output);
+    }, 0);
+    Promise.resolve().then(() => {
+      output.push('promise-1');
+      queueMicrotask(() => output.push('nested'));
+    });
+    queueMicrotask(() => output.push('microtask-1'));
+    output.push('B');
+  });
+}
+
+export async function asyncAwaitConcurrencyExample() {
+  const started = [];
+  let resolveUser;
+  let resolveOrders;
+  const userPromise = new Promise(resolve => { resolveUser = resolve; });
+  const ordersPromise = new Promise(resolve => { resolveOrders = resolve; });
+
+  async function loadDashboard(loadUser, loadOrders) {
+    const pendingUser = loadUser();
+    const pendingOrders = loadOrders();
+    const [user, orders] = await Promise.all([pendingUser, pendingOrders]);
+    return {user, orders};
+  }
+
+  const pendingDashboard = loadDashboard(
+    () => { started.push('user'); return userPromise; },
+    () => { started.push('orders'); return ordersPromise; }
+  );
+  assert.deepEqual(started, ['user', 'orders']);
+  resolveOrders([{id: 'O1'}]);
+  resolveUser({id: 'U1'});
+  return {started, dashboard: await pendingDashboard};
+}
+
+export async function promiseAndErrorBoundaryExample() {
+  const all = await Promise.all([Promise.resolve('a'), Promise.resolve('b')]);
+  const settled = await Promise.allSettled([
+    Promise.resolve('east'),
+    Promise.reject(new Error('west unavailable'))
+  ]);
+  const race = await Promise.race([Promise.resolve('first'), Promise.resolve('second')]);
+  const any = await Promise.any([
+    Promise.reject(new Error('east unavailable')),
+    Promise.resolve('west')
+  ]);
+
+  async function loadUser(fetchImpl, id) {
+    try {
+      const response = await fetchImpl(`/api/users/${encodeURIComponent(id)}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      throw new Error(`Could not load user ${id}`, {cause: error});
+    }
+  }
+
+  const user = await loadUser(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({id: 'U1'})
+  }), 'U1');
+
+  let failure;
+  try {
+    await loadUser(async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({})
+    }), 'U2');
+  } catch (error) {
+    failure = error;
+  }
+
+  return {
+    all,
+    settledStatuses: settled.map(result => result.status),
+    race,
+    any,
+    user,
+    failureMessage: failure.message,
+    causeMessage: failure.cause.message
+  };
+}
+
+function createFakeScheduler() {
+  let time = 0;
+  let nextId = 1;
+  const timers = new Map();
+  return {
+    now: () => time,
+    setTimeout(callback, delay) {
+      const id = nextId++;
+      timers.set(id, {callback, due: time + delay, id});
+      return id;
+    },
+    clearTimeout(id) {
+      timers.delete(id);
+    },
+    tick(milliseconds) {
+      const target = time + milliseconds;
+      while (true) {
+        const next = [...timers.values()]
+          .filter(timer => timer.due <= target)
+          .sort((a, b) => a.due - b.due || a.id - b.id)[0];
+        if (!next) break;
+        time = next.due;
+        timers.delete(next.id);
+        next.callback();
+      }
+      time = target;
+    }
+  };
+}
+
+export function rateLimitingExample() {
+  function debounce(fn, wait, scheduler) {
+    let timerId;
+    return function debounced(...args) {
+      const receiver = this;
+      scheduler.clearTimeout(timerId);
+      timerId = scheduler.setTimeout(() => {
+        timerId = undefined;
+        fn.apply(receiver, args);
+      }, wait);
+    };
+  }
+
+  function throttle(fn, wait, scheduler) {
+    let lastInvoke = -Infinity;
+    let timerId;
+    let pending;
+    return function throttled(...args) {
+      const now = scheduler.now();
+      pending = {receiver: this, args};
+      const remaining = wait - (now - lastInvoke);
+      const invoke = () => {
+        lastInvoke = scheduler.now();
+        timerId = undefined;
+        const call = pending;
+        pending = undefined;
+        fn.apply(call.receiver, call.args);
+      };
+      if (remaining <= 0) {
+        if (timerId !== undefined) scheduler.clearTimeout(timerId);
+        invoke();
+      } else if (timerId === undefined) {
+        timerId = scheduler.setTimeout(invoke, remaining);
+      }
+    };
+  }
+
+  const debounceScheduler = createFakeScheduler();
+  const debounceCalls = [];
+  const search = {
+    label: 'search',
+    run: debounce(function run(value) {
+      debounceCalls.push(`${this.label}:${value}@${debounceScheduler.now()}`);
+    }, 100, debounceScheduler)
+  };
+  search.run('a');
+  debounceScheduler.tick(40);
+  search.run('ab');
+  debounceScheduler.tick(50);
+  search.run('abc');
+  debounceScheduler.tick(100);
+
+  const throttleScheduler = createFakeScheduler();
+  const throttleCalls = [];
+  const viewport = {
+    label: 'scroll',
+    run: throttle(function run(value) {
+      throttleCalls.push(`${this.label}:${value}@${throttleScheduler.now()}`);
+    }, 100, throttleScheduler)
+  };
+  viewport.run('a');
+  throttleScheduler.tick(40);
+  viewport.run('ab');
+  throttleScheduler.tick(50);
+  viewport.run('abc');
+  throttleScheduler.tick(10);
+  throttleScheduler.tick(10);
+  viewport.run('d');
+  throttleScheduler.tick(90);
+
+  return {debounceCalls, throttleCalls};
+}
+
 assert.deepEqual(constantBindingExample(), {name: 'Grace', skills: ['JS', 'HTML']});
 assert.deepEqual(hoistingExample(), [undefined, 7]);
 assert.equal(temporalDeadZoneErrorName(), 'ReferenceError');
@@ -287,5 +481,25 @@ assert.deepEqual(memoizationExample(), {
   zeroResults: [0, 0],
   computations: 5
 });
+assert.deepEqual(await eventLoopOrderingExample(), [
+  'A', 'B', 'promise-1', 'microtask-1', 'nested', 'timer'
+]);
+assert.deepEqual(await asyncAwaitConcurrencyExample(), {
+  started: ['user', 'orders'],
+  dashboard: {user: {id: 'U1'}, orders: [{id: 'O1'}]}
+});
+assert.deepEqual(await promiseAndErrorBoundaryExample(), {
+  all: ['a', 'b'],
+  settledStatuses: ['fulfilled', 'rejected'],
+  race: 'first',
+  any: 'west',
+  user: {id: 'U1'},
+  failureMessage: 'Could not load user U2',
+  causeMessage: 'HTTP 503'
+});
+assert.deepEqual(rateLimitingExample(), {
+  debounceCalls: ['search:abc@190'],
+  throttleCalls: ['scroll:a@0', 'scroll:abc@100', 'scroll:d@200']
+});
 
-console.log('JavaScript fundamentals examples: 19 scenario groups passed');
+console.log('JavaScript fundamentals examples: 23 scenario groups passed');
