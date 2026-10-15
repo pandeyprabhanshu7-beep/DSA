@@ -5,7 +5,7 @@ description: Incremental, source-reconciled frontend interview guide with execut
 
 # JavaScript, HTML and CSS Interview Guide
 
-This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q30**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, cross-origin policy, and web security. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
+This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q36**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, viewport configuration, and responsive images. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
 
 ## Module map
 
@@ -39,6 +39,12 @@ This is the canonical incremental guide for the paired JavaScript/HTML/CSS workb
 - [Q28 — Browser storage](#q28)
 - [Q29 — Same-origin policy and CORS](#q29)
 - [Q30 — XSS and CSRF](#q30)
+- [Q31 — Default actions and propagation](#q31)
+- [Q32 — Semantic HTML](#q32)
+- [Q33 — `async` and `defer`](#q33)
+- [Q34 — Accessible forms](#q34)
+- [Q35 — The viewport meta element](#q35)
+- [Q36 — Responsive images](#q36)
 - [Source provenance and verification](#sources)
 - [Next bounded section](#next)
 
@@ -1248,6 +1254,224 @@ Security trace:
 4. Returned untrusted data is encoded for its output context; it is never concatenated into an executable sink.
 5. CSP limits impact if a markup injection bug remains, but does not replace correct data handling.
 
+<a id="q31"></a>
+
+## Q31. What is the difference between `preventDefault()` and `stopPropagation()`?
+
+### Requirement
+
+They control independent parts of event dispatch:
+
+- `event.preventDefault()` requests cancellation of the event's **default action**, such as following a link or submitting a form. It does not stop listeners on ancestors.
+- `event.stopPropagation()` stops further capture/bubble traversal, but does not cancel the default action and does not stop other listeners already registered on the current target.
+- `event.stopImmediatePropagation()` also prevents later listeners on the current target from running.
+
+Cancellation works only when `event.cancelable` is true. A listener registered with `{ passive: true }` promises not to cancel, so its `preventDefault()` call has no effect. When later code needs to know whether cancellation won, inspect `event.defaultPrevented`. Returning `false` is not a generic substitute in `addEventListener()`.
+
+### Example 22 — intercept only an ordinary same-origin navigation
+
+```javascript
+document.addEventListener("click", event => {
+  const link = event.target.closest("a[href]");
+  if (!link || !document.contains(link)) return;
+
+  const destination = new URL(link.href, location.href);
+  const modified = event.button !== 0 || event.metaKey || event.ctrlKey ||
+    event.shiftKey || event.altKey;
+
+  if (modified || link.target || link.hasAttribute("download") ||
+      destination.origin !== location.origin) return;
+
+  event.preventDefault();
+  router.navigate(destination.pathname + destination.search + destination.hash);
+  // Deliberately allow bubbling: an ancestor may record the navigation intent.
+});
+```
+
+Decision trace:
+
+```mermaid
+flowchart TD
+    Click[Link click] --> Native{Modified, external,<br/>download, or target?}
+    Native -- yes --> Browser[Keep browser default]
+    Native -- no --> Cancel[Cancel navigation default]
+    Cancel --> Route[Route in the application]
+    Route --> Bubble[Allow propagation unless isolation is required]
+```
+
+Do not stop propagation merely to avoid duplicate handling; a narrow selector, component-boundary check, or `defaultPrevented` convention is usually easier to compose.
+
+<a id="q32"></a>
+
+## Q32. What is semantic HTML, and why does it matter?
+
+### Requirement
+
+Semantic HTML chooses elements for their meaning and behavior, not their default appearance. Native landmarks, headings, lists, links, buttons, tables, and form controls expose useful structure to browsers and assistive technology while providing tested keyboard/focus behavior. CSS can change presentation without changing that contract.
+
+Use a link for navigation and a button for an action. Prefer a real `<button>` over a clickable `<div role="button">`: the latter still needs keyboard activation, focus behavior, disabled-state handling, and other semantics implemented correctly. Semantics can also help search and maintenance, but they are not an automatic ranking trick.
+
+### Example 23 — a small page with native contracts
+
+```html
+<header>
+  <a href="/" aria-label="Acme home">Acme</a>
+  <nav aria-label="Primary">
+    <a href="/docs">Documentation</a>
+  </nav>
+</header>
+<main>
+  <article>
+    <h1>Deployment checklist</h1>
+    <p>Verify the release before promotion.</p>
+    <button type="button" id="run-checks">Run checks</button>
+  </article>
+</main>
+<footer><small>Last reviewed 2026-10-15</small></footer>
+```
+
+The document has one main content region, a named navigation region, a meaningful heading, a navigation link, and an action button. Do not add redundant ARIA roles to elements that already have the needed native semantics; add names only where the visible context is insufficient.
+
+```mermaid
+flowchart TD
+    Page[Document] --> Header[Banner]
+    Header --> Nav[Primary navigation]
+    Page --> Main[Main]
+    Main --> Article[Article: Deployment checklist]
+    Page --> Footer[Content information]
+```
+
+<a id="q33"></a>
+
+## Q33. What is the difference between `async` and `defer` on scripts?
+
+### Requirement
+
+For parser-inserted classic external scripts, both attributes let fetching proceed while HTML parsing continues, but execution differs.
+
+| Script | Fetch | Execution | Relative order | `DOMContentLoaded` |
+|---|---|---|---|---|
+| classic, no attribute | blocks parsing while fetched and run | immediately at the parser position | document order | parsing continues afterward |
+| classic `async` | parallel with parsing | as soon as the script is ready | not guaranteed | does not wait for it unless it happens to run first |
+| classic `defer` | parallel with parsing | after parsing, before the event | document order | waits for deferred scripts |
+| module | module graph fetched in parallel | deferred by default after parsing | dependency graph controls readiness | waits for default-deferred modules |
+
+An inline classic script does not gain deferred behavior from `defer`. Adding `async` to a module opts that module graph into async-style execution when ready. Dynamically inserted scripts have separate rules, so do not infer their ordering from this table.
+
+### Example 24 — choose ordering from dependencies
+
+```html
+<script async src="/analytics.js"></script>
+<script defer src="/config.js"></script>
+<script defer src="/application.js"></script>
+<script type="module" src="/enhance.js"></script>
+```
+
+Use `async` for independent code whose timing relative to the page is unimportant. Use `defer` when classic scripts depend on document order or a parsed DOM. Modules should express JavaScript dependencies with `import`, not parallel `<script>` tags whose network completion order is accidental.
+
+```mermaid
+sequenceDiagram
+    participant P as HTML parser
+    participant N as Network
+    participant J as JavaScript
+    P->>N: request async and deferred scripts
+    P->>P: continue parsing
+    N-->>J: async script ready
+    J->>J: run async script when ready
+    P->>P: finish parsing
+    N-->>J: deferred scripts ready
+    J->>J: run deferred scripts in document order
+    J->>P: DOMContentLoaded may fire
+```
+
+The diagram expresses ordering constraints, not guaranteed download durations.
+
+<a id="q34"></a>
+
+## Q34. How do you build an accessible form?
+
+### Requirement
+
+Start with native controls and visible labels. Associate each label with its control, group related choices with `<fieldset>` and `<legend>`, choose the correct input type and autocomplete token, and explain formats or requirements before submission. Do not use a placeholder as the only label.
+
+On failure, identify the field in text, set `aria-invalid="true"`, associate its message with `aria-describedby`, and move focus to an error summary or the first invalid control according to a documented policy. Do not rely on color alone. Server validation remains authoritative even when client validation improves feedback.
+
+### Example 25 — a form and profile image that keep their contracts
+
+```html
+<form id="signup" novalidate>
+  <h2>Create your profile</h2>
+  <p id="required-note">Fields marked “required” must be completed.</p>
+
+  <div>
+    <label for="email">Work email (required)</label>
+    <input id="email" name="email" type="email" autocomplete="email"
+           required aria-describedby="email-hint email-error">
+    <p id="email-hint">Use the address where release alerts should arrive.</p>
+    <p id="email-error" role="alert" hidden>Enter a valid email address.</p>
+  </div>
+
+  <fieldset>
+    <legend>Alert frequency</legend>
+    <label><input type="radio" name="frequency" value="daily" required> Daily</label>
+    <label><input type="radio" name="frequency" value="weekly"> Weekly</label>
+  </fieldset>
+  <button type="submit">Create profile</button>
+</form>
+```
+
+If validation fails, reveal the error, set `email.setAttribute("aria-invalid", "true")`, and focus the chosen error destination. When the value becomes valid, remove the invalid state and stale message. Test the completed flow with a keyboard, browser accessibility inspection, and representative assistive technology rather than treating markup review as sufficient.
+
+<a id="q35"></a>
+
+## Q35. What does the viewport meta element do?
+
+### Requirement
+
+Mobile browsers may otherwise use a wider default layout viewport and scale the page down. This element asks for a layout viewport that follows the device width and establishes a 1:1 initial CSS-pixel scale:
+
+```html
+<meta name="viewport" content="width=device-width, initial-scale=1">
+```
+
+It enables responsive CSS to operate against the intended viewport; it does not make a fixed-width layout responsive by itself. The **layout viewport** is the coordinate space used for layout, while the **visual viewport** is the portion currently visible and can change with zoom or an on-screen keyboard.
+
+Avoid `user-scalable=no` and restrictive `maximum-scale` values: zoom is an important accessibility mechanism, and browsers may ignore such restrictions. Prefer fluid sizing, wrapping, media/container queries, and testing at zoomed and narrow viewports.
+
+<a id="q36"></a>
+
+## Q36. How do `srcset`, `sizes`, and `<picture>` support responsive images?
+
+### Requirement
+
+Use resolution switching when the same composition works at different pixel densities or layout widths. With width descriptors, `srcset` states each candidate's intrinsic width and `sizes` states the image's expected rendered slot width. The browser combines that information with device pixel ratio and other conditions to choose a candidate; application code should not hard-code the choice.
+
+Use `<picture>` when the source itself should change, such as a tighter crop at narrow widths or a preferred format with fallback. Keep an `<img>` as the final fallback and as the owner of the alternative text. Supplying intrinsic `width` and `height` gives the browser an aspect ratio before download and helps prevent layout shift.
+
+```html
+<picture>
+  <source media="(max-width: 40rem)"
+          srcset="/team-close-480.webp 480w, /team-close-960.webp 960w"
+          sizes="92vw" type="image/webp">
+  <source srcset="/team-800.webp 800w, /team-1600.webp 1600w"
+          sizes="(max-width: 70rem) 92vw, 70rem" type="image/webp">
+  <img src="/team-800.jpg"
+       srcset="/team-800.jpg 800w, /team-1600.jpg 1600w"
+       sizes="(max-width: 70rem) 92vw, 70rem"
+       width="1600" height="900"
+       alt="The release team reviewing a deployment dashboard">
+</picture>
+```
+
+Trace for a 400 CSS-pixel slot at device-pixel ratio 2:
+
+1. The teaching estimate is `400 × 2 = 800` source pixels.
+2. A compatible source list is chosen by `<picture>` media/type conditions.
+3. The browser may choose an 800w candidate, but cache, network, zoom, and implementation policy can justify another candidate.
+4. The selected image is decoded into the reserved 16:9 box.
+
+Do not mix `w` and `x` descriptors in one `srcset`. Use `1x`/`2x` descriptors for a fixed CSS-size asset; use `w` plus an accurate `sizes` list for a fluid layout. `sizes` describes the rendered slot, not which file the author wants.
+
 ## Decision checklist
 
 - Use `const` by default when the binding should not change; use `let` when reassignment is part of the model.
@@ -1275,6 +1499,12 @@ Security trace:
 - Choose browser storage by shape, lifetime, access, and threat model; never treat client storage as authorization state.
 - Treat CORS as controlled response sharing, not as authentication or CSRF protection.
 - For XSS, keep untrusted data out of executable contexts; for CSRF, validate state-changing requests beyond ambient cookies.
+- Decide default-action cancellation separately from propagation; check cancelability and passive-listener constraints.
+- Choose native elements for their contracts: links navigate, buttons act, labels name controls, and headings describe structure.
+- Use `async` only for independent scripts; use `defer` or modules when parse completion and ordering matter.
+- Make form names, instructions, required state, and errors programmatically available and keyboard-test the completed flow.
+- Treat the viewport element as layout configuration, not a substitute for fluid responsive CSS or user zoom.
+- Use `srcset`/`sizes` for resolution switching and `<picture>` for art direction; leave final selection to the browser.
 
 <a id="sources"></a>
 
@@ -1282,9 +1512,9 @@ Security trace:
 
 Paired source comparison performed through 2026-10-15:
 
-- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–968. The newly processed Q25–Q30 range is lines 843–968, bounded by Q31 at line 969.
-- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 606–691 for Q25–Q30, bounded by Q31 at rendered line 692. It agrees on all six topics but is not promoted as a competing guide.
-- The repository edition adds exact requirements, four connected example groups, cancellation/propagation/rendering/CORS diagrams, ownership and policy traces, browser-security boundaries, deterministic executable policy assertions, and current normative links.
+- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1090. The newly processed Q31–Q36 range is lines 969–1090, bounded by Q37 at line 1091.
+- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 692–765 for Q31–Q36, bounded by Q37 at rendered line 766. It agrees on all six topics but is not promoted as a competing guide.
+- The repository edition adds exact requirements, four connected example groups, event-control/script-delivery/semantic-structure diagrams, accessible-form state transitions, responsive-image selection boundaries, deterministic executable policy assertions, and current normative links.
 
 Primary references checked through 2026-10-15:
 
@@ -1318,9 +1548,15 @@ Primary references checked through 2026-10-15:
 - [Content Security Policy Level 3](https://www.w3.org/TR/CSP3/)
 - [OWASP Cross Site Scripting Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
 - [OWASP Cross-Site Request Forgery Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
+- [HTML Living Standard — semantics](https://html.spec.whatwg.org/multipage/dom.html#semantics-2)
+- [HTML Living Standard — scripting](https://html.spec.whatwg.org/multipage/scripting.html)
+- [HTML Living Standard — forms](https://html.spec.whatwg.org/multipage/forms.html)
+- [WAI Forms Tutorial — labeling controls](https://www.w3.org/WAI/tutorials/forms/labels/)
+- [CSS Viewport Module Level 1](https://drafts.csswg.org/css-viewport/)
+- [HTML Living Standard — responsive images](https://html.spec.whatwg.org/multipage/images.html#responsive-images)
 
 <a id="next"></a>
 
 ## Next bounded section
 
-Continue with source Q31–Q36: default-action versus propagation control, semantic HTML, `async`/`defer`, accessible forms, viewport configuration, and responsive images. Re-read both sources at that boundary before editing this canonical guide.
+Continue with source Q37–Q39: visibility and accessibility semantics, native lazy loading, and practical HTML choices for SEO/accessibility. This completes the remaining HTML block before Q40 begins CSS; re-read both sources at that boundary before editing this canonical guide.

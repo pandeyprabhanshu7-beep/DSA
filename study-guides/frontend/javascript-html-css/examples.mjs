@@ -577,6 +577,96 @@ export function corsAndSecurityPolicyExample() {
   return {visibility, controls, corsIsCsrfDefense: false};
 }
 
+export function eventActionPolicyExample() {
+  function decide({kind, cancelable = true, passive = false, modified = false, sameOrigin = true}) {
+    if (kind === 'link' && (!sameOrigin || modified)) {
+      return {preventDefault: false, stopPropagation: false, action: 'browser-navigation'};
+    }
+    if (kind === 'link') {
+      return {
+        preventDefault: cancelable && !passive,
+        stopPropagation: false,
+        action: cancelable && !passive ? 'client-router' : 'browser-navigation'
+      };
+    }
+    if (kind === 'invalid-form') {
+      return {preventDefault: cancelable && !passive, stopPropagation: false, action: 'show-errors'};
+    }
+    return {preventDefault: false, stopPropagation: false, action: 'none'};
+  }
+  return [
+    decide({kind: 'link', modified: true}),
+    decide({kind: 'link'}),
+    decide({kind: 'invalid-form'}),
+    decide({kind: 'link', passive: true})
+  ];
+}
+
+export function scriptSchedulingExample() {
+  // An application teaching model, not a browser implementation.
+  function schedule({parseFinishedAt, scripts}) {
+    const output = [];
+    for (const script of scripts.filter(item => item.mode === 'async')) {
+      output.push({name: script.name, at: script.readyAt});
+    }
+    let deferredAt = parseFinishedAt;
+    for (const script of scripts.filter(item => item.mode === 'defer')) {
+      deferredAt = Math.max(deferredAt, script.readyAt);
+      output.push({name: script.name, at: deferredAt});
+    }
+    return output.sort((a, b) => a.at - b.at);
+  }
+  return schedule({
+    parseFinishedAt: 50,
+    scripts: [
+      {name: 'analytics', mode: 'async', readyAt: 20},
+      {name: 'ads', mode: 'async', readyAt: 35},
+      {name: 'config', mode: 'defer', readyAt: 10},
+      {name: 'application', mode: 'defer', readyAt: 45}
+    ]
+  });
+}
+
+export function accessibleFormPolicyExample() {
+  function inspect(field) {
+    const issues = [];
+    if (!field.visibleLabel || field.labelFor !== field.id) issues.push('missing-programmatic-label');
+    if (field.required && !field.requiredText) issues.push('required-state-not-visible');
+    if (field.invalid && (!field.errorId || !field.describedBy.includes(field.errorId))) {
+      issues.push('error-not-associated');
+    }
+    return {
+      issues,
+      ariaInvalid: field.invalid ? 'true' : undefined,
+      focusTarget: field.invalid ? field.id : undefined
+    };
+  }
+  return {
+    validField: inspect({
+      id: 'email', visibleLabel: true, labelFor: 'email', required: true,
+      requiredText: true, invalid: true, errorId: 'email-error',
+      describedBy: ['email-hint', 'email-error']
+    }),
+    placeholderOnly: inspect({
+      id: 'name', visibleLabel: false, labelFor: '', required: true,
+      requiredText: false, invalid: true, errorId: 'name-error', describedBy: []
+    })
+  };
+}
+
+export function responsiveImagePolicyExample() {
+  function illustrativeCandidate(slotCssPixels, devicePixelRatio, candidates) {
+    const target = slotCssPixels * devicePixelRatio;
+    return candidates.find(width => width >= target) ?? candidates.at(-1);
+  }
+  return {
+    expectedSourcePixels: 800,
+    illustrativeCandidate: illustrativeCandidate(400, 2, [480, 800, 1600]),
+    browserMakesFinalChoice: true,
+    reservedAspectRatio: '16:9'
+  };
+}
+
 assert.deepEqual(constantBindingExample(), {name: 'Grace', skills: ['JS', 'HTML']});
 assert.deepEqual(hoistingExample(), [undefined, 7]);
 assert.equal(temporalDeadZoneErrorName(), 'ReferenceError');
@@ -667,4 +757,31 @@ assert.deepEqual(corsAndSecurityPolicyExample(), {
   corsIsCsrfDefense: false
 });
 
-console.log('JavaScript fundamentals examples: 27 scenario groups passed');
+assert.deepEqual(eventActionPolicyExample(), [
+  {preventDefault: false, stopPropagation: false, action: 'browser-navigation'},
+  {preventDefault: true, stopPropagation: false, action: 'client-router'},
+  {preventDefault: true, stopPropagation: false, action: 'show-errors'},
+  {preventDefault: false, stopPropagation: false, action: 'browser-navigation'}
+]);
+assert.deepEqual(scriptSchedulingExample(), [
+  {name: 'analytics', at: 20},
+  {name: 'ads', at: 35},
+  {name: 'config', at: 50},
+  {name: 'application', at: 50}
+]);
+assert.deepEqual(accessibleFormPolicyExample(), {
+  validField: {issues: [], ariaInvalid: 'true', focusTarget: 'email'},
+  placeholderOnly: {
+    issues: ['missing-programmatic-label', 'required-state-not-visible', 'error-not-associated'],
+    ariaInvalid: 'true',
+    focusTarget: 'name'
+  }
+});
+assert.deepEqual(responsiveImagePolicyExample(), {
+  expectedSourcePixels: 800,
+  illustrativeCandidate: 800,
+  browserMakesFinalChoice: true,
+  reservedAspectRatio: '16:9'
+});
+
+console.log('JavaScript fundamentals examples: 31 scenario groups passed');
