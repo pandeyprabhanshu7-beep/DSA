@@ -405,7 +405,7 @@
       "bytes": 77677,
       "sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
       "status": "IN_PROGRESS",
-      "processed_range": "lines 166-291 for Q1-Q4, bounded by the Q5 anchor at line 292",
+      "processed_range": "lines 166-447 for Q1-Q10; latest bounded range Q5-Q10 is lines 292-447, bounded by the Q11 anchor at line 448",
       "canonical_target": "study-guides/frontend/javascript-html-css/guide.md",
       "headings": [
         "# JavaScript, HTML and CSS Interview Workbook - Mermaid Edition",
@@ -422,7 +422,13 @@
         "### Interview-ready code:",
         "## Q4. Why does this loop print 3,3,3 with var but 0,1,2 with let?",
         "### Interview-ready code:",
-        "### Dry run:"
+        "### Dry run:",
+        "## Q5. Explain primitive values versus object references.",
+        "## Q6. What is the difference between == and ===?",
+        "## Q7. Explain null, undefined, undeclared, and NaN.",
+        "## Q8. What is shallow copy versus deep copy?",
+        "## Q9. What do map, filter, and reduce communicate to an interviewer?",
+        "## Q10. Explain optional chaining and nullish coalescing."
       ]
     },
     {
@@ -849,18 +855,18 @@
   ],
   "next_batch": {
     "source": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md + JavaScript_HTML_CSS_Interview_Workbook.docx",
-    "section": "Q5-Q10 only: values/references, equality, missing numeric values, copying, array transforms, optional chaining and nullish coalescing",
+    "section": "Q11-Q18 only: function forms, closures, this, call/apply/bind, constructor calls, prototypes, classes and inheritance",
     "status": "QUEUED",
-    "estimated_tokens": 7600,
-    "estimate_method": "Heuristic only: reserve ~1000 tokens to compare Q5-Q10 across paired sources, ~1500 for current primary references, ~3100 for examples/traces/HTML, and ~2000 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 8000,
+    "estimate_method": "Heuristic only: reserve ~1200 tokens to compare Q11-Q18 across paired sources, ~1400 for current primary references, ~3400 for examples/traces/HTML, and ~2000 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "javascript": "Node v24.19.0 executed examples.mjs; all five assertions passed for const/object mutation, var initialization, TDZ ReferenceError, lexical lookup and asynchronous loop capture.",
-    "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 9624-character embedded payload equality, 6 unique anchors, 8 balanced fences, inline JavaScript, fragment targets, relative links, selected-file diff and the live 170-marker placeholder audit passed. The local-project README generator could not run because the Python markdown package is absent, so that derived HTML was not changed.",
-    "diagrams": "Two Mermaid environment diagrams are embedded in the canonical payload; browser visual QA was not executed.",
-    "last_processed_at": "2026-10-14T17:58:51-04:00"
+    "javascript": "Node v24.19.0 executed examples.mjs; all 11 scenario groups passed, including shared-reference mutation/reassignment, equality coercions, missing-value classification, structured cloning, array transforms and nullish defaults.",
+    "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 21541-character embedded payload equality, 12 unique anchors, 16 balanced fences, inline JavaScript, fragment targets, relative links, selected-file diff and the live 170-marker placeholder audit passed. Remote hash/status verification remains pending publication.",
+    "diagrams": "Four Mermaid diagrams are embedded in the canonical payload, including two new value-graph and transform-choice diagrams; browser visual QA was not executed.",
+    "last_processed_at": "2026-10-15T04:00:46-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-14T16:16:21-04:00",
@@ -874,16 +880,16 @@
     "estimate_method": "Heuristic for the first bounded JavaScript/HTML/CSS paired-source section plus source resolution, targeted primary-source refresh, consolidation/teaching/HTML and validation/checkpoint reserves; not actual quota percentage"
   },
   "javascript_html_css_intake_checkpoint": {
-    "last_processed_at": "2026-10-14T17:58:51-04:00",
+    "last_processed_at": "2026-10-15T04:00:46-04:00",
     "source_markdown_sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
     "source_docx_sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
     "docx_source_file_id": "file_0000000037888211b9c20e5f69be6b09",
-    "processed": "Q1-Q4; Markdown lines 166-291 and DOCX extracted paragraphs 21-81, each bounded by Q5",
-    "status": "PUBLISHED",
-    "validation": "Both actual source texts agree on the four topics and were consolidated into one canonical guide with four connected examples, two Mermaid environment diagrams, explicit requirements, dry-run tables, current primary references and five executable Node assertions. Deterministic reader generation and exact 9624-character embedded-Markdown equality passed with 6 unique anchors, 8 balanced fences, 2 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all assertions. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. All nine content-commit remote blob hashes matched and no GitHub status checks were configured. Browser rendering was not executed; the local-project README generator could not run because the Python markdown package is absent.",
-    "content_commit": "00ca63da0c80c1412a9ef78b0f8d188f6a1a9d3c",
-    "next_section": "Q5-Q10 only: primitive/reference values, equality, null/undefined/NaN, shallow/deep copy, map/filter/reduce, optional chaining and nullish coalescing",
-    "estimated_next_tokens": 7600,
-    "estimate_method": "Heuristic for Q5-Q10 paired-source comparison, current primary references, examples/traces/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "processed": "Q1-Q10; latest bounded range is Markdown lines 292-447 and DOCX extracted paragraphs 82-150 for Q5-Q10, each bounded by Q11; earlier Q1-Q4 retained",
+    "status": "VALIDATED_PENDING_PUBLISH",
+    "validation": "Both actual source texts agree on Q5-Q10 and were consolidated with precise requirements, six connected examples, two new Mermaid diagrams, decision/dry-run tables, boundary cases, current normative references and executable assertions. Deterministic reader generation and exact 21541-character embedded-Markdown equality passed with 12 unique anchors, 16 balanced fenced blocks, 4 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 11 scenario groups. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. Remote hash/status verification remains pending publication; browser Mermaid rendering was not executed.",
+    "content_commit": null,
+    "next_section": "Q11-Q18 only: function forms, closures, this, call/apply/bind, constructor calls, prototypes, classes and inheritance",
+    "estimated_next_tokens": 8000,
+    "estimate_method": "Heuristic for Q11-Q18 paired-source comparison, current primary references, examples/traces/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
