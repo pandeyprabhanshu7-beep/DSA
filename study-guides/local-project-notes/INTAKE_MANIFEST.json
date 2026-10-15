@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "ee52e878eca0ea1cbf6485ff7e250560b1ea26bb",
+  "last_successful_commit": "a6c7207d6b0c59c5e84bbe0e01ccb02a7b4a8e93",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -894,8 +894,8 @@
     "docx_source_file_id": "file_0000000037888211b9c20e5f69be6b09",
     "processed": "Q1-Q39; latest bounded range is Markdown lines 1091-1138 and DOCX rendered lines 766-799 for Q37-Q39, each bounded by CSS Q40; earlier Q1-Q36 retained",
     "status": "PUBLISHED",
-    "validation": "Q37-Q39 were compared in both actual source texts and consolidated with exact visibility/accessibility requirements, three connected example groups, three new Mermaid diagrams, disclosure and loading-decision traces, current primary references and deterministic policy assertions. Deterministic reader generation and exact 81057-character embedded-Markdown equality passed with 41 unique anchors, 60 balanced fenced blocks, 18 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 34 scenario groups. JSON, fragment targets, relative links, selected-file diff and the live 170-marker placeholder invariant passed; the selected files do not alter marker-bearing paths. Browser DOM/accessibility-tree/focus, native lazy-loading/network/LCP, search crawler/rich-result, and Mermaid visual QA were not executed.",
-    "content_commit": "ee52e878eca0ea1cbf6485ff7e250560b1ea26bb",
+    "validation": "Q37-Q39 were compared in both actual source texts and consolidated with exact visibility/accessibility requirements, three connected example groups, three new Mermaid diagrams, disclosure and loading-decision traces, current primary references and deterministic policy assertions. Deterministic reader generation and exact 81057-character embedded-Markdown equality passed with 41 unique anchors, 60 balanced fenced blocks, 18 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 34 scenario groups. JSON, fragment targets, relative links, selected-file diff and the live 170-marker placeholder invariant passed; the selected files do not alter marker-bearing paths. All nine content-commit remote blob hashes matched and no GitHub status checks were configured. Browser DOM/accessibility-tree/focus, native lazy-loading/network/LCP, search crawler/rich-result, and Mermaid visual QA were not executed.",
+    "content_commit": "a6c7207d6b0c59c5e84bbe0e01ccb02a7b4a8e93",
     "next_section": "Q40-Q45 only: cascade/specificity, the box model, sizing units, positioning, Flexbox, and Grid",
     "estimated_next_tokens": 8300,
     "estimate_method": "Heuristic for Q40-Q45 paired-source comparison, current primary references, examples/traces/HTML and validation/checkpoint reserves; not actual quota percentage"
