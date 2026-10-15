@@ -5,7 +5,7 @@ description: Incremental, source-reconciled frontend interview guide with execut
 
 # JavaScript, HTML and CSS Interview Guide
 
-This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q45**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, responsive media, visibility semantics, native lazy loading, accessible search-friendly markup, the CSS cascade and box model, Flexbox/Grid sizing, positioning, and stacking contexts. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
+This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q51**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, responsive media, visibility semantics, native lazy loading, accessible search-friendly markup, the CSS cascade and box model, Flexbox/Grid sizing, positioning, stacking contexts, responsive units, component queries, runtime design tokens, layout stability, and CSS naming. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
 
 ## Module map
 
@@ -54,6 +54,12 @@ This is the canonical incremental guide for the paired JavaScript/HTML/CSS workb
 - [Q43 — Automatic minimum sizes and overflow](#q43)
 - [Q44 — CSS positioning schemes](#q44)
 - [Q45 — Stacking contexts and `z-index`](#q45)
+- [Q46 — Centering by layout context](#q46)
+- [Q47 — CSS length units](#q47)
+- [Q48 — Container queries](#q48)
+- [Q49 — CSS custom properties and Sass variables](#q49)
+- [Q50 — Preventing layout shift](#q50)
+- [Q51 — BEM and naming ownership](#q51)
 - [Source provenance and verification](#sources)
 - [Next bounded section](#next)
 
@@ -1914,6 +1920,256 @@ flowchart TD
     Atomic --> Behind[Whole card context remains behind sidebar]
 ```
 
+<a id="q46"></a>
+
+## Q46. How would you center an element?
+
+### Requirement
+
+First identify the axis, the formatting context, and whether the parent has usable free space. Centering is not one magic declaration:
+
+- In **Grid**, `place-items: center` centers each item in its grid area on both axes.
+- In **Flexbox**, `justify-content: center` acts on the main axis and `align-items: center` on the cross axis. Those physical directions change with `flex-direction` and writing mode.
+- For one block with a definite or constrained inline size, `margin-inline: auto` consumes equal free space on both sides.
+- For text or inline content inside a block, `text-align: center` centers the inline content, not the block itself.
+- For an overlay, absolute positioning plus `inset: 50% auto auto 50%` and `translate: -50% -50%` can be appropriate, but it removes the box from normal flow and should not be the default layout technique.
+
+### Example 35 — choose from the relationship
+
+```css
+.empty-state {
+  display: grid;
+  min-block-size: 12rem;
+  place-items: center;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: .75rem;
+}
+
+.article { max-inline-size: 70ch; margin-inline: auto; }
+.article__title { text-align: center; }
+```
+
+```mermaid
+flowchart TD
+    Need[What must be centered?] --> Context{Existing layout context?}
+    Context -- Grid --> Grid[place-items or place-self]
+    Context -- Flex --> Flex[main axis plus cross axis]
+    Context -- Normal flow --> Kind{Box or inline content?}
+    Kind -- Box --> Margin[Constrain size and use margin-inline auto]
+    Kind -- Inline --> Text[text-align center]
+```
+
+### Trace
+
+For a row flex container, main-axis centering is usually horizontal and cross-axis centering vertical. Change it to `flex-direction: column` and those roles swap. Say the axis names in an interview; “horizontal equals `justify-content`” is not a reliable rule.
+
+<a id="q47"></a>
+
+## Q47. `rem` versus `em` versus `px` versus `%` versus `vw`/`vh`
+
+### Requirement
+
+Choose the reference quantity deliberately:
+
+| Unit | Reference | Strong use | Common trap |
+|---|---|---|---|
+| `rem` | root element's font size | page-level spacing and type scale that follows user font settings | assuming it is always exactly 16px |
+| `em` | element's computed font size; on `font-size`, the inherited font size | a component whose padding/radius scales with its own type | compounding sizes through deep nesting |
+| `px` | CSS reference pixel, not necessarily one device pixel | borders, icons, and exact CSS-space constraints | treating it as immune to zoom or display density |
+| `%` | property-specific reference, often a containing block dimension | fluid track/box relationships | assuming every vertical percentage uses parent height |
+| `vw`/`vh` | 1% of the large viewport size in current CSS Values | viewport-coupled art or bounded fluid sizing | mobile browser UI and unbounded text scaling |
+
+Small, large, and dynamic viewport variants (`svh`, `lvh`, `dvh`, and their width/inline/block counterparts) make the intended mobile viewport behavior explicit. Bound fluid values with `min()`, `max()`, or `clamp()` and keep readable text sensitive to user scaling.
+
+### Example 36 — preserve the dependency you mean
+
+```css
+:root { font-size: 100%; }
+
+.prose {
+  inline-size: min(70ch, 100% - 2rem);
+  margin-inline: auto;
+  font-size: clamp(1rem, .94rem + .3vw, 1.25rem);
+}
+
+.button {
+  padding: .6em 1em;
+  border: 1px solid;
+}
+
+.full-height-panel { min-block-size: 100dvh; }
+```
+
+With a 20px root font size, `2rem` is 40 CSS px. A `.button` at 18px has horizontal padding of 18 CSS px. The references are different on purpose.
+
+<a id="q48"></a>
+
+## Q48. What are container queries, and when are they better than media queries?
+
+### Requirement
+
+A media query asks about the viewport or environment; a container query lets descendants respond to an eligible ancestor's size, style, or scroll state. Use a size container query when one reusable component can appear in a narrow sidebar and a wide main region at the same viewport width. Keep media queries for page-wide/environment policy such as print, reduced motion, or top-level navigation.
+
+For inline-size queries, establish a query container with `container-type: inline-size`; optionally name it. The `@container` rule styles descendants of the matching container, not the container itself. Container query length units such as `cqi` are relative to the selected query container.
+
+### Example 37 — one card, two hosts
+
+```html
+<section class="rail"><article class="product-card">…</article></section>
+<main class="catalog"><article class="product-card">…</article></main>
+```
+
+```css
+.rail, .catalog { container: product-host / inline-size; }
+.product-card { display: grid; gap: 1rem; }
+
+@container product-host (inline-size >= 32rem) {
+  .product-card { grid-template-columns: 10rem 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-card { scroll-behavior: auto; }
+}
+```
+
+```mermaid
+flowchart TD
+    Component[Same product card] --> Rail[Narrow rail container]
+    Component --> Main[Wide catalog container]
+    Rail --> Stack[Single-column card]
+    Main --> Split[Image plus details]
+    Env[Reduced-motion environment] --> Both[Policy applies to both hosts]
+```
+
+The viewport may be 1440px in both cases. A media breakpoint cannot distinguish those two card allocations without coupling the component to page placement; the container query can.
+
+<a id="q49"></a>
+
+## Q49. How do CSS custom properties differ from Sass variables?
+
+### Requirement
+
+Sass variables are resolved by a preprocessor and disappear from the emitted stylesheet. CSS custom properties are real properties: they cascade, normally inherit, remain in the computed style, can vary by selector or query, and can be updated at runtime. `var(--token, fallback)` substitutes a fallback only when the referenced custom property is missing or guaranteed-invalid—not whenever the eventual property value happens to be undesirable.
+
+Use Sass variables for compile-time composition and generation. Use custom properties for design tokens whose value must participate in themes, component inheritance, queries, animation, or runtime changes. `@property` can register a custom property with syntax, inheritance behavior, and an initial value, allowing earlier validation and typed interpolation.
+
+### Example 38 — compile-time structure, runtime token
+
+```scss
+$button-selector: '.button';
+
+:root { --brand-hue: 220; }
+[data-theme='warm'] { --brand-hue: 18; }
+
+@property --button-progress {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+#{$button-selector} {
+  --button-bg: hsl(var(--brand-hue) 70% 45%);
+  background: var(--button-bg, royalblue);
+  transform: scaleX(var(--button-progress));
+}
+```
+
+```mermaid
+flowchart TD
+    Sass[Sass variables and loops] --> Build[Build emits CSS]
+    Build --> Cascade[Selectors and cascade choose custom-property values]
+    Theme[Theme, query, inline style, or script] --> Cascade
+    Cascade --> Var[var substitution at computed-value time]
+    Var --> Used[Used component property]
+```
+
+### Failure mode
+
+```css
+.card { --gap: 12bogus; gap: var(--gap, 1rem); }
+```
+
+`--gap` exists, so the `var()` fallback is not selected. After substitution the `gap` value is invalid. Registering the token with `@property` or supplying a valid token prevents that invalid-at-computed-value-time surprise.
+
+<a id="q50"></a>
+
+## Q50. How would you avoid layout shift from images and components?
+
+### Requirement
+
+Layout shift occurs when visible content changes position between rendered frames without the expected user-driven exclusion. Prevention is primarily a space-reservation problem:
+
+- give images and video correct intrinsic `width` and `height` attributes; responsive CSS can still use `max-inline-size: 100%; block-size: auto`;
+- reserve component slots with a stable size, `aspect-ratio`, or a skeleton that matches the final geometry;
+- do not insert banners, consent UI, ads, or errors above already-rendered content unless space was reserved;
+- keep fallback and final font metrics compatible and use an intentional loading strategy;
+- animate `transform` and `opacity` when motion need not affect layout;
+- diagnose actual shifted elements with `PerformanceObserver` rather than guessing from a single screenshot.
+
+### Example 39 — dimensions establish the ratio before bytes arrive
+
+```html
+<img src="team-800.webp"
+     srcset="team-400.webp 400w, team-800.webp 800w"
+     sizes="(max-width: 40rem) 100vw, 40rem"
+     width="800" height="450"
+     alt="The engineering team in the release room">
+```
+
+```css
+img { display: block; max-inline-size: 100%; block-size: auto; }
+.recommendations { min-block-size: 18rem; }
+.toast { transform: translateY(var(--offset)); }
+```
+
+```mermaid
+flowchart TD
+    Discover[HTML discovered] --> Reserve[Intrinsic ratio or stable slot reserves space]
+    Reserve --> Load[Media, font, or component loads]
+    Load --> Same{Final geometry fits reservation?}
+    Same -- yes --> Stable[No displacement from this resource]
+    Same -- no --> Shift[Visible content may shift]
+```
+
+CLS is an aggregate score derived from layout-shift entries, not “the number of slow images.” A resource can load slowly without shifting anything if its geometry was reserved.
+
+<a id="q51"></a>
+
+## Q51. What is BEM, and do you have to use it?
+
+### Requirement
+
+BEM names ownership explicitly:
+
+- **Block:** independent component, such as `.card`.
+- **Element:** a part that belongs to that block, such as `.card__title`.
+- **Modifier:** a variation or state, such as `.card--featured` or `.card__title--muted`.
+
+It is a convention, not a browser feature and not a requirement. Its value is predictable flat selectors and recognizable ownership in a global namespace. CSS Modules, scoped styles, utility classes, cascade layers, and component frameworks can provide other scoping or composition mechanisms. Choose one coherent ownership model; do not mix conventions randomly.
+
+### Example 40 — name the component contract
+
+```html
+<article class="product-card product-card--featured">
+  <h2 class="product-card__title">Noise-cancelling headphones</h2>
+  <p class="product-card__price">$199</p>
+</article>
+```
+
+```css
+.product-card { padding: 1rem; border: 1px solid; }
+.product-card__title { margin-block: 0 .5rem; }
+.product-card__price { font-weight: 700; }
+.product-card--featured { border-color: var(--brand); }
+```
+
+Avoid selectors such as `.page .sidebar article.product-card h2.title`: they encode page placement and DOM depth, raise specificity, and make the component harder to move. Also avoid inventing “elements of elements” such as `.card__body__title`; the element belongs to the block, so `.card__title` is enough.
+
 ## Decision checklist
 
 - Use `const` by default when the binding should not change; use `let` when reassignment is part of the model.
@@ -1956,6 +2212,12 @@ flowchart TD
 - When flex/grid content overflows, identify the automatic minimum before adding clipping; use `min-inline-size: 0` or a zero track minimum deliberately.
 - For positioned elements, identify flow participation, containing block, scroll container, insets, and clipping in that order.
 - Treat each stacking context as an atomic group; fix overlay ownership or use the top layer instead of escalating `z-index` numbers.
+- Center according to the formatting context and named axes; do not memorize one physical-direction recipe.
+- Choose CSS units by the quantity that should control the value, and bound viewport-driven type or spacing.
+- Use container queries for reusable component allocation and media queries for viewport or environment policy.
+- Use CSS custom properties when values must cascade or change at runtime; use Sass variables for build-time composition.
+- Prevent layout shift by reserving final geometry before asynchronous content arrives, then measure actual shift entries.
+- Treat BEM as one ownership convention, not a requirement; prefer flat predictable selectors over DOM-coupled chains.
 
 <a id="sources"></a>
 
@@ -1963,9 +2225,9 @@ flowchart TD
 
 Paired source comparison performed through 2026-10-15:
 
-- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1256. The newly processed Q40–Q45 range is lines 1139–1256, bounded by Q46 at line 1257.
-- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 800–866 for Q40–Q45, bounded by Q46 at rendered line 867. It agrees on all six topics but is not promoted as a competing guide.
-- The repository edition adds exact requirements, four connected example groups, cascade/box/layout/stacking diagrams, arithmetic and decision traces, automatic-minimum and top-layer boundaries, deterministic executable policy assertions, and current primary links.
+- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1355. The newly processed Q46–Q51 range is lines 1257–1355, bounded by Q52 at line 1356.
+- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 867–926 for Q46–Q51, bounded by Q52 at rendered line 927. It agrees on all six topics but is not promoted as a competing guide.
+- The repository edition adds exact requirements, four connected example groups, unit and query traces, runtime-token and layout-stability boundaries, four diagrams, deterministic executable policy assertions, and current primary links.
 
 Primary references checked through 2026-10-15:
 
@@ -2019,9 +2281,18 @@ Primary references checked through 2026-10-15:
 - [CSS Grid Layout Level 2 — automatic minimum size](https://drafts.csswg.org/css-grid/#min-size-auto)
 - [CSS Positioned Layout Level 3](https://drafts.csswg.org/css-position-3/)
 - [CSS Positioned Layout Level 4 — stacking and the top layer](https://drafts.csswg.org/css-position-4/)
+- [CSS Box Alignment Level 3](https://drafts.csswg.org/css-align/)
+- [CSS Values and Units Level 4](https://drafts.csswg.org/css-values-4/)
+- [CSS Conditional Rules Level 5 — container queries](https://drafts.csswg.org/css-conditional-5/)
+- [CSS Containment Level 3](https://drafts.csswg.org/css-contain-3/)
+- [CSS Custom Properties for Cascading Variables](https://drafts.csswg.org/css-variables/)
+- [CSS Properties and Values API Level 1](https://drafts.css-houdini.org/css-properties-values-api-1/)
+- [Layout Instability API](https://wicg.github.io/layout-instability/)
+- [HTML Living Standard — responsive images and intrinsic dimensions](https://html.spec.whatwg.org/multipage/images.html)
+- [BEM methodology — naming](https://getbem.com/naming/)
 
 <a id="next"></a>
 
 ## Next bounded section
 
-Continue with source Q46–Q51: centering, CSS units, container queries, custom properties, layout-shift prevention, and BEM. Re-read both sources to lock the exact Q51/Q52 boundary before editing; Q52 begins the JavaScript implementation exercises.
+Continue with source Q52–Q56: implementations of `map`, `reduce`, nested-array flattening, `groupBy`, and `Promise.all`. Re-read both sources to lock the exact Q56/Q57 boundary before editing; do not expand beyond that next bounded implementation group.

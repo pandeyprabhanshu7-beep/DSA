@@ -54,7 +54,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | DSA_Graph_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.813753Z | DISCOVERED |
 | Advanced_Trees_FAANG_Mermaid_Study_Guide.md | 2026-09-08T00:10:00.813395Z | CORE PROCESSED — sections 3–10 promoted as focused modules; sections 1–2 merged into canonical Trees/BST cards; supplementary sections 11–15 remain inventory-only |
 | Angular_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.775386Z | IN PROGRESS — Q1–Q74 plus rapid-fire items 1–39 compared/promoted through lines 1660–1694; Final Revision Sheet starts at line 1696 and remains unprocessed |
-| JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.753196Z | IN PROGRESS — Q1–Q45 compared/promoted through line 1256; Q46 begins at line 1257 |
+| JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.753196Z | IN PROGRESS — Q1–Q51 compared/promoted through line 1355; Q52 begins at line 1356 |
 | DSA_Tree_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.743385Z | DISCOVERED |
 | DSA_Arrays_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.740223Z | DISCOVERED |
 | Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md | 2026-09-07T23:36:35.951649Z | DISCOVERED |
@@ -67,7 +67,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | DSA_Arrays_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T01:55:56.718502Z | DISCOVERED |
 | AI_RAG_CAG_Deep_Learning_Developer_Guide.docx | 2026-09-02T04:40:53.490553Z | READY — compared; two useful original figures retained |
 | Angular_Interview_Workbook.docx | 2026-08-31T14:40:43.673563Z | IN PROGRESS — Q1–Q74 plus rapid-fire items 1–39 compared/promoted through extracted lines 1098–1115; Final Revision Sheet starts at line 1118 and remains unprocessed |
-| JavaScript_HTML_CSS_Interview_Workbook.docx | 2026-08-31T14:40:39.905787Z | IN PROGRESS — Q1–Q45 compared through rendered line 866; Q46 begins at rendered line 867 |
+| JavaScript_HTML_CSS_Interview_Workbook.docx | 2026-08-31T14:40:39.905787Z | IN PROGRESS — Q1–Q51 compared through rendered line 926; Q52 begins at rendered line 927 |
 | DSA_Graph_FAANG_Question_Workbook.docx | 2026-08-30T07:02:49.102302Z | DISCOVERED |
 | DSA_Tree_FAANG_Question_Workbook.docx | 2026-08-30T07:02:48.410227Z | DISCOVERED |
 | Tree_Advanced_FAANG_Study_Guide.docx | 2026-08-30T05:23:39.553805Z | DISCOVERED |
@@ -84,7 +84,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 - The AI-platform illustrated edition may hold useful material missing from a later master guide. Compare content; merge the best coverage in place.
 - Database internals, caching and Java connectivity are a distinct source, and arrays, advanced trees and frontend guides are newly enrolled topics.
 - The uploaded advanced-trees guide's core sections 1–10 are processed under [local project notes](local-project-notes/): Fenwick, lazy segment tree, trie, heap, B+ tree, B-tree, Red-Black Tree and AVL Tree are focused modules, while sections 1–2 improved canonical BT-1/BT-3 and BST-6/BST-7 in place. Supplementary sections 11–15 remain inventory-only rather than being treated as reviewed content.
-- Angular intake is in progress through Q74 plus rapid-fire items 1–39 from the paired Markdown/DOCX sources; its following Final Revision Sheet remains unprocessed. JavaScript/HTML/CSS intake now has one canonical [Markdown/HTML guide](frontend/javascript-html-css/) through Q1–Q45 with executable examples; Q46–Q72 and the rapid-fire/revision material remain queued. Continue consolidating rather than duplicating canonical answers.
+- Angular intake is in progress through Q74 plus rapid-fire items 1–39 from the paired Markdown/DOCX sources; its following Final Revision Sheet remains unprocessed. JavaScript/HTML/CSS intake now has one canonical [Markdown/HTML guide](frontend/javascript-html-css/) through Q1–Q51 with executable examples; Q52–Q72 and the rapid-fire/revision material remain queued. Continue consolidating rather than duplicating canonical answers.
 - AI projects keep their code in existing repositories. Enroll technical explanations, setup, architecture and lessons here.
 - Missing AWS master-guide, cloud-comparison and Java/security source bytes remain NEEDS_SOURCE. Known topics are queued without pretending they were imported.
 - No personal resumes or unrelated private documents are enrolled. Source identifiers are retrieval references, not credentials.
@@ -95,5 +95,5 @@ See [pipeline rules](ENHANCEMENT_PIPELINE.md) and [machine-readable queue](ENRIC
 
 Angular Q1–Q74 plus rapid-fire items 1–39 are tracked at [frontend/angular](frontend/angular/). The fourth rapid-fire module was reconciled from both workbooks on 2026-10-14; the Final Revision Sheet remains unprocessed.
 
-JavaScript/HTML/CSS Q1–Q45 are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The first CSS module Q40–Q45 was reconciled from both workbooks on 2026-10-15; Q46–Q51 is the next bounded group.
+JavaScript/HTML/CSS Q1–Q51 are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The responsive CSS module Q46–Q51 was reconciled from both workbooks on 2026-10-15; Q52–Q56 is the next bounded group.
 

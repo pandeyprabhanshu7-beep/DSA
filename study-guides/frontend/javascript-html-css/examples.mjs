@@ -808,6 +808,79 @@ export function positioningAndStackingPolicyExample() {
   };
 }
 
+export function centeringAndUnitPolicyExample() {
+  function centering({context, target}) {
+    if (context === 'grid') return 'place-items:center';
+    if (context === 'flex') return 'justify-content:center + align-items:center';
+    if (target === 'block') return 'constrained-inline-size + margin-inline:auto';
+    if (target === 'inline-content') return 'text-align:center';
+    return 'define-layout-context-first';
+  }
+  function remToCssPixels(rem, rootFontSize) {
+    return rem * rootFontSize;
+  }
+  function emToCssPixels(em, elementFontSize) {
+    return em * elementFontSize;
+  }
+  return {
+    grid: centering({context: 'grid', target: 'item'}),
+    article: centering({context: 'normal-flow', target: 'block'}),
+    title: centering({context: 'normal-flow', target: 'inline-content'}),
+    twoRemAt20: remToCssPixels(2, 20),
+    oneEmAt18: emToCssPixels(1, 18),
+    viewportTextPolicy: 'clamp(rem, rem + vw, rem)'
+  };
+}
+
+export function containerQueryPolicyExample() {
+  function productCardLayout(containerInlineSizeRem) {
+    return containerInlineSizeRem >= 32 ? 'image-and-details' : 'stacked';
+  }
+  return {
+    sameViewport: 90,
+    rail: productCardLayout(24),
+    catalog: productCardLayout(48),
+    environmentPolicy: 'media-query',
+    allocationPolicy: 'container-query'
+  };
+}
+
+export function customPropertyPolicyExample() {
+  function chooseToken({declared, registered, initialValue, fallback}) {
+    if (!declared) return fallback;
+    if (registered && declared === 'invalid') return initialValue;
+    return declared;
+  }
+  return {
+    missingUsesFallback: chooseToken({declared: '', fallback: 'royalblue'}),
+    unregisteredInvalidSubstitutes: chooseToken({declared: 'invalid', registered: false, fallback: '1rem'}),
+    registeredInvalidUsesInitial: chooseToken({declared: 'invalid', registered: true, initialValue: 0, fallback: 1}),
+    sassLifetime: 'build-time',
+    customPropertyLifetime: 'cascade-and-runtime'
+  };
+}
+
+export function layoutStabilityAndNamingPolicyExample() {
+  function reservedAspectRatio(width, height) {
+    return `${width}:${height}`;
+  }
+  function bem({block, element, modifier}) {
+    if (element && modifier) return `${block}__${element}--${modifier}`;
+    if (element) return `${block}__${element}`;
+    if (modifier) return `${block}--${modifier}`;
+    return block;
+  }
+  return {
+    imageReservation: reservedAspectRatio(800, 450),
+    slowImageMustShift: false,
+    stableInsertionPolicy: 'reserve-space-before-render',
+    block: bem({block: 'product-card'}),
+    element: bem({block: 'product-card', element: 'title'}),
+    modifier: bem({block: 'product-card', modifier: 'featured'}),
+    bemRequired: false
+  };
+}
+
 assert.deepEqual(constantBindingExample(), {name: 'Grace', skills: ['JS', 'HTML']});
 assert.deepEqual(hoistingExample(), [undefined, 7]);
 assert.equal(temporalDeadZoneErrorName(), 'ReferenceError');
@@ -978,4 +1051,36 @@ assert.deepEqual(positioningAndStackingPolicyExample(), {
   topLayerParentContext: 'root-stacking-context'
 });
 
-console.log('JavaScript fundamentals examples: 38 scenario groups passed');
+assert.deepEqual(centeringAndUnitPolicyExample(), {
+  grid: 'place-items:center',
+  article: 'constrained-inline-size + margin-inline:auto',
+  title: 'text-align:center',
+  twoRemAt20: 40,
+  oneEmAt18: 18,
+  viewportTextPolicy: 'clamp(rem, rem + vw, rem)'
+});
+assert.deepEqual(containerQueryPolicyExample(), {
+  sameViewport: 90,
+  rail: 'stacked',
+  catalog: 'image-and-details',
+  environmentPolicy: 'media-query',
+  allocationPolicy: 'container-query'
+});
+assert.deepEqual(customPropertyPolicyExample(), {
+  missingUsesFallback: 'royalblue',
+  unregisteredInvalidSubstitutes: 'invalid',
+  registeredInvalidUsesInitial: 0,
+  sassLifetime: 'build-time',
+  customPropertyLifetime: 'cascade-and-runtime'
+});
+assert.deepEqual(layoutStabilityAndNamingPolicyExample(), {
+  imageReservation: '800:450',
+  slowImageMustShift: false,
+  stableInsertionPolicy: 'reserve-space-before-render',
+  block: 'product-card',
+  element: 'product-card__title',
+  modifier: 'product-card--featured',
+  bemRequired: false
+});
+
+console.log('JavaScript fundamentals examples: 42 scenario groups passed');
