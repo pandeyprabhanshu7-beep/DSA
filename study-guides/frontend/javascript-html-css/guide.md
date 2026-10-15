@@ -5,7 +5,7 @@ description: Incremental, source-reconciled frontend interview guide with execut
 
 # JavaScript, HTML and CSS Interview Guide
 
-This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q56**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, responsive media, visibility semantics, native lazy loading, accessible search-friendly markup, the CSS cascade and box model, Flexbox/Grid sizing, positioning, stacking contexts, responsive units, component queries, runtime design tokens, layout stability, CSS naming, and interview implementations for collection transforms and promise coordination. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
+This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q61**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, responsive media, visibility semantics, native lazy loading, accessible search-friendly markup, the CSS cascade and box model, Flexbox/Grid sizing, positioning, stacking contexts, responsive units, component queries, runtime design tokens, layout stability, CSS naming, collection and promise implementations, one-shot functions, event emitters, concurrency limiting, nested event-loop ordering, and closure lifetime. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
 
 ## Module map
 
@@ -65,6 +65,11 @@ This is the canonical incremental guide for the paired JavaScript/HTML/CSS workb
 - [Q54 — Flatten a nested array](#q54)
 - [Q55 — Implement `groupBy`](#q55)
 - [Q56 — Implement `Promise.all`](#q56)
+- [Q57 — Implement `once`](#q57)
+- [Q58 — Implement an event emitter](#q58)
+- [Q59 — Limit promise-task concurrency](#q59)
+- [Q60 — Predict nested event-loop ordering](#q60)
+- [Q61 — Prevent closure-retention leaks](#q61)
 - [Source provenance and verification](#sources)
 - [Next bounded section](#next)
 
@@ -2478,6 +2483,297 @@ flowchart TD
 
 Iteration and storage are `O(n)`. The elapsed time to fulfillment is governed by the slowest fulfilling input, while rejection latency is governed by the first rejection that reaches the aggregate. This is coordination, not parallel execution: the underlying operations start when their promises/tasks are created.
 
+<a id="q57"></a>
+
+## Q57. Implement a `once` function
+
+### Requirement
+
+`once(fn)` must call `fn` at most once, preserve the first call's receiver and arguments, and return the same outcome later. “Outcome” needs a policy: this implementation caches either the returned value **or the synchronous exception**. A failed first attempt is therefore consumed and the same error object is thrown on later calls. A retry-on-error helper is a different contract and should have a different name.
+
+### Example 45 — make the state machine explicit
+
+```javascript
+function onceStable(fn) {
+  if (typeof fn !== "function") throw new TypeError("fn must be callable");
+  let state = "idle";
+  let value;
+  let error;
+
+  return function (...args) {
+    if (state === "fulfilled") return value;
+    if (state === "rejected") throw error;
+    if (state === "running") throw new Error("reentrant once invocation");
+
+    state = "running"; // claim the call before user code can re-enter
+    try {
+      value = fn.apply(this, args);
+      state = "fulfilled";
+      return value;
+    } catch (cause) {
+      error = cause;
+      state = "rejected";
+      throw cause;
+    }
+  };
+}
+
+const counter = {
+  total: 0,
+  add: onceStable(function (amount) {
+    this.total += amount;
+    return this.total;
+  })
+};
+console.log(counter.add(3), counter.add(100), counter.total); // 3 3 3
+```
+
+| Call/state | Action | Durable state |
+|---|---|---|
+| first call / `idle` | set `running`, invoke with original `this` and arguments | `fulfilled` + value, or `rejected` + error |
+| recursive call / `running` | reject ambiguous re-entry | original invocation continues |
+| later call / `fulfilled` | return cached value, including `undefined` | unchanged |
+| later call / `rejected` | throw cached error object | unchanged |
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> running: first call
+    running --> fulfilled: return
+    running --> rejected: throw
+    fulfilled --> fulfilled: replay value
+    rejected --> rejected: replay error
+```
+
+If `fn` returns a promise, the cached value is that promise: all callers observe the same eventual fulfillment or rejection. This helper does not turn a rejected asynchronous operation into a retry. Time and auxiliary storage are `O(1)` per wrapper, excluding `fn`.
+
+<a id="q58"></a>
+
+## Q58. Implement a basic event emitter
+
+### Requirement
+
+Store listeners by event key, preserve insertion order, support removal, and define mutation behavior during dispatch. A `Map<event, Set<listener>>` accepts string or symbol keys and naturally prevents the same function from being registered twice for one event. `emit` takes a snapshot: removals and additions during one emission affect the **next** emission, not the active pass.
+
+### Example 46 — stable dispatch and one-shot listeners
+
+```javascript
+class StudyEventEmitter {
+  #events = new Map();
+
+  on(event, listener) {
+    if (typeof listener !== "function") throw new TypeError("listener must be callable");
+    const listeners = this.#events.get(event) ?? new Set();
+    listeners.add(listener);
+    this.#events.set(event, listeners);
+    let active = true;
+    return () => {
+      if (!active) return false;
+      active = false;
+      return this.off(event, listener);
+    };
+  }
+
+  once(event, listener) {
+    let unsubscribe;
+    const wrapper = (...args) => {
+      unsubscribe(); // remove before user code can recursively emit
+      return listener.apply(this, args);
+    };
+    unsubscribe = this.on(event, wrapper);
+    return unsubscribe;
+  }
+
+  off(event, listener) {
+    const listeners = this.#events.get(event);
+    if (!listeners) return false;
+    const removed = listeners.delete(listener);
+    if (listeners.size === 0) this.#events.delete(event);
+    return removed;
+  }
+
+  emit(event, ...args) {
+    const snapshot = [...(this.#events.get(event) ?? [])];
+    for (const listener of snapshot) listener.apply(this, args);
+    return snapshot.length;
+  }
+
+  listenerCount(event) {
+    return this.#events.get(event)?.size ?? 0;
+  }
+}
+```
+
+For listeners `A, B`, suppose `A` removes `B` and adds `C` while handling the first emission:
+
+| Emission | Snapshot at start | Calls in this pass | Registry afterward |
+|---:|---|---|---|
+| 1 | `A, B` | `A, B` | `A, C` |
+| 2 | `A, C` | `A, C` | `A, C` |
+
+```mermaid
+flowchart TD
+    Registry["Registry: A, B"] --> Snapshot["Snapshot: A, B"]
+    Snapshot --> A["Call A: remove B, add C"]
+    A --> B["Call B from snapshot"]
+    B --> Next["Next registry: A, C"]
+```
+
+This teaching emitter propagates a listener's synchronous exception and stops that emission. Production systems may isolate listener failures instead, but must document that policy. Snapshot creation is `O(l)` and dispatch is `O(l)` for `l` listeners; registration and removal have expected `O(1)` cost.
+
+<a id="q59"></a>
+
+## Q59. Limit promise-task concurrency
+
+### Requirement
+
+Accept **lazy task factories**, not already-started promises. Start at most `limit` tasks at once and keep results in input order. This helper supports two explicit error policies:
+
+- default fail-fast: reject the aggregate and stop admitting queued work when a worker observes an error; already-started work is not cancelled and may still complete;
+- `{settle: true}`: wait for every task and return `{status, value|reason}` records, analogous to `Promise.allSettled`.
+
+### Example 47 — worker pool with an ordered result ledger
+
+```javascript
+async function runLimited(tasks, limit, {settle = false} = {}) {
+  if (!Array.isArray(tasks) || tasks.some(task => typeof task !== "function")) {
+    throw new TypeError("tasks must be an array of functions");
+  }
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new RangeError("limit must be a positive integer");
+  }
+
+  const results = new Array(tasks.length);
+  let nextIndex = 0;
+  let failed = false;
+  async function worker() {
+    while (true) {
+      if (!settle && failed) return;
+      const index = nextIndex++;
+      if (index >= tasks.length) return;
+      try {
+        const value = await tasks[index]();
+        results[index] = settle ? {status: "fulfilled", value} : value;
+      } catch (reason) {
+        if (!settle) {
+          failed = true; // active work continues; queued work is not admitted
+          throw reason;
+        }
+        results[index] = {status: "rejected", reason};
+      }
+    }
+  }
+
+  const workerCount = Math.min(limit, tasks.length);
+  await Promise.all(Array.from({length: workerCount}, () => worker()));
+  return results;
+}
+
+const wait = (label, ms) => () =>
+  new Promise(resolve => setTimeout(resolve, ms, label));
+console.log(await runLimited([
+  wait("A", 20), wait("B", 2), wait("C", 3), wait("D", 0)
+], 2));
+// ["A", "B", "C", "D"] even though completion is B, C, D, A
+```
+
+| Time landmark | Active before completion | Completion | Newly admitted | Active after admission |
+|---|---|---|---|---|
+| start | — | — | A, B | A, B |
+| B finishes | A, B | B | C | A, C |
+| C finishes | A, C | C | D | A, D |
+| D finishes | A, D | D | none | A |
+| A finishes | A | A | none | none |
+
+```mermaid
+flowchart TD
+    Queue["Lazy factories A, B, C, D"] --> Pool["Two workers"]
+    Pool --> W1["Worker 1: A"]
+    Pool --> W2["Worker 2: B → C → D"]
+    W1 --> Ledger["Ordered result ledger"]
+    W2 --> Ledger
+```
+
+At most `min(limit, n)` tasks are in flight. Total work is `O(n)`, result storage is `O(n)`, and worker bookkeeping is `O(limit)`. Promise rejection alone cannot undo a network request or other side effect; cancellation requires a task-specific signal and cooperative task code.
+
+<a id="q60"></a>
+
+## Q60. Predict nested event-loop ordering
+
+### Requirement
+
+Separate synchronous execution, promise/microtask jobs, and later tasks such as timers. An `await` of an already-fulfilled promise still suspends the async function and queues its continuation. During a microtask checkpoint, newly queued microtasks join the same checkpoint behind jobs already queued.
+
+### Example 48 — follow queue insertion, not source indentation
+
+```javascript
+console.log("1");
+async function run() {
+  console.log("2");
+  await Promise.resolve();
+  console.log("3");
+  queueMicrotask(() => console.log("7"));
+}
+run();
+Promise.resolve().then(() => {
+  console.log("4");
+  queueMicrotask(() => console.log("8"));
+});
+setTimeout(() => console.log("5"), 0);
+console.log("6");
+// 1 2 6 3 4 7 8 5
+```
+
+| Step | Running | Microtask queue afterward | Timer queue |
+|---:|---|---|---|
+| 1 | script logs `1`, `2` | async continuation `3` | — |
+| 2 | script registers `.then` | `3`, then-handler `4` | — |
+| 3 | script registers timer, logs `6`, ends | `3`, `4` | `5` |
+| 4 | continuation logs `3`, queues `7` | `4`, `7` | `5` |
+| 5 | handler logs `4`, queues `8` | `7`, `8` | `5` |
+| 6 | checkpoint logs `7`, then `8` | empty | `5` |
+| 7 | later timer task logs `5` | empty | empty |
+
+The exact delay before a timer task is not promised; the ordering claim is that the timer cannot run until the current task and its microtask checkpoint finish.
+
+<a id="q61"></a>
+
+## Q61. How do closures retain memory, and how do you prevent leaks?
+
+### Requirement
+
+A function object carries an internal `[[Environment]]` reference to the environment where it was created. A closure is not automatically a leak: memory becomes a problem when a long-lived owner—an event registry, timer, cache, subscription, or global—keeps the callback reachable, and the callback's reachable environment keeps data alive longer than intended.
+
+```javascript
+function attachSelection(emitter, hugeModel, render) {
+  const id = hugeModel.id; // retain the small value this handler needs
+  const unsubscribe = emitter.on("select", () => render(id));
+  return unsubscribe;      // owner can end the listener lifetime explicitly
+}
+
+const dispose = attachSelection(emitter, hugeModel, renderSelection);
+// Component unmount or feature shutdown:
+dispose();
+```
+
+```mermaid
+flowchart LR
+    Owner["Long-lived emitter"] --> Callback["Registered callback"]
+    Callback --> Environment["Closed-over environment"]
+    Environment --> Data["Reachable data graph"]
+    Dispose["unsubscribe()"] -. breaks .-> Owner
+```
+
+Use this diagnosis order:
+
+1. identify the long-lived root and the registration path;
+2. return and call an idempotent disposer, or use an API's `AbortSignal` cleanup support;
+3. capture only the values the callback actually needs;
+4. bound caches and clear timers/subscriptions at the owning lifecycle boundary;
+5. verify retained paths with memory tooling instead of claiming that a particular object was collected.
+
+`WeakMap`, `WeakRef`, and `FinalizationRegistry` are specialized tools, not substitutes for lifecycle ownership. Garbage-collection timing is intentionally not observable enough for a deterministic unit test; test registration/disposal behavior, then use heap snapshots for retention evidence.
+
 ## Decision checklist
 
 - Use `const` by default when the binding should not change; use `let` when reassignment is part of the model.
@@ -2530,6 +2826,11 @@ Iteration and storage are `O(n)`. The elapsed time to fulfillment is governed by
 - For flattening, agree on depth and hole behavior before choosing recursion or an explicit traversal stack.
 - Choose `Map` grouping when key identity matters; choose object grouping only when property-key coercion is intentional.
 - For promise aggregation, reserve stable indexes, adopt every input, count fulfillment, and remember that rejection does not cancel source work.
+- For `once`, define whether exceptions are cached or retried and claim the call before invoking re-entrant user code.
+- For emitters, define active-dispatch mutation and listener-error behavior; return an idempotent disposer.
+- Limit concurrency with lazy factories and an explicit error/cancellation policy, not with promises that already started.
+- For nested event-loop output, append jobs to the queues in registration order and drain the full microtask checkpoint.
+- Diagnose closure retention from a long-lived root through the callback and its environment; end the owning lifecycle explicitly.
 
 <a id="sources"></a>
 
@@ -2537,9 +2838,9 @@ Iteration and storage are `O(n)`. The elapsed time to fulfillment is governed by
 
 Paired source comparison performed through 2026-10-15:
 
-- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1487. The newly processed Q52–Q56 range is lines 1356–1487, bounded by Q57 at line 1488.
-- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 927–1034 for Q52–Q56, bounded by Q57 at rendered line 1035. It agrees on all five topics but is not promoted as a competing guide.
-- The repository edition corrects sparse-array reduction, distinguishes omitted and explicit seeds, adds stack-safe depth-controlled flattening, preserves arbitrary grouping-key identity, accepts promise iterables, and adds four connected executable examples, four traces/diagrams, deterministic assertions, and current primary links.
+- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1640. The newly processed Q57–Q61 range is lines 1488–1640, bounded by Q62 at line 1641.
+- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 1035–1166 for Q57–Q61, bounded by Q62 at rendered line 1167. It agrees on all five topics but is not promoted as a competing guide.
+- The repository edition adds explicit one-shot outcome/re-entry semantics, stable emitter dispatch, an idempotent unsubscribe contract, ordered bounded concurrency with selectable settlement policy, a nested microtask trace, closure reachability/lifecycle guidance, four connected executable examples, four focused diagrams, deterministic assertions, and current primary links.
 
 Primary references checked through 2026-10-15:
 
@@ -2608,9 +2909,12 @@ Primary references checked through 2026-10-15:
 - [ECMAScript — `Object.groupBy`](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-object.groupby)
 - [ECMAScript — `Map.groupBy`](https://tc39.es/ecma262/multipage/keyed-collections.html#sec-map.groupby)
 - [ECMAScript — `Promise.all`](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-promise.all)
+- [HTML Living Standard — event loops and microtask checkpoints](https://html.spec.whatwg.org/multipage/webappapis.html#event-loops)
+- [DOM Standard — removing event listeners and abortable listeners](https://dom.spec.whatwg.org/#dom-eventtarget-removeeventlistener)
+- [Node.js — Events and `EventEmitter`](https://nodejs.org/api/events.html)
 
 <a id="next"></a>
 
 ## Next bounded section
 
-Continue with source Q57–Q61: `once`, a basic event emitter, a promise-task concurrency limiter, nested event-loop ordering, and closure-retention risks. The Markdown range begins at line 1488 and is bounded by Q62 at line 1641; the DOCX range begins at rendered line 1035 and is bounded by Q62 at rendered line 1167. Re-read both exact ranges before editing.
+Continue with source Q62–Q66: prototype-aware property checks, a simplified `bind`, async iterators, retry/backoff policy, and Web Worker selection. The Markdown range begins at line 1641 and is bounded by Q67 at line 1760; the DOCX range begins at rendered line 1167 and is bounded by Q67 at rendered line 1253. Re-read both exact ranges before editing.

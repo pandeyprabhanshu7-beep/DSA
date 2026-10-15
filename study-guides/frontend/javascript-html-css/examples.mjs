@@ -1065,6 +1065,249 @@ export async function promiseAllPolicyExample() {
   return {completion, ordered, rejection, empty: await promiseAllLike([])};
 }
 
+export function onceStable(fn) {
+  if (typeof fn !== 'function') throw new TypeError('fn must be callable');
+  let state = 'idle';
+  let value;
+  let error;
+  return function (...args) {
+    if (state === 'fulfilled') return value;
+    if (state === 'rejected') throw error;
+    if (state === 'running') throw new Error('reentrant once invocation');
+    state = 'running';
+    try {
+      value = fn.apply(this, args);
+      state = 'fulfilled';
+      return value;
+    } catch (cause) {
+      error = cause;
+      state = 'rejected';
+      throw cause;
+    }
+  };
+}
+
+export function oncePolicyExample() {
+  const receiver = {
+    total: 0,
+    add: onceStable(function (amount) {
+      this.total += amount;
+      return this.total;
+    })
+  };
+  const values = [receiver.add(3), receiver.add(100)];
+  const expected = new Error('first-call-failed');
+  const failsOnce = onceStable(() => { throw expected; });
+  const errors = [];
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try { failsOnce(); } catch (error) { errors.push(error); }
+  }
+  let recursive;
+  recursive = onceStable(() => recursive());
+  let reentrantMessage;
+  try { recursive(); } catch (error) { reentrantMessage = error.message; }
+  return {
+    values,
+    total: receiver.total,
+    sameErrorReplayed: errors[0] === expected && errors[1] === expected,
+    reentrantMessage
+  };
+}
+
+export class StudyEventEmitter {
+  #events = new Map();
+
+  on(event, listener) {
+    if (typeof listener !== 'function') throw new TypeError('listener must be callable');
+    const listeners = this.#events.get(event) ?? new Set();
+    listeners.add(listener);
+    this.#events.set(event, listeners);
+    let active = true;
+    return () => {
+      if (!active) return false;
+      active = false;
+      return this.off(event, listener);
+    };
+  }
+
+  once(event, listener) {
+    let unsubscribe;
+    const wrapper = (...args) => {
+      unsubscribe();
+      return listener.apply(this, args);
+    };
+    unsubscribe = this.on(event, wrapper);
+    return unsubscribe;
+  }
+
+  off(event, listener) {
+    const listeners = this.#events.get(event);
+    if (!listeners) return false;
+    const removed = listeners.delete(listener);
+    if (listeners.size === 0) this.#events.delete(event);
+    return removed;
+  }
+
+  emit(event, ...args) {
+    const snapshot = [...(this.#events.get(event) ?? [])];
+    for (const listener of snapshot) listener.apply(this, args);
+    return snapshot.length;
+  }
+
+  listenerCount(event) {
+    return this.#events.get(event)?.size ?? 0;
+  }
+}
+
+export function eventEmitterPolicyExample() {
+  const emitter = new StudyEventEmitter();
+  const calls = [];
+  const listenerC = value => calls.push(`C:${value}`);
+  let unsubscribeB;
+  emitter.on('tick', value => {
+    calls.push(`A:${value}`);
+    unsubscribeB();
+    emitter.on('tick', listenerC);
+  });
+  unsubscribeB = emitter.on('tick', value => calls.push(`B:${value}`));
+  emitter.once('tick', value => calls.push(`once:${value}`));
+  const delivered = [emitter.emit('tick', 1), emitter.emit('tick', 2)];
+  return {
+    calls,
+    delivered,
+    remaining: emitter.listenerCount('tick'),
+    secondUnsubscribeWasNoop: unsubscribeB() === false
+  };
+}
+
+export async function runLimited(tasks, limit, {settle = false} = {}) {
+  if (!Array.isArray(tasks) || tasks.some(task => typeof task !== 'function')) {
+    throw new TypeError('tasks must be an array of functions');
+  }
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new RangeError('limit must be a positive integer');
+  }
+  const results = new Array(tasks.length);
+  let nextIndex = 0;
+  let failed = false;
+  async function worker() {
+    while (true) {
+      if (!settle && failed) return;
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= tasks.length) return;
+      try {
+        const value = await tasks[index]();
+        results[index] = settle ? {status: 'fulfilled', value} : value;
+      } catch (reason) {
+        if (!settle) {
+          failed = true;
+          throw reason;
+        }
+        results[index] = {status: 'rejected', reason};
+      }
+    }
+  }
+  const workerCount = Math.min(limit, tasks.length);
+  await Promise.all(Array.from({length: workerCount}, () => worker()));
+  return results;
+}
+
+export async function concurrencyLimiterPolicyExample() {
+  let active = 0;
+  let maxActive = 0;
+  const completion = [];
+  const task = (label, delay, shouldReject = false) => async () => {
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+    try {
+      await new Promise(resolve => setTimeout(resolve, delay));
+      completion.push(label);
+      if (shouldReject) throw new Error(label);
+      return label;
+    } finally {
+      active -= 1;
+    }
+  };
+  const ordered = await runLimited([
+    task('A', 20), task('B', 2), task('C', 3), task('D', 0)
+  ], 2);
+  const settled = await runLimited([
+    async () => 'ok', async () => { throw new Error('bad'); }
+  ], 1, {settle: true});
+  const failFastStarts = [];
+  let failFastMessage;
+  try {
+    await runLimited([
+      async () => {
+        failFastStarts.push(0);
+        await new Promise(resolve => setTimeout(resolve, 1));
+        throw new Error('stop');
+      },
+      async () => {
+        failFastStarts.push(1);
+        await new Promise(resolve => setTimeout(resolve, 8));
+      },
+      async () => { failFastStarts.push(2); },
+      async () => { failFastStarts.push(3); }
+    ], 2);
+  } catch (error) {
+    failFastMessage = error.message;
+  }
+  await new Promise(resolve => setTimeout(resolve, 10));
+  return {
+    ordered,
+    completion,
+    maxActive,
+    settled: settled.map(result => result.status),
+    rejection: settled[1].reason.message,
+    failFastStarts,
+    failFastMessage
+  };
+}
+
+export async function eventLoopAndLifetimePolicyExample() {
+  const output = [];
+  output.push('1');
+  async function run() {
+    output.push('2');
+    await Promise.resolve();
+    output.push('3');
+    queueMicrotask(() => output.push('7'));
+  }
+  run();
+  Promise.resolve().then(() => {
+    output.push('4');
+    queueMicrotask(() => output.push('8'));
+  });
+  output.push('6');
+  await new Promise(resolve => setTimeout(() => {
+    output.push('5');
+    resolve();
+  }, 0));
+
+  const emitter = new StudyEventEmitter();
+  const selected = [];
+  const attachSelection = hugeModel => {
+    const id = hugeModel.id;
+    return emitter.on('select', () => selected.push(id));
+  };
+  const dispose = attachSelection({id: 'M1', payload: new Array(1000).fill('x')});
+  const beforeDispose = emitter.listenerCount('select');
+  emitter.emit('select');
+  const firstDispose = dispose();
+  const secondDispose = dispose();
+  emitter.emit('select');
+  return {
+    output,
+    selected,
+    beforeDispose,
+    afterDispose: emitter.listenerCount('select'),
+    firstDispose,
+    secondDispose
+  };
+}
+
 assert.deepEqual(constantBindingExample(), {name: 'Grace', skills: ['JS', 'HTML']});
 assert.deepEqual(hoistingExample(), [undefined, 7]);
 assert.equal(temporalDeadZoneErrorName(), 'ReferenceError');
@@ -1296,4 +1539,34 @@ assert.deepEqual(await promiseAllPolicyExample(), {
   empty: []
 });
 
-console.log('JavaScript fundamentals examples: 46 scenario groups passed');
+assert.deepEqual(oncePolicyExample(), {
+  values: [3, 3],
+  total: 3,
+  sameErrorReplayed: true,
+  reentrantMessage: 'reentrant once invocation'
+});
+assert.deepEqual(eventEmitterPolicyExample(), {
+  calls: ['A:1', 'B:1', 'once:1', 'A:2', 'C:2'],
+  delivered: [3, 2],
+  remaining: 2,
+  secondUnsubscribeWasNoop: true
+});
+assert.deepEqual(await concurrencyLimiterPolicyExample(), {
+  ordered: ['A', 'B', 'C', 'D'],
+  completion: ['B', 'C', 'D', 'A'],
+  maxActive: 2,
+  settled: ['fulfilled', 'rejected'],
+  rejection: 'bad',
+  failFastStarts: [0, 1],
+  failFastMessage: 'stop'
+});
+assert.deepEqual(await eventLoopAndLifetimePolicyExample(), {
+  output: ['1', '2', '6', '3', '4', '7', '8', '5'],
+  selected: ['M1'],
+  beforeDispose: 1,
+  afterDispose: 0,
+  firstDispose: true,
+  secondDispose: false
+});
+
+console.log('JavaScript fundamentals examples: 50 scenario groups passed');

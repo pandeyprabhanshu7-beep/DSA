@@ -232,7 +232,7 @@
       "status": "IN_PROGRESS",
       "last_read_at": "2026-10-15",
       "sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
-      "selection": "Read and selected as the broader structural source; Q1-Q56 through line 1487 were compared and promoted, while Q57-Q72, rapid-fire and revision material remain queued."
+      "selection": "Read and selected as the broader structural source; Q1-Q61 through line 1640 were compared and promoted, while Q62-Q72, rapid-fire and revision material remain queued."
     },
     {
       "name": "DSA_Tree_FAANG_Mermaid_Question_Workbook.md",
@@ -357,7 +357,7 @@
       "status": "IN_PROGRESS",
       "last_read_at": "2026-10-15",
       "sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
-      "selection": "Read and compared through rendered line 926 for Q1-Q51; it corroborates the Mermaid edition but this older DOCX is not promoted as a competing canonical guide."
+      "selection": "Read and compared through rendered line 1166 for Q1-Q61; it corroborates the Mermaid edition but this older DOCX is not promoted as a competing canonical guide."
     },
     {
       "name": "DSA_Graph_FAANG_Question_Workbook.docx",
@@ -715,8 +715,8 @@
         "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
         "JavaScript_HTML_CSS_Interview_Workbook.docx"
       ],
-      "last_processed_at": "2026-10-15T15:46:25-04:00",
-      "next_action": "Compare and deepen Q57-Q61 only: once, a basic EventEmitter, a promise-task concurrency limiter, nested event-loop ordering, and closure-retention risks.",
+      "last_processed_at": "2026-10-15T16:22:20-04:00",
+      "next_action": "Compare and deepen Q62-Q66 only: prototype-aware property checks, a simplified bind, async iterators, retry/backoff policy, and Web Worker selection.",
       "completed_sections": [
         "Q1-Q4: bindings, declaration instantiation and TDZ, lexical scope, and per-iteration loop capture",
         "Q5-Q10: primitive/reference values, equality, null/undefined/NaN, shallow/deep copy, array transforms, optional chaining and nullish coalescing",
@@ -727,19 +727,20 @@
         "Q37-Q39: visibility/accessibility semantics, native lazy loading, and accessible search-friendly HTML",
         "Q40-Q45: cascade/specificity, box-model arithmetic, Flexbox/Grid selection and minimum sizing, positioning, and stacking contexts",
         "Q46-Q51: centering, CSS length units, container queries, CSS custom properties, layout-shift prevention, and BEM",
-        "Q52-Q56: sparse map/reduce semantics, depth-controlled flattening, identity-preserving grouping, and ordered promise aggregation"
+        "Q52-Q56: sparse map/reduce semantics, depth-controlled flattening, identity-preserving grouping, and ordered promise aggregation",
+        "Q57-Q61: one-shot outcome policy, stable event dispatch, bounded task concurrency, nested microtasks, and closure lifetime"
       ],
       "source_revision": {
         "source_markdown_sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
-        "source_markdown_lines": "1356-1487 for Q52-Q56, bounded by Q57 at line 1488; earlier Q1-Q51 retained",
+        "source_markdown_lines": "1488-1640 for Q57-Q61, bounded by Q62 at line 1641; earlier Q1-Q56 retained",
         "source_docx_sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
-        "source_docx_range": "rendered lines 927-1034 for Q52-Q56, bounded by Q57 at rendered line 1035; earlier Q1-Q51 retained",
+        "source_docx_range": "rendered lines 1035-1166 for Q57-Q61, bounded by Q62 at rendered line 1167; earlier Q1-Q56 retained",
         "retrieval": "Both bounded source texts read from ChatGPT Library on 2026-10-15",
-        "baseline_main_head": "6b9219453193335bdfb31de0cd9096d7ff0d32c5"
+        "baseline_main_head": "82cdb28420fac6d4296140c0638b1f791ef94a81"
       },
-      "validation": "Q52-Q56 were compared in both actual source texts and consolidated with sparse-property visits, explicit seed detection, stack-safe depth control, arbitrary key identity, iterable adoption, stable result indexes and abrupt-iteration rejection. Four connected executable examples and five new Mermaid diagrams cover map/reduce, flattening, grouping and Promise.all. Node v24.19.0 passed all 46 scenario groups; deterministic reader generation passed exact 121045-character payload equality, 58 unique anchors, 99 balanced fenced blocks, 31 Mermaid diagrams, parseable inline JavaScript, fragment targets, relative links, JSON syntax, selected-file diff and the live 170-marker placeholder invariant. All nine content-commit remote blob hashes matched and no GitHub status checks were configured. Browser rendering/Mermaid visual QA and Promise subclass/species conformance were not executed.",
+      "validation": "Q57-Q61 were compared in both actual source texts and consolidated with explicit success/error/re-entry policy, stable emitter snapshots, idempotent disposal, ordered bounded concurrency, selectable settlement behavior, nested microtask tracing and closure reachability/lifecycle guidance. Four connected executable examples and four new Mermaid diagrams cover all five questions. Node v24.19.0 passed all 50 scenario groups; deterministic reader generation passed exact 133171-character payload equality, 63 unique anchors, 108 balanced fenced blocks, 35 Mermaid diagrams, parseable inline JavaScript, fragment targets, relative links, JSON syntax, selected-file diff and the live 170-marker Java-placeholder invariant. Browser rendering/Mermaid visual QA, heap-snapshot retention verification and cancellation of already-started limiter tasks were not executed.",
       "last_successful_commit": "efc7bdc539f89d8fee041082c14ab4356201a002",
-      "publish_state": "PUBLISHED",
+      "publish_state": "PREPARED",
       "priority": 16
     },
     {
@@ -859,7 +860,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10, Angular Q1-Q74 plus rapid-fire items 1-39, and JavaScript/HTML/CSS Q1-Q56 are processed. Continue the confirmed JavaScript_HTML_CSS paired sources with Q57-Q61 only; the remaining JavaScript/HTML/CSS questions and Angular Final Revision Sheet stay queued.",
+    "next_action": "Core advanced-tree sections 1-10, Angular Q1-Q74 plus rapid-fire items 1-39, and JavaScript/HTML/CSS Q1-Q61 are processed. Continue the confirmed JavaScript_HTML_CSS paired sources with Q62-Q66 only; the remaining JavaScript/HTML/CSS questions and Angular Final Revision Sheet stay queued.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -912,14 +913,15 @@
       "JavaScript/HTML/CSS Q37-Q39: visibility/accessibility semantics, native lazy loading and accessible search-friendly HTML",
       "JavaScript/HTML/CSS Q40-Q45: cascade/specificity, box model, Flexbox/Grid sizing, positioning and stacking contexts",
       "JavaScript/HTML/CSS Q46-Q51: centering, CSS units, container queries, custom properties, layout-shift prevention and BEM",
-      "JavaScript/HTML/CSS Q52-Q56: map/reduce sparse semantics, iterative flattening, Map grouping and Promise.all coordination"
+      "JavaScript/HTML/CSS Q52-Q56: map/reduce sparse semantics, iterative flattening, Map grouping and Promise.all coordination",
+      "JavaScript/HTML/CSS Q57-Q61: once outcome policy, stable EventEmitter dispatch, bounded task concurrency, nested event-loop ordering and closure lifetime"
     ],
-    "processed_section": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md lines 1356-1487 (SHA-256 742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0) and JavaScript_HTML_CSS_Interview_Workbook.docx rendered lines 927-1034 (SHA-256 790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb): Q52-Q56 validated and published to the canonical frontend guide",
-    "validation": "Q52-Q56 were compared in both actual source texts and consolidated with sparse-property visits, explicit seed detection, stack-safe depth control, arbitrary key identity, iterable adoption, stable result indexes and abrupt-iteration rejection. Four connected executable examples and five new Mermaid diagrams cover map/reduce, flattening, grouping and Promise.all. Node v24.19.0 passed all 46 scenario groups; deterministic reader generation passed exact 121045-character payload equality, 58 unique anchors, 99 balanced fenced blocks, 31 Mermaid diagrams, parseable inline JavaScript, fragment targets, relative links, JSON syntax, selected-file diff and the live 170-marker placeholder invariant. All nine content-commit remote blob hashes matched and no GitHub status checks were configured. Browser rendering/Mermaid visual QA and Promise subclass/species conformance were not executed.",
-    "estimated_next_tokens": 9000,
-    "estimate_method": "Heuristic only: reserve ~1800 tokens to compare JavaScript/HTML/CSS Q57-Q61 across paired sources, ~1400 for current primary references, ~3800 for implementations/traces/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
+    "processed_section": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md lines 1488-1640 (SHA-256 742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0) and JavaScript_HTML_CSS_Interview_Workbook.docx rendered lines 1035-1166 (SHA-256 790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb): Q57-Q61 validated and prepared for the canonical frontend guide",
+    "validation": "Q57-Q61 were compared in both actual source texts and consolidated with explicit success/error/re-entry policy, stable emitter snapshots, idempotent disposal, ordered bounded concurrency, selectable settlement behavior, nested microtask tracing and closure reachability/lifecycle guidance. Four connected executable examples and four new Mermaid diagrams cover all five questions. Node v24.19.0 passed all 50 scenario groups; deterministic reader generation passed exact 133171-character payload equality, 63 unique anchors, 108 balanced fenced blocks, 35 Mermaid diagrams, parseable inline JavaScript, fragment targets, relative links, JSON syntax, selected-file diff and the live 170-marker Java-placeholder invariant. Browser rendering/Mermaid visual QA, heap-snapshot retention verification and cancellation of already-started limiter tasks were not executed.",
+    "estimated_next_tokens": 9200,
+    "estimate_method": "Heuristic only: reserve ~1800 tokens to compare JavaScript/HTML/CSS Q62-Q66 across paired sources, ~1500 for current primary references, ~3900 for implementations/traces/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
     "last_successful_commit": "efc7bdc539f89d8fee041082c14ab4356201a002",
-    "last_processed_at": "2026-10-15T15:46:25-04:00",
-    "next_batch_decision": "JavaScript/HTML/CSS Q52-Q56 are the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Q57-Q61 and retain the conservative one-section checkpoint."
+    "last_processed_at": "2026-10-15T16:22:20-04:00",
+    "next_batch_decision": "JavaScript/HTML/CSS Q57-Q61 are the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Q62-Q66 and retain the conservative one-section checkpoint."
   }
 }
