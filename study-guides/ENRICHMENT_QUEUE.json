@@ -729,9 +729,9 @@
         "retrieval": "Both bounded source texts read from ChatGPT Library on 2026-10-15",
         "baseline_main_head": "25514e4abcd3c34302f73b94d723fba353dacbd2"
       },
-      "validation": "Q5-Q10 were compared in both actual source texts and consolidated with precise requirements, six connected examples, two new Mermaid diagrams, decision and dry-run tables, boundary cases, current normative references and executable assertions. Deterministic reader generation and exact 21541-character embedded-Markdown equality passed with 12 unique anchors, 16 balanced fenced blocks, 4 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 11 scenario groups. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. Remote hash/status verification remains pending publication. Browser Mermaid rendering was not executed.",
-      "last_successful_commit": "00ca63da0c80c1412a9ef78b0f8d188f6a1a9d3c",
-      "publish_state": "VALIDATED_PENDING_PUBLISH",
+      "validation": "Q5-Q10 were compared in both actual source texts and consolidated with precise requirements, six connected examples, two new Mermaid diagrams, decision and dry-run tables, boundary cases, current normative references and executable assertions. Deterministic reader generation and exact 21541-character embedded-Markdown equality passed with 12 unique anchors, 16 balanced fenced blocks, 4 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 11 scenario groups. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. All nine content-commit remote blob hashes matched and no GitHub status checks were configured. Browser Mermaid rendering was not executed.",
+      "last_successful_commit": "6bfeaab6bcb5dcefe112dbfb87b432d0fd8695ef",
+      "publish_state": "PUBLISHED",
       "priority": 16
     },
     {
@@ -899,10 +899,10 @@
       "JavaScript/HTML/CSS Q5-Q10: values/references, equality, missing values, copying, array transforms and null-safe access"
     ],
     "processed_section": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md lines 292-447 (SHA-256 742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0) and JavaScript_HTML_CSS_Interview_Workbook.docx extracted paragraphs 82-150 (SHA-256 790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb): Q5-Q10 validated for the canonical frontend guide",
-    "validation": "Q5-Q10 were compared in both actual source texts and consolidated with six connected examples, two new diagrams, decision/dry-run tables, boundary cases, current primary references and executable assertions. Deterministic reader generation and exact 21541-character embedded-Markdown equality passed with 12 unique anchors, 16 balanced fences, 4 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 11 scenario groups. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. Remote hash/status verification remains pending publication; browser Mermaid rendering was not executed.",
+    "validation": "Q5-Q10 were compared in both actual source texts and consolidated with six connected examples, two new diagrams, decision/dry-run tables, boundary cases, current primary references and executable assertions. Deterministic reader generation and exact 21541-character embedded-Markdown equality passed with 12 unique anchors, 16 balanced fences, 4 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 11 scenario groups. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. All nine content-commit remote blob hashes matched and no GitHub status checks were configured; browser Mermaid rendering was not executed.",
     "estimated_next_tokens": 8000,
     "estimate_method": "Heuristic only: reserve ~1200 tokens to compare JavaScript/HTML/CSS Q11-Q18 across paired sources, ~1400 for current primary references, ~3400 for examples/traces/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "00ca63da0c80c1412a9ef78b0f8d188f6a1a9d3c",
+    "last_successful_commit": "6bfeaab6bcb5dcefe112dbfb87b432d0fd8695ef",
     "last_processed_at": "2026-10-15T04:00:46-04:00",
     "next_batch_decision": "JavaScript/HTML/CSS Q5-Q10 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q11-Q18 and retain the conservative one-section checkpoint."
   }
