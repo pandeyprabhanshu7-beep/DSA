@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "7b2027f1c13778a3fbf7e3d9ea072c67f20d61cf",
+  "last_successful_commit": "ee52e878eca0ea1cbf6485ff7e250560b1ea26bb",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -894,8 +894,8 @@
     "docx_source_file_id": "file_0000000037888211b9c20e5f69be6b09",
     "processed": "Q1-Q36; latest bounded range is Markdown lines 969-1090 and DOCX rendered lines 692-765 for Q31-Q36, each bounded by Q37; earlier Q1-Q30 retained",
     "status": "PUBLISHED",
-    "validation": "Q31-Q36 were compared in both actual source texts and consolidated with exact requirements, four connected example groups, three new Mermaid diagrams, event-action and script-scheduling traces, semantic/accessibility contracts, viewport behavior, responsive-image selection boundaries, current primary references and deterministic assertions. Deterministic reader generation and exact 71678-character embedded-Markdown equality passed with 38 unique anchors, 53 balanced fenced blocks, 15 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 31 scenario groups. JSON, fragment targets, relative links, selected-file diff and the live 170-marker placeholder invariant passed; the selected files do not alter marker-bearing paths. Browser DOM/accessibility/script-loading/network/image-selection integration and Mermaid visual QA were not executed.",
-    "content_commit": "7b2027f1c13778a3fbf7e3d9ea072c67f20d61cf",
+    "validation": "Q31-Q36 were compared in both actual source texts and consolidated with exact requirements, four connected example groups, three new Mermaid diagrams, event-action and script-scheduling traces, semantic/accessibility contracts, viewport behavior, responsive-image selection boundaries, current primary references and deterministic assertions. Deterministic reader generation and exact 71678-character embedded-Markdown equality passed with 38 unique anchors, 53 balanced fenced blocks, 15 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 31 scenario groups. JSON, fragment targets, relative links, selected-file diff and the live 170-marker placeholder invariant passed; the selected files do not alter marker-bearing paths. Browser DOM/accessibility/script-loading/network/image-selection integration and Mermaid visual QA were not executed. All nine content-commit remote blob hashes matched and no GitHub status checks were configured.",
+    "content_commit": "ee52e878eca0ea1cbf6485ff7e250560b1ea26bb",
     "next_section": "Q37-Q39 only: visibility/accessibility semantics, native lazy loading, and practical HTML choices for SEO/accessibility",
     "estimated_next_tokens": 6200,
     "estimate_method": "Heuristic for Q37-Q39 paired-source comparison, current primary references, examples/traces/HTML and validation/checkpoint reserves; not actual quota percentage"
