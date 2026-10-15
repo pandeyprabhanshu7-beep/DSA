@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "688924df119cb36164c57cd2bb33e9d0591e8b63",
+  "last_successful_commit": "ebba849e215ead6a2c698748012b0f2da541ba5c",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -894,8 +894,8 @@
     "docx_source_file_id": "file_0000000037888211b9c20e5f69be6b09",
     "processed": "Q1-Q24; latest bounded range is Markdown lines 665-842 and DOCX rendered lines 446-605 for Q19-Q24, each bounded by Q25; earlier Q1-Q18 retained",
     "status": "PUBLISHED",
-    "validation": "Both actual source texts agree on Q19-Q24 and were consolidated with exact requirements, four connected example groups, two new Mermaid diagrams, task/microtask and timing traces, promise edge cases, contextual error propagation, current normative references and deterministic rate-limiter assertions. Deterministic reader generation and exact 45323-character embedded-Markdown equality passed with 26 unique anchors, 35 balanced fenced blocks, 8 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 23 scenario groups. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed; browser Mermaid rendering was not executed.",
-    "content_commit": "688924df119cb36164c57cd2bb33e9d0591e8b63",
+    "validation": "Both actual source texts agree on Q19-Q24 and were consolidated with exact requirements, four connected example groups, two new Mermaid diagrams, task/microtask and timing traces, promise edge cases, contextual error propagation, current normative references and deterministic rate-limiter assertions. Deterministic reader generation and exact 45323-character embedded-Markdown equality passed with 26 unique anchors, 35 balanced fenced blocks, 8 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 23 scenario groups. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. All nine content-commit remote blob hashes matched and no GitHub status checks were configured; browser Mermaid rendering was not executed.",
+    "content_commit": "ebba849e215ead6a2c698748012b0f2da541ba5c",
     "next_section": "Q25-Q30 only: fetch cancellation, event propagation/delegation, rendering-pipeline costs, browser storage, and same-origin/CORS behavior",
     "estimated_next_tokens": 8200,
     "estimate_method": "Heuristic for Q25-Q30 paired-source comparison, current primary references, examples/traces/HTML and validation/checkpoint reserves; not actual quota percentage"
