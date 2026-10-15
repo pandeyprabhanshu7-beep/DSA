@@ -5,7 +5,7 @@ description: Incremental, source-reconciled frontend interview guide with execut
 
 # JavaScript, HTML and CSS Interview Guide
 
-This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q39**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, responsive media, visibility semantics, native lazy loading, and accessible search-friendly markup. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
+This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q45**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, responsive media, visibility semantics, native lazy loading, accessible search-friendly markup, the CSS cascade and box model, Flexbox/Grid sizing, positioning, and stacking contexts. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
 
 ## Module map
 
@@ -48,6 +48,12 @@ This is the canonical incremental guide for the paired JavaScript/HTML/CSS workb
 - [Q37 — Visibility and accessibility](#q37)
 - [Q38 — Native lazy loading](#q38)
 - [Q39 — SEO without accessibility regressions](#q39)
+- [Q40 — Cascade and specificity](#q40)
+- [Q41 — The CSS box model](#q41)
+- [Q42 — Flexbox versus Grid](#q42)
+- [Q43 — Automatic minimum sizes and overflow](#q43)
+- [Q44 — CSS positioning schemes](#q44)
+- [Q45 — Stacking contexts and `z-index`](#q45)
 - [Source provenance and verification](#sources)
 - [Next bounded section](#next)
 
@@ -1637,6 +1643,277 @@ flowchart TD
     Crawl --> Verify
 ```
 
+<a id="q40"></a>
+
+## Q40. Explain the cascade and specificity
+
+### Requirement
+
+Given several declarations for one property on one element, eliminate rules that do not apply and then compare the survivors in cascade order. Specificity is only one late tie-breaker; it cannot jump across an origin, importance level, encapsulation context, or cascade layer.
+
+For an interview, use this debugging ladder:
+
+1. **Relevance and match:** does the stylesheet apply, and does the selector match this element?
+2. **Origin and importance:** transitions, important declarations, animations, and normal author/user/UA declarations have defined precedence.
+3. **Encapsulation, style attributes, and layers:** Shadow DOM context and inline style declarations have special positions; within an origin, layer order precedes selector specificity. Normal unlayered author rules outrank normal layered rules. For important layered rules, layer order reverses.
+4. **Specificity:** compare selector weights only among declarations still tied in the earlier stages.
+5. **Scope proximity:** for competing scoped rules, the closer scoping root wins.
+6. **Order of appearance:** the later declaration wins the remaining tie.
+
+`!important` does not merely add a huge specificity score. It changes the importance band, also reverses origin and layer precedence where the cascade defines that reversal, and should normally protect contracts such as user overrides—not compensate for uncontrolled selectors.
+
+### Example 29 — trace a normal author declaration
+
+```css
+@layer reset, components, overrides;
+
+@layer components {
+  .card { color: navy; }             /* layer 2, specificity 0-1-0 */
+  .card.featured { color: teal; }    /* layer 2, specificity 0-2-0 */
+}
+
+@layer overrides {
+  .card { color: purple; }           /* later layer 3 */
+}
+
+.card { color: darkgreen; }          /* unlayered normal author rule */
+```
+
+For `<article class="card featured">`, all four selectors match:
+
+| Comparison | Survivor | Why |
+|---|---|---|
+| within `components` | `teal` | same layer; `0-2-0` beats `0-1-0` |
+| `components` versus `overrides` | `purple` | layer order is compared before specificity |
+| layered versus unlayered normal author rule | `darkgreen` | normal unlayered declarations come after all named layers |
+
+The computed color is `darkgreen`. Adding more classes or an ID inside `components` would not cross the layer boundary.
+
+```mermaid
+flowchart TD
+    Match[Applicable matching declarations] --> Origin[Origin and importance]
+    Origin --> Context[Encapsulation, style attribute, and layer]
+    Context --> Specificity[Specificity]
+    Specificity --> Scope[Scope proximity]
+    Scope --> Order[Order of appearance]
+    Order --> Winner[One cascaded value]
+```
+
+<a id="q41"></a>
+
+## Q41. What is the CSS box model?
+
+### Requirement
+
+Every generated box has a content area, padding around the content, a border around the padding, and margin outside the border. For an ordinary rectangular box, horizontal outer size is:
+
+```text
+margin-left + border-left + padding-left + content width
++ padding-right + border-right + margin-right
+```
+
+With `box-sizing: content-box` (the initial value), declared `width` controls the content box. With `box-sizing: border-box`, declared `width` controls the border box; padding and border are taken from that available width. Margins always remain outside the declared width. Min/max constraints, intrinsic sizes, replaced elements, and overflow can still affect the final used geometry.
+
+### Example 30 — calculate both sizing modes
+
+```css
+.panel {
+  width: 240px;
+  padding-inline: 16px;
+  border: 2px solid;
+  margin-inline: 12px;
+}
+```
+
+| Mode | Content width | Border-box width | Outer width including margins |
+|---|---:|---:|---:|
+| `content-box` | 240px | `240 + 32 + 4 = 276px` | `276 + 24 = 300px` |
+| `border-box` | `240 - 32 - 4 = 204px` | 240px | `240 + 24 = 264px` |
+
+A common baseline makes component widths easier to reason about:
+
+```css
+*, *::before, *::after { box-sizing: border-box; }
+```
+
+It does not eliminate the need to budget padding, borders, minimum content sizes, or margins.
+
+```mermaid
+flowchart TD
+    Margin[Margin box] --> Border[Border box]
+    Border --> Padding[Padding box]
+    Padding --> Content[Content box]
+    Declared{box-sizing?} --> CB[content-box: width sets content]
+    Declared --> BB[border-box: width sets border box]
+```
+
+<a id="q42"></a>
+
+## Q42. Flexbox versus Grid: when do you choose each?
+
+### Requirement
+
+Choose from the relationships the layout must preserve:
+
+- **Flexbox** lays items out and distributes free space along one main axis at a time. It is a strong fit for toolbars, navigation, button groups, and components whose items form one row or column and may wrap.
+- **Grid** defines rows and columns together. It is a strong fit when cards, regions, or form fields must align to shared tracks in two dimensions.
+- They compose naturally: Grid can place page regions while Flexbox aligns controls inside one region.
+
+Do not use visual reordering to repair an incorrect document order. `order` and grid placement can change visual position without creating a better keyboard or reading sequence.
+
+### Example 31 — Grid outside, Flexbox inside
+
+```html
+<main class="dashboard">
+  <article class="card">
+    <header class="card__toolbar">
+      <h2>Orders</h2><button type="button">Refresh</button>
+    </header>
+    <p class="card__summary">12 orders require review</p>
+  </article>
+  <article class="card">Inventory</article>
+  <article class="card">Latency</article>
+</main>
+```
+
+```css
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  gap: 1rem;
+}
+
+.card__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+```
+
+```mermaid
+flowchart TD
+    Need[Layout relationship] --> Axis{One primary axis?}
+    Axis -- yes --> Flex[Flexbox distributes items along row or column]
+    Axis -- no --> Tracks{Shared rows and columns?}
+    Tracks -- yes --> Grid[Grid defines two-dimensional tracks]
+    Tracks -- mixed --> Compose[Grid regions with Flexbox internals]
+```
+
+<a id="q43"></a>
+
+## Q43. Why does `min-width: 0` fix overflowing Flexbox or Grid children?
+
+### Requirement
+
+The initial `min-width: auto` is not always zero. A non-scrollable flex item can receive a content-based automatic minimum in its main axis. Grid items also receive content-based automatic minimums under defined track and span conditions. A long unbreakable token, intrinsic image width, or nested component can therefore establish a floor larger than the available track.
+
+`flex-shrink: 1` distributes negative free space only until an item reaches its minimum. Setting `min-inline-size: 0` (or physical `min-width: 0` in a horizontal writing mode) explicitly permits further shrinking. For Grid, `minmax(0, 1fr)` also removes the track's implicit content floor when that is the actual constraint.
+
+### Example 32 — make ellipsis reachable
+
+```html
+<div class="result-row">
+  <img src="avatar.webp" width="40" height="40" alt="">
+  <div class="result-row__body">
+    <strong class="result-row__title">customer-export-2026-10-15-final-reviewed.csv</strong>
+    <span>Ready for download</span>
+  </div>
+</div>
+```
+
+```css
+.result-row { display: flex; gap: .75rem; max-inline-size: 22rem; }
+.result-row__body { flex: 1 1 auto; min-inline-size: 0; }
+.result-row__title {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+```
+
+Shrink trace:
+
+| Step | Without explicit minimum | With `min-inline-size: 0` |
+|---|---|---|
+| available width drops | negative free space is calculated | same |
+| item reaches automatic minimum | stops near its min-content width | may shrink below min-content width |
+| title overflow | row can overflow | title box becomes narrower |
+| ellipsis | may never activate usefully | overflow is clipped and ellipsis can paint |
+
+<a id="q44"></a>
+
+## Q44. Explain `static`, `relative`, `absolute`, `fixed`, and `sticky` positioning
+
+### Requirement
+
+| Position | Normal-flow space retained? | Offset/containing-block model | Common use |
+|---|---|---|---|
+| `static` | yes | normal layout; inset properties do not position it | ordinary document flow |
+| `relative` | yes | laid out normally, then visually offset; establishes the containing block for positioned descendants | local badge/overlay anchor |
+| `absolute` | no | positioned against its containing block, commonly the nearest positioned ancestor | component-local overlay |
+| `fixed` | no | fixed-position containing block, usually the viewport; transforms and other properties can create an ancestor containing block | viewport action/control |
+| `sticky` | yes | participates in flow, then is shifted within its scrollport/containing block after crossing an inset | section/table headers |
+
+Sticky positioning needs an inset such as `inset-block-start: 0` and enough scroll range. Inspect every ancestor that establishes scrolling or clipping; the relevant scroll container may not be the viewport.
+
+### Example 33 — local badge and sticky heading
+
+```css
+.card { position: relative; }
+.card__badge {
+  position: absolute;
+  inset-block-start: .5rem;
+  inset-inline-end: .5rem;
+}
+
+.results__heading {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  background: Canvas;
+}
+```
+
+Debugging trace: first ask whether the element remains in flow, then identify its containing block, then identify its scroll container, and only then inspect inset values and clipping.
+
+<a id="q45"></a>
+
+## Q45. What creates a stacking context, and why does `z-index` sometimes fail?
+
+### Requirement
+
+A stacking context is an atomic painting group. Descendants are ordered inside their context; after that context is painted as one unit, no descendant `z-index` can interleave with a sibling outside it. A child at `z-index: 9999` can therefore remain behind a sibling whose parent context is higher.
+
+Common context creators include the root element; positioned elements with a non-`auto` `z-index`; fixed and sticky positioned boxes; flex/grid items with non-`auto` `z-index`; `opacity` below 1; transforms, filters, and some masking/compositing properties; `isolation: isolate`; and relevant containment or `will-change` values. Check the specification for a property's exact effect instead of memorizing one frozen list.
+
+### Example 34 — the trapped tooltip
+
+```html
+<section class="workspace">
+  <article class="card"><button>Open tooltip</button><aside class="tooltip">Details</aside></article>
+  <aside class="sidebar">Navigation</aside>
+</section>
+```
+
+```css
+.card { position: relative; z-index: 1; }
+.tooltip { position: absolute; z-index: 9999; }
+.sidebar { position: relative; z-index: 2; }
+```
+
+The tooltip cannot outrank `.sidebar` because its entire parent context (`1`) paints below the sidebar context (`2`). Fix the ownership: render the overlay in an appropriate shared overlay layer, remove the accidental parent context, or use a top-layer primitive such as a modal `<dialog>` or the Popover API when its semantics fit. Do not start an arbitrary `z-index` arms race.
+
+```mermaid
+flowchart TD
+    Root[Root stacking context] --> Card[Card context: z 1]
+    Root --> Sidebar[Sidebar context: z 2]
+    Card --> Tooltip[Tooltip: z 9999 inside card]
+    Card --> Atomic[Card and tooltip paint as one unit]
+    Atomic --> Behind[Whole card context remains behind sidebar]
+```
+
 ## Decision checklist
 
 - Use `const` by default when the binding should not change; use `let` when reassignment is part of the model.
@@ -1673,6 +1950,12 @@ flowchart TD
 - Keep visual, layout, focus, and accessibility-tree visibility as separate decisions; never hide reachable focus with `aria-hidden`.
 - Lazy-load eligible below-the-fold media, not the likely LCP resource, and reserve dimensions before it arrives.
 - Prefer one honest semantic document for readers, assistive technology, and crawlers; verify rather than chase markup myths.
+- Debug the cascade from applicability and origin through layers, specificity, scope proximity, and source order; never start with a specificity arms race.
+- Calculate content, padding, border, and margin separately; `border-box` changes the declared sizing box, not the physical existence of those edges.
+- Use Flexbox for one-axis distribution, Grid for shared two-axis tracks, and preserve a logical source order in either layout.
+- When flex/grid content overflows, identify the automatic minimum before adding clipping; use `min-inline-size: 0` or a zero track minimum deliberately.
+- For positioned elements, identify flow participation, containing block, scroll container, insets, and clipping in that order.
+- Treat each stacking context as an atomic group; fix overlay ownership or use the top layer instead of escalating `z-index` numbers.
 
 <a id="sources"></a>
 
@@ -1680,9 +1963,9 @@ flowchart TD
 
 Paired source comparison performed through 2026-10-15:
 
-- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1138. The newly processed Q37–Q39 range is lines 1091–1138, bounded by CSS Q40 at line 1139.
-- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 766–799 for Q37–Q39, bounded by CSS Q40 at rendered line 800. It agrees on all three topics but is not promoted as a competing guide.
-- The repository edition adds exact requirements, three connected example groups, visibility/lazy-loading/document-consumer diagrams, focus and accessibility-tree boundaries, loading and publishing traces, deterministic executable policy assertions, and current primary links.
+- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1256. The newly processed Q40–Q45 range is lines 1139–1256, bounded by Q46 at line 1257.
+- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 800–866 for Q40–Q45, bounded by Q46 at rendered line 867. It agrees on all six topics but is not promoted as a competing guide.
+- The repository edition adds exact requirements, four connected example groups, cascade/box/layout/stacking diagrams, arithmetic and decision traces, automatic-minimum and top-layer boundaries, deterministic executable policy assertions, and current primary links.
 
 Primary references checked through 2026-10-15:
 
@@ -1729,9 +2012,16 @@ Primary references checked through 2026-10-15:
 - [Google Search Essentials](https://developers.google.com/search/docs/essentials)
 - [Google SEO Starter Guide](https://developers.google.com/search/docs/fundamentals/seo-starter-guide)
 - [Google link best practices](https://developers.google.com/search/docs/crawling-indexing/links-crawlable)
+- [CSS Cascading and Inheritance Level 6 — cascade sorting order](https://drafts.csswg.org/css-cascade-6/#cascade-sort)
+- [CSS Box Model Level 3](https://drafts.csswg.org/css-box-3/)
+- [CSS Box Sizing Level 3](https://drafts.csswg.org/css-sizing-3/)
+- [CSS Flexible Box Layout Level 2 — automatic minimum size](https://drafts.csswg.org/css-flexbox-2/#min-size-auto)
+- [CSS Grid Layout Level 2 — automatic minimum size](https://drafts.csswg.org/css-grid/#min-size-auto)
+- [CSS Positioned Layout Level 3](https://drafts.csswg.org/css-position-3/)
+- [CSS Positioned Layout Level 4 — stacking and the top layer](https://drafts.csswg.org/css-position-4/)
 
 <a id="next"></a>
 
 ## Next bounded section
 
-Continue with source Q40–Q45: cascade/specificity, the box model, sizing units, positioning, Flexbox, and Grid. This starts the CSS block; re-read both sources to lock the exact Q45/Q46 boundary before editing this canonical guide.
+Continue with source Q46–Q51: centering, CSS units, container queries, custom properties, layout-shift prevention, and BEM. Re-read both sources to lock the exact Q51/Q52 boundary before editing; Q52 begins the JavaScript implementation exercises.

@@ -723,6 +723,91 @@ export function documentQualityPolicyExample() {
   };
 }
 
+export function cascadePolicyExample() {
+  function compareSpecificity(left, right) {
+    for (let index = 0; index < left.length; index += 1) {
+      if (left[index] !== right[index]) return left[index] - right[index];
+    }
+    return 0;
+  }
+  function chooseNormalAuthorDeclaration(declarations) {
+    return declarations.toSorted((left, right) => {
+      const leftLayer = left.layerOrder ?? Number.POSITIVE_INFINITY;
+      const rightLayer = right.layerOrder ?? Number.POSITIVE_INFINITY;
+      if (leftLayer !== rightLayer) return leftLayer - rightLayer;
+      const specificity = compareSpecificity(left.specificity, right.specificity);
+      if (specificity !== 0) return specificity;
+      if (left.scopeHops !== right.scopeHops) return right.scopeHops - left.scopeHops;
+      return left.sourceOrder - right.sourceOrder;
+    }).at(-1);
+  }
+  const components = [
+    {value: 'navy', layerOrder: 2, specificity: [0, 1, 0], scopeHops: 4, sourceOrder: 1},
+    {value: 'teal', layerOrder: 2, specificity: [0, 2, 0], scopeHops: 4, sourceOrder: 2}
+  ];
+  const allMatches = [
+    ...components,
+    {value: 'purple', layerOrder: 3, specificity: [0, 1, 0], scopeHops: 4, sourceOrder: 3},
+    {value: 'darkgreen', layerOrder: null, specificity: [0, 1, 0], scopeHops: 4, sourceOrder: 4}
+  ];
+  return {
+    sameLayerWinner: chooseNormalAuthorDeclaration(components).value,
+    finalWinner: chooseNormalAuthorDeclaration(allMatches).value,
+    comparisonOrder: ['layer', 'specificity', 'scope-proximity', 'source-order'],
+    limitedTo: 'matching normal author style rules in one encapsulation context'
+  };
+}
+
+export function boxModelPolicyExample() {
+  function measure({declaredWidth, paddingInline, borderInline, marginInline, boxSizing}) {
+    const borderBox = boxSizing === 'border-box'
+      ? declaredWidth
+      : declaredWidth + paddingInline + borderInline;
+    const content = boxSizing === 'border-box'
+      ? declaredWidth - paddingInline - borderInline
+      : declaredWidth;
+    return {content, borderBox, outer: borderBox + marginInline};
+  }
+  const input = {declaredWidth: 240, paddingInline: 32, borderInline: 4, marginInline: 24};
+  return {
+    contentBox: measure({...input, boxSizing: 'content-box'}),
+    borderBox: measure({...input, boxSizing: 'border-box'})
+  };
+}
+
+export function layoutSizingPolicyExample() {
+  function chooseLayout({onePrimaryAxis, sharedRowsAndColumns}) {
+    if (sharedRowsAndColumns) return 'grid';
+    if (onePrimaryAxis) return 'flex';
+    return 'normal-flow';
+  }
+  function ellipsisReachable({contentBasedAutoMinimum, minInlineSize}) {
+    return !contentBasedAutoMinimum || minInlineSize === 0;
+  }
+  return {
+    dashboard: chooseLayout({onePrimaryAxis: false, sharedRowsAndColumns: true}),
+    toolbar: chooseLayout({onePrimaryAxis: true, sharedRowsAndColumns: false}),
+    longTitleBefore: ellipsisReachable({contentBasedAutoMinimum: true, minInlineSize: 'auto'}),
+    longTitleAfter: ellipsisReachable({contentBasedAutoMinimum: true, minInlineSize: 0}),
+    gridTrackFloor: 'minmax(0, 1fr)'
+  };
+}
+
+export function positioningAndStackingPolicyExample() {
+  function containingBlock({position, positionedAncestor, transformedAncestor}) {
+    if (position === 'absolute') return positionedAncestor ?? transformedAncestor ?? 'initial-containing-block';
+    if (position === 'fixed') return transformedAncestor ?? 'viewport';
+    return 'normal-flow-containing-block';
+  }
+  return {
+    absoluteBadge: containingBlock({position: 'absolute', positionedAncestor: 'card'}),
+    fixedInsideTransform: containingBlock({position: 'fixed', transformedAncestor: 'app-shell'}),
+    sticky: {retainsFlowSpace: true, requiresInset: true, constrainedByScrollContainer: true},
+    tooltipCanEscapeParentContext: false,
+    topLayerParentContext: 'root-stacking-context'
+  };
+}
+
 assert.deepEqual(constantBindingExample(), {name: 'Grace', skills: ['JS', 'HTML']});
 assert.deepEqual(hoistingExample(), [undefined, 7]);
 assert.equal(temporalDeadZoneErrorName(), 'ReferenceError');
@@ -868,4 +953,29 @@ assert.deepEqual(documentQualityPolicyExample(), {
   ]
 });
 
-console.log('JavaScript fundamentals examples: 34 scenario groups passed');
+assert.deepEqual(cascadePolicyExample(), {
+  sameLayerWinner: 'teal',
+  finalWinner: 'darkgreen',
+  comparisonOrder: ['layer', 'specificity', 'scope-proximity', 'source-order'],
+  limitedTo: 'matching normal author style rules in one encapsulation context'
+});
+assert.deepEqual(boxModelPolicyExample(), {
+  contentBox: {content: 240, borderBox: 276, outer: 300},
+  borderBox: {content: 204, borderBox: 240, outer: 264}
+});
+assert.deepEqual(layoutSizingPolicyExample(), {
+  dashboard: 'grid',
+  toolbar: 'flex',
+  longTitleBefore: false,
+  longTitleAfter: true,
+  gridTrackFloor: 'minmax(0, 1fr)'
+});
+assert.deepEqual(positioningAndStackingPolicyExample(), {
+  absoluteBadge: 'card',
+  fixedInsideTransform: 'app-shell',
+  sticky: {retainsFlowSpace: true, requiresInset: true, constrainedByScrollContainer: true},
+  tooltipCanEscapeParentContext: false,
+  topLayerParentContext: 'root-stacking-context'
+});
+
+console.log('JavaScript fundamentals examples: 38 scenario groups passed');
