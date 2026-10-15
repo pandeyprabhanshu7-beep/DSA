@@ -5,7 +5,7 @@ description: Incremental, source-reconciled frontend interview guide with execut
 
 # JavaScript, HTML and CSS Interview Guide
 
-This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q51**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, responsive media, visibility semantics, native lazy loading, accessible search-friendly markup, the CSS cascade and box model, Flexbox/Grid sizing, positioning, stacking contexts, responsive units, component queries, runtime design tokens, layout stability, and CSS naming. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
+This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q56**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, responsive media, visibility semantics, native lazy loading, accessible search-friendly markup, the CSS cascade and box model, Flexbox/Grid sizing, positioning, stacking contexts, responsive units, component queries, runtime design tokens, layout stability, CSS naming, and interview implementations for collection transforms and promise coordination. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
 
 ## Module map
 
@@ -60,6 +60,11 @@ This is the canonical incremental guide for the paired JavaScript/HTML/CSS workb
 - [Q49 — CSS custom properties and Sass variables](#q49)
 - [Q50 — Preventing layout shift](#q50)
 - [Q51 — BEM and naming ownership](#q51)
+- [Q52 — Implement `map`](#q52)
+- [Q53 — Implement `reduce`](#q53)
+- [Q54 — Flatten a nested array](#q54)
+- [Q55 — Implement `groupBy`](#q55)
+- [Q56 — Implement `Promise.all`](#q56)
 - [Source provenance and verification](#sources)
 - [Next bounded section](#next)
 
@@ -2170,6 +2175,309 @@ It is a convention, not a browser feature and not a requirement. Its value is pr
 
 Avoid selectors such as `.page .sidebar article.product-card h2.title`: they encode page placement and DOM depth, raise specificity, and make the component harder to move. Also avoid inventing “elements of elements” such as `.card__body__title`; the element belongs to the block, so `.card__title` is enough.
 
+<a id="q52"></a>
+
+## Q52. Implement `Array.prototype.map` behavior without using `map`
+
+### Requirement
+
+An interview implementation should state its contract before writing the loop. `map` snapshots the source length, visits integer indices in ascending order, calls the callback only for properties that exist, and leaves corresponding holes in the result. The callback receives `(value, index, source)` and an optional `thisArg`. Because the existence check is dynamic, deleting an unvisited property can make it disappear from the visit, while appending beyond the original length does not extend the pass.
+
+The helper below deliberately covers those observable interview semantics and generic array-like receivers. A production polyfill must additionally reproduce realm and species behavior, exact abstract coercions, and property-creation failure semantics; do not advertise a teaching helper as a drop-in specification implementation.
+
+### Example 41 — sparse `map` and seed-aware `reduce`
+
+```javascript
+function toSafeLength(value) {
+  const number = Number(value);
+  if (Number.isNaN(number) || number <= 0) return 0;
+  if (number === Infinity) return Number.MAX_SAFE_INTEGER;
+  return Math.min(Math.floor(number), Number.MAX_SAFE_INTEGER);
+}
+
+function mapLike(arrayLike, callback, thisArg) {
+  if (arrayLike == null) throw new TypeError("receiver is null or undefined");
+  if (typeof callback !== "function") throw new TypeError("callback must be callable");
+
+  const source = Object(arrayLike);
+  const length = toSafeLength(source.length); // snapshot once
+  const output = new Array(length);
+  for (let index = 0; index < length; index += 1) {
+    if (index in source) {
+      output[index] = callback.call(thisArg, source[index], index, source);
+    }
+  }
+  return output;
+}
+
+const sparse = [, 2, , 4];
+const tripled = mapLike(sparse, function (value) {
+  return value * this.factor;
+}, {factor: 3});
+
+console.log(tripled.length);       // 4
+console.log(Object.keys(tripled)); // ["1", "3"]
+console.log(tripled[1], tripled[3]); // 6 12
+```
+
+```mermaid
+flowchart TD
+    Start[Snapshot length 4] --> I0[Index 0 absent: leave hole]
+    I0 --> I1[Index 1 present: callback gives 6]
+    I1 --> I2[Index 2 absent: leave hole]
+    I2 --> I3[Index 3 present: callback gives 12]
+    I3 --> Result[Result length 4 with keys 1 and 3]
+```
+
+Complexity is `O(length)` property checks and `O(length)` result capacity; callback work is additional. The output's sparse shape is part of correctness, not an optimization detail.
+
+<a id="q53"></a>
+
+## Q53. Implement `reduce`
+
+### Requirement
+
+`reduce` also snapshots length and skips missing properties. The hard branch is accumulator initialization:
+
+- if an initial value was supplied—even explicit `undefined`—use it and start searching from index `0`;
+- otherwise, scan for the first present property, use its value as the accumulator, and begin callback execution at the following index;
+- if no initial value exists and no present property is found, throw `TypeError`.
+
+Checking `arguments.length` in a fixed-parameter helper can distinguish omitted from explicit `undefined`; a rest parameter makes that distinction clearer. Do not seed blindly from `source[0]`, and do not call the reducer for holes.
+
+```javascript
+function reduceLike(arrayLike, callback, ...initial) {
+  if (arrayLike == null) throw new TypeError("receiver is null or undefined");
+  if (typeof callback !== "function") throw new TypeError("callback must be callable");
+
+  const source = Object(arrayLike);
+  const length = toSafeLength(source.length);
+  let index = 0;
+  let accumulator;
+
+  if (initial.length > 0) {
+    [accumulator] = initial;
+  } else {
+    while (index < length && !(index in source)) index += 1;
+    if (index === length) throw new TypeError("no value can seed the reduction");
+    accumulator = source[index];
+    index += 1;
+  }
+
+  for (; index < length; index += 1) {
+    if (index in source) {
+      accumulator = callback(accumulator, source[index], index, source);
+    }
+  }
+  return accumulator;
+}
+
+console.log(reduceLike([, 2, , 4], (sum, value) => sum + value)); // 6
+console.log(reduceLike([1], (acc, value) => [acc, value], undefined));
+// [undefined, 1] — explicit undefined is still an initial value
+```
+
+Seed trace for `[, , 5, , 7]` without an initial value:
+
+| Scan/index | Present? | Accumulator/action |
+|---:|---|---|
+| 0 | no | keep searching |
+| 1 | no | keep searching |
+| 2 | yes | seed with `5`; do not call callback |
+| 3 | no | skip |
+| 4 | yes | call callback with `(5, 7, 4, source)` |
+
+```mermaid
+flowchart TD
+    Begin[Reduction begins] --> Initial{Initial argument supplied?}
+    Initial -- yes --> Seed[Use it, even undefined]
+    Initial -- no --> Search[Find first present property]
+    Search --> Found{Found one?}
+    Found -- no --> Throw[Throw TypeError]
+    Found -- yes --> First[Use first value as seed]
+    Seed --> Fold[Visit remaining present properties]
+    First --> Fold
+```
+
+The loop performs at most `length` existence checks: `O(length)` time and `O(1)` auxiliary space, excluding callback-owned allocations.
+
+<a id="q54"></a>
+
+## Q54. Flatten a nested array
+
+### Requirement
+
+Clarify whether the desired depth is one level or all levels. Native `flat()` defaults to depth `1`, flattens only actual arrays, and removes holes in levels it traverses. A recursive depth-first solution is concise, but adversarial nesting can exhaust the call stack. The iterative version below stores traversal frames explicitly, preserves left-to-right order, supports a finite depth or `Infinity`, and skips holes.
+
+### Example 42 — explicit stack instead of recursive call depth
+
+```javascript
+function flattenArray(source, depth = Infinity) {
+  if (!Array.isArray(source)) throw new TypeError("expected an array");
+  const numericDepth = Number(depth);
+  const normalizedDepth = Number.isNaN(numericDepth)
+    ? 0
+    : Math.max(0, Math.trunc(numericDepth));
+  const output = [];
+  const stack = [{array: source, index: 0, depth: normalizedDepth}];
+
+  while (stack.length > 0) {
+    const frame = stack.at(-1);
+    if (frame.index >= frame.array.length) {
+      stack.pop();
+      continue;
+    }
+    const index = frame.index;
+    frame.index += 1;
+    if (!(index in frame.array)) continue;
+
+    const value = frame.array[index];
+    if (Array.isArray(value) && frame.depth > 0) {
+      stack.push({array: value, index: 0, depth: frame.depth - 1});
+    } else {
+      output.push(value);
+    }
+  }
+  return output;
+}
+
+const nested = [1, [2, , [3, [4]]], 5];
+console.log(flattenArray(nested, 1)); // [1, 2, [3, [4]], 5]
+console.log(flattenArray(nested, 2)); // [1, 2, 3, [4], 5]
+console.log(flattenArray(nested));    // [1, 2, 3, 4, 5]
+```
+
+```mermaid
+flowchart TD
+    Inspect[Inspect next present value] --> Nested{Array and depth remains?}
+    Nested -- yes --> Push[Push child frame]
+    Nested -- no --> Emit[Append value]
+    Push --> Inspect
+    Emit --> More{Current frame finished?}
+    More -- no --> Inspect
+    More -- yes --> Pop[Pop frame and resume parent]
+```
+
+For `n` visited slots and maximum active nesting `h`, time is `O(n)` and explicit traversal space is `O(h)` plus the output. Cyclic arrays are outside the native `flat` contract's practical safe-use boundary too; add cycle detection only if the application contract requires it, because that changes behavior and memory cost.
+
+<a id="q55"></a>
+
+## Q55. Implement `groupBy`
+
+### Requirement
+
+Grouping is a single-pass partition: derive one key for each item, create a bucket on its first occurrence, then append while preserving input order inside each bucket. Choose the result type by key semantics:
+
+- `Map.groupBy(items, keySelector)` retains object and primitive key identity using `Map` key semantics.
+- `Object.groupBy(items, keySelector)` converts each key to a property key and returns a null-prototype object.
+
+A plain `{}` silently string-coerces keys and exposes prototype names such as `__proto__`; it is the wrong default for arbitrary keys. This helper intentionally models the `Map` form and accepts any iterable.
+
+### Example 43 — preserve object identity
+
+```javascript
+function groupByToMap(items, keySelector) {
+  if (typeof keySelector !== "function") throw new TypeError("selector must be callable");
+  const groups = new Map();
+  let index = 0;
+  for (const item of items) {
+    const key = keySelector(item, index++);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  }
+  return groups;
+}
+
+const north = {region: "north"};
+const south = {region: "south"};
+const rows = [
+  {id: "A", owner: north},
+  {id: "B", owner: south},
+  {id: "C", owner: north}
+];
+const byOwner = groupByToMap(rows, row => row.owner);
+console.log(byOwner.get(north).map(row => row.id)); // ["A", "C"]
+console.log(byOwner.get(south).map(row => row.id)); // ["B"]
+```
+
+```mermaid
+flowchart TD
+    Item[Read iterable item and index] --> Key[Derive key once]
+    Key --> Exists{Bucket exists?}
+    Exists -- no --> Create[Create empty bucket]
+    Exists -- yes --> Reuse[Reuse existing bucket]
+    Create --> Append[Append item]
+    Reuse --> Append
+    Append --> Item
+```
+
+For `n` items, expected time is `O(n)` assuming expected constant-time `Map` operations; storage is `O(n + k)` for `k` groups and all bucket references. Selector cost remains additive.
+
+<a id="q56"></a>
+
+## Q56. Implement a simple `Promise.all`
+
+### Requirement
+
+`Promise.all` consumes an iterable, assimilates values and thenables through `Promise.resolve`, and fulfills only after every input fulfills. The result array follows **iteration order**, not settlement order. The first observed rejection rejects the aggregate, but already-started work is not cancelled. An empty iterable produces a fulfilled promise; attached reactions still run as promise jobs rather than inline with the current stack.
+
+The implementation below is intentionally a base-`Promise` teaching version, not a subclass/species-compatible replacement. The sentinel count (`remaining = 1`) prevents an empty iterable and synchronously iterated inputs from racing the end-of-iteration decision. `Promise.resolve` guarantees that each installed fulfillment handler runs at most once, even for hostile thenables.
+
+### Example 44 — settlement order differs from result order
+
+```javascript
+function promiseAllLike(iterable) {
+  return new Promise((resolve, reject) => {
+    const output = [];
+    let remaining = 1; // iteration sentinel
+    let index = 0;
+    try {
+      for (const value of iterable) {
+        const currentIndex = index++;
+        output[currentIndex] = undefined;
+        remaining += 1;
+        Promise.resolve(value).then(resolved => {
+          output[currentIndex] = resolved;
+          remaining -= 1;
+          if (remaining === 0) resolve(output);
+        }, reject);
+      }
+      remaining -= 1;
+      if (remaining === 0) resolve(output);
+    } catch (error) {
+      reject(error); // iterator creation/advancement can throw
+    }
+  });
+}
+
+const wait = (label, ms) => new Promise(resolve => setTimeout(resolve, ms, label));
+console.log(await promiseAllLike([wait("slow", 20), 7, wait("fast", 0)]));
+// ["slow", 7, "fast"]
+
+await promiseAllLike(new Set([Promise.resolve("ok"), Promise.reject("boom")]))
+  .catch(reason => console.log(reason)); // boom
+```
+
+| Moment | Settled input | Stored state | Aggregate |
+|---|---|---|---|
+| after iteration | none required | three reserved indexes | pending |
+| first | index 1 (`7`) | `[empty, 7, empty]` | pending |
+| second | index 2 (`"fast"`) | `[empty, 7, "fast"]` | pending |
+| third | index 0 (`"slow"`) | `["slow", 7, "fast"]` | fulfilled in input order |
+
+```mermaid
+flowchart TD
+    Iterate[Iterate and reserve stable indexes] --> Adopt[Promise.resolve each value]
+    Adopt --> Settle{Input settles}
+    Settle -- reject --> Reject[Reject aggregate; no implicit cancellation]
+    Settle -- fulfill --> Store[Store at original index]
+    Store --> Remaining{All inputs fulfilled?}
+    Remaining -- no --> Settle
+    Remaining -- yes --> Resolve[Resolve ordered result array]
+```
+
+Iteration and storage are `O(n)`. The elapsed time to fulfillment is governed by the slowest fulfilling input, while rejection latency is governed by the first rejection that reaches the aggregate. This is coordination, not parallel execution: the underlying operations start when their promises/tasks are created.
+
 ## Decision checklist
 
 - Use `const` by default when the binding should not change; use `let` when reassignment is part of the model.
@@ -2218,6 +2526,10 @@ Avoid selectors such as `.page .sidebar article.product-card h2.title`: they enc
 - Use CSS custom properties when values must cascade or change at runtime; use Sass variables for build-time composition.
 - Prevent layout shift by reserving final geometry before asynchronous content arrives, then measure actual shift entries.
 - Treat BEM as one ownership convention, not a requirement; prefer flat predictable selectors over DOM-coupled chains.
+- For `map` and `reduce`, snapshot length, distinguish missing properties from `undefined`, and state how the initial accumulator is chosen.
+- For flattening, agree on depth and hole behavior before choosing recursion or an explicit traversal stack.
+- Choose `Map` grouping when key identity matters; choose object grouping only when property-key coercion is intentional.
+- For promise aggregation, reserve stable indexes, adopt every input, count fulfillment, and remember that rejection does not cancel source work.
 
 <a id="sources"></a>
 
@@ -2225,9 +2537,9 @@ Avoid selectors such as `.page .sidebar article.product-card h2.title`: they enc
 
 Paired source comparison performed through 2026-10-15:
 
-- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1355. The newly processed Q46–Q51 range is lines 1257–1355, bounded by Q52 at line 1356.
-- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 867–926 for Q46–Q51, bounded by Q52 at rendered line 927. It agrees on all six topics but is not promoted as a competing guide.
-- The repository edition adds exact requirements, four connected example groups, unit and query traces, runtime-token and layout-stability boundaries, four diagrams, deterministic executable policy assertions, and current primary links.
+- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1487. The newly processed Q52–Q56 range is lines 1356–1487, bounded by Q57 at line 1488.
+- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 927–1034 for Q52–Q56, bounded by Q57 at rendered line 1035. It agrees on all five topics but is not promoted as a competing guide.
+- The repository edition corrects sparse-array reduction, distinguishes omitted and explicit seeds, adds stack-safe depth-controlled flattening, preserves arbitrary grouping-key identity, accepts promise iterables, and adds four connected executable examples, four traces/diagrams, deterministic assertions, and current primary links.
 
 Primary references checked through 2026-10-15:
 
@@ -2290,9 +2602,15 @@ Primary references checked through 2026-10-15:
 - [Layout Instability API](https://wicg.github.io/layout-instability/)
 - [HTML Living Standard — responsive images and intrinsic dimensions](https://html.spec.whatwg.org/multipage/images.html)
 - [BEM methodology — naming](https://getbem.com/naming/)
+- [ECMAScript — `Array.prototype.map`](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.map)
+- [ECMAScript — `Array.prototype.reduce`](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.reduce)
+- [ECMAScript — `Array.prototype.flat` and `FlattenIntoArray`](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.flat)
+- [ECMAScript — `Object.groupBy`](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-object.groupby)
+- [ECMAScript — `Map.groupBy`](https://tc39.es/ecma262/multipage/keyed-collections.html#sec-map.groupby)
+- [ECMAScript — `Promise.all`](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-promise.all)
 
 <a id="next"></a>
 
 ## Next bounded section
 
-Continue with source Q52–Q56: implementations of `map`, `reduce`, nested-array flattening, `groupBy`, and `Promise.all`. Re-read both sources to lock the exact Q56/Q57 boundary before editing; do not expand beyond that next bounded implementation group.
+Continue with source Q57–Q61: `once`, a basic event emitter, a promise-task concurrency limiter, nested event-loop ordering, and closure-retention risks. The Markdown range begins at line 1488 and is bounded by Q62 at line 1641; the DOCX range begins at rendered line 1035 and is bounded by Q62 at rendered line 1167. Re-read both exact ranges before editing.

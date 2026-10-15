@@ -881,6 +881,190 @@ export function layoutStabilityAndNamingPolicyExample() {
   };
 }
 
+function toSafeLength(value) {
+  const number = Number(value);
+  if (Number.isNaN(number) || number <= 0) return 0;
+  if (number === Infinity) return Number.MAX_SAFE_INTEGER;
+  return Math.min(Math.floor(number), Number.MAX_SAFE_INTEGER);
+}
+
+export function mapLike(arrayLike, callback, thisArg) {
+  if (arrayLike == null) throw new TypeError('mapLike receiver is null or undefined');
+  if (typeof callback !== 'function') throw new TypeError('callback must be callable');
+  const source = Object(arrayLike);
+  const length = toSafeLength(source.length);
+  const output = new Array(length);
+  for (let index = 0; index < length; index += 1) {
+    if (index in source) {
+      output[index] = callback.call(thisArg, source[index], index, source);
+    }
+  }
+  return output;
+}
+
+export function reduceLike(arrayLike, callback, ...initial) {
+  if (arrayLike == null) throw new TypeError('reduceLike receiver is null or undefined');
+  if (typeof callback !== 'function') throw new TypeError('callback must be callable');
+  const source = Object(arrayLike);
+  const length = toSafeLength(source.length);
+  let index = 0;
+  let accumulator;
+
+  if (initial.length > 0) {
+    [accumulator] = initial;
+  } else {
+    while (index < length && !(index in source)) index += 1;
+    if (index === length) throw new TypeError('reduce of empty or all-hole input with no initial value');
+    accumulator = source[index];
+    index += 1;
+  }
+
+  for (; index < length; index += 1) {
+    if (index in source) {
+      accumulator = callback(accumulator, source[index], index, source);
+    }
+  }
+  return accumulator;
+}
+
+export function mapAndReducePolicyExample() {
+  const sparse = [, 2, , 4];
+  const visited = [];
+  const context = {factor: 3};
+  const mapped = mapLike(sparse, function multiply(value, index, source) {
+    visited.push([index, source === sparse]);
+    return value * this.factor;
+  }, context);
+  const seedlessTotal = reduceLike(sparse, (sum, value) => sum + value);
+  const explicitUndefined = reduceLike([1], (accumulator, value) => [accumulator, value], undefined);
+  return {
+    mapped,
+    mappedKeys: Object.keys(mapped),
+    visited,
+    seedlessTotal,
+    explicitUndefined
+  };
+}
+
+export function flattenArray(source, depth = Infinity) {
+  if (!Array.isArray(source)) throw new TypeError('flattenArray expects an array');
+  const numericDepth = Number(depth);
+  const normalizedDepth = Number.isNaN(numericDepth)
+    ? 0
+    : Math.max(0, Math.trunc(numericDepth));
+  const output = [];
+  const stack = [{array: source, index: 0, depth: normalizedDepth}];
+
+  while (stack.length > 0) {
+    const frame = stack.at(-1);
+    if (frame.index >= frame.array.length) {
+      stack.pop();
+      continue;
+    }
+    const index = frame.index;
+    frame.index += 1;
+    if (!(index in frame.array)) continue;
+    const value = frame.array[index];
+    if (Array.isArray(value) && frame.depth > 0) {
+      stack.push({array: value, index: 0, depth: frame.depth - 1});
+    } else {
+      output.push(value);
+    }
+  }
+  return output;
+}
+
+export function flattenPolicyExample() {
+  const nested = [1, [2, , [3, [4]]], 5];
+  return {
+    oneLevel: flattenArray(nested, 1),
+    twoLevels: flattenArray(nested, 2),
+    allLevels: flattenArray(nested)
+  };
+}
+
+export function groupByToMap(items, keySelector) {
+  if (typeof keySelector !== 'function') throw new TypeError('keySelector must be callable');
+  const groups = new Map();
+  let index = 0;
+  for (const item of items) {
+    const key = keySelector(item, index);
+    index += 1;
+    const bucket = groups.get(key);
+    if (bucket === undefined && !groups.has(key)) groups.set(key, [item]);
+    else bucket.push(item);
+  }
+  return groups;
+}
+
+export function groupByPolicyExample() {
+  const north = {region: 'north'};
+  const south = {region: 'south'};
+  const rows = [
+    {id: 'A', owner: north},
+    {id: 'B', owner: south},
+    {id: 'C', owner: north}
+  ];
+  const byOwner = groupByToMap(rows, row => row.owner);
+  const byParity = groupByToMap(new Set([3, 4, 5]), (value, index) => `${index}:${value % 2}`);
+  return {
+    northIds: byOwner.get(north).map(row => row.id),
+    southIds: byOwner.get(south).map(row => row.id),
+    identityKeyCount: byOwner.size,
+    parityKeys: [...byParity.keys()]
+  };
+}
+
+export function promiseAllLike(iterable) {
+  return new Promise((resolve, reject) => {
+    const output = [];
+    let remaining = 1;
+    let index = 0;
+    try {
+      for (const value of iterable) {
+        const currentIndex = index;
+        index += 1;
+        output[currentIndex] = undefined;
+        remaining += 1;
+        Promise.resolve(value).then(
+          resolved => {
+            output[currentIndex] = resolved;
+            remaining -= 1;
+            if (remaining === 0) resolve(output);
+          },
+          reject
+        );
+      }
+      remaining -= 1;
+      if (remaining === 0) resolve(output);
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+export async function promiseAllPolicyExample() {
+  const completion = [];
+  const later = (label, delay) => new Promise(resolve => {
+    setTimeout(() => {
+      completion.push(label);
+      resolve(label);
+    }, delay);
+  });
+  const ordered = await promiseAllLike([
+    later('slow', 8),
+    7,
+    later('fast', 0)
+  ]);
+  let rejection;
+  try {
+    await promiseAllLike(new Set([Promise.resolve('ok'), Promise.reject(new Error('boom'))]));
+  } catch (error) {
+    rejection = error.message;
+  }
+  return {completion, ordered, rejection, empty: await promiseAllLike([])};
+}
+
 assert.deepEqual(constantBindingExample(), {name: 'Grace', skills: ['JS', 'HTML']});
 assert.deepEqual(hoistingExample(), [undefined, 7]);
 assert.equal(temporalDeadZoneErrorName(), 'ReferenceError');
@@ -1083,4 +1267,33 @@ assert.deepEqual(layoutStabilityAndNamingPolicyExample(), {
   bemRequired: false
 });
 
-console.log('JavaScript fundamentals examples: 42 scenario groups passed');
+const collectionTransforms = mapAndReducePolicyExample();
+assert.equal(collectionTransforms.mapped.length, 4);
+assert.equal(0 in collectionTransforms.mapped, false);
+assert.equal(2 in collectionTransforms.mapped, false);
+assert.deepEqual(collectionTransforms.mappedKeys, ['1', '3']);
+assert.deepEqual(collectionTransforms.visited, [[1, true], [3, true]]);
+assert.equal(collectionTransforms.mapped[1], 6);
+assert.equal(collectionTransforms.mapped[3], 12);
+assert.equal(collectionTransforms.seedlessTotal, 6);
+assert.deepEqual(collectionTransforms.explicitUndefined, [undefined, 1]);
+assert.throws(() => reduceLike(new Array(3), () => 0), TypeError);
+assert.deepEqual(flattenPolicyExample(), {
+  oneLevel: [1, 2, [3, [4]], 5],
+  twoLevels: [1, 2, 3, [4], 5],
+  allLevels: [1, 2, 3, 4, 5]
+});
+assert.deepEqual(groupByPolicyExample(), {
+  northIds: ['A', 'C'],
+  southIds: ['B'],
+  identityKeyCount: 2,
+  parityKeys: ['0:1', '1:0', '2:1']
+});
+assert.deepEqual(await promiseAllPolicyExample(), {
+  completion: ['fast', 'slow'],
+  ordered: ['slow', 7, 'fast'],
+  rejection: 'boom',
+  empty: []
+});
+
+console.log('JavaScript fundamentals examples: 46 scenario groups passed');
