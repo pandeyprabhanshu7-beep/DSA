@@ -405,7 +405,7 @@
       "bytes": 77677,
       "sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
       "status": "IN_PROGRESS",
-      "processed_range": "lines 166-842 for Q1-Q24; latest bounded range Q19-Q24 is lines 665-842, bounded by Q25 at line 843",
+      "processed_range": "lines 166-968 for Q1-Q30; latest bounded range Q25-Q30 is lines 843-968, bounded by Q31 at line 969",
       "canonical_target": "study-guides/frontend/javascript-html-css/guide.md",
       "headings": [
         "# JavaScript, HTML and CSS Interview Workbook - Mermaid Edition",
@@ -863,18 +863,18 @@
   ],
   "next_batch": {
     "source": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md + JavaScript_HTML_CSS_Interview_Workbook.docx",
-    "section": "Q25-Q30 only: fetch cancellation, event propagation/delegation, rendering-pipeline costs, browser storage, and same-origin/CORS behavior",
+    "section": "Q31-Q36 only: default-action versus propagation control, semantic HTML, async/defer, accessible forms, viewport configuration, and responsive images",
     "status": "QUEUED",
-    "estimated_tokens": 8200,
-    "estimate_method": "Heuristic only: reserve ~1200 tokens to compare Q25-Q30 across paired sources, ~1500 for current primary references, ~3500 for examples/traces/HTML, and ~2000 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 7600,
+    "estimate_method": "Heuristic only: reserve ~1000 tokens to compare Q31-Q36 across paired sources, ~1200 for current primary references, ~3400 for examples/traces/HTML, and ~2000 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "javascript": "Node v24.19.0 executed examples.mjs; all 23 scenario groups passed, including task/microtask ordering, concurrent async startup with ordered aggregation, all four promise combinators, contextual HTTP error propagation, and deterministic debounce/throttle timing.",
-    "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 45323-character embedded payload equality, 26 unique anchors, 35 balanced fences, inline JavaScript, fragment targets, relative links, selected-file diff and the live 170-marker placeholder audit passed.",
-    "diagrams": "Eight Mermaid diagrams are embedded in the canonical payload, including new event-loop checkpoint and rate-limiting decision diagrams; browser visual QA was not executed.",
-    "last_processed_at": "2026-10-15T05:17:06-04:00"
+    "javascript": "Node v24.19.0 executed examples.mjs; all 27 scenario groups passed, including latest-request abortion, delegation boundary checks, rendering-operation planning, storage selection and CORS/XSS/CSRF policy assertions.",
+    "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 59047-character embedded payload equality, 32 unique anchors, 44 balanced fences, inline JavaScript, fragment targets, relative links, selected-file diff and the published 170-marker placeholder invariant passed; selected files do not alter marker-bearing paths.",
+    "diagrams": "Twelve Mermaid diagrams are embedded in the canonical payload, including new cancellation, propagation, rendering-pipeline and CORS diagrams; browser DOM/render/CORS integration and Mermaid visual QA were not executed.",
+    "last_processed_at": "2026-10-15T06:16:35-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-14T16:16:21-04:00",
@@ -888,16 +888,16 @@
     "estimate_method": "Heuristic for the first bounded JavaScript/HTML/CSS paired-source section plus source resolution, targeted primary-source refresh, consolidation/teaching/HTML and validation/checkpoint reserves; not actual quota percentage"
   },
   "javascript_html_css_intake_checkpoint": {
-    "last_processed_at": "2026-10-15T05:17:06-04:00",
+    "last_processed_at": "2026-10-15T06:16:35-04:00",
     "source_markdown_sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
     "source_docx_sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
     "docx_source_file_id": "file_0000000037888211b9c20e5f69be6b09",
-    "processed": "Q1-Q24; latest bounded range is Markdown lines 665-842 and DOCX rendered lines 446-605 for Q19-Q24, each bounded by Q25; earlier Q1-Q18 retained",
+    "processed": "Q1-Q30; latest bounded range is Markdown lines 843-968 and DOCX rendered lines 606-691 for Q25-Q30, each bounded by Q31; earlier Q1-Q24 retained",
     "status": "PUBLISHED",
-    "validation": "Both actual source texts agree on Q19-Q24 and were consolidated with exact requirements, four connected example groups, two new Mermaid diagrams, task/microtask and timing traces, promise edge cases, contextual error propagation, current normative references and deterministic rate-limiter assertions. Deterministic reader generation and exact 45323-character embedded-Markdown equality passed with 26 unique anchors, 35 balanced fenced blocks, 8 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 23 scenario groups. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. All nine content-commit remote blob hashes matched and no GitHub status checks were configured; browser Mermaid rendering was not executed.",
+    "validation": "Both actual source texts agree on Q25-Q30 and were consolidated with exact requirements, four connected example groups, four new Mermaid diagrams, cancellation/propagation/rendering/CORS traces, storage and security policy boundaries, current primary references and deterministic assertions. Deterministic reader generation and exact 59047-character embedded-Markdown equality passed with 32 unique anchors, 44 balanced fenced blocks, 12 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 27 scenario groups. JSON, fragment targets, relative links, selected-file diff and the published 170-marker placeholder invariant passed; selected files do not alter marker-bearing paths. Remote blob verification is pending publication; browser DOM/render/CORS integration and Mermaid visual QA were not executed.",
     "content_commit": "ebba849e215ead6a2c698748012b0f2da541ba5c",
-    "next_section": "Q25-Q30 only: fetch cancellation, event propagation/delegation, rendering-pipeline costs, browser storage, and same-origin/CORS behavior",
-    "estimated_next_tokens": 8200,
-    "estimate_method": "Heuristic for Q25-Q30 paired-source comparison, current primary references, examples/traces/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "next_section": "Q31-Q36 only: default-action versus propagation control, semantic HTML, async/defer, accessible forms, viewport configuration, and responsive images",
+    "estimated_next_tokens": 7600,
+    "estimate_method": "Heuristic for Q31-Q36 paired-source comparison, current primary references, examples/traces/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }

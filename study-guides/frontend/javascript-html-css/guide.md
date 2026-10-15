@@ -5,7 +5,7 @@ description: Incremental, source-reconciled frontend interview guide with execut
 
 # JavaScript, HTML and CSS Interview Guide
 
-This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q24**: execution fundamentals, value semantics, the function/object model, and asynchronous JavaScript through debounce and throttle. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
+This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q30**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, cross-origin policy, and web security. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
 
 ## Module map
 
@@ -33,6 +33,12 @@ This is the canonical incremental guide for the paired JavaScript/HTML/CSS workb
 - [Q22 — Async error boundaries](#q22)
 - [Q23 — Debounce](#q23)
 - [Q24 — Throttle](#q24)
+- [Q25 — Cancelling `fetch`](#q25)
+- [Q26 — Event propagation and delegation](#q26)
+- [Q27 — Layout and paint costs](#q27)
+- [Q28 — Browser storage](#q28)
+- [Q29 — Same-origin policy and CORS](#q29)
+- [Q30 — XSS and CSRF](#q30)
 - [Source provenance and verification](#sources)
 - [Next bounded section](#next)
 
@@ -1004,6 +1010,244 @@ function throttle(fn, wait) {
 
 Timers are host scheduling requests, not hard real-time deadlines. Long tasks can delay either wrapper. For visual updates, `requestAnimationFrame` may be a better pacing mechanism because it aligns work with rendering rather than an arbitrary millisecond interval.
 
+<a id="q25"></a>
+
+## Q25. How do you cancel a `fetch()` request, and what problem does cancellation solve?
+
+### Requirement
+
+Create an `AbortController`, pass its `signal` to `fetch()`, and call `abort()` from the operation that owns the request. Cancellation saves work and gives an unmounted view, superseded search, timeout, or explicit user action a defined cleanup path. It does **not** by itself prove that an older server operation was rolled back, so idempotency and stale-result guards may still matter.
+
+### Example 18 — latest search owns the active request
+
+```javascript
+function createLatestSearch(fetchImpl) {
+  let active;
+  let generation = 0;
+
+  return async function search(query) {
+    active?.abort();
+    const controller = new AbortController();
+    const mine = ++generation;
+    active = controller;
+
+    try {
+      const response = await fetchImpl(
+        `/api/search?q=${encodeURIComponent(query)}`,
+        { signal: controller.signal }
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      return mine === generation ? data : undefined;
+    } catch (error) {
+      if (error.name === "AbortError") return undefined;
+      throw error;
+    } finally {
+      if (mine === generation) active = undefined;
+    }
+  };
+}
+```
+
+```mermaid
+sequenceDiagram
+    participant UI
+    participant Owner as Request owner
+    participant Net as Fetch
+    UI->>Owner: search("cat")
+    Owner->>Net: request A + signal A
+    UI->>Owner: search("caterpillar")
+    Owner-->>Net: abort A
+    Owner->>Net: request B + signal B
+    Net-->>Owner: B succeeds
+    Owner-->>UI: publish B only
+```
+
+Trace:
+
+| Step | Generation | Active signal | Observable result |
+|---:|---:|---|---|
+| search `"cat"` | 1 | A | A pending |
+| search `"caterpillar"` | 2 | B | A rejects with `AbortError` |
+| B completes | 2 | none after cleanup | B may update the UI |
+
+An abort is an expected control-flow outcome, not a generic network failure. Do not show an alarming error toast for every `AbortError`. Conversely, do not swallow real HTTP, parsing, or network failures. In current runtimes, `AbortSignal.timeout()` and `AbortSignal.any()` can express timeouts and combined ownership, but explicit controllers remain the portable mental model.
+
+<a id="q26"></a>
+
+## Q26. Explain event capturing, bubbling, and delegation
+
+### Requirement
+
+An event path is computed from the target through its ancestors. Capture listeners run toward the target, target listeners run at the target, and bubbling listeners run back toward the root when the event bubbles. `event.target` is where dispatch began; `event.currentTarget` is the node whose listener is currently running.
+
+Delegation attaches one listener to a stable ancestor and derives the intended descendant action from the event. It reduces listener churn and also handles children added later.
+
+```mermaid
+flowchart TD
+    Doc[document capture] --> List[ul capture]
+    List --> Button[button target]
+    Button --> ListBubble[ul bubble]
+    ListBubble --> DocBubble[document bubble]
+```
+
+### Example 19 — delegate at a boundary, not merely at a selector
+
+```javascript
+list.addEventListener("click", event => {
+  const button = event.target.closest("[data-delete]");
+  if (!button || !list.contains(button)) return;
+
+  const item = button.closest("[data-item-id]");
+  if (!item || !list.contains(item)) return;
+  removeItem(item.dataset.itemId);
+});
+```
+
+The containment checks prevent a selector match outside the component boundary from being accepted. `closest()` also handles clicks on an icon nested inside the button. For Shadow DOM, retargeting can change `target`; `event.composedPath()` is the explicit path tool when an event is composed across a shadow boundary.
+
+| API/property | Meaning | Does not mean |
+|---|---|---|
+| `target` | original/retargeted dispatch target visible here | node whose listener is running |
+| `currentTarget` | node for the listener currently executing | deepest clicked node |
+| `stopPropagation()` | stop later traversal to other nodes | cancel link/form default behavior |
+| `preventDefault()` | cancel a cancelable default action | stop propagation |
+
+<a id="q27"></a>
+
+## Q27. What are layout/reflow and repaint, and how do you avoid layout thrashing?
+
+### Requirement
+
+Style calculation determines computed styles; layout determines geometry; paint records visual drawing; compositing assembles layers. A change need not trigger every stage: changing geometry can require layout and paint, while a compositor-friendly transform may avoid layout and paint for that frame. Treat those as browser-dependent optimization opportunities, not guarantees.
+
+```mermaid
+flowchart LR
+    JS[DOM or style change] --> Style[Style calculation]
+    Style --> Layout[Layout geometry]
+    Layout --> Paint[Paint records]
+    Paint --> Composite[Composite layers]
+    Style -. transform or opacity may skip .-> Composite
+```
+
+### Example 20 — batch reads, then writes
+
+```javascript
+// Bad: each write can invalidate geometry before the next read.
+for (const row of rows) {
+  row.style.width = `${container.offsetWidth / 2}px`;
+}
+
+// Better: read once, then perform the writes together.
+const width = container.offsetWidth / 2;
+requestAnimationFrame(() => {
+  for (const row of rows) row.style.width = `${width}px`;
+});
+```
+
+The problematic pattern is an alternating sequence of layout-invalidating **write → geometry read → write → geometry read**. A geometry API such as `offsetWidth` or `getBoundingClientRect()` may force the browser to make pending layout information current. Read the necessary measurements together, compute in ordinary JavaScript, then write together. `requestAnimationFrame()` aligns a write batch with a rendering opportunity; it does not make expensive work free, and a callback can still miss the frame budget.
+
+Dry run for four rows:
+
+| Plan | Geometry reads | DOM writes | Potential forced layout boundaries |
+|---|---:|---:|---:|
+| interleaved loop | 4 | 4 | up to 4 |
+| batched read then writes | 1 | 4 | 1 measurement boundary |
+
+Measure actual behavior with browser performance tooling because engines can coalesce work and layer promotion consumes memory.
+
+<a id="q28"></a>
+
+## Q28. Compare `localStorage`, `sessionStorage`, cookies, and IndexedDB
+
+### Requirement
+
+Choose storage by data shape, lifetime, access pattern, and security—not by memorized capacity numbers. Browser quotas and eviction policies vary, and none of these APIs is a safe vault for secrets exposed to script.
+
+| Mechanism | API/model | Lifetime/scope | Network behavior | Good fit / principal warning |
+|---|---|---|---|---|
+| `localStorage` | synchronous string key/value | origin; persists until cleared/evicted | not sent automatically | tiny preferences; blocks the main thread and needs serialization |
+| `sessionStorage` | synchronous string key/value | origin plus top-level browsing context; tab session | not sent automatically | per-tab workflow state; not cross-tab persistence |
+| cookie | small string name/value plus attributes | domain/path and expiry rules | matching cookies are attached to requests | server sessions and request state; use `Secure`, `HttpOnly`, and deliberate `SameSite` |
+| IndexedDB | asynchronous object stores, indexes, transactions | origin; persists subject to policy | not sent automatically | larger structured/offline data; schema/version and transaction discipline required |
+
+### Example 21 — make the policy explicit
+
+```javascript
+const storagePolicy = {
+  theme: "localStorage",
+  checkoutDraftForThisTab: "sessionStorage",
+  serverSessionIdentifier: "Secure HttpOnly SameSite cookie",
+  offlineCatalog: "IndexedDB"
+};
+```
+
+Store the minimum data needed. XSS can read script-accessible Web Storage and IndexedDB. An `HttpOnly` cookie blocks direct JavaScript reads, but the browser may still attach it to requests, so CSRF defenses and server-side authorization remain necessary. Client storage is a cache or persistence mechanism, not the source of truth for permissions.
+
+<a id="q29"></a>
+
+## Q29. What are the Same-Origin Policy and CORS?
+
+### Requirement
+
+An origin is the tuple **scheme + host + port**. The Same-Origin Policy restricts how a document or script from one origin can read/interact with resources from another. Cross-origin requests can still be sent in several cases; the important default restriction is often whether script may read the response.
+
+CORS is the Fetch protocol by which a server opts selected origins into cross-origin response sharing. A non-simple request can trigger a preflight `OPTIONS` request before the actual request. CORS is not authentication, authorization, or a general CSRF defense.
+
+```mermaid
+sequenceDiagram
+    participant App as https://app.example
+    participant API as https://api.example
+    App->>API: OPTIONS with Origin and requested method/headers
+    API-->>App: allowed origin, method, headers
+    App->>API: actual request with Origin
+    API-->>App: response + matching allow-origin
+    Note over App: Browser exposes response only if checks pass
+```
+
+For a credentialed browser request, the client must opt in (for example, `credentials: "include"`), the server must return a specific allowed origin rather than `*`, and it must allow credentials. `mode: "no-cors"` is not a bypass: it deliberately produces an opaque response that JavaScript cannot inspect.
+
+| Situation | Request may reach server? | JavaScript can read response? |
+|---|---|---|
+| same origin | normally yes | normally yes |
+| allowed CORS response | yes | yes, within exposed-header rules |
+| disallowed cross-origin response | may do so | no |
+| failed preflight | actual request is not sent | no |
+| `no-cors` request | limited request may be sent | opaque response; no body/status access |
+
+Validate authorization on the server for every request. A successful CORS check only says the browser may share the response with that origin.
+
+<a id="q30"></a>
+
+## Q30. How do XSS and CSRF differ, and how are they prevented?
+
+### Requirement
+
+**Cross-site scripting (XSS)** gets attacker-controlled content interpreted in a trusted page's execution context. **Cross-site request forgery (CSRF)** causes a victim's browser to send an unwanted state-changing request using ambient authority such as cookies. They have different primary controls, and an XSS flaw can often defeat in-page CSRF defenses.
+
+| Threat | Broken boundary | Primary controls | Common mistake |
+|---|---|---|---|
+| XSS | untrusted data becomes executable markup, script, URL, CSS, or DOM | context-appropriate output encoding; safe DOM sinks; sanitization for intentionally allowed HTML; CSP as defense-in-depth | one generic escaping function for every context |
+| CSRF | server accepts a cross-site state change backed by ambient credentials | anti-CSRF token; `SameSite` cookies; Origin/Referer or Fetch Metadata validation; no state changes through safe methods | assuming CORS alone blocks forged requests |
+
+Safer DOM construction keeps data as text:
+
+```javascript
+const message = document.createElement("p");
+message.textContent = untrustedMessage; // data, not HTML source
+container.replaceChildren(message);
+```
+
+If product requirements intentionally accept HTML, use a maintained sanitizer configured for that exact context; do not repair it with regular expressions. On the server, protect state-changing routes with a framework-supported token pattern, intentional cookie attributes, origin signals, and authorization. `SameSite` is valuable defense-in-depth but compatibility, sibling domains, and application flows still require a complete policy.
+
+Security trace:
+
+1. The browser attaches a session cookie to an eligible request.
+2. The server authenticates the session **and** verifies authorization.
+3. For a state change, the server also verifies the anti-CSRF/origin policy.
+4. Returned untrusted data is encoded for its output context; it is never concatenated into an executable sink.
+5. CSP limits impact if a markup injection bug remains, but does not replace correct data handling.
+
 ## Decision checklist
 
 - Use `const` by default when the binding should not change; use `let` when reassignment is part of the model.
@@ -1025,6 +1269,12 @@ Timers are host scheduling requests, not hard real-time deadlines. Long tasks ca
 - For promise combinators, name the required success condition and remember that settlement does not cancel sibling work.
 - For async errors, keep the promise in the caller's chain and catch only at a meaningful ownership boundary.
 - Choose debounce when only the final value matters; choose throttle when bounded periodic progress matters.
+- Give each request an owner; abort superseded work and distinguish cancellation from failure.
+- Delegate events at a stable ancestor, but validate the matched node stays within the component boundary.
+- Batch geometry reads before DOM writes, then verify the result in browser performance tooling.
+- Choose browser storage by shape, lifetime, access, and threat model; never treat client storage as authorization state.
+- Treat CORS as controlled response sharing, not as authentication or CSRF protection.
+- For XSS, keep untrusted data out of executable contexts; for CSRF, validate state-changing requests beyond ambient cookies.
 
 <a id="sources"></a>
 
@@ -1032,9 +1282,9 @@ Timers are host scheduling requests, not hard real-time deadlines. Long tasks ca
 
 Paired source comparison performed through 2026-10-15:
 
-- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–842. The newly processed Q19–Q24 range is lines 665–842, bounded by Q25 at line 843.
-- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 446–605 for Q19–Q24, bounded by Q25 at rendered line 606. It agrees on all six topics but is not promoted as a competing guide.
-- The repository edition adds exact requirements, four connected example groups, event-loop and rate-limiting diagrams, task/microtask and timing traces, promise edge cases, contextual error propagation, deterministic executable assertions, and current normative links.
+- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–968. The newly processed Q25–Q30 range is lines 843–968, bounded by Q31 at line 969.
+- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 606–691 for Q25–Q30, bounded by Q31 at rendered line 692. It agrees on all six topics but is not promoted as a competing guide.
+- The repository edition adds exact requirements, four connected example groups, cancellation/propagation/rendering/CORS diagrams, ownership and policy traces, browser-security boundaries, deterministic executable policy assertions, and current normative links.
 
 Primary references checked through 2026-10-15:
 
@@ -1061,9 +1311,16 @@ Primary references checked through 2026-10-15:
 - [ECMAScript 2026 — error cause](https://tc39.es/ecma262/2026/multipage/fundamental-objects.html#sec-installerrorcause)
 - [Fetch Standard — fetch and network errors](https://fetch.spec.whatwg.org/#fetch-method)
 - [HTML Living Standard — timers](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#timers)
+- [DOM Standard — event dispatch](https://dom.spec.whatwg.org/#dispatching-events)
+- [Fetch Standard — CORS protocol](https://fetch.spec.whatwg.org/#http-cors-protocol)
+- [HTML Living Standard — Web Storage](https://html.spec.whatwg.org/multipage/webstorage.html)
+- [Indexed Database API](https://w3c.github.io/IndexedDB/)
+- [Content Security Policy Level 3](https://www.w3.org/TR/CSP3/)
+- [OWASP Cross Site Scripting Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
+- [OWASP Cross-Site Request Forgery Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
 
 <a id="next"></a>
 
 ## Next bounded section
 
-Continue with source Q25–Q30: fetch cancellation, event propagation/delegation, rendering-pipeline costs, browser storage, and same-origin/CORS behavior. Re-read both sources at that boundary before editing this canonical guide.
+Continue with source Q31–Q36: default-action versus propagation control, semantic HTML, `async`/`defer`, accessible forms, viewport configuration, and responsive images. Re-read both sources at that boundary before editing this canonical guide.

@@ -435,6 +435,148 @@ export function rateLimitingExample() {
   return {debounceCalls, throttleCalls};
 }
 
+export async function latestRequestCancellationExample() {
+  const pending = new Map();
+  const events = [];
+
+  function fakeFetch(url, {signal}) {
+    return new Promise((resolve, reject) => {
+      const query = new URL(url, 'https://example.test').searchParams.get('q');
+      const abort = () => {
+        const error = new Error('superseded');
+        error.name = 'AbortError';
+        events.push(`abort:${query}`);
+        reject(error);
+      };
+      if (signal.aborted) return abort();
+      signal.addEventListener('abort', abort, {once: true});
+      pending.set(query, value => {
+        signal.removeEventListener('abort', abort);
+        events.push(`resolve:${query}`);
+        resolve({ok: true, status: 200, json: async () => value});
+      });
+    });
+  }
+
+  function createLatestSearch(fetchImpl) {
+    let active;
+    let generation = 0;
+    return async function search(query) {
+      active?.abort();
+      const controller = new AbortController();
+      const mine = ++generation;
+      active = controller;
+      try {
+        const response = await fetchImpl(
+          `/api/search?q=${encodeURIComponent(query)}`,
+          {signal: controller.signal}
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        return mine === generation ? data : undefined;
+      } catch (error) {
+        if (error.name === 'AbortError') return undefined;
+        throw error;
+      } finally {
+        if (mine === generation) active = undefined;
+      }
+    };
+  }
+
+  const search = createLatestSearch(fakeFetch);
+  const first = search('cat');
+  const second = search('caterpillar');
+  pending.get('caterpillar')(['caterpillar']);
+
+  return {events, results: [await first, await second]};
+}
+
+export function delegatedActionExample() {
+  function node(name, parent = null, attributes = {}) {
+    return {name, parent, attributes};
+  }
+  function closest(start, attribute) {
+    for (let cursor = start; cursor; cursor = cursor.parent) {
+      if (Object.hasOwn(cursor.attributes, attribute)) return cursor;
+    }
+    return null;
+  }
+  function contains(boundary, candidate) {
+    for (let cursor = candidate; cursor; cursor = cursor.parent) {
+      if (cursor === boundary) return true;
+    }
+    return false;
+  }
+  function delegatedDelete(boundary, target) {
+    const button = closest(target, 'data-delete');
+    if (!button || !contains(boundary, button)) return undefined;
+    const item = closest(button, 'data-item-id');
+    return item && contains(boundary, item) ? item.attributes['data-item-id'] : undefined;
+  }
+
+  const documentNode = node('document');
+  const list = node('list', documentNode);
+  const item = node('item', list, {'data-item-id': 'A'});
+  const button = node('button', item, {'data-delete': ''});
+  const icon = node('icon', button);
+  const outsideItem = node('outside-item', documentNode, {'data-item-id': 'B'});
+  const outsideButton = node('outside-button', outsideItem, {'data-delete': ''});
+
+  return [delegatedDelete(list, icon), delegatedDelete(list, outsideButton)];
+}
+
+export function renderingAndStoragePolicyExample() {
+  function forcedLayoutsFor(operations) {
+    let geometryDirty = false;
+    let forcedLayouts = 0;
+    for (const operation of operations) {
+      if (operation === 'write') geometryDirty = true;
+      if (operation === 'read' && geometryDirty) {
+        forcedLayouts += 1;
+        geometryDirty = false;
+      }
+    }
+    return forcedLayouts;
+  }
+
+  const interleaved = ['write', 'read', 'write', 'read', 'write', 'read', 'write', 'read'];
+  const batched = ['read', 'write', 'write', 'write', 'write'];
+  const storagePolicy = {
+    theme: 'localStorage',
+    checkoutDraftForThisTab: 'sessionStorage',
+    serverSessionIdentifier: 'Secure HttpOnly SameSite cookie',
+    offlineCatalog: 'IndexedDB'
+  };
+  return {
+    forcedLayouts: {
+      interleaved: forcedLayoutsFor(interleaved),
+      batched: forcedLayoutsFor(batched)
+    },
+    storagePolicy
+  };
+}
+
+export function corsAndSecurityPolicyExample() {
+  function corsVisibility({mode = 'cors', credentials = false, requestOrigin, allowOrigin, allowCredentials = false}) {
+    if (mode === 'no-cors') return 'opaque';
+    if (allowOrigin !== requestOrigin && allowOrigin !== '*') return 'blocked';
+    if (credentials && (allowOrigin === '*' || !allowCredentials)) return 'blocked';
+    return 'readable';
+  }
+
+  const visibility = [
+    corsVisibility({requestOrigin: 'https://app.example', allowOrigin: 'https://app.example'}),
+    corsVisibility({credentials: true, requestOrigin: 'https://app.example', allowOrigin: '*', allowCredentials: true}),
+    corsVisibility({credentials: true, requestOrigin: 'https://app.example', allowOrigin: 'https://app.example', allowCredentials: true}),
+    corsVisibility({mode: 'no-cors', requestOrigin: 'https://app.example'})
+  ];
+  const controls = {
+    xss: ['contextual output encoding', 'safe sinks', 'sanitization for allowed HTML', 'CSP defense-in-depth'],
+    csrf: ['anti-CSRF token', 'SameSite cookie', 'Origin or Fetch Metadata validation', 'authorization']
+  };
+  return {visibility, controls, corsIsCsrfDefense: false};
+}
+
 assert.deepEqual(constantBindingExample(), {name: 'Grace', skills: ['JS', 'HTML']});
 assert.deepEqual(hoistingExample(), [undefined, 7]);
 assert.equal(temporalDeadZoneErrorName(), 'ReferenceError');
@@ -502,4 +644,27 @@ assert.deepEqual(rateLimitingExample(), {
   throttleCalls: ['scroll:a@0', 'scroll:abc@100', 'scroll:d@200']
 });
 
-console.log('JavaScript fundamentals examples: 23 scenario groups passed');
+assert.deepEqual(await latestRequestCancellationExample(), {
+  events: ['abort:cat', 'resolve:caterpillar'],
+  results: [undefined, ['caterpillar']]
+});
+assert.deepEqual(delegatedActionExample(), ['A', undefined]);
+assert.deepEqual(renderingAndStoragePolicyExample(), {
+  forcedLayouts: {interleaved: 4, batched: 0},
+  storagePolicy: {
+    theme: 'localStorage',
+    checkoutDraftForThisTab: 'sessionStorage',
+    serverSessionIdentifier: 'Secure HttpOnly SameSite cookie',
+    offlineCatalog: 'IndexedDB'
+  }
+});
+assert.deepEqual(corsAndSecurityPolicyExample(), {
+  visibility: ['readable', 'blocked', 'readable', 'opaque'],
+  controls: {
+    xss: ['contextual output encoding', 'safe sinks', 'sanitization for allowed HTML', 'CSP defense-in-depth'],
+    csrf: ['anti-CSRF token', 'SameSite cookie', 'Origin or Fetch Metadata validation', 'authorization']
+  },
+  corsIsCsrfDefense: false
+});
+
+console.log('JavaScript fundamentals examples: 27 scenario groups passed');
