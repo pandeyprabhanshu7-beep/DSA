@@ -5,7 +5,7 @@ description: Incremental, source-reconciled frontend interview guide with execut
 
 # JavaScript, HTML and CSS Interview Guide
 
-This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q36**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, viewport configuration, and responsive images. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
+This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q39**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, responsive media, visibility semantics, native lazy loading, and accessible search-friendly markup. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
 
 ## Module map
 
@@ -45,6 +45,9 @@ This is the canonical incremental guide for the paired JavaScript/HTML/CSS workb
 - [Q34 — Accessible forms](#q34)
 - [Q35 — The viewport meta element](#q35)
 - [Q36 — Responsive images](#q36)
+- [Q37 — Visibility and accessibility](#q37)
+- [Q38 — Native lazy loading](#q38)
+- [Q39 — SEO without accessibility regressions](#q39)
 - [Source provenance and verification](#sources)
 - [Next bounded section](#next)
 
@@ -1472,6 +1475,168 @@ Trace for a 400 CSS-pixel slot at device-pixel ratio 2:
 
 Do not mix `w` and `x` descriptors in one `srcset`. Use `1x`/`2x` descriptors for a fixed CSS-size asset; use `w` plus an accurate `sizes` list for a fluid layout. `sizes` describes the rendered slot, not which file the author wants.
 
+<a id="q37"></a>
+
+## Q37. How do `hidden`, `aria-hidden`, `display: none`, and `visibility: hidden` differ?
+
+### Requirement
+
+Choose along three separate axes: whether the content generates layout boxes, whether it is painted/interactive, and whether it is exposed to accessibility APIs. “Invisible” is not one state.
+
+| Mechanism | Layout space | Visual/interactable | Accessibility exposure | Appropriate intent |
+|---|---|---|---|---|
+| HTML `hidden` | normally none | no | normally removed | content is not currently relevant to any user |
+| CSS `display: none` | none; no boxes generated | no | normally removed | presentation rule removes a subtree from layout/rendering |
+| CSS `visibility: hidden` | retained | not painted or interactive | not rendered to speech/navigation under the CSS model | temporarily hide while preserving layout geometry |
+| `aria-hidden="true"` | unchanged | unchanged | subtree is hidden from assistive technology | remove redundant/decorative content from the accessibility tree only |
+
+`aria-hidden` does not visually hide anything. Its state is inherited by descendants, and `aria-hidden="false"` on a child cannot restore a child whose ancestor is hidden. Never place `aria-hidden="true"` on a focusable element or an ancestor containing focusable controls: keyboard focus could reach an element that assistive technology cannot perceive.
+
+The HTML state `hidden="until-found"` is a distinct current feature. Its content remains discoverable by find-in-page and fragment navigation; the browser reveals the ancestor before scrolling to a match. It is not interchangeable with an ordinary collapsed application panel.
+
+### Example 26 — one source of truth for a disclosure
+
+```html
+<button id="filters-toggle" type="button"
+        aria-expanded="false" aria-controls="filters-panel">
+  <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+    <path d="M2 4h12M4 8h8M6 12h4"></path>
+  </svg>
+  Filters
+</button>
+<section id="filters-panel" hidden>
+  <h2>Filter results</h2>
+  <label><input type="checkbox" name="remote"> Remote</label>
+</section>
+```
+
+```javascript
+const toggle = document.querySelector("#filters-toggle");
+const panel = document.querySelector("#filters-panel");
+
+toggle.addEventListener("click", () => {
+  const open = toggle.getAttribute("aria-expanded") === "true";
+  toggle.setAttribute("aria-expanded", String(!open));
+  panel.hidden = open;
+});
+```
+
+The panel is either relevant, visible, focusable, and exposed—or absent from all of those modes. Only the redundant icon is `aria-hidden`. Do not add `aria-hidden` to the panel as a second, independently mutable visibility state.
+
+```mermaid
+flowchart TD
+    State{Panel relevant?}
+    State -- no --> Hidden[hidden: no layout, paint, focus, or AT exposure]
+    State -- yes --> Shown[render panel and expose native controls]
+    Shown --> Decor[aria-hidden only on redundant icon]
+```
+
+<a id="q38"></a>
+
+## Q38. What is native lazy loading in HTML?
+
+### Requirement
+
+`loading="lazy"` is a browser hint that eligible offscreen images or iframes may be deferred until they approach the viewport. This can reduce initial requests, transfer, decoding, and embedded-document work. The browser chooses the distance threshold and may still load a resource earlier than expected; do not use lazy loading as an authorization, privacy, or exact scheduling boundary.
+
+Use it for below-the-fold media—not for the likely Largest Contentful Paint hero. Reserve image dimensions to prevent layout shift, keep responsive `srcset`/`sizes` when needed, supply useful image `alt` text, and give iframes a descriptive `title`. `decoding="async"` controls decode scheduling, not network laziness.
+
+### Example 27 — prioritize the hero, defer the gallery
+
+```html
+<img src="release-hero-1280.webp"
+     srcset="release-hero-640.webp 640w, release-hero-1280.webp 1280w"
+     sizes="100vw" width="1280" height="720"
+     loading="eager" fetchpriority="high"
+     alt="Engineers reviewing release health on a dashboard">
+
+<img src="trace-800.webp"
+     srcset="trace-400.webp 400w, trace-800.webp 800w"
+     sizes="(max-width: 50rem) 92vw, 40rem"
+     width="800" height="500" loading="lazy" decoding="async"
+     alt="Request trace showing gateway, service, and database spans">
+
+<iframe src="/examples/cache-simulator" loading="lazy"
+        width="800" height="450"
+        title="Interactive cache hit-rate simulator"></iframe>
+```
+
+Loading trace:
+
+```mermaid
+flowchart TD
+    Resource[Image or iframe] --> Critical{Likely initial-viewport or LCP content?}
+    Critical -- yes --> Eager[Load eagerly and prioritize deliberately]
+    Critical -- no --> Lazy[Allow native lazy loading]
+    Eager --> Stable[Reserve dimensions and provide semantics]
+    Lazy --> Stable
+    Stable --> Measure[Verify LCP, CLS, requests, and scrolling behavior]
+```
+
+Test with production-like pages and throttled browser tooling. A gallery can still overload the network if many lazy candidates sit near the threshold, and lazy iframes can postpone code the user expects immediately.
+
+<a id="q39"></a>
+
+## Q39. Which HTML choices improve SEO without hurting accessibility?
+
+### Requirement
+
+Build one understandable document for people, assistive technology, browsers, and crawlers. Useful overlap includes:
+
+- a concise, unique `<title>` and a truthful description of the page;
+- the correct document language, meaningful landmarks, and descriptive headings that reflect the content hierarchy;
+- ordinary crawlable `<a href>` links with anchor text that makes sense out of context;
+- text alternatives for meaningful images and empty `alt=""` for truly decorative images;
+- helpful, visible, people-first content using the same words readers use;
+- structured data only when it accurately describes visible page content.
+
+Good heading order helps navigation for screen-reader users, but there is no magic heading count or semantic-markup score that guarantees search ranking. A description can influence a search-result snippet but is not a promise of ranking or even of the exact snippet shown. Avoid keyword stuffing, hidden text/links, misleading structured data, generic “click here” links, and visual-only reading order.
+
+### Example 28 — one article, consistent signals
+
+```html
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spring Boot Cache Stampede Guide | Acme Engineering</title>
+  <meta name="description"
+        content="Learn request coalescing, jitter, stale-while-revalidate, and load testing for Spring Boot caches.">
+  <link rel="canonical" href="https://example.com/guides/cache-stampede">
+</head>
+<body>
+  <header><a href="/">Acme Engineering</a></header>
+  <main>
+    <article>
+      <h1>Preventing cache stampedes in Spring Boot</h1>
+      <p>A cache stampede occurs when many requests rebuild the same expired value.</p>
+      <figure>
+        <img src="coalescing-flow.svg" width="960" height="540"
+             alt="Concurrent cache misses join one database refresh">
+        <figcaption>Request coalescing allows one refresh owner.</figcaption>
+      </figure>
+      <h2>Choose a refresh policy</h2>
+      <p>Compare <a href="/guides/stale-while-revalidate">stale-while-revalidate trade-offs</a>.</p>
+    </article>
+  </main>
+</body>
+</html>
+```
+
+Before publishing, verify that the title/description match the visible article, every link works without click handlers, the heading outline is understandable, image alternatives convey purpose, canonical/robots directives are intentional, and any structured data matches the page. Then test keyboard navigation, accessibility structure, crawlability, rendered content, and relevant search tooling.
+
+```mermaid
+flowchart TD
+    Content[Visible people-first content] --> Semantic[Semantic document and links]
+    Semantic --> Human[Readable and keyboard usable]
+    Semantic --> AT[Understandable accessibility structure]
+    Semantic --> Crawl[Crawlable, descriptive search signals]
+    Human --> Verify[Accessibility and search validation]
+    AT --> Verify
+    Crawl --> Verify
+```
+
 ## Decision checklist
 
 - Use `const` by default when the binding should not change; use `let` when reassignment is part of the model.
@@ -1505,6 +1670,9 @@ Do not mix `w` and `x` descriptors in one `srcset`. Use `1x`/`2x` descriptors fo
 - Make form names, instructions, required state, and errors programmatically available and keyboard-test the completed flow.
 - Treat the viewport element as layout configuration, not a substitute for fluid responsive CSS or user zoom.
 - Use `srcset`/`sizes` for resolution switching and `<picture>` for art direction; leave final selection to the browser.
+- Keep visual, layout, focus, and accessibility-tree visibility as separate decisions; never hide reachable focus with `aria-hidden`.
+- Lazy-load eligible below-the-fold media, not the likely LCP resource, and reserve dimensions before it arrives.
+- Prefer one honest semantic document for readers, assistive technology, and crawlers; verify rather than chase markup myths.
 
 <a id="sources"></a>
 
@@ -1512,9 +1680,9 @@ Do not mix `w` and `x` descriptors in one `srcset`. Use `1x`/`2x` descriptors fo
 
 Paired source comparison performed through 2026-10-15:
 
-- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1090. The newly processed Q31–Q36 range is lines 969–1090, bounded by Q37 at line 1091.
-- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 692–765 for Q31–Q36, bounded by Q37 at rendered line 766. It agrees on all six topics but is not promoted as a competing guide.
-- The repository edition adds exact requirements, four connected example groups, event-control/script-delivery/semantic-structure diagrams, accessible-form state transitions, responsive-image selection boundaries, deterministic executable policy assertions, and current normative links.
+- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1138. The newly processed Q37–Q39 range is lines 1091–1138, bounded by CSS Q40 at line 1139.
+- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 766–799 for Q37–Q39, bounded by CSS Q40 at rendered line 800. It agrees on all three topics but is not promoted as a competing guide.
+- The repository edition adds exact requirements, three connected example groups, visibility/lazy-loading/document-consumer diagrams, focus and accessibility-tree boundaries, loading and publishing traces, deterministic executable policy assertions, and current primary links.
 
 Primary references checked through 2026-10-15:
 
@@ -1554,9 +1722,16 @@ Primary references checked through 2026-10-15:
 - [WAI Forms Tutorial — labeling controls](https://www.w3.org/WAI/tutorials/forms/labels/)
 - [CSS Viewport Module Level 1](https://drafts.csswg.org/css-viewport/)
 - [HTML Living Standard — responsive images](https://html.spec.whatwg.org/multipage/images.html#responsive-images)
+- [HTML Living Standard — the `hidden` attribute](https://html.spec.whatwg.org/multipage/interaction.html#the-hidden-attribute)
+- [ARIA in HTML — author requirements](https://www.w3.org/TR/html-aria/)
+- [CSS Display — invisibility and box generation](https://drafts.csswg.org/css-display-4/#visibility)
+- [HTML Living Standard — lazy loading](https://html.spec.whatwg.org/multipage/urls-and-fetching.html#lazy-loading-attributes)
+- [Google Search Essentials](https://developers.google.com/search/docs/essentials)
+- [Google SEO Starter Guide](https://developers.google.com/search/docs/fundamentals/seo-starter-guide)
+- [Google link best practices](https://developers.google.com/search/docs/crawling-indexing/links-crawlable)
 
 <a id="next"></a>
 
 ## Next bounded section
 
-Continue with source Q37–Q39: visibility and accessibility semantics, native lazy loading, and practical HTML choices for SEO/accessibility. This completes the remaining HTML block before Q40 begins CSS; re-read both sources at that boundary before editing this canonical guide.
+Continue with source Q40–Q45: cascade/specificity, the box model, sizing units, positioning, Flexbox, and Grid. This starts the CSS block; re-read both sources to lock the exact Q45/Q46 boundary before editing this canonical guide.

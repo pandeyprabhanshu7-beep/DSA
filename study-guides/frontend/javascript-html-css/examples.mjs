@@ -667,6 +667,62 @@ export function responsiveImagePolicyExample() {
   };
 }
 
+export function visibilityPolicyExample() {
+  const mechanisms = {
+    hidden: {layout: false, painted: false, accessibilityTree: false, focusableDescendants: false},
+    displayNone: {layout: false, painted: false, accessibilityTree: false, focusableDescendants: false},
+    visibilityHidden: {layout: true, painted: false, accessibilityTree: false, focusableDescendants: false},
+    ariaHidden: {layout: true, painted: true, accessibilityTree: false, focusableDescendants: 'must-not-exist'}
+  };
+  function disclosureState(open) {
+    return {hidden: !open, ariaExpanded: String(open)};
+  }
+  return {mechanisms, closed: disclosureState(false), open: disclosureState(true)};
+}
+
+export function lazyLoadingPolicyExample() {
+  function plan(resource) {
+    if (resource.initialViewport || resource.lcpCandidate) {
+      return {loading: 'eager', priority: resource.lcpCandidate ? 'high' : 'auto'};
+    }
+    return {loading: 'lazy', priority: 'auto'};
+  }
+  return {
+    hero: plan({initialViewport: true, lcpCandidate: true}),
+    gallery: plan({initialViewport: false, lcpCandidate: false}),
+    map: plan({initialViewport: false, lcpCandidate: false}),
+    invariants: ['reserve-dimensions', 'retain-alt-or-title', 'browser-controls-threshold']
+  };
+}
+
+export function documentQualityPolicyExample() {
+  function inspect(page) {
+    const issues = [];
+    if (!page.lang) issues.push('missing-language');
+    if (!page.title || page.title === page.siteName) issues.push('non-descriptive-title');
+    if (page.h1Count !== 1) issues.push('unclear-primary-heading');
+    if (page.links.some(link => !link.href || !link.text.trim() || link.text === 'click here')) {
+      issues.push('non-descriptive-or-non-crawlable-link');
+    }
+    if (page.images.some(image => image.meaningful && !image.alt.trim())) issues.push('missing-image-alternative');
+    if (!page.structuredDataMatchesVisibleContent) issues.push('misleading-structured-data');
+    return issues;
+  }
+  return {
+    article: inspect({
+      lang: 'en', title: 'Cache Stampede Guide | Acme', siteName: 'Acme', h1Count: 1,
+      links: [{href: '/guides/stale-while-revalidate', text: 'stale-while-revalidate trade-offs'}],
+      images: [{meaningful: true, alt: 'Concurrent misses join one refresh'}],
+      structuredDataMatchesVisibleContent: true
+    }),
+    brokenLandingPage: inspect({
+      lang: '', title: 'Acme', siteName: 'Acme', h1Count: 0,
+      links: [{href: '', text: 'click here'}], images: [{meaningful: true, alt: ''}],
+      structuredDataMatchesVisibleContent: false
+    })
+  };
+}
+
 assert.deepEqual(constantBindingExample(), {name: 'Grace', skills: ['JS', 'HTML']});
 assert.deepEqual(hoistingExample(), [undefined, 7]);
 assert.equal(temporalDeadZoneErrorName(), 'ReferenceError');
@@ -784,4 +840,32 @@ assert.deepEqual(responsiveImagePolicyExample(), {
   reservedAspectRatio: '16:9'
 });
 
-console.log('JavaScript fundamentals examples: 31 scenario groups passed');
+assert.deepEqual(visibilityPolicyExample(), {
+  mechanisms: {
+    hidden: {layout: false, painted: false, accessibilityTree: false, focusableDescendants: false},
+    displayNone: {layout: false, painted: false, accessibilityTree: false, focusableDescendants: false},
+    visibilityHidden: {layout: true, painted: false, accessibilityTree: false, focusableDescendants: false},
+    ariaHidden: {layout: true, painted: true, accessibilityTree: false, focusableDescendants: 'must-not-exist'}
+  },
+  closed: {hidden: true, ariaExpanded: 'false'},
+  open: {hidden: false, ariaExpanded: 'true'}
+});
+assert.deepEqual(lazyLoadingPolicyExample(), {
+  hero: {loading: 'eager', priority: 'high'},
+  gallery: {loading: 'lazy', priority: 'auto'},
+  map: {loading: 'lazy', priority: 'auto'},
+  invariants: ['reserve-dimensions', 'retain-alt-or-title', 'browser-controls-threshold']
+});
+assert.deepEqual(documentQualityPolicyExample(), {
+  article: [],
+  brokenLandingPage: [
+    'missing-language',
+    'non-descriptive-title',
+    'unclear-primary-heading',
+    'non-descriptive-or-non-crawlable-link',
+    'missing-image-alternative',
+    'misleading-structured-data'
+  ]
+});
+
+console.log('JavaScript fundamentals examples: 34 scenario groups passed');

@@ -405,7 +405,7 @@
       "bytes": 77677,
       "sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
       "status": "IN_PROGRESS",
-      "processed_range": "lines 166-1090 for Q1-Q36; latest bounded range Q31-Q36 is lines 969-1090, bounded by Q37 at line 1091",
+      "processed_range": "lines 166-1138 for Q1-Q39; latest bounded range Q37-Q39 is lines 1091-1138, bounded by CSS Q40 at line 1139",
       "canonical_target": "study-guides/frontend/javascript-html-css/guide.md",
       "headings": [
         "# JavaScript, HTML and CSS Interview Workbook - Mermaid Edition",
@@ -863,18 +863,18 @@
   ],
   "next_batch": {
     "source": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md + JavaScript_HTML_CSS_Interview_Workbook.docx",
-    "section": "Q37-Q39 only: visibility/accessibility semantics, native lazy loading, and practical HTML choices for SEO/accessibility",
+    "section": "Q40-Q45 only: cascade/specificity, the box model, sizing units, positioning, Flexbox, and Grid",
     "status": "QUEUED",
-    "estimated_tokens": 6200,
-    "estimate_method": "Heuristic only: reserve ~900 tokens to compare Q37-Q39 across paired sources, ~1000 for current primary references, ~2500 for examples/traces/HTML, and ~1800 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 8300,
+    "estimate_method": "Heuristic only: reserve ~1200 tokens to compare Q40-Q45 across paired sources, ~1300 for current primary references, ~3800 for examples/traces/HTML, and ~2000 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "javascript": "Node v24.19.0 executed examples.mjs; all 31 scenario groups passed, including event-action, deterministic script-ordering, accessible-form state and responsive-image teaching-policy assertions.",
-    "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 71678-character embedded payload equality, 38 unique anchors, 53 balanced fences, inline JavaScript, fragment targets, relative links, selected-file diff and the live 170-marker placeholder invariant passed; selected files do not alter marker-bearing paths.",
-    "diagrams": "Fifteen Mermaid diagrams are embedded in the canonical payload, including new event-decision, semantic-structure and script-delivery diagrams; browser DOM/accessibility/script-loading/network/image-selection integration and Mermaid visual QA were not executed.",
-    "last_processed_at": "2026-10-15T09:18:30-04:00"
+    "javascript": "Node v24.19.0 executed examples.mjs; all 34 scenario groups passed, including visibility/accessibility, disclosure-state, lazy-loading and semantic document-quality policy assertions.",
+    "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 81057-character embedded payload equality, 41 unique anchors, 60 balanced fences, inline JavaScript, fragment targets, relative links, selected-file diff and the live 170-marker placeholder invariant passed; selected files do not alter marker-bearing paths.",
+    "diagrams": "Eighteen Mermaid diagrams are embedded in the canonical payload, including new disclosure-state, resource-loading and content-validation diagrams; browser DOM/accessibility-tree/focus, native lazy-loading/network/LCP, search crawler/rich-result, and Mermaid visual QA were not executed.",
+    "last_processed_at": "2026-10-15T10:33:27-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-14T16:16:21-04:00",
@@ -888,16 +888,16 @@
     "estimate_method": "Heuristic for the first bounded JavaScript/HTML/CSS paired-source section plus source resolution, targeted primary-source refresh, consolidation/teaching/HTML and validation/checkpoint reserves; not actual quota percentage"
   },
   "javascript_html_css_intake_checkpoint": {
-    "last_processed_at": "2026-10-15T09:18:30-04:00",
+    "last_processed_at": "2026-10-15T10:33:27-04:00",
     "source_markdown_sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
     "source_docx_sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
     "docx_source_file_id": "file_0000000037888211b9c20e5f69be6b09",
-    "processed": "Q1-Q36; latest bounded range is Markdown lines 969-1090 and DOCX rendered lines 692-765 for Q31-Q36, each bounded by Q37; earlier Q1-Q30 retained",
+    "processed": "Q1-Q39; latest bounded range is Markdown lines 1091-1138 and DOCX rendered lines 766-799 for Q37-Q39, each bounded by CSS Q40; earlier Q1-Q36 retained",
     "status": "PUBLISHED",
-    "validation": "Q31-Q36 were compared in both actual source texts and consolidated with exact requirements, four connected example groups, three new Mermaid diagrams, event-action and script-scheduling traces, semantic/accessibility contracts, viewport behavior, responsive-image selection boundaries, current primary references and deterministic assertions. Deterministic reader generation and exact 71678-character embedded-Markdown equality passed with 38 unique anchors, 53 balanced fenced blocks, 15 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 31 scenario groups. JSON, fragment targets, relative links, selected-file diff and the live 170-marker placeholder invariant passed; the selected files do not alter marker-bearing paths. Browser DOM/accessibility/script-loading/network/image-selection integration and Mermaid visual QA were not executed. All nine content-commit remote blob hashes matched and no GitHub status checks were configured.",
+    "validation": "Q37-Q39 were compared in both actual source texts and consolidated with exact visibility/accessibility requirements, three connected example groups, three new Mermaid diagrams, disclosure and loading-decision traces, current primary references and deterministic policy assertions. Deterministic reader generation and exact 81057-character embedded-Markdown equality passed with 41 unique anchors, 60 balanced fenced blocks, 18 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all 34 scenario groups. JSON, fragment targets, relative links, selected-file diff and the live 170-marker placeholder invariant passed; the selected files do not alter marker-bearing paths. Browser DOM/accessibility-tree/focus, native lazy-loading/network/LCP, search crawler/rich-result, and Mermaid visual QA were not executed.",
     "content_commit": "ee52e878eca0ea1cbf6485ff7e250560b1ea26bb",
-    "next_section": "Q37-Q39 only: visibility/accessibility semantics, native lazy loading, and practical HTML choices for SEO/accessibility",
-    "estimated_next_tokens": 6200,
-    "estimate_method": "Heuristic for Q37-Q39 paired-source comparison, current primary references, examples/traces/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "next_section": "Q40-Q45 only: cascade/specificity, the box model, sizing units, positioning, Flexbox, and Grid",
+    "estimated_next_tokens": 8300,
+    "estimate_method": "Heuristic for Q40-Q45 paired-source comparison, current primary references, examples/traces/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
