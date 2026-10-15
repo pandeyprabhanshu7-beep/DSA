@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "b177a9133249af386236c4aceec47f8df2b22b5b",
+  "last_successful_commit": "00ca63da0c80c1412a9ef78b0f8d188f6a1a9d3c",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -879,9 +879,9 @@
     "source_docx_sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
     "docx_source_file_id": "file_0000000037888211b9c20e5f69be6b09",
     "processed": "Q1-Q4; Markdown lines 166-291 and DOCX extracted paragraphs 21-81, each bounded by Q5",
-    "status": "VALIDATED_PENDING_PUBLISH",
-    "validation": "Both actual source texts agree on the four topics and were consolidated into one canonical guide with four connected examples, two Mermaid environment diagrams, explicit requirements, dry-run tables, current primary references and five executable Node assertions. Deterministic reader generation and exact 9624-character embedded-Markdown equality passed with 6 unique anchors, 8 balanced fences, 2 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all assertions. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. Browser rendering was not executed; the local-project README generator could not run because the Python markdown package is absent.",
-    "content_commit": null,
+    "status": "PUBLISHED",
+    "validation": "Both actual source texts agree on the four topics and were consolidated into one canonical guide with four connected examples, two Mermaid environment diagrams, explicit requirements, dry-run tables, current primary references and five executable Node assertions. Deterministic reader generation and exact 9624-character embedded-Markdown equality passed with 6 unique anchors, 8 balanced fences, 2 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all assertions. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. All nine content-commit remote blob hashes matched and no GitHub status checks were configured. Browser rendering was not executed; the local-project README generator could not run because the Python markdown package is absent.",
+    "content_commit": "00ca63da0c80c1412a9ef78b0f8d188f6a1a9d3c",
     "next_section": "Q5-Q10 only: primitive/reference values, equality, null/undefined/NaN, shallow/deep copy, map/filter/reduce, optional chaining and nullish coalescing",
     "estimated_next_tokens": 7600,
     "estimate_method": "Heuristic for Q5-Q10 paired-source comparison, current primary references, examples/traces/HTML and validation/checkpoint reserves; not actual quota percentage"

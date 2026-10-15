@@ -728,8 +728,8 @@
         "retrieval": "Both bounded source texts read from ChatGPT Library on 2026-10-14",
         "baseline_main_head": "232fdb33f12ef2052944177e4716f0e39fe19748"
       },
-      "validation": "The canonical guide contains four connected examples, two Mermaid environment diagrams, four requirement/trace cards and five executable Node assertions. Deterministic reader generation and exact embedded-Markdown equality passed with 6 unique anchors, 8 balanced fenced blocks, 2 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all assertions. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. Browser rendering was not executed; local-project README regeneration was unavailable because the Python markdown package is absent.",
-      "last_successful_commit": "b177a9133249af386236c4aceec47f8df2b22b5b",
+      "validation": "The canonical guide contains four connected examples, two Mermaid environment diagrams, four requirement/trace cards and five executable Node assertions. Deterministic reader generation and exact embedded-Markdown equality passed with 6 unique anchors, 8 balanced fenced blocks, 2 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all assertions. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. All nine content-commit remote blob hashes matched and no GitHub status checks were configured. Browser rendering was not executed; local-project README regeneration was unavailable because the Python markdown package is absent.",
+      "last_successful_commit": "00ca63da0c80c1412a9ef78b0f8d188f6a1a9d3c",
       "priority": 16
     },
     {
@@ -896,10 +896,10 @@
       "JavaScript/HTML/CSS Q1-Q4: binding scope, declaration instantiation/TDZ, lexical lookup and per-iteration loop capture"
     ],
     "processed_section": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md lines 166-291 (SHA-256 742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0) and JavaScript_HTML_CSS_Interview_Workbook.docx extracted paragraphs 21-81 (SHA-256 790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb): Q1-Q4 promoted into the new canonical frontend guide",
-    "validation": "Q1-Q4 were compared in both actual source texts and consolidated into one canonical guide with four connected examples, two environment diagrams, explicit requirements, dry-run tables, current primary references and five executable Node assertions. Deterministic reader generation and exact 9624-character embedded-Markdown equality passed with 6 unique anchors, 8 balanced fences, 2 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all assertions. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. Browser rendering was not executed; local-project README regeneration was unavailable because the Python markdown package is absent.",
+    "validation": "Q1-Q4 were compared in both actual source texts and consolidated into one canonical guide with four connected examples, two environment diagrams, explicit requirements, dry-run tables, current primary references and five executable Node assertions. Deterministic reader generation and exact 9624-character embedded-Markdown equality passed with 6 unique anchors, 8 balanced fences, 2 Mermaid diagrams and parseable inline JavaScript; node examples.mjs passed all assertions. JSON, links, source hashes, selected-file diff and the live 170-marker placeholder audit passed. All nine content-commit remote blob hashes matched and no GitHub status checks were configured. Browser rendering was not executed; local-project README regeneration was unavailable because the Python markdown package is absent.",
     "estimated_next_tokens": 7600,
     "estimate_method": "Heuristic only: reserve ~1000 tokens to compare JavaScript/HTML/CSS Q5-Q10 across paired sources, ~1500 for current primary references, ~3100 for examples/traces/HTML, and ~2000 for validation/checkpoint. This is not account-quota telemetry.",
-    "last_successful_commit": "b177a9133249af386236c4aceec47f8df2b22b5b",
+    "last_successful_commit": "00ca63da0c80c1412a9ef78b0f8d188f6a1a9d3c",
     "last_processed_at": "2026-10-14T17:58:51-04:00",
     "next_batch_decision": "JavaScript/HTML/CSS Q1-Q4 were completed as one bounded section. Weekly/hourly quota percentages were not exposed, so stop before Q5-Q10 and retain the conservative one-section checkpoint."
   }
