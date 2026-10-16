@@ -49,7 +49,7 @@ See [intake manifest](INTAKE_MANIFEST.json) for source hashes, statuses and exac
 
 ## Continue next
 
-The confirmed database/caching source now has Section 1 promoted into the canonical [database guide](../databases/caching-java/). Continue with exactly Section 2, “B+ Trees: why indexes are shallow,” beginning at source line 134; resolve its exact ending boundary before processing. Estimated next-batch budget: approximately 7,600 tokens. This heuristic reserves about 1,200 tokens for bounded source-range resolution, 1,400 for targeted primary-source refresh, 3,100 for consolidation/examples/Java/HTML, and 1,900 for validation/checkpoint work. It is not account-quota telemetry.
+The confirmed database/caching source now has Sections 1–2 promoted into the canonical [database guide](../databases/caching-java/), through source line 176. Continue with exactly Section 3, “LSM trees: moving write cost into compaction,” beginning at source line 177; resolve its exact ending boundary before processing. Estimated next-batch budget: approximately 7,800 tokens. This heuristic reserves about 1,200 tokens for bounded source-range resolution, 1,500 for targeted primary-source refresh, 3,200 for consolidation/examples/Java/HTML, and 1,900 for validation/checkpoint work. It is not account-quota telemetry.
 
 ## Maintain readers
 

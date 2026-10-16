@@ -99,7 +99,10 @@
       "version_id": "1",
       "modified_at": "2026-09-16T05:20:18.877277Z",
       "size_bytes": 155023,
-      "status": "DISCOVERED"
+      "status": "IN_PROGRESS",
+      "last_read_at": "2026-10-16",
+      "sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
+      "selection": "Sections 1-2, source lines 62-176, read and promoted into the incremental canonical database guide; later sections remain queued."
     },
     {
       "name": "top_5_system_design_interview_blueprints.md",
@@ -590,22 +593,23 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-16T03:51:02-04:00",
+      "last_processed_at": "2026-10-16T07:20:06-04:00",
       "processed_sections": [
-        "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references"
+        "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
+        "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios"
       ],
       "source_revision": {
-        "baseline_commit": "82620c4abba6411342c59db07c7f5c0c3a028e9c",
+        "baseline_commit": "c5767765bba6a7278054b5e25f005f0245361ab0",
         "selected_library_file_id": "libfile_969515775294819195d90fe08e46b7be",
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-133",
-        "canonical_sha256_after": "c15f6b517e26f825e62fec768e361280b2ce1e9a3c266722ab38fabc9945c0e5"
+        "processed_lines": "62-176",
+        "canonical_sha256_after": "9075dd3bf71c6a80147102d039630e4b7c8b29654e72a646d96d553660ab43d4"
       },
-      "content_commit": "e0317d7701386e53c5c51c9e048a0c04aa1579ef",
-      "validation": "Confirmed source version 1 was materialized and hashed; current PostgreSQL, MySQL, DynamoDB and original Dynamo primary references were checked. Java 17 source-file compilation/execution passed four scenario groups covering atomic rollback, conserved balances, overdraft rejection, unknown commit outcome/idempotency, stale replica/read-your-writes routing and convergent duplicate/reordered repair. Deterministic reader generation passed exact 16395-character Markdown payload equality, source SHA-256 metadata, 48 unique HTML IDs, 16 search entries, fragments, relative links, 7 balanced fences and 4 Mermaid sources. Standalone javac, browser, assistive-technology and Mermaid rendering QA were unavailable/not executed. Live DSA placeholder audit remains 170. All nine content-tree blob hashes matched; no commit statuses or check runs were configured.",
-      "next_action": "Process exactly Section 2, B+ Trees: why indexes are shallow, beginning at source line 134; resolve its exact end before reading or promoting it.",
+      "content_commit": "9216b99651c01aa94f7af41b266a267f50088a23",
+      "validation": "Exact source lines 134-176 were read and compared with the existing focused B+ tree module to avoid duplication; current PostgreSQL 18, MySQL 8.4 and SQLite primary documentation was checked. Java 17 source-file compilation/execution passed eight scenario groups, including four new B+ tree capacity, composite-range, secondary-byte and leaf-split groups. Deterministic reader generation passed exact 28585-character Markdown payload equality, source SHA-256 metadata, 68 unique HTML IDs, 28 search entries, fragments, allowed relative links, 12 balanced fences and 8 Mermaid sources. Standalone javac, browser, assistive-technology and Mermaid visual QA were unavailable/not executed. Live DSA placeholder audit remains 170. Seven content-tree blobs matched; no commit statuses were configured.",
+      "next_action": "Process exactly Section 3, LSM trees: moving write cost into compaction, beginning at source line 177; resolve its exact end before reading or promoting it.",
       "priority": 12
     },
     {
@@ -939,14 +943,15 @@
       "JavaScript/HTML/CSS rapid-fire 1-16: language and collection ownership, iteration/generators, scheduling/modules/lifecycle, observers and Web Workers",
       "JavaScript/HTML/CSS rapid-fire 17-32: Service Workers, rendering, browser security, native accessibility, CSS behavior, Shadow DOM and critical rendering",
       "JavaScript/HTML/CSS Final Revision Sheet: trigger map, four diagnosis examples, trace tables, answer frame and self-test",
-      "Database/caching Section 1: ACID/BASE contract, four failure scenarios, WAL/recovery and replica traces, convergent repair and quorum caveat"
+      "Database/caching Section 1: ACID/BASE contract, four failure scenarios, WAL/recovery and replica traces, convergent repair and quorum caveat",
+      "Database/caching Section 2: B+ tree page economics, access traces, layout amplification, splits and fill-factor trade-offs"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 62-133 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 1, ACID, BASE, and the misleading SQL/NoSQL split",
-    "validation": "Confirmed source version 1 was materialized and hashed; Java 17 source-file compilation/execution passed four scenario groups; deterministic reader generation passed exact 16395-character payload equality, source hash, 48 unique IDs, 16 search entries, fragments, relative links, 7 balanced fences and 4 Mermaid sources; live DSA marker audit remains 170. All nine content-tree blobs matched and no GitHub status checks or check runs were configured. Standalone javac, browser, assistive-technology and Mermaid rendering QA were not executed.",
-    "estimated_next_tokens": 7600,
-    "estimate_method": "Heuristic only for resolving bounded B+ tree source limits, refreshing primary references, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "e0317d7701386e53c5c51c9e048a0c04aa1579ef",
-    "last_processed_at": "2026-10-16T03:51:02-04:00",
-    "next_batch_decision": "Section 1 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 2; resume at its exact start on source line 134 and resolve the end boundary before processing."
+    "processed_section": "database_internals_caching_java_master_guide.md lines 134-176 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 2, B+ trees: pages, fan-out, and write cost",
+    "validation": "Section 2 was compared with the existing focused B+ tree module and consolidated as complementary storage-engine coverage. Java 17 source launch passed eight total scenario groups; deterministic reader generation passed exact 28585-character payload equality, 68 unique IDs, 28 search entries, fragments, allowed relative links, 12 balanced fences and 8 Mermaid sources; live DSA marker audit remains 170. All seven content-tree blobs matched and no GitHub commit statuses were configured. Standalone javac, browser, assistive-technology and Mermaid visual QA were not executed.",
+    "estimated_next_tokens": 7800,
+    "estimate_method": "Heuristic only for resolving bounded LSM source limits, refreshing primary references, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "9216b99651c01aa94f7af41b266a267f50088a23",
+    "last_processed_at": "2026-10-16T07:20:06-04:00",
+    "next_batch_decision": "Section 2 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 3; resume at its exact start on source line 177 and resolve the end boundary before processing."
   }
 }
