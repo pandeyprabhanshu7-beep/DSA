@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="source-sha256" content="c15f6b517e26f825e62fec768e361280b2ce1e9a3c266722ab38fabc9945c0e5"><title>Database Internals, Caching, and Java</title>
+<style>
+:root{--bg:#eef3f6;--paper:#fff;--ink:#15252d;--muted:#52646d;--line:#cfdae0;--accent:#12656f;--code:#102027;--code-ink:#eaf6f7}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.68 system-ui,-apple-system,Segoe UI,sans-serif}
+.layout{display:grid;grid-template-columns:minmax(230px,300px) minmax(0,940px);gap:1.4rem;max-width:1280px;margin:auto;padding:1rem}
+aside{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:1rem}
+.brand{font-weight:800;margin-bottom:.75rem}input{width:100%;padding:.7rem;border:1px solid var(--line);border-radius:8px;font:inherit}
+#results{list-style:none;padding:0;margin:.7rem 0}#results li{margin:.42rem 0}#results a,a{color:var(--accent)}#search-status{color:var(--muted);font-size:.85rem;margin-top:.5rem}
+main{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:clamp(1rem,4vw,3rem)}h1,h2,h3{line-height:1.25;scroll-margin-top:1rem}h2{margin-top:2.3rem;border-bottom:2px solid #7fb5b7;padding-bottom:.25rem}
+table{border-collapse:collapse;width:100%;display:block;overflow-x:auto}th,td{border:1px solid var(--line);padding:.55rem;text-align:left;vertical-align:top}pre{background:var(--code);color:var(--code-ink);padding:1rem;border-radius:9px;overflow:auto}code{font:0.9em ui-monospace,SFMono-Regular,Consolas,monospace}:not(pre)>code{background:#e6eff1;padding:.12rem .3rem;border-radius:4px}blockquote{margin:1rem 0;padding:.4rem 1rem;border-left:4px solid var(--accent);background:#edf8f7}.mermaid{overflow:auto;text-align:center}
+@media(max-width:820px){.layout{display:block;padding:.45rem}aside{position:relative;max-height:none;margin-bottom:.7rem}main{padding:1rem}}@media(prefers-color-scheme:dark){:root{--bg:#071418;--paper:#102127;--ink:#e5f0f1;--muted:#a9bec1;--line:#365159;--accent:#7bd4d3;--code:#050c0f;--code-ink:#e9f5f5}:not(pre)>code{background:#22383d}blockquote{background:#173237}}@media print{aside{display:none}.layout{display:block}main{border:0}}
+</style></head><body><div class="layout"><aside><div class="brand">Database Internals + Java</div><label for="search">Search sections</label><input id="search" type="search" placeholder="Try: WAL, idempotency, replica"><div id="search-status">Type to filter section headings.</div><ul id="results"></ul></aside><main id="content"><h1 id="database-internals-caching-and-java-connectivity">Database Internals, Caching, and Java Connectivity</h1>
+<blockquote>
+<p><strong>Incremental canonical guide.</strong> This publication deepens source Section 1 only: <strong>ACID, BASE, and the misleading SQL/NoSQL split</strong>. Later source sections are deliberately queued rather than summarized prematurely.</p>
+</blockquote>
+<h2 id="learning-contract">Learning contract</h2>
+<p>After this section you should be able to:</p>
+<ol type="1">
+<li>state each ACID property without turning it into a promise about replicas, caches, or external side effects;</li>
+<li>distinguish serializability, strict serializability, linearizability, read-your-writes, and eventual convergence;</li>
+<li>explain why a commit acknowledgement depends on the configured log/replication durability boundary, not on every data page being flushed;</li>
+<li>design a transfer that preserves an invariant and survives an unknown commit outcome; and</li>
+<li>explain why <code>R + W &gt; N</code> is not, by itself, a proof of linearizability.</li>
+</ol>
+<h3 id="requirements-before-product-names">Requirements before product names</h3>
+<p>Write the contract before selecting an engine:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Question</th>
+<th>Example requirement</th>
+<th>Mechanism to investigate</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>What must be atomic?</td>
+<td>Debit A and credit B commit together</td>
+<td>One database transaction; otherwise an explicit distributed protocol</td>
+</tr>
+<tr class="even">
+<td>What invariant must survive?</td>
+<td><code>balance &gt;= 0</code> and total money is conserved</td>
+<td>Constraint plus conditional write inside the transaction</td>
+</tr>
+<tr class="odd">
+<td>Which histories are allowed?</td>
+<td>Concurrent transfers behave like some serial order</td>
+<td>Serializable transaction or explicit locking/validation</td>
+</tr>
+<tr class="even">
+<td>How fresh must a read be?</td>
+<td>The writer must immediately see its own committed transfer</td>
+<td>Primary/session routing, replay token, or a documented strong-read option</td>
+</tr>
+<tr class="odd">
+<td>What failure must an acknowledgement survive?</td>
+<td>Process crash and loss of one node</td>
+<td>Durable WAL plus the required replica acknowledgement policy</td>
+</tr>
+<tr class="even">
+<td>What happens after a timeout?</td>
+<td>Retrying a transfer must not apply it twice</td>
+<td>Durable idempotency key and stored outcome</td>
+</tr>
+</tbody>
+</table>
+<p>The words <strong>SQL</strong>, <strong>NoSQL</strong>, <strong>ACID</strong>, and <strong>BASE</strong> do not answer these questions. A relational primary may expose stale asynchronous-replica reads. A key-value service may provide atomic transactions and optional strongly consistent reads. DynamoDB, for example, offers strong reads on tables and local secondary indexes, while global secondary indexes remain eventually consistent.</p>
+<h2 id="acid-property-mechanism-and-boundary">ACID: property, mechanism, and boundary</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Typical mechanism</th>
+<th>It does <strong>not</strong> promise</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Atomicity</td>
+<td>Commit record, rollback/undo, version visibility, recovery</td>
+<td>Atomicity across SQL + Redis + email without another protocol</td>
+</tr>
+<tr class="even">
+<td>Consistency</td>
+<td>Constraints and correctly designed transactions preserve invariants</td>
+<td>Every replica or cache immediately sees the commit</td>
+</tr>
+<tr class="odd">
+<td>Isolation</td>
+<td>Locks, snapshots, predicate protection, conflict validation</td>
+<td>Serializable execution merely because code uses <code>BEGIN</code></td>
+</tr>
+<tr class="even">
+<td>Durability</td>
+<td>WAL/redo reaches the configured durable boundary before acknowledgement</td>
+<td>Survival beyond the chosen media/node/region failure domain</td>
+</tr>
+</tbody>
+</table>
+<p><strong>ACID consistency</strong> is application validity: a valid state transitions to another valid state. The application still has to state the invariant. A database cannot infer that two ledger entries must net to zero.</p>
+<p><strong>Serializability</strong> means the committed transaction history is equivalent to some serial order. <strong>Strict serializability</strong> additionally respects real-time order. <strong>Linearizability</strong> is a per-operation real-time guarantee: each operation appears to take effect at one instant between invocation and response. A transaction can be serializable without a lagging replica offering linearizable reads.</p>
+<p>PostgreSQL's current documentation makes the isolation boundary concrete: <code>READ COMMITTED</code> takes a new snapshot for each statement; <code>REPEATABLE READ</code> keeps a stable transaction snapshot but can still permit serialization anomalies; <code>SERIALIZABLE</code> detects histories that cannot match any serial execution and requires clients to retry rejected transactions.</p>
+<h2 id="example-1--atomic-transfer-with-an-invariant">Example 1 — atomic transfer with an invariant</h2>
+<p><strong>Requirement.</strong> Transfer 100 from A to B, never let A become negative, and conserve the total. The balance check must not come from a cache because it must participate in the same atomic decision as both writes.</p>
+<p>Production SQL usually uses a stable lock order and a conditional debit:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">BEGIN</span> <span class="kw">TRANSACTION</span> <span class="kw">ISOLATION</span> <span class="kw">LEVEL</span> <span class="kw">SERIALIZABLE</span>;</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">-- lock account rows in stable account_id order</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> account_id <span class="kw">FROM</span> <span class="kw">account</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="kw">WHERE</span> account_id <span class="kw">IN</span> (<span class="ch">:from</span>, <span class="ch">:to</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="kw">ORDER</span> <span class="kw">BY</span> account_id</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="cf">FOR</span> <span class="kw">UPDATE</span>;</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="kw">UPDATE</span> <span class="kw">account</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="kw">SET</span> balance <span class="op">=</span> balance <span class="op">-</span> <span class="ch">:amount</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="kw">WHERE</span> account_id <span class="op">=</span> <span class="ch">:from</span> <span class="kw">AND</span> balance <span class="op">&gt;=</span> <span class="ch">:amount</span>;</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co">-- require exactly one affected row</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="kw">UPDATE</span> <span class="kw">account</span> <span class="kw">SET</span> balance <span class="op">=</span> balance <span class="op">+</span> <span class="ch">:amount</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="kw">WHERE</span> account_id <span class="op">=</span> <span class="ch">:to</span>;</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="kw">INSERT</span> <span class="kw">INTO</span> transfer(operation_id, from_id, to_id, amount, status)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="kw">VALUES</span> (<span class="ch">:operationId</span>, <span class="ch">:from</span>, <span class="ch">:to</span>, <span class="ch">:amount</span>, <span class="st">&#39;COMMITTED&#39;</span>);</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="kw">COMMIT</span>;</span></code></pre></div>
+<p>The runnable Java model stages both balances and publishes them only on commit. Its injected failure after the debit proves that partial state is not visible.</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">Step</th>
+<th style="text-align: right;">Staged A</th>
+<th style="text-align: right;">Staged B</th>
+<th style="text-align: right;">Published A</th>
+<th style="text-align: right;">Published B</th>
+<th>Invariant</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">Start</td>
+<td style="text-align: right;">500</td>
+<td style="text-align: right;">200</td>
+<td style="text-align: right;">500</td>
+<td style="text-align: right;">200</td>
+<td>total = 700</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">Conditional debit</td>
+<td style="text-align: right;">400</td>
+<td style="text-align: right;">200</td>
+<td style="text-align: right;">500</td>
+<td style="text-align: right;">200</td>
+<td>staged A is non-negative</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">Injected failure</td>
+<td style="text-align: right;">discarded</td>
+<td style="text-align: right;">discarded</td>
+<td style="text-align: right;">500</td>
+<td style="text-align: right;">200</td>
+<td>no partial transfer</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">Successful retry</td>
+<td style="text-align: right;">400</td>
+<td style="text-align: right;">300</td>
+<td style="text-align: right;">400</td>
+<td style="text-align: right;">300</td>
+<td>total = 700</td>
+</tr>
+</tbody>
+</table>
+<p>Run <a href="ConsistencyContracts.java">the Java scenarios</a>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">javac</span> ConsistencyContracts.java</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">java</span> <span class="at">-ea</span> ConsistencyContracts</span></code></pre></div>
+<h2 id="commit-path-wal-first-pages-later">Commit path: WAL first, pages later</h2>
+<pre class="mermaid"><code>sequenceDiagram
+    participant App as Transfer service
+    participant Tx as Transaction manager
+    participant WAL as Durable WAL
+    participant Pages as Data pages
+    App-&gt;&gt;Tx: BEGIN; conditional debit; credit
+    Tx-&gt;&gt;WAL: Append row changes + commit record
+    WAL--&gt;&gt;Tx: Configured durable flush completes
+    Tx--&gt;&gt;App: COMMIT acknowledged
+    Tx-&gt;&gt;Pages: Flush dirty pages later
+    Note over WAL,Pages: Recovery replays committed changes not yet in pages</code></pre>
+<p>The write-ahead rule is an ordering rule: log records describing a data-page change must reach durable storage before that changed page. Therefore commit need not flush every table and index page. PostgreSQL documents that only WAL must be flushed to guarantee a normal durable commit; one WAL sync can cover many small concurrent commits. A checkpoint bounds recovery work by flushing dirty state and recording a restart position—it is not the commit of an ordinary user transaction.</p>
+<p><strong>Configured boundary matters.</strong> A local WAL flush can survive a process crash and still fail to survive loss of the primary disk. Synchronous replica acknowledgement can enlarge the failure domain, at latency and availability cost. An asynchronous replica can miss an already acknowledged commit if the primary is lost before shipping it.</p>
+<h2 id="example-2--timeout-after-commit-is-an-unknown-outcome">Example 2 — timeout after commit is an unknown outcome</h2>
+<p>The client can lose the response after the database commits. Treating every timeout as failure and blindly retrying duplicates the effect.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant Client
+    participant Service
+    participant DB
+    Client-&gt;&gt;Service: transfer(op-42, A, B, 100)
+    Service-&gt;&gt;DB: transaction + unique operation_id
+    DB--&gt;&gt;Service: commit succeeds
+    Service--xClient: response lost
+    Client-&gt;&gt;Service: status(op-42) or safe retry
+    Service-&gt;&gt;DB: read stored outcome
+    DB--&gt;&gt;Client: same committed receipt</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th>Attempt</th>
+<th>Durable <code>operation_id</code> row</th>
+<th>Balance effect</th>
+<th>Client observation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>First <code>op-42</code></td>
+<td>Inserted and committed with transfer</td>
+<td>Applied once</td>
+<td>Response lost</td>
+</tr>
+<tr class="even">
+<td>Status query</td>
+<td>Existing committed outcome</td>
+<td>None</td>
+<td>Learns success</td>
+</tr>
+<tr class="odd">
+<td>Retry <code>op-42</code></td>
+<td>Uniqueness conflict/read existing row</td>
+<td>None</td>
+<td>Receives same receipt</td>
+</tr>
+</tbody>
+</table>
+<p>The key and outcome must live in the same atomic boundary as the effect. A process-local set, a short-lived cache entry, or “check then insert” outside the transaction reopens the duplicate window.</p>
+<h2 id="recovery-is-not-replication">Recovery is not replication</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Failure</th>
+<th>Correct response</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Process crash; durable log intact</td>
+<td>Replay committed changes and discard/undo incomplete work according to the engine</td>
+</tr>
+<tr class="even">
+<td>Torn data-page write</td>
+<td>Use engine-specific page protection plus recovery</td>
+</tr>
+<tr class="odd">
+<td>Primary disk lost</td>
+<td>Restore/fail over from a surviving replica or backup and logs</td>
+</tr>
+<tr class="even">
+<td>Async failover before replica receives commit</td>
+<td>Acknowledged work may be lost</td>
+</tr>
+<tr class="odd">
+<td>Client response lost after commit</td>
+<td>Query by operation ID; do not blindly repeat the effect</td>
+</tr>
+</tbody>
+</table>
+<p>MySQL 8.4 documents InnoDB crash recovery as redo application followed by rollback of incomplete transactions, with purge of delete-marked records that are no longer visible. Do not generalize that exact undo/purge implementation to PostgreSQL: PostgreSQL uses tuple-version visibility and vacuum, and its recovery vocabulary and mechanics differ.</p>
+<h2 id="example-3--acid-primary-stale-replica">Example 3 — ACID primary, stale replica</h2>
+<pre class="mermaid"><code>sequenceDiagram
+    participant Client
+    participant Primary
+    participant Replica
+    Client-&gt;&gt;Primary: commit balance=400 at version 8
+    Primary--&gt;&gt;Client: success + version 8
+    Client-&gt;&gt;Replica: immediate ordinary read
+    Replica--&gt;&gt;Client: balance=500, version 7
+    Client-&gt;&gt;Primary: read requiring version &gt;= 8
+    Primary--&gt;&gt;Client: balance=400, version 8
+    Primary--&gt;&gt;Replica: later WAL replay to version 8</code></pre>
+<p>This is not a violation of primary transaction atomicity. It is a mismatch between the caller's <strong>read-your-writes</strong> requirement and an eventually consistent routing choice. PostgreSQL hot standby explicitly allows a measurable delay: a commit becomes visible to new standby snapshots only after its commit record is replayed.</p>
+<p>Useful policies include:</p>
+<ol type="1">
+<li>pin the writer's session to the primary for a bounded interval;</li>
+<li>return a commit/replay token and use a replica only after its applied position reaches that token;</li>
+<li>choose a service's documented strong-read mode where supported; or</li>
+<li>accept staleness for endpoints whose product contract permits it.</li>
+</ol>
+<p>The Java model returns a stale value from an ordinary replica read, routes a read-your-writes request to the primary while the replica lags, then returns to the replica after replay.</p>
+<h2 id="base-convergence-is-a-designed-mechanism">BASE: convergence is a designed mechanism</h2>
+<p>BASE—Basically Available, Soft state, Eventually consistent—is a design stance, not a fixed convergence deadline. Convergence requires communication to recover, updates to remain available for repair, and a deterministic conflict rule whose repeated merge reaches the same state.</p>
+<pre class="mermaid"><code>flowchart TD
+    W[&quot;Writes accepted on available replicas&quot;] --&gt; V[&quot;Versions retained&quot;]
+    V --&gt; R[&quot;Read repair or anti-entropy&quot;]
+    R --&gt; M[&quot;Deterministic merge&quot;]
+    M --&gt; C[&quot;Replicas converge&quot;]
+    M --&gt;|&quot;Non-convergent or lossy rule&quot;| X[&quot;Lost update or permanent divergence&quot;]</code></pre>
+<p>Amazon's original Dynamo paper describes object versioning with application-assisted conflict resolution and trades consistency under some failures for availability. Its concrete mechanisms include configurable replica participation, hinted handoff, and anti-entropy repair. That historical design must not be presented as a complete description of today's DynamoDB service.</p>
+<h2 id="example-4--a-convergent-cart-needs-removal-semantics">Example 4 — a convergent cart needs removal semantics</h2>
+<p>“Union both carts” preserves concurrent additions but resurrects removed items. The Java example stores, per item, the maximum observed add and remove logical versions. Merge is component-wise <code>max</code>; an item is present when <code>addVersion &gt;= removeVersion</code>, an explicit add-wins tie policy.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Event</th>
+<th>Replica A</th>
+<th>Replica B</th>
+<th>After merge</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Concurrent adds</td>
+<td>mug@1</td>
+<td>pen@1</td>
+<td><code>{mug, pen}</code></td>
+</tr>
+<tr class="even">
+<td>Remove mug</td>
+<td>remove(mug)@2</td>
+<td>still mug@1</td>
+<td><code>{pen}</code> after merge</td>
+</tr>
+<tr class="odd">
+<td>Late old add</td>
+<td>add(mug)@1</td>
+<td>remove(mug)@2</td>
+<td>mug stays removed</td>
+</tr>
+</tbody>
+</table>
+<p>Why it converges: <code>max</code> is associative, commutative, and idempotent. Reordering, duplicating, or regrouping repair messages therefore yields the same per-item state. The example is a teaching model, not a full production CRDT: a real system must define logical-clock allocation, metadata compaction, identity, and behavior for truly concurrent add/remove operations.</p>
+<h2 id="the-quorum-trap">The quorum trap</h2>
+<p><code>R + W &gt; N</code> proves read/write-set overlap only under stated membership assumptions. Linearizability additionally depends on which replicas count as a completed write, how the read chooses among versions, what happens during membership changes or sloppy quorum substitution, how concurrent writes are ordered, and how failover treats acknowledged state.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Claim</th>
+<th>Missing question</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>“<code>R + W &gt; N</code>, so reads are fresh”</td>
+<td>Does the reader select the newest causally valid version from the overlap?</td>
+</tr>
+<tr class="even">
+<td>“We wrote to any <code>W</code> reachable nodes”</td>
+<td>Are these the same membership set from which <code>R</code> is later chosen?</td>
+</tr>
+<tr class="odd">
+<td>“Last-write-wins resolves conflicts”</td>
+<td>Are clocks trustworthy, and can a valid concurrent write be discarded?</td>
+</tr>
+<tr class="even">
+<td>“Read repair eventually fixes it”</td>
+<td>What guarantee applies before repair completes?</td>
+</tr>
+</tbody>
+</table>
+<p>Never infer linearizability from one inequality. State the full read, write, membership, version, and failover protocol.</p>
+<h2 id="complexity-and-cost-boundaries">Complexity and cost boundaries</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Operation in the Java model</th>
+<th style="text-align: right;">Time</th>
+<th style="text-align: right;">Space</th>
+<th>Production cost that dominates</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Two-account transfer</td>
+<td style="text-align: right;"><code>O(1)</code></td>
+<td style="text-align: right;"><code>O(1)</code> staged state</td>
+<td>Lock/conflict waits and durable commit latency</td>
+</tr>
+<tr class="even">
+<td>Idempotency lookup</td>
+<td style="text-align: right;">expected <code>O(1)</code></td>
+<td style="text-align: right;"><code>O(k)</code> retained operation IDs</td>
+<td>Unique-index I/O and retention/partition strategy</td>
+</tr>
+<tr class="odd">
+<td>Read-your-writes routing</td>
+<td style="text-align: right;"><code>O(1)</code></td>
+<td style="text-align: right;"><code>O(1)</code> token</td>
+<td>Replica apply lag or primary load</td>
+</tr>
+<tr class="even">
+<td>Cart merge</td>
+<td style="text-align: right;"><code>O(a + b)</code></td>
+<td style="text-align: right;"><code>O(a + b)</code></td>
+<td>Version metadata, repair bandwidth, compaction</td>
+</tr>
+</tbody>
+</table>
+<p>The asymptotic notation describes the small teaching structures. It does not erase network round trips, fsync latency, conflict retries, replication lag, or storage-engine page access.</p>
+<h2 id="review-checklist">Review checklist</h2>
+<ul>
+<li>Is each invariant written and enforced inside the transaction boundary?</li>
+<li>Can the client distinguish rejection, committed success, and unknown outcome?</li>
+<li>Is the idempotency record atomic with the effect and retained long enough?</li>
+<li>Does the read path state primary/replica/cache freshness semantics?</li>
+<li>What exact failure domain does “durable” cover?</li>
+<li>Does the conflict rule converge under duplicate and reordered messages?</li>
+<li>Are quorum membership, version selection, repair, and failover specified?</li>
+<li>Are retries for serialization failures bounded, observable, and jittered?</li>
+</ul>
+<h2 id="primary-references">Primary references</h2>
+<p>Accessed 2026-10-16.</p>
+<ol type="1">
+<li><a href="https://www.postgresql.org/docs/current/wal-intro.html">PostgreSQL 18 — Write-Ahead Logging</a>: WAL-before-data ordering, redo, and group commit.</li>
+<li><a href="https://www.postgresql.org/docs/current/transaction-iso.html">PostgreSQL 18 — Transaction Isolation</a>: statement snapshots, repeatable read, serializable histories, and required retries.</li>
+<li><a href="https://www.postgresql.org/docs/current/hot-standby.html">PostgreSQL 18 — Hot Standby</a>: read-only standby visibility and replay lag.</li>
+<li><a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-recovery.html">MySQL 8.4 — InnoDB Recovery</a>: redo application, incomplete-transaction rollback, and purge.</li>
+<li><a href="https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html">Amazon DynamoDB — Read consistency</a>: eventual and strong read scopes, including GSI limitations.</li>
+<li>DeCandia et al., <a href="https://www.amazon.science/publications/dynamo-amazons-highly-available-key-value-store">Dynamo: Amazon's Highly Available Key-value Store</a>, SOSP 2007: versioning, availability trade-offs, and application-assisted conflict resolution.</li>
+</ol>
+<h2 id="source-provenance-and-verification">Source provenance and verification</h2>
+<ul>
+<li>Confirmed Library source: <code>database_internals_caching_java_master_guide.md</code></li>
+<li>Library file ID: <code>libfile_969515775294819195d90fe08e46b7be</code></li>
+<li>Backing file ID: <code>file_00000000dadc81f59cf6b82ca990a48a</code></li>
+<li>Version: <code>1</code></li>
+<li>Whole-file SHA-256: <code>ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a</code></li>
+<li>Processed bounded range: source lines <strong>62–133</strong>, “ACID, BASE, and the misleading SQL/NoSQL split”</li>
+<li>Deliberate continuation: Section 2, “B+ Trees: why indexes are shallow,” begins at source line 134.</li>
+</ul>
+<p>Validation commands:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> build_reader.py</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">node</span> validate_reader.mjs</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ex">javac</span> ConsistencyContracts.java</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="ex">java</span> <span class="at">-ea</span> ConsistencyContracts</span></code></pre></div>
+<p>The Markdown is canonical. <code>guide.html</code> is generated deterministically and embeds the exact Markdown bytes for synchronization checks.</p>
+</main></div>
+<script id="source-markdown" type="application/octet-stream">IyBEYXRhYmFzZSBJbnRlcm5hbHMsIENhY2hpbmcsIGFuZCBKYXZhIENvbm5lY3Rpdml0eQoKPiAqKkluY3JlbWVudGFsIGNhbm9uaWNhbCBndWlkZS4qKiBUaGlzIHB1YmxpY2F0aW9uIGRlZXBlbnMgc291cmNlIFNlY3Rpb24gMSBvbmx5OiAqKkFDSUQsIEJBU0UsIGFuZCB0aGUgbWlzbGVhZGluZyBTUUwvTm9TUUwgc3BsaXQqKi4gTGF0ZXIgc291cmNlIHNlY3Rpb25zIGFyZSBkZWxpYmVyYXRlbHkgcXVldWVkIHJhdGhlciB0aGFuIHN1bW1hcml6ZWQgcHJlbWF0dXJlbHkuCgojIyBMZWFybmluZyBjb250cmFjdAoKQWZ0ZXIgdGhpcyBzZWN0aW9uIHlvdSBzaG91bGQgYmUgYWJsZSB0bzoKCjEuIHN0YXRlIGVhY2ggQUNJRCBwcm9wZXJ0eSB3aXRob3V0IHR1cm5pbmcgaXQgaW50byBhIHByb21pc2UgYWJvdXQgcmVwbGljYXMsIGNhY2hlcywgb3IgZXh0ZXJuYWwgc2lkZSBlZmZlY3RzOwoyLiBkaXN0aW5ndWlzaCBzZXJpYWxpemFiaWxpdHksIHN0cmljdCBzZXJpYWxpemFiaWxpdHksIGxpbmVhcml6YWJpbGl0eSwgcmVhZC15b3VyLXdyaXRlcywgYW5kIGV2ZW50dWFsIGNvbnZlcmdlbmNlOwozLiBleHBsYWluIHdoeSBhIGNvbW1pdCBhY2tub3dsZWRnZW1lbnQgZGVwZW5kcyBvbiB0aGUgY29uZmlndXJlZCBsb2cvcmVwbGljYXRpb24gZHVyYWJpbGl0eSBib3VuZGFyeSwgbm90IG9uIGV2ZXJ5IGRhdGEgcGFnZSBiZWluZyBmbHVzaGVkOwo0LiBkZXNpZ24gYSB0cmFuc2ZlciB0aGF0IHByZXNlcnZlcyBhbiBpbnZhcmlhbnQgYW5kIHN1cnZpdmVzIGFuIHVua25vd24gY29tbWl0IG91dGNvbWU7IGFuZAo1LiBleHBsYWluIHdoeSBgUiArIFcgPiBOYCBpcyBub3QsIGJ5IGl0c2VsZiwgYSBwcm9vZiBvZiBsaW5lYXJpemFiaWxpdHkuCgojIyMgUmVxdWlyZW1lbnRzIGJlZm9yZSBwcm9kdWN0IG5hbWVzCgpXcml0ZSB0aGUgY29udHJhY3QgYmVmb3JlIHNlbGVjdGluZyBhbiBlbmdpbmU6Cgp8IFF1ZXN0aW9uIHwgRXhhbXBsZSByZXF1aXJlbWVudCB8IE1lY2hhbmlzbSB0byBpbnZlc3RpZ2F0ZSB8CnwtLS18LS0tfC0tLXwKfCBXaGF0IG11c3QgYmUgYXRvbWljPyB8IERlYml0IEEgYW5kIGNyZWRpdCBCIGNvbW1pdCB0b2dldGhlciB8IE9uZSBkYXRhYmFzZSB0cmFuc2FjdGlvbjsgb3RoZXJ3aXNlIGFuIGV4cGxpY2l0IGRpc3RyaWJ1dGVkIHByb3RvY29sIHwKfCBXaGF0IGludmFyaWFudCBtdXN0IHN1cnZpdmU/IHwgYGJhbGFuY2UgPj0gMGAgYW5kIHRvdGFsIG1vbmV5IGlzIGNvbnNlcnZlZCB8IENvbnN0cmFpbnQgcGx1cyBjb25kaXRpb25hbCB3cml0ZSBpbnNpZGUgdGhlIHRyYW5zYWN0aW9uIHwKfCBXaGljaCBoaXN0b3JpZXMgYXJlIGFsbG93ZWQ/IHwgQ29uY3VycmVudCB0cmFuc2ZlcnMgYmVoYXZlIGxpa2Ugc29tZSBzZXJpYWwgb3JkZXIgfCBTZXJpYWxpemFibGUgdHJhbnNhY3Rpb24gb3IgZXhwbGljaXQgbG9ja2luZy92YWxpZGF0aW9uIHwKfCBIb3cgZnJlc2ggbXVzdCBhIHJlYWQgYmU/IHwgVGhlIHdyaXRlciBtdXN0IGltbWVkaWF0ZWx5IHNlZSBpdHMgb3duIGNvbW1pdHRlZCB0cmFuc2ZlciB8IFByaW1hcnkvc2Vzc2lvbiByb3V0aW5nLCByZXBsYXkgdG9rZW4sIG9yIGEgZG9jdW1lbnRlZCBzdHJvbmctcmVhZCBvcHRpb24gfAp8IFdoYXQgZmFpbHVyZSBtdXN0IGFuIGFja25vd2xlZGdlbWVudCBzdXJ2aXZlPyB8IFByb2Nlc3MgY3Jhc2ggYW5kIGxvc3Mgb2Ygb25lIG5vZGUgfCBEdXJhYmxlIFdBTCBwbHVzIHRoZSByZXF1aXJlZCByZXBsaWNhIGFja25vd2xlZGdlbWVudCBwb2xpY3kgfAp8IFdoYXQgaGFwcGVucyBhZnRlciBhIHRpbWVvdXQ/IHwgUmV0cnlpbmcgYSB0cmFuc2ZlciBtdXN0IG5vdCBhcHBseSBpdCB0d2ljZSB8IER1cmFibGUgaWRlbXBvdGVuY3kga2V5IGFuZCBzdG9yZWQgb3V0Y29tZSB8CgpUaGUgd29yZHMgKipTUUwqKiwgKipOb1NRTCoqLCAqKkFDSUQqKiwgYW5kICoqQkFTRSoqIGRvIG5vdCBhbnN3ZXIgdGhlc2UgcXVlc3Rpb25zLiBBIHJlbGF0aW9uYWwgcHJpbWFyeSBtYXkgZXhwb3NlIHN0YWxlIGFzeW5jaHJvbm91cy1yZXBsaWNhIHJlYWRzLiBBIGtleS12YWx1ZSBzZXJ2aWNlIG1heSBwcm92aWRlIGF0b21pYyB0cmFuc2FjdGlvbnMgYW5kIG9wdGlvbmFsIHN0cm9uZ2x5IGNvbnNpc3RlbnQgcmVhZHMuIER5bmFtb0RCLCBmb3IgZXhhbXBsZSwgb2ZmZXJzIHN0cm9uZyByZWFkcyBvbiB0YWJsZXMgYW5kIGxvY2FsIHNlY29uZGFyeSBpbmRleGVzLCB3aGlsZSBnbG9iYWwgc2Vjb25kYXJ5IGluZGV4ZXMgcmVtYWluIGV2ZW50dWFsbHkgY29uc2lzdGVudC4KCiMjIEFDSUQ6IHByb3BlcnR5LCBtZWNoYW5pc20sIGFuZCBib3VuZGFyeQoKfCBQcm9wZXJ0eSB8IFR5cGljYWwgbWVjaGFuaXNtIHwgSXQgZG9lcyAqKm5vdCoqIHByb21pc2UgfAp8LS0tfC0tLXwtLS18CnwgQXRvbWljaXR5IHwgQ29tbWl0IHJlY29yZCwgcm9sbGJhY2svdW5kbywgdmVyc2lvbiB2aXNpYmlsaXR5LCByZWNvdmVyeSB8IEF0b21pY2l0eSBhY3Jvc3MgU1FMICsgUmVkaXMgKyBlbWFpbCB3aXRob3V0IGFub3RoZXIgcHJvdG9jb2wgfAp8IENvbnNpc3RlbmN5IHwgQ29uc3RyYWludHMgYW5kIGNvcnJlY3RseSBkZXNpZ25lZCB0cmFuc2FjdGlvbnMgcHJlc2VydmUgaW52YXJpYW50cyB8IEV2ZXJ5IHJlcGxpY2Egb3IgY2FjaGUgaW1tZWRpYXRlbHkgc2VlcyB0aGUgY29tbWl0IHwKfCBJc29sYXRpb24gfCBMb2Nrcywgc25hcHNob3RzLCBwcmVkaWNhdGUgcHJvdGVjdGlvbiwgY29uZmxpY3QgdmFsaWRhdGlvbiB8IFNlcmlhbGl6YWJsZSBleGVjdXRpb24gbWVyZWx5IGJlY2F1c2UgY29kZSB1c2VzIGBCRUdJTmAgfAp8IER1cmFiaWxpdHkgfCBXQUwvcmVkbyByZWFjaGVzIHRoZSBjb25maWd1cmVkIGR1cmFibGUgYm91bmRhcnkgYmVmb3JlIGFja25vd2xlZGdlbWVudCB8IFN1cnZpdmFsIGJleW9uZCB0aGUgY2hvc2VuIG1lZGlhL25vZGUvcmVnaW9uIGZhaWx1cmUgZG9tYWluIHwKCioqQUNJRCBjb25zaXN0ZW5jeSoqIGlzIGFwcGxpY2F0aW9uIHZhbGlkaXR5OiBhIHZhbGlkIHN0YXRlIHRyYW5zaXRpb25zIHRvIGFub3RoZXIgdmFsaWQgc3RhdGUuIFRoZSBhcHBsaWNhdGlvbiBzdGlsbCBoYXMgdG8gc3RhdGUgdGhlIGludmFyaWFudC4gQSBkYXRhYmFzZSBjYW5ub3QgaW5mZXIgdGhhdCB0d28gbGVkZ2VyIGVudHJpZXMgbXVzdCBuZXQgdG8gemVyby4KCioqU2VyaWFsaXphYmlsaXR5KiogbWVhbnMgdGhlIGNvbW1pdHRlZCB0cmFuc2FjdGlvbiBoaXN0b3J5IGlzIGVxdWl2YWxlbnQgdG8gc29tZSBzZXJpYWwgb3JkZXIuICoqU3RyaWN0IHNlcmlhbGl6YWJpbGl0eSoqIGFkZGl0aW9uYWxseSByZXNwZWN0cyByZWFsLXRpbWUgb3JkZXIuICoqTGluZWFyaXphYmlsaXR5KiogaXMgYSBwZXItb3BlcmF0aW9uIHJlYWwtdGltZSBndWFyYW50ZWU6IGVhY2ggb3BlcmF0aW9uIGFwcGVhcnMgdG8gdGFrZSBlZmZlY3QgYXQgb25lIGluc3RhbnQgYmV0d2VlbiBpbnZvY2F0aW9uIGFuZCByZXNwb25zZS4gQSB0cmFuc2FjdGlvbiBjYW4gYmUgc2VyaWFsaXphYmxlIHdpdGhvdXQgYSBsYWdnaW5nIHJlcGxpY2Egb2ZmZXJpbmcgbGluZWFyaXphYmxlIHJlYWRzLgoKUG9zdGdyZVNRTCdzIGN1cnJlbnQgZG9jdW1lbnRhdGlvbiBtYWtlcyB0aGUgaXNvbGF0aW9uIGJvdW5kYXJ5IGNvbmNyZXRlOiBgUkVBRCBDT01NSVRURURgIHRha2VzIGEgbmV3IHNuYXBzaG90IGZvciBlYWNoIHN0YXRlbWVudDsgYFJFUEVBVEFCTEUgUkVBRGAga2VlcHMgYSBzdGFibGUgdHJhbnNhY3Rpb24gc25hcHNob3QgYnV0IGNhbiBzdGlsbCBwZXJtaXQgc2VyaWFsaXphdGlvbiBhbm9tYWxpZXM7IGBTRVJJQUxJWkFCTEVgIGRldGVjdHMgaGlzdG9yaWVzIHRoYXQgY2Fubm90IG1hdGNoIGFueSBzZXJpYWwgZXhlY3V0aW9uIGFuZCByZXF1aXJlcyBjbGllbnRzIHRvIHJldHJ5IHJlamVjdGVkIHRyYW5zYWN0aW9ucy4KCiMjIEV4YW1wbGUgMSDigJQgYXRvbWljIHRyYW5zZmVyIHdpdGggYW4gaW52YXJpYW50CgoqKlJlcXVpcmVtZW50LioqIFRyYW5zZmVyIDEwMCBmcm9tIEEgdG8gQiwgbmV2ZXIgbGV0IEEgYmVjb21lIG5lZ2F0aXZlLCBhbmQgY29uc2VydmUgdGhlIHRvdGFsLiBUaGUgYmFsYW5jZSBjaGVjayBtdXN0IG5vdCBjb21lIGZyb20gYSBjYWNoZSBiZWNhdXNlIGl0IG11c3QgcGFydGljaXBhdGUgaW4gdGhlIHNhbWUgYXRvbWljIGRlY2lzaW9uIGFzIGJvdGggd3JpdGVzLgoKUHJvZHVjdGlvbiBTUUwgdXN1YWxseSB1c2VzIGEgc3RhYmxlIGxvY2sgb3JkZXIgYW5kIGEgY29uZGl0aW9uYWwgZGViaXQ6CgpgYGBzcWwKQkVHSU4gVFJBTlNBQ1RJT04gSVNPTEFUSU9OIExFVkVMIFNFUklBTElaQUJMRTsKLS0gbG9jayBhY2NvdW50IHJvd3MgaW4gc3RhYmxlIGFjY291bnRfaWQgb3JkZXIKU0VMRUNUIGFjY291bnRfaWQgRlJPTSBhY2NvdW50CldIRVJFIGFjY291bnRfaWQgSU4gKDpmcm9tLCA6dG8pCk9SREVSIEJZIGFjY291bnRfaWQKRk9SIFVQREFURTsKClVQREFURSBhY2NvdW50ClNFVCBiYWxhbmNlID0gYmFsYW5jZSAtIDphbW91bnQKV0hFUkUgYWNjb3VudF9pZCA9IDpmcm9tIEFORCBiYWxhbmNlID49IDphbW91bnQ7Ci0tIHJlcXVpcmUgZXhhY3RseSBvbmUgYWZmZWN0ZWQgcm93CgpVUERBVEUgYWNjb3VudCBTRVQgYmFsYW5jZSA9IGJhbGFuY2UgKyA6YW1vdW50CldIRVJFIGFjY291bnRfaWQgPSA6dG87CklOU0VSVCBJTlRPIHRyYW5zZmVyKG9wZXJhdGlvbl9pZCwgZnJvbV9pZCwgdG9faWQsIGFtb3VudCwgc3RhdHVzKQpWQUxVRVMgKDpvcGVyYXRpb25JZCwgOmZyb20sIDp0bywgOmFtb3VudCwgJ0NPTU1JVFRFRCcpOwpDT01NSVQ7CmBgYAoKVGhlIHJ1bm5hYmxlIEphdmEgbW9kZWwgc3RhZ2VzIGJvdGggYmFsYW5jZXMgYW5kIHB1Ymxpc2hlcyB0aGVtIG9ubHkgb24gY29tbWl0LiBJdHMgaW5qZWN0ZWQgZmFpbHVyZSBhZnRlciB0aGUgZGViaXQgcHJvdmVzIHRoYXQgcGFydGlhbCBzdGF0ZSBpcyBub3QgdmlzaWJsZS4KCnwgU3RlcCB8IFN0YWdlZCBBIHwgU3RhZ2VkIEIgfCBQdWJsaXNoZWQgQSB8IFB1Ymxpc2hlZCBCIHwgSW52YXJpYW50IHwKfC0tLTp8LS0tOnwtLS06fC0tLTp8LS0tOnwtLS18CnwgU3RhcnQgfCA1MDAgfCAyMDAgfCA1MDAgfCAyMDAgfCB0b3RhbCA9IDcwMCB8CnwgQ29uZGl0aW9uYWwgZGViaXQgfCA0MDAgfCAyMDAgfCA1MDAgfCAyMDAgfCBzdGFnZWQgQSBpcyBub24tbmVnYXRpdmUgfAp8IEluamVjdGVkIGZhaWx1cmUgfCBkaXNjYXJkZWQgfCBkaXNjYXJkZWQgfCA1MDAgfCAyMDAgfCBubyBwYXJ0aWFsIHRyYW5zZmVyIHwKfCBTdWNjZXNzZnVsIHJldHJ5IHwgNDAwIHwgMzAwIHwgNDAwIHwgMzAwIHwgdG90YWwgPSA3MDAgfAoKUnVuIFt0aGUgSmF2YSBzY2VuYXJpb3NdKENvbnNpc3RlbmN5Q29udHJhY3RzLmphdmEpOgoKYGBgYmFzaApqYXZhYyBDb25zaXN0ZW5jeUNvbnRyYWN0cy5qYXZhCmphdmEgLWVhIENvbnNpc3RlbmN5Q29udHJhY3RzCmBgYAoKIyMgQ29tbWl0IHBhdGg6IFdBTCBmaXJzdCwgcGFnZXMgbGF0ZXIKCmBgYG1lcm1haWQKc2VxdWVuY2VEaWFncmFtCiAgICBwYXJ0aWNpcGFudCBBcHAgYXMgVHJhbnNmZXIgc2VydmljZQogICAgcGFydGljaXBhbnQgVHggYXMgVHJhbnNhY3Rpb24gbWFuYWdlcgogICAgcGFydGljaXBhbnQgV0FMIGFzIER1cmFibGUgV0FMCiAgICBwYXJ0aWNpcGFudCBQYWdlcyBhcyBEYXRhIHBhZ2VzCiAgICBBcHAtPj5UeDogQkVHSU47IGNvbmRpdGlvbmFsIGRlYml0OyBjcmVkaXQKICAgIFR4LT4+V0FMOiBBcHBlbmQgcm93IGNoYW5nZXMgKyBjb21taXQgcmVjb3JkCiAgICBXQUwtLT4+VHg6IENvbmZpZ3VyZWQgZHVyYWJsZSBmbHVzaCBjb21wbGV0ZXMKICAgIFR4LS0+PkFwcDogQ09NTUlUIGFja25vd2xlZGdlZAogICAgVHgtPj5QYWdlczogRmx1c2ggZGlydHkgcGFnZXMgbGF0ZXIKICAgIE5vdGUgb3ZlciBXQUwsUGFnZXM6IFJlY292ZXJ5IHJlcGxheXMgY29tbWl0dGVkIGNoYW5nZXMgbm90IHlldCBpbiBwYWdlcwpgYGAKClRoZSB3cml0ZS1haGVhZCBydWxlIGlzIGFuIG9yZGVyaW5nIHJ1bGU6IGxvZyByZWNvcmRzIGRlc2NyaWJpbmcgYSBkYXRhLXBhZ2UgY2hhbmdlIG11c3QgcmVhY2ggZHVyYWJsZSBzdG9yYWdlIGJlZm9yZSB0aGF0IGNoYW5nZWQgcGFnZS4gVGhlcmVmb3JlIGNvbW1pdCBuZWVkIG5vdCBmbHVzaCBldmVyeSB0YWJsZSBhbmQgaW5kZXggcGFnZS4gUG9zdGdyZVNRTCBkb2N1bWVudHMgdGhhdCBvbmx5IFdBTCBtdXN0IGJlIGZsdXNoZWQgdG8gZ3VhcmFudGVlIGEgbm9ybWFsIGR1cmFibGUgY29tbWl0OyBvbmUgV0FMIHN5bmMgY2FuIGNvdmVyIG1hbnkgc21hbGwgY29uY3VycmVudCBjb21taXRzLiBBIGNoZWNrcG9pbnQgYm91bmRzIHJlY292ZXJ5IHdvcmsgYnkgZmx1c2hpbmcgZGlydHkgc3RhdGUgYW5kIHJlY29yZGluZyBhIHJlc3RhcnQgcG9zaXRpb27igJRpdCBpcyBub3QgdGhlIGNvbW1pdCBvZiBhbiBvcmRpbmFyeSB1c2VyIHRyYW5zYWN0aW9uLgoKKipDb25maWd1cmVkIGJvdW5kYXJ5IG1hdHRlcnMuKiogQSBsb2NhbCBXQUwgZmx1c2ggY2FuIHN1cnZpdmUgYSBwcm9jZXNzIGNyYXNoIGFuZCBzdGlsbCBmYWlsIHRvIHN1cnZpdmUgbG9zcyBvZiB0aGUgcHJpbWFyeSBkaXNrLiBTeW5jaHJvbm91cyByZXBsaWNhIGFja25vd2xlZGdlbWVudCBjYW4gZW5sYXJnZSB0aGUgZmFpbHVyZSBkb21haW4sIGF0IGxhdGVuY3kgYW5kIGF2YWlsYWJpbGl0eSBjb3N0LiBBbiBhc3luY2hyb25vdXMgcmVwbGljYSBjYW4gbWlzcyBhbiBhbHJlYWR5IGFja25vd2xlZGdlZCBjb21taXQgaWYgdGhlIHByaW1hcnkgaXMgbG9zdCBiZWZvcmUgc2hpcHBpbmcgaXQuCgojIyBFeGFtcGxlIDIg4oCUIHRpbWVvdXQgYWZ0ZXIgY29tbWl0IGlzIGFuIHVua25vd24gb3V0Y29tZQoKVGhlIGNsaWVudCBjYW4gbG9zZSB0aGUgcmVzcG9uc2UgYWZ0ZXIgdGhlIGRhdGFiYXNlIGNvbW1pdHMuIFRyZWF0aW5nIGV2ZXJ5IHRpbWVvdXQgYXMgZmFpbHVyZSBhbmQgYmxpbmRseSByZXRyeWluZyBkdXBsaWNhdGVzIHRoZSBlZmZlY3QuCgpgYGBtZXJtYWlkCnNlcXVlbmNlRGlhZ3JhbQogICAgcGFydGljaXBhbnQgQ2xpZW50CiAgICBwYXJ0aWNpcGFudCBTZXJ2aWNlCiAgICBwYXJ0aWNpcGFudCBEQgogICAgQ2xpZW50LT4+U2VydmljZTogdHJhbnNmZXIob3AtNDIsIEEsIEIsIDEwMCkKICAgIFNlcnZpY2UtPj5EQjogdHJhbnNhY3Rpb24gKyB1bmlxdWUgb3BlcmF0aW9uX2lkCiAgICBEQi0tPj5TZXJ2aWNlOiBjb21taXQgc3VjY2VlZHMKICAgIFNlcnZpY2UtLXhDbGllbnQ6IHJlc3BvbnNlIGxvc3QKICAgIENsaWVudC0+PlNlcnZpY2U6IHN0YXR1cyhvcC00Mikgb3Igc2FmZSByZXRyeQogICAgU2VydmljZS0+PkRCOiByZWFkIHN0b3JlZCBvdXRjb21lCiAgICBEQi0tPj5DbGllbnQ6IHNhbWUgY29tbWl0dGVkIHJlY2VpcHQKYGBgCgp8IEF0dGVtcHQgfCBEdXJhYmxlIGBvcGVyYXRpb25faWRgIHJvdyB8IEJhbGFuY2UgZWZmZWN0IHwgQ2xpZW50IG9ic2VydmF0aW9uIHwKfC0tLXwtLS18LS0tfC0tLXwKfCBGaXJzdCBgb3AtNDJgIHwgSW5zZXJ0ZWQgYW5kIGNvbW1pdHRlZCB3aXRoIHRyYW5zZmVyIHwgQXBwbGllZCBvbmNlIHwgUmVzcG9uc2UgbG9zdCB8CnwgU3RhdHVzIHF1ZXJ5IHwgRXhpc3RpbmcgY29tbWl0dGVkIG91dGNvbWUgfCBOb25lIHwgTGVhcm5zIHN1Y2Nlc3MgfAp8IFJldHJ5IGBvcC00MmAgfCBVbmlxdWVuZXNzIGNvbmZsaWN0L3JlYWQgZXhpc3Rpbmcgcm93IHwgTm9uZSB8IFJlY2VpdmVzIHNhbWUgcmVjZWlwdCB8CgpUaGUga2V5IGFuZCBvdXRjb21lIG11c3QgbGl2ZSBpbiB0aGUgc2FtZSBhdG9taWMgYm91bmRhcnkgYXMgdGhlIGVmZmVjdC4gQSBwcm9jZXNzLWxvY2FsIHNldCwgYSBzaG9ydC1saXZlZCBjYWNoZSBlbnRyeSwgb3Ig4oCcY2hlY2sgdGhlbiBpbnNlcnTigJ0gb3V0c2lkZSB0aGUgdHJhbnNhY3Rpb24gcmVvcGVucyB0aGUgZHVwbGljYXRlIHdpbmRvdy4KCiMjIFJlY292ZXJ5IGlzIG5vdCByZXBsaWNhdGlvbgoKfCBGYWlsdXJlIHwgQ29ycmVjdCByZXNwb25zZSB8CnwtLS18LS0tfAp8IFByb2Nlc3MgY3Jhc2g7IGR1cmFibGUgbG9nIGludGFjdCB8IFJlcGxheSBjb21taXR0ZWQgY2hhbmdlcyBhbmQgZGlzY2FyZC91bmRvIGluY29tcGxldGUgd29yayBhY2NvcmRpbmcgdG8gdGhlIGVuZ2luZSB8CnwgVG9ybiBkYXRhLXBhZ2Ugd3JpdGUgfCBVc2UgZW5naW5lLXNwZWNpZmljIHBhZ2UgcHJvdGVjdGlvbiBwbHVzIHJlY292ZXJ5IHwKfCBQcmltYXJ5IGRpc2sgbG9zdCB8IFJlc3RvcmUvZmFpbCBvdmVyIGZyb20gYSBzdXJ2aXZpbmcgcmVwbGljYSBvciBiYWNrdXAgYW5kIGxvZ3MgfAp8IEFzeW5jIGZhaWxvdmVyIGJlZm9yZSByZXBsaWNhIHJlY2VpdmVzIGNvbW1pdCB8IEFja25vd2xlZGdlZCB3b3JrIG1heSBiZSBsb3N0IHwKfCBDbGllbnQgcmVzcG9uc2UgbG9zdCBhZnRlciBjb21taXQgfCBRdWVyeSBieSBvcGVyYXRpb24gSUQ7IGRvIG5vdCBibGluZGx5IHJlcGVhdCB0aGUgZWZmZWN0IHwKCk15U1FMIDguNCBkb2N1bWVudHMgSW5ub0RCIGNyYXNoIHJlY292ZXJ5IGFzIHJlZG8gYXBwbGljYXRpb24gZm9sbG93ZWQgYnkgcm9sbGJhY2sgb2YgaW5jb21wbGV0ZSB0cmFuc2FjdGlvbnMsIHdpdGggcHVyZ2Ugb2YgZGVsZXRlLW1hcmtlZCByZWNvcmRzIHRoYXQgYXJlIG5vIGxvbmdlciB2aXNpYmxlLiBEbyBub3QgZ2VuZXJhbGl6ZSB0aGF0IGV4YWN0IHVuZG8vcHVyZ2UgaW1wbGVtZW50YXRpb24gdG8gUG9zdGdyZVNRTDogUG9zdGdyZVNRTCB1c2VzIHR1cGxlLXZlcnNpb24gdmlzaWJpbGl0eSBhbmQgdmFjdXVtLCBhbmQgaXRzIHJlY292ZXJ5IHZvY2FidWxhcnkgYW5kIG1lY2hhbmljcyBkaWZmZXIuCgojIyBFeGFtcGxlIDMg4oCUIEFDSUQgcHJpbWFyeSwgc3RhbGUgcmVwbGljYQoKYGBgbWVybWFpZApzZXF1ZW5jZURpYWdyYW0KICAgIHBhcnRpY2lwYW50IENsaWVudAogICAgcGFydGljaXBhbnQgUHJpbWFyeQogICAgcGFydGljaXBhbnQgUmVwbGljYQogICAgQ2xpZW50LT4+UHJpbWFyeTogY29tbWl0IGJhbGFuY2U9NDAwIGF0IHZlcnNpb24gOAogICAgUHJpbWFyeS0tPj5DbGllbnQ6IHN1Y2Nlc3MgKyB2ZXJzaW9uIDgKICAgIENsaWVudC0+PlJlcGxpY2E6IGltbWVkaWF0ZSBvcmRpbmFyeSByZWFkCiAgICBSZXBsaWNhLS0+PkNsaWVudDogYmFsYW5jZT01MDAsIHZlcnNpb24gNwogICAgQ2xpZW50LT4+UHJpbWFyeTogcmVhZCByZXF1aXJpbmcgdmVyc2lvbiA+PSA4CiAgICBQcmltYXJ5LS0+PkNsaWVudDogYmFsYW5jZT00MDAsIHZlcnNpb24gOAogICAgUHJpbWFyeS0tPj5SZXBsaWNhOiBsYXRlciBXQUwgcmVwbGF5IHRvIHZlcnNpb24gOApgYGAKClRoaXMgaXMgbm90IGEgdmlvbGF0aW9uIG9mIHByaW1hcnkgdHJhbnNhY3Rpb24gYXRvbWljaXR5LiBJdCBpcyBhIG1pc21hdGNoIGJldHdlZW4gdGhlIGNhbGxlcidzICoqcmVhZC15b3VyLXdyaXRlcyoqIHJlcXVpcmVtZW50IGFuZCBhbiBldmVudHVhbGx5IGNvbnNpc3RlbnQgcm91dGluZyBjaG9pY2UuIFBvc3RncmVTUUwgaG90IHN0YW5kYnkgZXhwbGljaXRseSBhbGxvd3MgYSBtZWFzdXJhYmxlIGRlbGF5OiBhIGNvbW1pdCBiZWNvbWVzIHZpc2libGUgdG8gbmV3IHN0YW5kYnkgc25hcHNob3RzIG9ubHkgYWZ0ZXIgaXRzIGNvbW1pdCByZWNvcmQgaXMgcmVwbGF5ZWQuCgpVc2VmdWwgcG9saWNpZXMgaW5jbHVkZToKCjEuIHBpbiB0aGUgd3JpdGVyJ3Mgc2Vzc2lvbiB0byB0aGUgcHJpbWFyeSBmb3IgYSBib3VuZGVkIGludGVydmFsOwoyLiByZXR1cm4gYSBjb21taXQvcmVwbGF5IHRva2VuIGFuZCB1c2UgYSByZXBsaWNhIG9ubHkgYWZ0ZXIgaXRzIGFwcGxpZWQgcG9zaXRpb24gcmVhY2hlcyB0aGF0IHRva2VuOwozLiBjaG9vc2UgYSBzZXJ2aWNlJ3MgZG9jdW1lbnRlZCBzdHJvbmctcmVhZCBtb2RlIHdoZXJlIHN1cHBvcnRlZDsgb3IKNC4gYWNjZXB0IHN0YWxlbmVzcyBmb3IgZW5kcG9pbnRzIHdob3NlIHByb2R1Y3QgY29udHJhY3QgcGVybWl0cyBpdC4KClRoZSBKYXZhIG1vZGVsIHJldHVybnMgYSBzdGFsZSB2YWx1ZSBmcm9tIGFuIG9yZGluYXJ5IHJlcGxpY2EgcmVhZCwgcm91dGVzIGEgcmVhZC15b3VyLXdyaXRlcyByZXF1ZXN0IHRvIHRoZSBwcmltYXJ5IHdoaWxlIHRoZSByZXBsaWNhIGxhZ3MsIHRoZW4gcmV0dXJucyB0byB0aGUgcmVwbGljYSBhZnRlciByZXBsYXkuCgojIyBCQVNFOiBjb252ZXJnZW5jZSBpcyBhIGRlc2lnbmVkIG1lY2hhbmlzbQoKQkFTReKAlEJhc2ljYWxseSBBdmFpbGFibGUsIFNvZnQgc3RhdGUsIEV2ZW50dWFsbHkgY29uc2lzdGVudOKAlGlzIGEgZGVzaWduIHN0YW5jZSwgbm90IGEgZml4ZWQgY29udmVyZ2VuY2UgZGVhZGxpbmUuIENvbnZlcmdlbmNlIHJlcXVpcmVzIGNvbW11bmljYXRpb24gdG8gcmVjb3ZlciwgdXBkYXRlcyB0byByZW1haW4gYXZhaWxhYmxlIGZvciByZXBhaXIsIGFuZCBhIGRldGVybWluaXN0aWMgY29uZmxpY3QgcnVsZSB3aG9zZSByZXBlYXRlZCBtZXJnZSByZWFjaGVzIHRoZSBzYW1lIHN0YXRlLgoKYGBgbWVybWFpZApmbG93Y2hhcnQgVEQKICAgIFdbIldyaXRlcyBhY2NlcHRlZCBvbiBhdmFpbGFibGUgcmVwbGljYXMiXSAtLT4gVlsiVmVyc2lvbnMgcmV0YWluZWQiXQogICAgViAtLT4gUlsiUmVhZCByZXBhaXIgb3IgYW50aS1lbnRyb3B5Il0KICAgIFIgLS0+IE1bIkRldGVybWluaXN0aWMgbWVyZ2UiXQogICAgTSAtLT4gQ1siUmVwbGljYXMgY29udmVyZ2UiXQogICAgTSAtLT58Ik5vbi1jb252ZXJnZW50IG9yIGxvc3N5IHJ1bGUifCBYWyJMb3N0IHVwZGF0ZSBvciBwZXJtYW5lbnQgZGl2ZXJnZW5jZSJdCmBgYAoKQW1hem9uJ3Mgb3JpZ2luYWwgRHluYW1vIHBhcGVyIGRlc2NyaWJlcyBvYmplY3QgdmVyc2lvbmluZyB3aXRoIGFwcGxpY2F0aW9uLWFzc2lzdGVkIGNvbmZsaWN0IHJlc29sdXRpb24gYW5kIHRyYWRlcyBjb25zaXN0ZW5jeSB1bmRlciBzb21lIGZhaWx1cmVzIGZvciBhdmFpbGFiaWxpdHkuIEl0cyBjb25jcmV0ZSBtZWNoYW5pc21zIGluY2x1ZGUgY29uZmlndXJhYmxlIHJlcGxpY2EgcGFydGljaXBhdGlvbiwgaGludGVkIGhhbmRvZmYsIGFuZCBhbnRpLWVudHJvcHkgcmVwYWlyLiBUaGF0IGhpc3RvcmljYWwgZGVzaWduIG11c3Qgbm90IGJlIHByZXNlbnRlZCBhcyBhIGNvbXBsZXRlIGRlc2NyaXB0aW9uIG9mIHRvZGF5J3MgRHluYW1vREIgc2VydmljZS4KCiMjIEV4YW1wbGUgNCDigJQgYSBjb252ZXJnZW50IGNhcnQgbmVlZHMgcmVtb3ZhbCBzZW1hbnRpY3MKCuKAnFVuaW9uIGJvdGggY2FydHPigJ0gcHJlc2VydmVzIGNvbmN1cnJlbnQgYWRkaXRpb25zIGJ1dCByZXN1cnJlY3RzIHJlbW92ZWQgaXRlbXMuIFRoZSBKYXZhIGV4YW1wbGUgc3RvcmVzLCBwZXIgaXRlbSwgdGhlIG1heGltdW0gb2JzZXJ2ZWQgYWRkIGFuZCByZW1vdmUgbG9naWNhbCB2ZXJzaW9ucy4gTWVyZ2UgaXMgY29tcG9uZW50LXdpc2UgYG1heGA7IGFuIGl0ZW0gaXMgcHJlc2VudCB3aGVuIGBhZGRWZXJzaW9uID49IHJlbW92ZVZlcnNpb25gLCBhbiBleHBsaWNpdCBhZGQtd2lucyB0aWUgcG9saWN5LgoKfCBFdmVudCB8IFJlcGxpY2EgQSB8IFJlcGxpY2EgQiB8IEFmdGVyIG1lcmdlIHwKfC0tLXwtLS18LS0tfC0tLXwKfCBDb25jdXJyZW50IGFkZHMgfCBtdWdAMSB8IHBlbkAxIHwgYHttdWcsIHBlbn1gIHwKfCBSZW1vdmUgbXVnIHwgcmVtb3ZlKG11ZylAMiB8IHN0aWxsIG11Z0AxIHwgYHtwZW59YCBhZnRlciBtZXJnZSB8CnwgTGF0ZSBvbGQgYWRkIHwgYWRkKG11ZylAMSB8IHJlbW92ZShtdWcpQDIgfCBtdWcgc3RheXMgcmVtb3ZlZCB8CgpXaHkgaXQgY29udmVyZ2VzOiBgbWF4YCBpcyBhc3NvY2lhdGl2ZSwgY29tbXV0YXRpdmUsIGFuZCBpZGVtcG90ZW50LiBSZW9yZGVyaW5nLCBkdXBsaWNhdGluZywgb3IgcmVncm91cGluZyByZXBhaXIgbWVzc2FnZXMgdGhlcmVmb3JlIHlpZWxkcyB0aGUgc2FtZSBwZXItaXRlbSBzdGF0ZS4gVGhlIGV4YW1wbGUgaXMgYSB0ZWFjaGluZyBtb2RlbCwgbm90IGEgZnVsbCBwcm9kdWN0aW9uIENSRFQ6IGEgcmVhbCBzeXN0ZW0gbXVzdCBkZWZpbmUgbG9naWNhbC1jbG9jayBhbGxvY2F0aW9uLCBtZXRhZGF0YSBjb21wYWN0aW9uLCBpZGVudGl0eSwgYW5kIGJlaGF2aW9yIGZvciB0cnVseSBjb25jdXJyZW50IGFkZC9yZW1vdmUgb3BlcmF0aW9ucy4KCiMjIFRoZSBxdW9ydW0gdHJhcAoKYFIgKyBXID4gTmAgcHJvdmVzIHJlYWQvd3JpdGUtc2V0IG92ZXJsYXAgb25seSB1bmRlciBzdGF0ZWQgbWVtYmVyc2hpcCBhc3N1bXB0aW9ucy4gTGluZWFyaXphYmlsaXR5IGFkZGl0aW9uYWxseSBkZXBlbmRzIG9uIHdoaWNoIHJlcGxpY2FzIGNvdW50IGFzIGEgY29tcGxldGVkIHdyaXRlLCBob3cgdGhlIHJlYWQgY2hvb3NlcyBhbW9uZyB2ZXJzaW9ucywgd2hhdCBoYXBwZW5zIGR1cmluZyBtZW1iZXJzaGlwIGNoYW5nZXMgb3Igc2xvcHB5IHF1b3J1bSBzdWJzdGl0dXRpb24sIGhvdyBjb25jdXJyZW50IHdyaXRlcyBhcmUgb3JkZXJlZCwgYW5kIGhvdyBmYWlsb3ZlciB0cmVhdHMgYWNrbm93bGVkZ2VkIHN0YXRlLgoKfCBDbGFpbSB8IE1pc3NpbmcgcXVlc3Rpb24gfAp8LS0tfC0tLXwKfCDigJxgUiArIFcgPiBOYCwgc28gcmVhZHMgYXJlIGZyZXNo4oCdIHwgRG9lcyB0aGUgcmVhZGVyIHNlbGVjdCB0aGUgbmV3ZXN0IGNhdXNhbGx5IHZhbGlkIHZlcnNpb24gZnJvbSB0aGUgb3ZlcmxhcD8gfAp8IOKAnFdlIHdyb3RlIHRvIGFueSBgV2AgcmVhY2hhYmxlIG5vZGVz4oCdIHwgQXJlIHRoZXNlIHRoZSBzYW1lIG1lbWJlcnNoaXAgc2V0IGZyb20gd2hpY2ggYFJgIGlzIGxhdGVyIGNob3Nlbj8gfAp8IOKAnExhc3Qtd3JpdGUtd2lucyByZXNvbHZlcyBjb25mbGljdHPigJ0gfCBBcmUgY2xvY2tzIHRydXN0d29ydGh5LCBhbmQgY2FuIGEgdmFsaWQgY29uY3VycmVudCB3cml0ZSBiZSBkaXNjYXJkZWQ/IHwKfCDigJxSZWFkIHJlcGFpciBldmVudHVhbGx5IGZpeGVzIGl04oCdIHwgV2hhdCBndWFyYW50ZWUgYXBwbGllcyBiZWZvcmUgcmVwYWlyIGNvbXBsZXRlcz8gfAoKTmV2ZXIgaW5mZXIgbGluZWFyaXphYmlsaXR5IGZyb20gb25lIGluZXF1YWxpdHkuIFN0YXRlIHRoZSBmdWxsIHJlYWQsIHdyaXRlLCBtZW1iZXJzaGlwLCB2ZXJzaW9uLCBhbmQgZmFpbG92ZXIgcHJvdG9jb2wuCgojIyBDb21wbGV4aXR5IGFuZCBjb3N0IGJvdW5kYXJpZXMKCnwgT3BlcmF0aW9uIGluIHRoZSBKYXZhIG1vZGVsIHwgVGltZSB8IFNwYWNlIHwgUHJvZHVjdGlvbiBjb3N0IHRoYXQgZG9taW5hdGVzIHwKfC0tLXwtLS06fC0tLTp8LS0tfAp8IFR3by1hY2NvdW50IHRyYW5zZmVyIHwgYE8oMSlgIHwgYE8oMSlgIHN0YWdlZCBzdGF0ZSB8IExvY2svY29uZmxpY3Qgd2FpdHMgYW5kIGR1cmFibGUgY29tbWl0IGxhdGVuY3kgfAp8IElkZW1wb3RlbmN5IGxvb2t1cCB8IGV4cGVjdGVkIGBPKDEpYCB8IGBPKGspYCByZXRhaW5lZCBvcGVyYXRpb24gSURzIHwgVW5pcXVlLWluZGV4IEkvTyBhbmQgcmV0ZW50aW9uL3BhcnRpdGlvbiBzdHJhdGVneSB8CnwgUmVhZC15b3VyLXdyaXRlcyByb3V0aW5nIHwgYE8oMSlgIHwgYE8oMSlgIHRva2VuIHwgUmVwbGljYSBhcHBseSBsYWcgb3IgcHJpbWFyeSBsb2FkIHwKfCBDYXJ0IG1lcmdlIHwgYE8oYSArIGIpYCB8IGBPKGEgKyBiKWAgfCBWZXJzaW9uIG1ldGFkYXRhLCByZXBhaXIgYmFuZHdpZHRoLCBjb21wYWN0aW9uIHwKClRoZSBhc3ltcHRvdGljIG5vdGF0aW9uIGRlc2NyaWJlcyB0aGUgc21hbGwgdGVhY2hpbmcgc3RydWN0dXJlcy4gSXQgZG9lcyBub3QgZXJhc2UgbmV0d29yayByb3VuZCB0cmlwcywgZnN5bmMgbGF0ZW5jeSwgY29uZmxpY3QgcmV0cmllcywgcmVwbGljYXRpb24gbGFnLCBvciBzdG9yYWdlLWVuZ2luZSBwYWdlIGFjY2Vzcy4KCiMjIFJldmlldyBjaGVja2xpc3QKCi0gSXMgZWFjaCBpbnZhcmlhbnQgd3JpdHRlbiBhbmQgZW5mb3JjZWQgaW5zaWRlIHRoZSB0cmFuc2FjdGlvbiBib3VuZGFyeT8KLSBDYW4gdGhlIGNsaWVudCBkaXN0aW5ndWlzaCByZWplY3Rpb24sIGNvbW1pdHRlZCBzdWNjZXNzLCBhbmQgdW5rbm93biBvdXRjb21lPwotIElzIHRoZSBpZGVtcG90ZW5jeSByZWNvcmQgYXRvbWljIHdpdGggdGhlIGVmZmVjdCBhbmQgcmV0YWluZWQgbG9uZyBlbm91Z2g/Ci0gRG9lcyB0aGUgcmVhZCBwYXRoIHN0YXRlIHByaW1hcnkvcmVwbGljYS9jYWNoZSBmcmVzaG5lc3Mgc2VtYW50aWNzPwotIFdoYXQgZXhhY3QgZmFpbHVyZSBkb21haW4gZG9lcyDigJxkdXJhYmxl4oCdIGNvdmVyPwotIERvZXMgdGhlIGNvbmZsaWN0IHJ1bGUgY29udmVyZ2UgdW5kZXIgZHVwbGljYXRlIGFuZCByZW9yZGVyZWQgbWVzc2FnZXM/Ci0gQXJlIHF1b3J1bSBtZW1iZXJzaGlwLCB2ZXJzaW9uIHNlbGVjdGlvbiwgcmVwYWlyLCBhbmQgZmFpbG92ZXIgc3BlY2lmaWVkPwotIEFyZSByZXRyaWVzIGZvciBzZXJpYWxpemF0aW9uIGZhaWx1cmVzIGJvdW5kZWQsIG9ic2VydmFibGUsIGFuZCBqaXR0ZXJlZD8KCiMjIFByaW1hcnkgcmVmZXJlbmNlcwoKQWNjZXNzZWQgMjAyNi0xMC0xNi4KCjEuIFtQb3N0Z3JlU1FMIDE4IOKAlCBXcml0ZS1BaGVhZCBMb2dnaW5nXShodHRwczovL3d3dy5wb3N0Z3Jlc3FsLm9yZy9kb2NzL2N1cnJlbnQvd2FsLWludHJvLmh0bWwpOiBXQUwtYmVmb3JlLWRhdGEgb3JkZXJpbmcsIHJlZG8sIGFuZCBncm91cCBjb21taXQuCjIuIFtQb3N0Z3JlU1FMIDE4IOKAlCBUcmFuc2FjdGlvbiBJc29sYXRpb25dKGh0dHBzOi8vd3d3LnBvc3RncmVzcWwub3JnL2RvY3MvY3VycmVudC90cmFuc2FjdGlvbi1pc28uaHRtbCk6IHN0YXRlbWVudCBzbmFwc2hvdHMsIHJlcGVhdGFibGUgcmVhZCwgc2VyaWFsaXphYmxlIGhpc3RvcmllcywgYW5kIHJlcXVpcmVkIHJldHJpZXMuCjMuIFtQb3N0Z3JlU1FMIDE4IOKAlCBIb3QgU3RhbmRieV0oaHR0cHM6Ly93d3cucG9zdGdyZXNxbC5vcmcvZG9jcy9jdXJyZW50L2hvdC1zdGFuZGJ5Lmh0bWwpOiByZWFkLW9ubHkgc3RhbmRieSB2aXNpYmlsaXR5IGFuZCByZXBsYXkgbGFnLgo0LiBbTXlTUUwgOC40IOKAlCBJbm5vREIgUmVjb3ZlcnldKGh0dHBzOi8vZGV2Lm15c3FsLmNvbS9kb2MvcmVmbWFuLzguNC9lbi9pbm5vZGItcmVjb3ZlcnkuaHRtbCk6IHJlZG8gYXBwbGljYXRpb24sIGluY29tcGxldGUtdHJhbnNhY3Rpb24gcm9sbGJhY2ssIGFuZCBwdXJnZS4KNS4gW0FtYXpvbiBEeW5hbW9EQiDigJQgUmVhZCBjb25zaXN0ZW5jeV0oaHR0cHM6Ly9kb2NzLmF3cy5hbWF6b24uY29tL2FtYXpvbmR5bmFtb2RiL2xhdGVzdC9kZXZlbG9wZXJndWlkZS9Ib3dJdFdvcmtzLlJlYWRDb25zaXN0ZW5jeS5odG1sKTogZXZlbnR1YWwgYW5kIHN0cm9uZyByZWFkIHNjb3BlcywgaW5jbHVkaW5nIEdTSSBsaW1pdGF0aW9ucy4KNi4gRGVDYW5kaWEgZXQgYWwuLCBbRHluYW1vOiBBbWF6b24ncyBIaWdobHkgQXZhaWxhYmxlIEtleS12YWx1ZSBTdG9yZV0oaHR0cHM6Ly93d3cuYW1hem9uLnNjaWVuY2UvcHVibGljYXRpb25zL2R5bmFtby1hbWF6b25zLWhpZ2hseS1hdmFpbGFibGUta2V5LXZhbHVlLXN0b3JlKSwgU09TUCAyMDA3OiB2ZXJzaW9uaW5nLCBhdmFpbGFiaWxpdHkgdHJhZGUtb2ZmcywgYW5kIGFwcGxpY2F0aW9uLWFzc2lzdGVkIGNvbmZsaWN0IHJlc29sdXRpb24uCgojIyBTb3VyY2UgcHJvdmVuYW5jZSBhbmQgdmVyaWZpY2F0aW9uCgotIENvbmZpcm1lZCBMaWJyYXJ5IHNvdXJjZTogYGRhdGFiYXNlX2ludGVybmFsc19jYWNoaW5nX2phdmFfbWFzdGVyX2d1aWRlLm1kYAotIExpYnJhcnkgZmlsZSBJRDogYGxpYmZpbGVfOTY5NTE1Nzc1Mjk0ODE5MTk1ZDkwZmUwOGU0NmI3YmVgCi0gQmFja2luZyBmaWxlIElEOiBgZmlsZV8wMDAwMDAwMGRhZGM4MWY1OWNmNmI4MmNhOTkwYTQ4YWAKLSBWZXJzaW9uOiBgMWAKLSBXaG9sZS1maWxlIFNIQS0yNTY6IGBlYzhhODhkYWE4YjlkMjZiZTdjNzgxN2YyMGU4ZDBlMWM4ZjBlZjE2OTdjNWJiZjhjZDdjYjFlNGE3MDNmMzRhYAotIFByb2Nlc3NlZCBib3VuZGVkIHJhbmdlOiBzb3VyY2UgbGluZXMgKio2MuKAkzEzMyoqLCDigJxBQ0lELCBCQVNFLCBhbmQgdGhlIG1pc2xlYWRpbmcgU1FML05vU1FMIHNwbGl04oCdCi0gRGVsaWJlcmF0ZSBjb250aW51YXRpb246IFNlY3Rpb24gMiwg4oCcQisgVHJlZXM6IHdoeSBpbmRleGVzIGFyZSBzaGFsbG93LOKAnSBiZWdpbnMgYXQgc291cmNlIGxpbmUgMTM0LgoKVmFsaWRhdGlvbiBjb21tYW5kczoKCmBgYGJhc2gKcHl0aG9uMyBidWlsZF9yZWFkZXIucHkKbm9kZSB2YWxpZGF0ZV9yZWFkZXIubWpzCmphdmFjIENvbnNpc3RlbmN5Q29udHJhY3RzLmphdmEKamF2YSAtZWEgQ29uc2lzdGVuY3lDb250cmFjdHMKYGBgCgpUaGUgTWFya2Rvd24gaXMgY2Fub25pY2FsLiBgZ3VpZGUuaHRtbGAgaXMgZ2VuZXJhdGVkIGRldGVybWluaXN0aWNhbGx5IGFuZCBlbWJlZHMgdGhlIGV4YWN0IE1hcmtkb3duIGJ5dGVzIGZvciBzeW5jaHJvbml6YXRpb24gY2hlY2tzLgo=</script><script id="search-index" type="application/json">[{"level": "1", "id": "database-internals-caching-and-java-connectivity", "title": "Database Internals, Caching, and Java Connectivity"}, {"level": "2", "id": "learning-contract", "title": "Learning contract"}, {"level": "3", "id": "requirements-before-product-names", "title": "Requirements before product names"}, {"level": "2", "id": "acid-property-mechanism-and-boundary", "title": "ACID: property, mechanism, and boundary"}, {"level": "2", "id": "example-1--atomic-transfer-with-an-invariant", "title": "Example 1 — atomic transfer with an invariant"}, {"level": "2", "id": "commit-path-wal-first-pages-later", "title": "Commit path: WAL first, pages later"}, {"level": "2", "id": "example-2--timeout-after-commit-is-an-unknown-outcome", "title": "Example 2 — timeout after commit is an unknown outcome"}, {"level": "2", "id": "recovery-is-not-replication", "title": "Recovery is not replication"}, {"level": "2", "id": "example-3--acid-primary-stale-replica", "title": "Example 3 — ACID primary, stale replica"}, {"level": "2", "id": "base-convergence-is-a-designed-mechanism", "title": "BASE: convergence is a designed mechanism"}, {"level": "2", "id": "example-4--a-convergent-cart-needs-removal-semantics", "title": "Example 4 — a convergent cart needs removal semantics"}, {"level": "2", "id": "the-quorum-trap", "title": "The quorum trap"}, {"level": "2", "id": "complexity-and-cost-boundaries", "title": "Complexity and cost boundaries"}, {"level": "2", "id": "review-checklist", "title": "Review checklist"}, {"level": "2", "id": "primary-references", "title": "Primary references"}, {"level": "2", "id": "source-provenance-and-verification", "title": "Source provenance and verification"}]</script>
+<script>const input=document.querySelector('#search'),results=document.querySelector('#results'),status=document.querySelector('#search-status'),index=JSON.parse(document.querySelector('#search-index').textContent);function search(){const q=input.value.trim().toLocaleLowerCase();results.replaceChildren();if(!q){status.textContent='Type to filter section headings.';return}const found=index.filter(x=>x.title.toLocaleLowerCase().includes(q)).slice(0,24);status.textContent=found.length?`${found.length} matching sections.`:'No matching section.';for(const item of found){const li=document.createElement('li'),a=document.createElement('a');a.href='#'+item.id;a.textContent=item.title;li.append(a);results.append(li)}}input.addEventListener('input',search);</script>
+<script type="module">try{const{default:mermaid}=await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');document.querySelectorAll('pre.mermaid').forEach(pre=>{const div=document.createElement('div');div.className='mermaid';div.textContent=pre.textContent;pre.replaceWith(div)});mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'neutral'});await mermaid.run({querySelector:'.mermaid'})}catch(error){console.warn('Mermaid unavailable; diagram source remains readable.',error)}</script>
+</body></html>

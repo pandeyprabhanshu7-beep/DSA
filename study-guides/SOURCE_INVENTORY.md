@@ -15,7 +15,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | ai-platform | AI | DISCOVERED | `study-guides/ai/platform/` | ai_cicd_spring_python_guides_complete.zip<br>ai_platform_master_guide.html<br>ai_platform_engineering_complete_bundle.zip<br>ai_platform_engineering_illustrated.html |
 | system-design-fundamentals | System design/data | PROMOTED | `study-guides/system-design/fundamentals/` | system_design_fundamentals_deep_research.md<br>system_design_fundamentals.md |
 | system-design-blueprints | System design/data | DISCOVERED | `study-guides/system-design/blueprints/` | top_5_system_design_interview_blueprints.md |
-| database-caching-java | System design/data | DISCOVERED | `study-guides/databases/caching-java/` | database_internals_caching_java_master_guide.md |
+| database-caching-java | System design/data | IN_PROGRESS | [`study-guides/databases/caching-java/`](databases/caching-java/) | database_internals_caching_java_master_guide.md |
 | cicd-cloud-kubernetes | DevOps/backend | PROMOTED | `study-guides/devops/cicd/` | cicd_aws_azure_teamcity_jenkins_guide.html<br>ai_cicd_spring_python_guides_complete.zip |
 | spring-ai-python-api | DevOps/backend | DISCOVERED | `study-guides/backend/spring-ai-python/` | ai_cicd_spring_python_guides_complete.zip<br>spring_ai_python_api_interview_guide.html |
 | angular | Frontend | IN_PROGRESS | `study-guides/frontend/angular/` | Angular_Interview_Mermaid_Workbook.md<br>Angular_Interview_Workbook.docx |
@@ -41,7 +41,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | spring_ai_python_api_interview_guide.html | 2026-09-17T05:55:54.480720Z | DISCOVERED |
 | ai_platform_engineering_complete_bundle.zip | 2026-09-16T16:22:16.910779Z | DISCOVERED |
 | ai_platform_engineering_illustrated.html | 2026-09-16T16:22:16.059506Z | DISCOVERED |
-| database_internals_caching_java_master_guide.md | 2026-09-16T05:20:18.877277Z | DISCOVERED |
+| database_internals_caching_java_master_guide.md | 2026-09-16T05:20:18.877277Z | IN PROGRESS — Section 1 lines 62–133 promoted; Section 2 begins at line 134 |
 | top_5_system_design_interview_blueprints.md | 2026-09-11T21:27:10.870584Z | DISCOVERED |
 | system_design_fundamentals_deep_research.md | 2026-09-11T21:27:08.096531Z | PROMOTED — canonical fundamentals base |
 | system_design_fundamentals.md | 2026-09-11T04:57:16.259594Z | READY — compared; distinct case studies reserved for blueprints |
@@ -77,6 +77,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 
 - Existing DSA and AWS sources remain canonical. Historical attachments provide improvements, not replacement editions.
 - System-design fundamentals now has one canonical [Markdown/HTML guide](system-design/); the 1,785-line deep-research source won the content comparison, while the shorter source's distinct case studies remain queued under blueprints.
+- Database internals/caching/Java now has one incremental canonical [Markdown/HTML guide](databases/caching-java/). Section 1 is promoted from the confirmed source range; later source sections remain queued rather than being collapsed into a duplicate edition.
 - AI foundations, RAG and CAG now has one canonical [Markdown/HTML guide](ai/); the broader Mermaid source won the content comparison, while two useful original workbook figures were retained without duplicating its redundant flow diagrams.
 - CI/CD, Kubernetes and cloud delivery now has one canonical [Markdown/HTML guide](devops/); the bundle supplied its authoritative Markdown and nine figures, while the standalone HTML was verified as an exact generated duplicate rather than promoted separately.
 - Graph/tree/stack editions and matching DOCX documents are grouped into one destination; latest coverage must be chosen after reading.
