@@ -229,10 +229,10 @@
       "version_id": null,
       "modified_at": "2026-09-08T00:10:00.753196Z",
       "size_bytes": 77677,
-      "status": "IN_PROGRESS",
+      "status": "PROMOTED",
       "last_read_at": "2026-10-16",
       "sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
-      "selection": "Read and selected as the broader structural source; Q1-Q72 plus rapid-fire items 1-32 through line 1989 were compared and promoted, while the Final Revision Sheet remains queued."
+      "selection": "Read and selected as the broader structural source; Q1-Q72, rapid-fire items 1-32 and the Final Revision Sheet through line 2041 were compared and promoted."
     },
     {
       "name": "DSA_Tree_FAANG_Mermaid_Question_Workbook.md",
@@ -354,10 +354,10 @@
       "version_id": null,
       "modified_at": "2026-08-31T14:40:39.905787Z",
       "size_bytes": 64737,
-      "status": "IN_PROGRESS",
+      "status": "PROMOTED",
       "last_read_at": "2026-10-16",
       "sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
-      "selection": "Read and compared through rendered line 1393 for Q1-Q72 plus rapid-fire items 1-32; it corroborates the Mermaid edition but this older DOCX is not promoted as a competing canonical guide."
+      "selection": "Read and compared through rendered source end at line 1445 for Q1-Q72, rapid-fire items 1-32 and the Final Revision Sheet; it corroborates the Mermaid edition but this older DOCX is not promoted as a competing canonical guide."
     },
     {
       "name": "DSA_Graph_FAANG_Question_Workbook.docx",
@@ -710,13 +710,13 @@
       "domain": "Frontend",
       "canonical_target": "study-guides/frontend/javascript-html-css/",
       "target_exists": true,
-      "status": "IN_PROGRESS",
+      "status": "PROMOTED",
       "source_names": [
         "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
         "JavaScript_HTML_CSS_Interview_Workbook.docx"
       ],
-      "last_processed_at": "2026-10-16T01:33:09-04:00",
-      "next_action": "Compare and deepen the Final Revision Sheet only: Markdown lines 1991-2041 and DOCX rendered lines 1396-1445.",
+      "last_processed_at": "2026-10-16T02:12:55-04:00",
+      "next_action": "Paired JavaScript/HTML/CSS workbook fully reconciled through its Final Revision Sheet. Rotate to database-caching-java Section 1, source lines 62-133, before any later Frontend pass.",
       "completed_sections": [
         "Q1-Q4: bindings, declaration instantiation and TDZ, lexical scope, and per-iteration loop capture",
         "Q5-Q10: primitive/reference values, equality, null/undefined/NaN, shallow/deep copy, array transforms, optional chaining and nullish coalescing",
@@ -732,18 +732,19 @@
         "Q62-Q66: prototype-aware ownership, simplified bind, async iteration, safe retry/backoff, and Web Worker selection",
         "Q67-Q72: HTTP and Service Worker cache ownership, ESM tree shaking, :is()/:where() specificity, cascade layers, stale-safe autocomplete, and modal focus management",
         "Rapid-fire 1-16: strict mode, null type history, object/collection ownership, iteration/rest/spread/generators, microtasks/modules/lifecycle events, observers, and Web Workers",
-        "Rapid-fire 17-32: Service Worker lifecycle, rendering costs, CSP/cookies, native accessibility, CSS behavior, Shadow DOM, and the critical rendering path"
+        "Rapid-fire 17-32: Service Worker lifecycle, rendering costs, CSP/cookies, native accessibility, CSS behavior, Shadow DOM, and the critical rendering path",
+        "Final Revision Sheet: ten clue-to-model mappings, four executable diagnosis examples, trace tables, two decision diagrams, a five-part 30-second answer frame and final self-test"
       ],
       "source_revision": {
         "source_markdown_sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
-        "source_markdown_lines": "1927-1989 for rapid-fire items 17-32, bounded by the Final Revision Sheet anchor at line 1991; earlier Q1-Q72 and rapid-fire items 1-16 retained",
+        "source_markdown_lines": "1991-2041 for the Final Revision Sheet; earlier Q1-Q72 and rapid-fire items 1-32 retained; source exhausted at line 2041",
         "source_docx_sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
-        "source_docx_range": "rendered lines 1362-1393 for rapid-fire items 17-32, bounded by the Final Revision Sheet at rendered line 1396; earlier Q1-Q72 and rapid-fire items 1-16 retained",
+        "source_docx_range": "rendered lines 1396-1445 for the Final Revision Sheet; earlier Q1-Q72 and rapid-fire items 1-32 retained; source exhausted at rendered line 1445",
         "retrieval": "Both bounded source texts read from ChatGPT Library on 2026-10-16",
-        "baseline_main_head": "61953c6cf3c2ea528af93d8ffb8804e257cc380b"
+        "baseline_main_head": "e91e8134cdc5f0ccc734051f0324eef5890135a8"
       },
-      "validation": "Rapid-fire items 17-32 were compared in both actual source texts and consolidated with Service Worker lifecycle/cache ownership, rendering-stage caveats, CSP/SameSite defense-in-depth, native accessibility, CSS inheritance/visibility/layout/motion/logical-property boundaries, Shadow DOM composition, and critical-rendering-path measurement. Four connected executable examples and four new Mermaid diagrams cover all sixteen items. Node v24.19.0 passed all 66 scenario groups; deterministic reader generation passed exact 196089-character payload equality, 76 unique anchors, 145 balanced fenced blocks, 52 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax and the live 170-marker invariant. Browser Service Worker/CSP/cookie/accessibility/layout/Shadow DOM integration and Mermaid visual QA were not executed; GitHub status checks are inspected after checkpoint publication.",
-      "last_successful_commit": "af3d5920389bbff75129a9026fa9559e7fbd4818",
+      "validation": "The Final Revision Sheet was compared in both actual source texts and consolidated into ten clue-to-model mappings, four executable diagnosis examples, trace tables, two decision diagrams, a five-part 30-second answer frame and a final self-test. Node v24.19.0 passed all 70 scenario groups; deterministic reader generation passed exact 206630-character payload equality, 77 unique anchors, 151 balanced fenced blocks, 54 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax and the live 170-marker invariant. All six content-commit remote blob hashes matched; no commit statuses or check runs were configured. Browser and assistive-technology integration plus Mermaid visual QA were not executed.",
+      "last_successful_commit": "08a08d4b7d520156d398b564ea42488c62bcc660",
       "publish_state": "PUBLISHED",
       "priority": 16
     },
@@ -922,14 +923,15 @@
       "JavaScript/HTML/CSS Q62-Q66: property ownership, simplified bind, async iteration, retry/backoff and Web Worker selection",
       "JavaScript/HTML/CSS Q67-Q72: HTTP/Service Worker caches, ESM tree shaking, selector/layer specificity, autocomplete races and modal focus",
       "JavaScript/HTML/CSS rapid-fire 1-16: language and collection ownership, iteration/generators, scheduling/modules/lifecycle, observers and Web Workers",
-      "JavaScript/HTML/CSS rapid-fire 17-32: Service Workers, rendering, browser security, native accessibility, CSS behavior, Shadow DOM and critical rendering"
+      "JavaScript/HTML/CSS rapid-fire 17-32: Service Workers, rendering, browser security, native accessibility, CSS behavior, Shadow DOM and critical rendering",
+      "JavaScript/HTML/CSS Final Revision Sheet: trigger map, four diagnosis examples, trace tables, answer frame and self-test"
     ],
-    "processed_section": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md lines 1927-1989 (SHA-256 742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0) and JavaScript_HTML_CSS_Interview_Workbook.docx rendered lines 1362-1393 (SHA-256 790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb): rapid-fire items 17-32 validated for the canonical frontend guide",
-    "validation": "Rapid-fire items 17-32 were compared in both source texts and consolidated with Service Worker/cache ownership, rendering-stage caveats, CSP/SameSite defense-in-depth, native semantics/names, CSS inheritance/visibility/gaps/ratios/motion/logical properties, Shadow DOM, and critical rendering. Four connected executable examples and four new Mermaid diagrams cover all sixteen items. Node v24.19.0 passed all 66 scenario groups; deterministic reader generation passed exact 196089-character payload equality, 76 unique anchors, 145 balanced fenced blocks, 52 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax and the live 170-marker invariant. Browser Service Worker/CSP/cookie/accessibility/layout/Shadow DOM integration and Mermaid visual QA were not executed; GitHub status checks are inspected after checkpoint publication.",
-    "estimated_next_tokens": 6200,
-    "estimate_method": "Heuristic only for the paired-source Final Revision Sheet, current primary references, consolidation, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "af3d5920389bbff75129a9026fa9559e7fbd4818",
-    "last_processed_at": "2026-10-16T01:33:09-04:00",
-    "next_batch_decision": "JavaScript/HTML/CSS rapid-fire items 17-32 are the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before the Final Revision Sheet and retain the conservative one-section checkpoint."
+    "processed_section": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md lines 1991-2041 (SHA-256 742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0) and JavaScript_HTML_CSS_Interview_Workbook.docx rendered lines 1396-1445 (SHA-256 790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb): Final Revision Sheet validated and paired source exhausted",
+    "validation": "The Final Revision Sheet was compared in both source texts and consolidated into ten clue-to-model mappings, four executable diagnosis examples, trace tables, two decision diagrams, a five-part 30-second answer frame and a final self-test. Node v24.19.0 passed all 70 scenario groups; deterministic reader generation passed exact 206630-character payload equality, 77 unique anchors, 151 balanced fenced blocks, 54 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax and the live 170-marker invariant. All six content-commit remote blob hashes matched; no commit statuses or check runs were configured. Browser and assistive-technology integration plus Mermaid visual QA were not executed.",
+    "estimated_next_tokens": 7800,
+    "estimate_method": "Heuristic only for database source verification, current primary references, deep consolidation, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "08a08d4b7d520156d398b564ea42488c62bcc660",
+    "last_processed_at": "2026-10-16T02:12:55-04:00",
+    "next_batch_decision": "The JavaScript/HTML/CSS Final Revision Sheet is the sole bounded section in this pass and exhausts its paired sources. Weekly/hourly quota percentages were not exposed, so stop before the confirmed database/caching Section 1 and retain the conservative one-section checkpoint."
   }
 }
