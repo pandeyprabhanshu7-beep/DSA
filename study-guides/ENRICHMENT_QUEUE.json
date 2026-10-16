@@ -102,7 +102,7 @@
       "status": "IN_PROGRESS",
       "last_read_at": "2026-10-16",
       "sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-      "selection": "Sections 1-3, source lines 62-230, read and promoted into the incremental canonical database guide; later sections remain queued."
+      "selection": "Sections 1-4, source lines 62-286, read and promoted into the incremental canonical database guide; later sections remain queued."
     },
     {
       "name": "top_5_system_design_interview_blueprints.md",
@@ -593,24 +593,25 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-16T09:08:22-04:00",
+      "last_processed_at": "2026-10-16T10:09:14-04:00",
       "processed_sections": [
         "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
         "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios",
-        "Section 3: LSM trees — WAL/memtable recovery, snapshot-visible version selection, Bloom-filter limits, tombstone retention, compaction trade-offs, amplification/headroom accounting and write-stall signals"
+        "Section 3: LSM trees — WAL/memtable recovery, snapshot-visible version selection, Bloom-filter limits, tombstone retention, compaction trade-offs, amplification/headroom accounting and write-stall signals",
+        "Section 4: row/column storage — byte-selection bounds, vector batches, MergeTree parts and sparse-granule pruning, insert batching, and replayable idempotent CDC projections"
       ],
       "source_revision": {
-        "baseline_commit": "978e8d6833875f3e4297e857dd3cb7ee5053c66a",
+        "baseline_commit": "236f18d627382594fbc70b0d9041db9f6d435a76",
         "selected_library_file_id": "libfile_969515775294819195d90fe08e46b7be",
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-230",
-        "canonical_sha256_after": "b7ca5ef54d7cdef87934369c3d386b5ec4289a2d8380cb9bb9b32c9cb1449941"
+        "processed_lines": "62-286",
+        "canonical_sha256_after": "9eaf0e2d55fe942e79c10732d85813c5d7a9c04c0b51266847ae27436a5e0fc6"
       },
-      "content_commit": "d2ab5e14d36679ee80c3027c100d88eeccdee20f",
-      "validation": "Exact source lines 177-230 were bounded by the Section 4 heading and consolidated against current RocksDB primary documentation. Java 17 source-file execution passed 12 total scenario groups, including four new WAL recovery, snapshot read, tombstone-safety and amplification groups. Deterministic reader generation passed exact 42055-character Markdown payload equality, source SHA-256 metadata, 81 unique HTML IDs, 41 search entries, fragments, allowed relative links, 16 balanced fences and 12 Mermaid sources. Standalone javac, browser, assistive-technology and Mermaid visual QA were unavailable/not executed. Live DSA placeholder audit remains 170. Four content blobs were published atomically with an expected-head guard.",
-      "next_action": "Process exactly Section 4, row-oriented versus column-oriented storage, beginning at source line 231; resolve its exact end before reading or promoting it.",
+      "content_commit": "5fd68848f02fa9fa62475c09f52c72df7dc1154b",
+      "validation": "Exact source lines 231-286 were bounded by the Section 5 heading and consolidated against current ClickHouse, PostgreSQL and Debezium primary documentation. Java 17 source-file execution passed 16 total scenario groups, including four new byte-selection, vector-batch, sparse-granule and CDC-projection groups. Deterministic reader generation passed exact 55339-character Markdown payload equality, source SHA-256 metadata, 89 unique HTML IDs, 49 search entries, fragments, allowed relative links, 20 balanced fences and 16 Mermaid sources. Standalone javac was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live DSA placeholder audit remains 170. Four content blobs were published atomically with an expected-head guard.",
+      "next_action": "Process exactly Section 5, Isolation: exact anomalies and engine-specific differences, beginning at source line 287; resolve its exact end before reading or promoting it.",
       "priority": 12
     },
     {
@@ -884,7 +885,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and the full JavaScript/HTML/CSS paired source are processed; Angular's Final Revision Sheet remains queued. Continue the confirmed database source with Section 4 only, beginning at line 231, after resolving its exact end.",
+    "next_action": "Core advanced-tree sections 1-10 and the full JavaScript/HTML/CSS paired source are processed; Angular's Final Revision Sheet remains queued. Continue the confirmed database source with Section 5 only, 'Isolation: exact anomalies and engine-specific differences,' beginning at line 287, after resolving its exact end.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -946,15 +947,16 @@
       "JavaScript/HTML/CSS Final Revision Sheet: trigger map, four diagnosis examples, trace tables, answer frame and self-test",
       "Database/caching Section 1: ACID/BASE contract, four failure scenarios, WAL/recovery and replica traces, convergent repair and quorum caveat",
       "Database/caching Section 2: B+ tree page economics, access traces, layout amplification, splits and fill-factor trade-offs",
-      "Database/caching Section 3: LSM recovery/read/compaction mechanics, tombstone safety, amplification accounting, disk headroom and stall signals"
+      "Database/caching Section 3: LSM recovery/read/compaction mechanics, tombstone safety, amplification accounting, disk headroom and stall signals",
+      "Database/caching Section 4: row/column byte accounting, vector batches, sparse-granule pruning, insert batching and replayable CDC projection contracts"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 177-230 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 3, LSM trees: moving write cost into compaction",
-    "validation": "Section 3 was bounded by the Section 4 heading and consolidated with current RocksDB primary documentation. Java 17 source launch passed 12 total scenario groups; deterministic reader generation passed exact 42055-character payload equality, 81 unique IDs, 41 search entries, fragments, allowed relative links, 16 balanced fences and 12 Mermaid sources; live DSA marker audit remains 170. Four content blobs were published atomically with an expected-head guard. Standalone javac, browser, assistive-technology and Mermaid visual QA were not executed.",
+    "processed_section": "database_internals_caching_java_master_guide.md lines 231-286 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 4, Row-oriented versus column-oriented storage",
+    "validation": "Section 4 was bounded by the Section 5 heading and consolidated with current ClickHouse, PostgreSQL and Debezium primary documentation. Java 17 source launch passed 16 total scenario groups; deterministic reader generation passed exact 55339-character payload equality, 89 unique IDs, 49 search entries, fragments, allowed relative links, 20 balanced fences and 16 Mermaid sources; live DSA marker audit remains 170. Four content blobs were published atomically with an expected-head guard. Standalone javac was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
     "estimated_next_tokens": 7800,
-    "estimate_method": "Heuristic only for resolving bounded LSM source limits, refreshing primary references, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "d2ab5e14d36679ee80c3027c100d88eeccdee20f",
-    "last_processed_at": "2026-10-16T09:08:22-04:00",
-    "next_batch_decision": "Section 3 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 4; resume at its exact start on source line 231 and resolve the end boundary before processing."
+    "estimate_method": "Heuristic only for resolving bounded isolation source limits, refreshing primary references, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "5fd68848f02fa9fa62475c09f52c72df7dc1154b",
+    "last_processed_at": "2026-10-16T10:09:14-04:00",
+    "next_batch_decision": "Section 4 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 5; resume at its exact start on source line 287 and resolve the end boundary before processing."
   }
 }
 
