@@ -739,8 +739,8 @@
         "retrieval": "Both bounded source texts read from ChatGPT Library on 2026-10-15",
         "baseline_main_head": "02bc556a113a302e6a0dab7316f76f69cd468942"
       },
-      "validation": "Q62-Q66 were compared in both actual source texts and consolidated with property ownership traces, a simplified-bind native-semantics boundary, demand-driven async iterator closing, bounded jittered idempotent retry policy, and worker transfer/lifecycle selection. Four connected executable examples and four new Mermaid diagrams cover all five questions. Node v24.19.0 passed all 54 scenario groups; deterministic reader generation passed exact 144751-character payload equality, 68 unique anchors, 117 balanced fenced blocks, 39 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax and the live 170-marker invariant. Browser Worker/DOM integration and Mermaid visual QA were not executed.",
-      "last_successful_commit": "PENDING_CONTENT_COMMIT",
+      "validation": "Q62-Q66 were compared in both actual source texts and consolidated with property ownership traces, a simplified-bind native-semantics boundary, demand-driven async iterator closing, bounded jittered idempotent retry policy, and worker transfer/lifecycle selection. Four connected executable examples and four new Mermaid diagrams cover all five questions. Node v24.19.0 passed all 54 scenario groups; deterministic reader generation passed exact 144751-character payload equality, 68 unique anchors, 117 balanced fenced blocks, 39 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax and the live 170-marker invariant. All nine content-commit remote blob hashes matched. Browser Worker/DOM integration and Mermaid visual QA were not executed; no GitHub status checks are configured.",
+      "last_successful_commit": "122bcb33dac99334359c56238c93a358e2c5788e",
       "publish_state": "PUBLISHED",
       "priority": 16
     },
@@ -919,10 +919,10 @@
       "JavaScript/HTML/CSS Q62-Q66: property ownership, simplified bind, async iteration, retry/backoff and Web Worker selection"
     ],
     "processed_section": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md lines 1641-1759 (SHA-256 742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0) and JavaScript_HTML_CSS_Interview_Workbook.docx rendered lines 1167-1252 (SHA-256 790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb): Q62-Q66 validated for the canonical frontend guide",
-    "validation": "Q62-Q66 were compared in both source texts and consolidated with property ownership traces, a simplified-bind native-semantics boundary, demand-driven iterator closing, bounded jittered retry policy, and worker selection/transfer guidance. Four connected executable examples and four new Mermaid diagrams cover all five questions. Node v24.19.0 passed all 54 scenario groups; deterministic reader generation passed exact 144751-character payload equality, 68 unique anchors, 117 balanced fenced blocks, 39 Mermaid diagrams, parseable JavaScript, fragments, relative links, JSON syntax and the live 170-marker invariant. Browser Worker/DOM integration and Mermaid visual QA were not executed.",
+    "validation": "Q62-Q66 were compared in both source texts and consolidated with property ownership traces, a simplified-bind native-semantics boundary, demand-driven iterator closing, bounded jittered retry policy, and worker selection/transfer guidance. Four connected executable examples and four new Mermaid diagrams cover all five questions. Node v24.19.0 passed all 54 scenario groups; deterministic reader generation passed exact 144751-character payload equality, 68 unique anchors, 117 balanced fenced blocks, 39 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax and the live 170-marker invariant. All nine content-commit remote blob hashes matched. Browser Worker/DOM integration and Mermaid visual QA were not executed; no GitHub status checks are configured.",
     "estimated_next_tokens": 9000,
     "estimate_method": "Heuristic only for Q67-Q72 source comparison, current primary references, teaching implementation, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "PENDING_CONTENT_COMMIT",
+    "last_successful_commit": "122bcb33dac99334359c56238c93a358e2c5788e",
     "last_processed_at": "2026-10-15T20:24:11-04:00",
     "next_batch_decision": "JavaScript/HTML/CSS Q62-Q66 are the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Q67-Q72 and retain the conservative one-section checkpoint."
   }
