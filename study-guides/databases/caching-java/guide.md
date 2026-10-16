@@ -1,6 +1,6 @@
 # Database Internals, Caching, and Java Connectivity
 
-> **Incremental canonical guide.** This publication deepens source Sections 1–2: **ACID/BASE contracts** and **B+ tree page economics**. Later source sections are deliberately queued rather than summarized prematurely.
+> **Incremental canonical guide.** This publication deepens source Sections 1–3: **ACID/BASE contracts**, **B+ tree page economics**, and **LSM write/read/compaction mechanics**. Later source sections are deliberately queued rather than summarized prematurely.
 
 ## Learning contract
 
@@ -231,7 +231,7 @@ The asymptotic notation describes the small teaching structures. It does not era
 - Are quorum membership, version selection, repair, and failover specified?
 - Are retries for serialization failures bounded, observable, and jittered?
 
-## Primary references used across Sections 1–2
+## Primary references used across Sections 1–3
 
 Accessed 2026-10-16.
 
@@ -427,6 +427,203 @@ Review questions:
 
 The earlier focused module remains the canonical place for separator invariants, immutable bulk loading, linked-leaf correctness proofs, deletion mechanics, and 150,000 randomized point/range oracle checks. This section supplies the complementary database-design and operational layer.
 
+# Section 3 — LSM trees: moving write cost into compaction
+
+An LSM tree turns many foreground random updates into WAL appends, in-memory sorted updates, sequential table flushes, and later background merges. That is a **scheduling trade**, not “write once.” The design can improve ingest throughput and locality while increasing version-resolution work, background I/O, temporary disk demand, and operational coupling between compaction and foreground latency.
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. trace acknowledgement, crash recovery, freeze, flush, and manifest publication without treating them as one event;
+2. resolve a point read by snapshot sequence across mutable memory and overlapping sorted tables;
+3. explain why a Bloom-filter negative can skip a table while a positive cannot prove the key exists;
+4. state the conditions under which a tombstone may be removed without resurrecting an older value;
+5. compare leveled and universal/tiered compaction by write, read, and space amplification; and
+6. calculate explicitly scoped amplification and disk-headroom estimates, then name the signals that warn of compaction debt.
+
+State the workload before choosing an LSM policy:
+
+| Question | Example requirement | Design consequence |
+|---|---|---|
+| What must survive acknowledgement? | process crash after a cart update | WAL must cross the configured durability boundary before success |
+| Which snapshot semantics apply? | an iterator keeps sequence 80 | versions needed by that snapshot cannot be discarded |
+| Are reads point-heavy or scan-heavy? | 95% absent point lookups | per-table filters and cached indexes matter |
+| How bursty are writes? | 500 MB/s for 30 seconds | memtable, flush bandwidth, L0 limits, and backpressure need headroom |
+| How much rewrite can storage sustain? | 1 GB/s background budget | compaction style and level sizing must fit the device budget |
+| How much free disk is reserved? | compaction may overlap old and new files | live data alone is not a safe capacity target |
+
+## Write acknowledgement, recovery, and flush are separate
+
+RocksDB journals in-memory state changes in the WAL and on-disk file-set changes in the MANIFEST. A write normally reaches the WAL and mutable memtable; when a memtable becomes immutable, a background flush produces an SST file. Memtables can flush for several reasons, including memory pressure and WAL-size pressure, so “flushes only when exactly full” is false.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant W as WAL
+    participant M as Mutable memtable
+    participant I as Immutable memtable
+    participant S as SST file
+    participant V as MANIFEST/version
+    C->>W: append K=v2 at seq 11
+    W-->>C: configured durability boundary
+    C->>M: publish K=v2
+    M->>I: freeze
+    I->>S: build and sync sorted table
+    S->>V: publish file in current version
+    V-->>W: obsolete WAL may become reclaimable
+```
+
+### Example 9 — recover the newest WAL update, then flush it
+
+The Java `LsmBuffer` writes `cart:7=v1@10`, then `cart:7=v2@11`. A simulated crash retains the WAL and durable tables but loses the mutable map. Recovery replays both WAL entries and chooses sequence 11. After flush, the model has one immutable table and can clear its WAL because that table is the durable teaching-model state.
+
+| Moment | WAL | Mutable state | Durable table | Read at snapshot 11 |
+|---|---|---|---|---|
+| first write | `v1@10` | `v1@10` | none | `v1` |
+| overwrite | `v1@10, v2@11` | `v2@11` | none | `v2` |
+| crash/replay | same records replayed | `v2@11` | none | `v2` |
+| flush published | reclaimable in model | empty | `v2@11` | `v2` |
+
+The order in this small model is intentionally strict: append the WAL record before exposing the memtable mutation. Production acknowledgement, batching, WAL sync options, atomic write batches, file syncing, and MANIFEST edits are engine-specific. Disabling or weakening WAL sync changes the failure contract; a memtable update alone is not durable.
+
+## A read is version selection, not “check every file and return first”
+
+The read path may consult the mutable memtable, immutable memtables, Level 0 files whose key ranges overlap, and at most the relevant file(s) in non-overlapping lower levels under leveled compaction. It must choose the newest sequence visible to the caller's snapshot. Block indexes narrow a file to likely blocks; Bloom filters can rule out definite absence for the represented key domain; caches can avoid device reads.
+
+```mermaid
+flowchart TD
+    Q["Get K at snapshot 27"] --> M["memtables"]
+    M --> L0["overlapping L0 tables"]
+    L0 --> LN["candidate lower-level table"]
+    LN --> F{"filter may contain K?"}
+    F -->|"no"| SKIP["skip table"]
+    F -->|"yes / false positive"| IDX["block index + data block"]
+    M --> PICK["highest sequence <= 27"]
+    L0 --> PICK
+    IDX --> PICK
+    PICK --> OUT["value, tombstone, or absent"]
+```
+
+### Example 10 — one key, three snapshot answers
+
+Candidate versions for `K` are tombstone `@30`, value `new@25`, and value `old@12`:
+
+| Snapshot | Visible candidates | Selected result |
+|---:|---|---|
+| 20 | `old@12` | `old` |
+| 27 | `new@25`, `old@12` | `new` |
+| 30 | tombstone `@30`, both older values | absent |
+
+The Java `newestVisible` scenario verifies all three results. It also models a Bloom negative as zero candidate probes. A real Bloom positive is only “maybe”: it can be a false positive and still require index/data-block work. A correctly built Bloom filter must not create false negatives for the key domain it covers.
+
+For a range scan, the engine merges ordered iterators from participating structures, keeps the newest snapshot-visible version per key, and suppresses keys hidden by tombstones. If there are `r` runs, a heap-based merge is commonly described as `O(output_candidates log r)` CPU plus the blocks actually read; filters that help point absence do not erase the need to walk a requested range.
+
+## Tombstones are promises that older values stay hidden
+
+A delete writes a newer tombstone. Removing it too early can expose an older value in another table—a resurrection bug. Safe reclamation needs both visibility information and coverage information: no active snapshot may need the pre-delete version, and no older version capable of reappearing may remain outside the compaction's knowledge.
+
+```mermaid
+flowchart TD
+    T["tombstone K@50"] --> S{"oldest snapshot > 50?"}
+    S -->|"no"| KEEP1["retain tombstone/version history"]
+    S -->|"yes"| C{"complete older-history coverage?"}
+    C -->|"no"| KEEP2["retain tombstone"]
+    C -->|"yes"| DROP["drop obsolete values and tombstone"]
+    DROP --> A["all eligible reads still observe absence"]
+```
+
+### Example 11 — both safety gates must pass
+
+The executable teaching predicate accepts removal only when `tombstoneSequence < oldestSnapshotSequence` **and** the compaction covers all older history for that key:
+
+| Tombstone | Oldest snapshot | Complete older-history coverage? | Decision |
+|---:|---:|---|---|
+| 50 | 40 | yes | keep; snapshot 40 may need the old value |
+| 50 | 80 | no | keep; an older value might survive elsewhere |
+| 50 | 80 | yes | safe in this deliberately complete model |
+
+Real RocksDB compaction uses sequence numbers, snapshots, level placement, merge/range-deletion semantics, and file/version metadata rather than this one predicate. Distributed stores add repair and replica-retention constraints. An LSM tombstone is also not a certified secure-erasure mechanism; backups, logs, snapshots, replicas, and device behavior belong to a separate deletion policy.
+
+## Compaction shapes the amplification trade
+
+Leveled compaction aims for non-overlap in lower levels, usually reducing point-read candidates and steady-state space amplification at the cost of rewriting data as it moves through levels. Universal/tiered-style compaction keeps several sorted runs and merges selected runs, often reducing write amplification while increasing read candidates and temporary space. These are workload-dependent families, not universal rankings.
+
+```mermaid
+flowchart LR
+    F["memtable flush"] --> L0["overlapping L0 files"]
+    L0 --> LEV["leveled: merge into bounded lower level"]
+    L0 --> UNI["universal: retain sorted runs, merge selected runs"]
+    LEV --> LT["fewer steady read candidates / more rewrite risk"]
+    UNI --> UT["lower rewrite opportunities / more read and space risk"]
+```
+
+### Example 12 — define the accounting boundary before quoting a ratio
+
+Suppose 100 MB of logical updates cause 100 MB of WAL writes, 100 MB of flush output, and 500 MB of compaction output:
+
+\[
+WA = \frac{100 + 100 + 500}{100} = 7
+\]
+
+If a lookup reads 64 KiB to return 8 KiB, byte-based read amplification is 8. That is not the same metric as “files probed per lookup.” The Java `amplification` scenario keeps these ratios separate and calculates required modeled disk occupancy:
+
+\[
+\text{headroom target} = \text{live} + \text{obsolete} + \text{compaction overlap}
+\]
+
+For `1000 + 120 + 300`, the result is 1420 units. This is an accounting example, not a promised RocksDB ratio or a complete capacity formula. State whether WAL, compression, replication, filesystem/device amplification, backups, and temporary outputs are included.
+
+## Compaction debt becomes foreground backpressure
+
+If flush or compaction bandwidth stays below incoming work, immutable memtables and L0 files accumulate. Reads face more candidates; background I/O competes with foreground work; eventually the engine delays or stops writes to protect memory and file-count bounds. More cache cannot repay insufficient compaction bandwidth.
+
+| Signal | What it can reveal | Avoid this shortcut |
+|---|---|---|
+| pending compaction bytes / compaction score | queued rewrite work | one instant is not a trend |
+| L0 file count | overlap and stall proximity | thresholds depend on configuration |
+| write-stall count and duration | foreground impact | average write latency can hide stalls |
+| flush/compaction read and write throughput | whether background work keeps pace | device bandwidth is shared with reads/WAL |
+| block-cache and filter usefulness | avoided data-block reads | hit rate alone does not show tail latency |
+| live, obsolete, and total SST bytes | space amplification and reclaim lag | filesystem free space may include other users |
+| oldest snapshot/iterator age | why versions cannot be reclaimed | long scans can pin history intentionally |
+
+Recovery planning must reserve space for the WAL and the published SST set, while compaction planning must additionally cover old inputs and new outputs until metadata publication makes inputs obsolete. If the disk fills, compaction may be unable to finish the very rewrite needed to reclaim space.
+
+## Complexity, failure boundaries, and review
+
+| Operation | Logical shape | Dominant physical risk |
+|---|---|---|
+| Write | WAL append + `O(log m)` memtable insert for a tree-backed memtable | sync policy and memtable contention |
+| Point read | newest visible version across candidate structures | overlapping runs, cache misses, false-positive filters |
+| Range read | ordered merge across `r` iterators | read amplification and obsolete versions |
+| Flush | sort/encode mutable state into an immutable table | burst I/O and L0 growth |
+| Compaction | merge selected inputs, rewrite surviving versions | write/space amplification and foreground interference |
+
+Review questions:
+
+- Which exact event makes a write acknowledged, recoverable, flushed, and visible in the current file version?
+- Which sequence number defines the caller's snapshot?
+- Can a filter skip the table, or does it only say “maybe”?
+- Which older values might a tombstone still mask?
+- Does the compaction input cover all relevant older history for the key?
+- Which amplification numerator and denominator are being reported?
+- How much temporary disk is required while old and new files coexist?
+- Which queue, L0, throughput, stall, and snapshot-age signals show debt before outage?
+
+### Primary references for Section 3
+
+Accessed 2026-10-16.
+
+12. [RocksDB overview](https://github.com/facebook/rocksdb/wiki): embedded LSM storage engine scope and RocksJava distinction.
+13. [RocksDB Journal](https://github.com/facebook/rocksdb/wiki/Journal): WAL journals in-memory updates; MANIFEST journals on-disk state changes.
+14. [RocksDB MemTable](https://github.com/facebook/rocksdb/wiki/MemTable): mutable/immutable memtables and flush triggers.
+15. [RocksDB Compaction](https://github.com/facebook/rocksdb/wiki/Compaction): leveled/tiered trade-offs and workload-dependent write amplification.
+16. [RocksDB Universal Compaction](https://github.com/facebook/rocksdb/wiki/Universal-Compaction): lower-write-amplification goal and read/space trade-offs.
+17. [RocksDB Leveled Compaction](https://github.com/facebook/rocksdb/wiki/Leveled-Compaction): L0 overlap, lower-level organization, and compaction behavior.
+18. [RocksDB Write Stalls](https://github.com/facebook/rocksdb/wiki/Write-Stalls): memtable, L0, and pending-compaction backpressure triggers.
+19. [RocksDB Compaction Stats and DB Status](https://github.com/facebook/rocksdb/wiki/Compaction-Stats-and-DB-Status): bytes, amplification, stall, and per-level operational metrics.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -434,8 +631,8 @@ The earlier focused module remains the canonical place for separator invariants,
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; and lines **134–176**, “B+ trees: pages, fan-out, and write cost”
-- Deliberate continuation: Section 3, “LSM trees: moving write cost into compaction,” begins at source line 177.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; and lines **177–230**, “LSM trees: moving write cost into compaction”
+- Deliberate continuation: Section 4, “Row-oriented versus column-oriented storage,” begins at source line 231; resolve its exact end before processing.
 
 Validation commands:
 
@@ -447,3 +644,4 @@ java -ea ConsistencyContracts
 ```
 
 The Markdown is canonical. `guide.html` is generated deterministically and embeds the exact Markdown bytes for synchronization checks.
+

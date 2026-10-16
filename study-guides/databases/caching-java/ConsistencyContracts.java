@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Executable teaching models for guide Section 1. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-3. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -211,6 +211,122 @@ public final class ConsistencyContracts {
         return new LeafInsert(left, right, right.get(0), true);
     }
 
+    record LsmVersion(long sequence, String value, boolean tombstone) {
+        LsmVersion {
+            if (sequence <= 0) throw new IllegalArgumentException("sequence must be positive");
+            if (tombstone && value != null) throw new IllegalArgumentException("tombstone has no value");
+            if (!tombstone && value == null) throw new IllegalArgumentException("value is required");
+        }
+    }
+
+    static final class LsmBuffer {
+        private final List<Map.Entry<String, LsmVersion>> wal = new ArrayList<>();
+        private final Map<String, LsmVersion> mutable = new HashMap<>();
+        private final List<Map<String, LsmVersion>> tables = new ArrayList<>();
+
+        void put(String key, String value, long sequence) {
+            apply(key, new LsmVersion(sequence, value, false));
+        }
+
+        void delete(String key, long sequence) {
+            apply(key, new LsmVersion(sequence, null, true));
+        }
+
+        private void apply(String key, LsmVersion version) {
+            if (key.isBlank()) throw new IllegalArgumentException("key is required");
+            wal.add(Map.entry(key, version)); // teaching model: WAL publication precedes memtable
+            mutable.merge(key, version, LsmBuffer::newer);
+        }
+
+        void flush() {
+            if (mutable.isEmpty()) return;
+            tables.add(Map.copyOf(mutable));
+            mutable.clear();
+            wal.clear(); // safe only because the flushed table is now the durable model state
+        }
+
+        LsmBuffer crashAndRecover() {
+            LsmBuffer recovered = new LsmBuffer();
+            recovered.tables.addAll(tables);
+            for (Map.Entry<String, LsmVersion> entry : wal) {
+                recovered.mutable.merge(entry.getKey(), entry.getValue(), LsmBuffer::newer);
+                recovered.wal.add(entry);
+            }
+            return recovered;
+        }
+
+        List<LsmVersion> candidates(String key) {
+            List<LsmVersion> result = new ArrayList<>();
+            if (mutable.containsKey(key)) result.add(mutable.get(key));
+            for (Map<String, LsmVersion> table : tables) {
+                if (table.containsKey(key)) result.add(table.get(key));
+            }
+            return List.copyOf(result);
+        }
+
+        int walEntries() { return wal.size(); }
+        int tableCount() { return tables.size(); }
+
+        private static LsmVersion newer(LsmVersion left, LsmVersion right) {
+            return left.sequence() >= right.sequence() ? left : right;
+        }
+    }
+
+    record LsmRead(boolean found, String value, long sequence, int candidatesChecked) {}
+
+    static LsmRead newestVisible(
+            List<LsmVersion> candidates, long snapshotSequence, boolean bloomMayContain) {
+        if (snapshotSequence < 0) throw new IllegalArgumentException("snapshot must not be negative");
+        if (!bloomMayContain) return new LsmRead(false, null, -1, 0);
+        LsmVersion best = null;
+        int checked = 0;
+        for (LsmVersion candidate : candidates) {
+            checked++;
+            if (candidate.sequence() <= snapshotSequence
+                    && (best == null || candidate.sequence() > best.sequence())) {
+                best = candidate;
+            }
+        }
+        if (best == null || best.tombstone()) {
+            return new LsmRead(false, null, best == null ? -1 : best.sequence(), checked);
+        }
+        return new LsmRead(true, best.value(), best.sequence(), checked);
+    }
+
+    static boolean canDropTombstone(
+            long tombstoneSequence, long oldestSnapshotSequence, boolean completeHistoryCoverage) {
+        if (tombstoneSequence <= 0 || oldestSnapshotSequence < 0) {
+            throw new IllegalArgumentException("invalid sequence");
+        }
+        return completeHistoryCoverage && tombstoneSequence < oldestSnapshotSequence;
+    }
+
+    record Amplification(double writeAmplification, double readAmplification, long headroomBytes) {}
+
+    static Amplification amplification(
+            long logicalWriteBytes,
+            long walBytes,
+            long flushBytes,
+            long compactionBytesWritten,
+            long bytesRead,
+            long usefulBytesReturned,
+            long liveBytes,
+            long obsoleteBytes,
+            long compactionOverlapBytes) {
+        long[] values = {
+            logicalWriteBytes, walBytes, flushBytes, compactionBytesWritten,
+            bytesRead, usefulBytesReturned, liveBytes, obsoleteBytes, compactionOverlapBytes
+        };
+        for (long value : values) if (value < 0) throw new IllegalArgumentException("negative bytes");
+        if (logicalWriteBytes == 0 || usefulBytesReturned == 0) {
+            throw new IllegalArgumentException("ratio denominator must be positive");
+        }
+        double wa = (walBytes + flushBytes + compactionBytesWritten) / (double) logicalWriteBytes;
+        double ra = bytesRead / (double) usefulBytesReturned;
+        long headroom = Math.addExact(Math.addExact(liveBytes, obsoleteBytes), compactionOverlapBytes);
+        return new Amplification(wa, ra, headroom);
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -347,6 +463,55 @@ public final class ConsistencyContracts {
         } catch (IllegalArgumentException expected) {}
     }
 
+    private static void lsmWritePathScenarios() {
+        LsmBuffer db = new LsmBuffer();
+        db.put("cart:7", "v1", 10);
+        db.put("cart:7", "v2", 11);
+        assert db.walEntries() == 2;
+        LsmBuffer recovered = db.crashAndRecover();
+        LsmRead read = newestVisible(recovered.candidates("cart:7"), 11, true);
+        assert read.found() && read.value().equals("v2") && read.sequence() == 11;
+
+        recovered.flush();
+        assert recovered.walEntries() == 0;
+        assert recovered.tableCount() == 1;
+        assert newestVisible(recovered.candidates("cart:7"), 11, true).value().equals("v2");
+    }
+
+    private static void lsmSnapshotReadScenarios() {
+        List<LsmVersion> versions = List.of(
+                new LsmVersion(30, null, true),
+                new LsmVersion(25, "new", false),
+                new LsmVersion(12, "old", false));
+        LsmRead at20 = newestVisible(versions, 20, true);
+        assert at20.found() && at20.value().equals("old") && at20.sequence() == 12;
+        LsmRead at27 = newestVisible(versions, 27, true);
+        assert at27.found() && at27.value().equals("new") && at27.sequence() == 25;
+        LsmRead at30 = newestVisible(versions, 30, true);
+        assert !at30.found() && at30.sequence() == 30;
+        assert newestVisible(versions, 30, false).candidatesChecked() == 0;
+    }
+
+    private static void lsmTombstoneScenarios() {
+        assert !canDropTombstone(50, 40, true);  // an older snapshot still needs pre-delete state
+        assert !canDropTombstone(50, 80, false); // an older version may survive outside the inputs
+        assert canDropTombstone(50, 80, true);
+    }
+
+    private static void lsmAmplificationScenarios() {
+        Amplification plan = amplification(
+                100, 100, 100, 500,
+                64, 8,
+                1_000, 120, 300);
+        assert plan.writeAmplification() == 7.0;
+        assert plan.readAmplification() == 8.0;
+        assert plan.headroomBytes() == 1_420;
+        try {
+            amplification(0, 0, 0, 0, 0, 1, 0, 0, 0);
+            throw new AssertionError("zero logical bytes accepted");
+        } catch (IllegalArgumentException expected) {}
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -359,6 +524,11 @@ public final class ConsistencyContracts {
         compositeRangeScenarios();
         secondaryIndexFootprintScenarios();
         leafSplitScenarios();
-        System.out.println("PASS 8 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split");
+        lsmWritePathScenarios();
+        lsmSnapshotReadScenarios();
+        lsmTombstoneScenarios();
+        lsmAmplificationScenarios();
+        System.out.println("PASS 12 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification");
     }
 }
+
