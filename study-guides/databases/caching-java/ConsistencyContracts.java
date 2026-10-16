@@ -1,5 +1,8 @@
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -139,6 +142,75 @@ public final class ConsistencyContracts {
         }
     }
 
+    record CapacityPlan(int levels, long leafPages, List<Long> pagesBottomUp) {}
+
+    static CapacityPlan capacityPlan(long entries, int leafCapacity, int fanout) {
+        if (entries <= 0) throw new IllegalArgumentException("entries must be positive");
+        if (leafCapacity < 2 || fanout < 2) {
+            throw new IllegalArgumentException("leaf capacity and fanout must be at least two");
+        }
+        long leaves = ceilDiv(entries, leafCapacity);
+        List<Long> pages = new ArrayList<>();
+        pages.add(leaves);
+        long current = leaves;
+        while (current > 1) {
+            current = ceilDiv(current, fanout);
+            pages.add(current);
+        }
+        return new CapacityPlan(pages.size(), leaves, List.copyOf(pages));
+    }
+
+    private static long ceilDiv(long value, long divisor) {
+        return 1 + (value - 1) / divisor;
+    }
+
+    record OrderKey(int tenantId, long createdAt, int orderId) {}
+
+    static List<OrderKey> newestInWindow(
+            List<OrderKey> indexOrder, int tenantId, long fromInclusive, long toExclusive, int limit) {
+        if (fromInclusive > toExclusive || limit < 0) throw new IllegalArgumentException("invalid range");
+        List<OrderKey> result = new ArrayList<>();
+        for (OrderKey key : indexOrder) {
+            if (key.tenantId() < tenantId) continue;
+            if (key.tenantId() > tenantId) break;
+            if (key.createdAt() < fromInclusive) break; // descending time within tenant
+            if (key.createdAt() < toExclusive && result.size() < limit) result.add(key);
+            if (result.size() == limit) break;
+        }
+        return List.copyOf(result);
+    }
+
+    static long extraSecondaryKeyBytes(
+            long rows, int secondaryIndexes, int oldPrimaryKeyBytes, int newPrimaryKeyBytes) {
+        if (rows < 0 || secondaryIndexes < 0 || oldPrimaryKeyBytes < 0 || newPrimaryKeyBytes < 0) {
+            throw new IllegalArgumentException("dimensions must not be negative");
+        }
+        int delta = Math.subtractExact(newPrimaryKeyBytes, oldPrimaryKeyBytes);
+        return Math.multiplyExact(Math.multiplyExact(rows, secondaryIndexes), delta);
+    }
+
+    record LeafInsert(List<Integer> left, List<Integer> right, Integer separator, boolean split) {}
+
+    static LeafInsert insertIntoLeaf(int[] sortedDistinctKeys, int key, int capacity) {
+        if (capacity < 2 || sortedDistinctKeys.length > capacity) {
+            throw new IllegalArgumentException("invalid leaf capacity/state");
+        }
+        int found = Arrays.binarySearch(sortedDistinctKeys, key);
+        if (found >= 0) throw new IllegalArgumentException("duplicate key");
+        int insertion = -found - 1;
+        List<Integer> merged = new ArrayList<>(sortedDistinctKeys.length + 1);
+        for (int i = 0; i < insertion; i++) merged.add(sortedDistinctKeys[i]);
+        merged.add(key);
+        for (int i = insertion; i < sortedDistinctKeys.length; i++) merged.add(sortedDistinctKeys[i]);
+        if (merged.size() <= capacity) {
+            return new LeafInsert(List.copyOf(merged), List.of(), null, false);
+        }
+        int splitAt = merged.size() / 2;
+        List<Integer> left = List.copyOf(merged.subList(0, splitAt));
+        List<Integer> right = List.copyOf(merged.subList(splitAt, merged.size()));
+        return new LeafInsert(left, right, right.get(0), true);
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -224,6 +296,57 @@ public final class ConsistencyContracts {
         assert b.items().equals(beforeDuplicate.items()); // idempotent repair
     }
 
+    private static void capacityScenarios() {
+        CapacityPlan million = capacityPlan(1_000_000, 200, 200);
+        assert million.levels() == 3;
+        assert million.leafPages() == 5_000;
+        assert million.pagesBottomUp().equals(List.of(5_000L, 25L, 1L));
+        assert capacityPlan(200, 200, 200).pagesBottomUp().equals(List.of(1L));
+        try {
+            capacityPlan(1, 1, 200);
+            throw new AssertionError("invalid capacity accepted");
+        } catch (IllegalArgumentException expected) {}
+    }
+
+    private static void compositeRangeScenarios() {
+        List<OrderKey> ordered = List.of(
+                new OrderKey(6, 200, 1),
+                new OrderKey(7, 130, 70),
+                new OrderKey(7, 120, 71),
+                new OrderKey(7, 110, 72),
+                new OrderKey(7, 90, 73),
+                new OrderKey(8, 140, 80));
+        List<OrderKey> firstTwo = newestInWindow(ordered, 7, 100, 130, 2);
+        assert firstTwo.stream().map(OrderKey::orderId).toList().equals(List.of(71, 72));
+        assert newestInWindow(ordered, 9, 0, 500, 20).isEmpty();
+    }
+
+    private static void secondaryIndexFootprintScenarios() {
+        long extra = extraSecondaryKeyBytes(50_000_000L, 4, 8, 36);
+        assert extra == 5_600_000_000L;
+        assert extraSecondaryKeyBytes(50_000_000L, 0, 8, 36) == 0;
+        try {
+            extraSecondaryKeyBytes(-1, 4, 8, 36);
+            throw new AssertionError("negative dimensions accepted");
+        } catch (IllegalArgumentException expected) {}
+    }
+
+    private static void leafSplitScenarios() {
+        LeafInsert split = insertIntoLeaf(new int[] {18, 24, 31}, 28, 3);
+        assert split.split();
+        assert split.left().equals(List.of(18, 24));
+        assert split.right().equals(List.of(28, 31));
+        assert split.separator() == 28;
+
+        LeafInsert noSplit = insertIntoLeaf(new int[] {18, 24}, 32, 3);
+        assert !noSplit.split();
+        assert noSplit.left().equals(List.of(18, 24, 32));
+        try {
+            insertIntoLeaf(new int[] {18, 24}, 24, 3);
+            throw new AssertionError("duplicate key accepted");
+        } catch (IllegalArgumentException expected) {}
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -232,6 +355,10 @@ public final class ConsistencyContracts {
         unknownOutcomeScenarios();
         replicaScenarios();
         convergenceScenarios();
-        System.out.println("PASS 4 scenario groups: atomicity, idempotency, replica routing, convergence");
+        capacityScenarios();
+        compositeRangeScenarios();
+        secondaryIndexFootprintScenarios();
+        leafSplitScenarios();
+        System.out.println("PASS 8 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split");
     }
 }

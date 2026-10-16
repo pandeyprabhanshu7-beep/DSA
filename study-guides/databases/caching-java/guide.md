@@ -1,6 +1,6 @@
 # Database Internals, Caching, and Java Connectivity
 
-> **Incremental canonical guide.** This publication deepens source Section 1 only: **ACID, BASE, and the misleading SQL/NoSQL split**. Later source sections are deliberately queued rather than summarized prematurely.
+> **Incremental canonical guide.** This publication deepens source Sections 1–2: **ACID/BASE contracts** and **B+ tree page economics**. Later source sections are deliberately queued rather than summarized prematurely.
 
 ## Learning contract
 
@@ -231,7 +231,7 @@ The asymptotic notation describes the small teaching structures. It does not era
 - Are quorum membership, version selection, repair, and failover specified?
 - Are retries for serialization failures bounded, observable, and jittered?
 
-## Primary references
+## Primary references used across Sections 1–2
 
 Accessed 2026-10-16.
 
@@ -241,6 +241,191 @@ Accessed 2026-10-16.
 4. [MySQL 8.4 — InnoDB Recovery](https://dev.mysql.com/doc/refman/8.4/en/innodb-recovery.html): redo application, incomplete-transaction rollback, and purge.
 5. [Amazon DynamoDB — Read consistency](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html): eventual and strong read scopes, including GSI limitations.
 6. DeCandia et al., [Dynamo: Amazon's Highly Available Key-value Store](https://www.amazon.science/publications/dynamo-amazons-highly-available-key-value-store), SOSP 2007: versioning, availability trade-offs, and application-assisted conflict resolution.
+7. [PostgreSQL 18 — B-Tree Indexes](https://www.postgresql.org/docs/current/btree.html): page-level structure, recursive splits, root growth, and implementation-specific deletion.
+8. [PostgreSQL 18 — Indexes and `ORDER BY`](https://www.postgresql.org/docs/current/indexes-ordering.html): ordered B-tree scans, planner trade-offs, and `ORDER BY ... LIMIT`.
+9. [PostgreSQL 18 — `CREATE INDEX`](https://www.postgresql.org/docs/current/sql-createindex.html): B-tree fill factor and covering/index-construction options.
+10. [MySQL 8.4 — Clustered and Secondary Indexes](https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html): clustered row storage and primary-key payload in secondary entries.
+11. [MySQL 8.4 — Physical Structure of an InnoDB Index](https://dev.mysql.com/doc/refman/8.4/en/innodb-physical-structure.html): 16 KiB default pages, occupancy, fill factor, and merge threshold.
+
+# Section 2 — B+ trees: shallow indexes, ordered leaves, and write cost
+
+The repository already contains a focused [B+ tree algorithm guide](../../local-project-notes/advanced-trees/b-plus-tree-database-index.md) and its heavily randomized immutable read model. This section does not create a second copy of that guide. It adds the storage-engine and schema-design questions the earlier module deliberately omits: page capacity, clustered versus heap organization, secondary-index amplification, online splits, fill factor, and what to measure in production.
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. derive an illustrative tree height from entry count, leaf capacity, and internal fan-out without calling the estimate a product guarantee;
+2. trace equality, bounded range, and `ORDER BY ... LIMIT` access through internal pages and linked leaves;
+3. explain why an InnoDB secondary lookup normally carries the primary key and can require a second tree traversal;
+4. explain why random and sequential inserts create different locality and contention profiles; and
+5. distinguish a short structural latch from a transaction lock, then name the logging/recovery work a real split needs.
+
+Before creating an index, state the workload contract:
+
+| Question | Example requirement | Consequence |
+|---|---|---|
+| Which predicates must be fast? | `tenant_id = ? AND created_at BETWEEN ? AND ?` | Order the composite key so the required interval is contiguous |
+| Is ordered output needed? | newest 20 orders per tenant | A matching B-tree order may avoid a separate sort |
+| Must the query fetch base rows? | list needs status and total only | A covering index can save lookups but makes leaves wider |
+| What is the write pattern? | random UUID inserts at 10k/s | Expect dispersed dirty pages and possible splits |
+| What is the concurrency hotspot? | monotonically increasing IDs | Good locality can concentrate writers on the right edge |
+| Which engine layout applies? | InnoDB clustered primary index | Primary-key width is repeated in secondary entries |
+
+## Page anatomy and the height calculation
+
+Internal pages store routing separators and child page identifiers. Leaves store ordered index entries and are connected for ordered traversal. PostgreSQL describes each level as a doubly linked list of pages; its leaf tuples point to table rows, while its internal tuples point down one level. InnoDB uses B-tree index pages, with a default 16 KiB page size, but its clustered-index leaves hold row data and its secondary entries include the primary-key columns.
+
+```mermaid
+flowchart TD
+    R["Root: separators 40, 80"] --> I1["Internal page: 10, 20, 30"]
+    R --> I2["Internal page: 50, 60, 70"]
+    I1 --> L1["Leaf: 1..9"]
+    I1 --> L2["Leaf: 10..19"]
+    I2 --> L3["Leaf: 50..59"]
+    I2 --> L4["Leaf: 60..69"]
+    L1 -.->|ordered next| L2
+    L2 -.->|ordered next| L3
+    L3 -.->|ordered next| L4
+```
+
+### Example 5 — one million entries can still mean three page levels
+
+Assume, only for arithmetic, 200 entries per leaf and fan-out 200:
+
+| Level | Calculation | Pages |
+|---|---:|---:|
+| Leaf | `ceil(1,000,000 / 200)` | 5,000 |
+| Internal above leaves | `ceil(5,000 / 200)` | 25 |
+| Root | `ceil(25 / 200)` | 1 |
+
+That is three page levels: root → internal → leaf. The executable `capacityPlan` scenario derives the same result. It also tests boundaries such as one entry, an exact full leaf, and a fan-out smaller than two.
+
+This does **not** promise three physical reads. Upper pages may already be in the buffer pool, a leaf may not be resident, a covering index may avoid a base-row read, and read-ahead can change the I/O pattern. Key width, row identifier width, tuple headers, page headers, free space, compression, deduplication, and occupancy all change effective fan-out.
+
+## One descent, then an ordered leaf scan
+
+```mermaid
+flowchart LR
+    Q["tenant=7, time 10:00..11:00"] --> R["Descend composite index"]
+    R --> L1["First qualifying leaf slot"]
+    L1 --> L2["Next leaf"]
+    L2 --> L3["Stop at upper bound or LIMIT"]
+```
+
+### Example 6 — composite range plus `ORDER BY ... LIMIT`
+
+For an index on `(tenant_id, created_at DESC, order_id)`, the query below forms one ordered interval after tenant equality:
+
+```sql
+SELECT order_id, created_at
+FROM orders
+WHERE tenant_id = :tenant
+  AND created_at >= :from
+  AND created_at < :to
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+Trace for tenant 7:
+
+| Step | Page action | Work avoided |
+|---:|---|---|
+| 1 | Use separators to descend to the first qualifying composite key | No full index scan |
+| 2 | Lower-bound inside the leaf | No scan of earlier tenants/timestamps |
+| 3 | Read forward through leaf entries and sibling pages | No root descent per row |
+| 4 | Stop after 20 entries or at `:to` | No need to sort/consume the remaining interval when the plan matches |
+
+PostgreSQL explicitly documents that B-tree is its index type capable of producing sorted output and that a matching index is especially valuable for `ORDER BY ... LIMIT`. The optimizer may still prefer a table scan plus sort when a query needs a large fraction of the table. Also, a suffix-only predicate on `created_at` lacks tenant equality and may not describe one narrow interval in this key order.
+
+## Clustered and secondary layouts are not interchangeable
+
+```mermaid
+flowchart TD
+    S["InnoDB secondary entry: email + primary key"] --> SI["Traverse secondary B-tree"]
+    SI --> PK["Obtain primary-key value"]
+    PK --> CI["Traverse clustered primary B-tree"]
+    CI --> ROW["Read row from clustered leaf"]
+    C["Covering secondary entry"] -. "needed columns already present" .-> DONE["Return without clustered lookup"]
+```
+
+### Example 7 — a wide primary key multiplies secondary-index bytes
+
+Consider 50 million rows and four secondary indexes. Ignoring headers, compression, free space, and included columns, replacing an 8-byte primary key with a 36-byte textual UUID adds:
+
+\[
+50{,}000{,}000 \times 4 \times (36 - 8) = 5.6\text{ GB}
+\]
+
+This is a deliberately narrow lower-bound model, not a storage forecast. The executable scenario verifies the arithmetic and rejects negative dimensions. Real capacity planning must measure encoded entries and page occupancy. MySQL documents the underlying reason: each InnoDB secondary record includes the primary-key columns, and a secondary lookup uses that value to search the clustered index.
+
+PostgreSQL's ordinary layout differs: B-tree leaf tuples point to rows in a heap-organized table. A useful interview answer says which engine is being discussed instead of treating every “B-tree index” as clustered.
+
+## Insert, split, and recovery-safe publication
+
+```mermaid
+sequenceDiagram
+    participant W as Writer
+    participant L as Target leaf
+    participant R as New right leaf
+    participant P as Parent
+    participant WAL as WAL or redo
+    W->>L: Insert 28 into [18,24,31]
+    L->>R: Split to [18,24] and [28,31]
+    W->>WAL: Log page allocation and structural changes
+    W->>P: Publish separator 28 and right downlink
+    P-->>W: Split upward if parent also overflows
+```
+
+### Example 8 — split a full leaf without losing order
+
+The Java teaching helper inserts 28 into a capacity-three leaf `[18,24,31]`, then returns:
+
+| Output | Value | Invariant |
+|---|---|---|
+| left page | `[18,24]` | sorted and within old lower range |
+| right page | `[28,31]` | sorted and within old upper range |
+| promoted separator | `28` | minimum key of the new right page |
+
+The scenario also inserts 32 into a non-full leaf and verifies that no split occurs. This is a structural teaching model only. A production split must allocate and initialize a sibling, preserve sibling links, log changes, make parent navigation safe for concurrent readers, and recover from crashes at intermediate moments. A **latch** briefly protects in-memory page structure; a **transaction lock** protects logical records or predicates across transaction work. They solve different problems.
+
+PostgreSQL documents recursive split propagation and root splitting: only a root split adds a new level. It also performs implementation-specific deletion/deduplication work that can sometimes avoid a split. Do not infer that every full-looking logical insert allocates a page, or that every split immediately writes all touched pages to storage.
+
+## Insert pattern and fill-factor trade-offs
+
+| Pattern | Benefit | Dominant risk |
+|---|---|---|
+| Random keys | Distributes writers across key space | Scattered dirty pages, lower locality, more split opportunities |
+| Sequential keys | High locality and compact right-edge growth | Rightmost-page latch contention at high concurrency |
+| Lower fill factor | Leaves headroom for later inserts | Larger index, lower cache density, more scan I/O |
+| Wider covering index | Avoids some base-row lookups | Lower fan-out and higher write/storage cost |
+
+InnoDB documents that sequential insert builds tend toward about 15/16-full pages, while random insertion can yield pages between one-half and 15/16 full. PostgreSQL exposes B-tree `fillfactor`, but the right value is workload-specific. Measure instead of prescribing a magic percentage.
+
+Useful signals include index bytes and growth, page split/merge rate where exposed, buffer-cache hit and residency, dirty-page and WAL/redo bytes, index scan versus table-fetch counts, query latency by plan, right-edge latch waits, and write latency. A logical `O(log n)` insertion can touch several pages yet still have fewer device operations because buffering coalesces writes.
+
+## Complexity, failure boundaries, and review
+
+| Operation | Logical CPU | Page-oriented shape | Important boundary |
+|---|---:|---:|---|
+| Point lookup | `O(log_F n)` levels | one page per level if cold | clustered/covering layout determines extra fetches |
+| Range returning `k` rows | `O(log_F n + k)` | one descent plus leaf pages visited | output and base-row fetches still cost work |
+| Insert without split | search plus in-page movement | leaf dirtied and logged | acknowledgement follows the durability policy |
+| Split | search plus redistribution | new sibling + parent update; may cascade | concurrent visibility and crash recovery are engine-specific |
+
+Review questions:
+
+- What exactly lives in internal and leaf pages for this engine?
+- Which separator convention routes equality left or right?
+- Does the query describe one contiguous composite-key interval?
+- Can index order satisfy the requested sort and limit?
+- Does the read require a heap/clustered lookup, or is the index covering?
+- How many times is the primary key replicated into secondary entries?
+- Is a hotspot caused by poor locality or by too much right-edge locality?
+- Are page latches, transaction locks, WAL/redo, and recovery described separately?
+- Which measurements would prove that splits or cache misses are the bottleneck?
+
+The earlier focused module remains the canonical place for separator invariants, immutable bulk loading, linked-leaf correctness proofs, deletion mechanics, and 150,000 randomized point/range oracle checks. This section supplies the complementary database-design and operational layer.
 
 ## Source provenance and verification
 
@@ -249,8 +434,8 @@ Accessed 2026-10-16.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded range: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”
-- Deliberate continuation: Section 2, “B+ Trees: why indexes are shallow,” begins at source line 134.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; and lines **134–176**, “B+ trees: pages, fan-out, and write cost”
+- Deliberate continuation: Section 3, “LSM trees: moving write cost into compaction,” begins at source line 177.
 
 Validation commands:
 
