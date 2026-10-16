@@ -5,7 +5,7 @@ description: Incremental, source-reconciled frontend interview guide with execut
 
 # JavaScript, HTML and CSS Interview Guide
 
-This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q72**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage and cache ownership, web security, semantic HTML, script delivery, accessible forms and dialogs, responsive media, CSS layout and layers, module optimization, collection and promise implementations, lifecycle-safe utilities, stale-safe autocomplete, and worker selection. Later rapid-fire and revision material remains queued; this is not a claim that the complete workbook has been promoted.
+This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q72 plus rapid-fire items 1–16**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage and cache ownership, web security, semantic HTML, script delivery, accessible forms and dialogs, responsive media, CSS layout and layers, module optimization, collection and promise implementations, lifecycle-safe utilities, stale-safe autocomplete, observers, and worker selection. Rapid-fire items 17–32 and revision material remain queued; this is not a claim that the complete workbook has been promoted.
 
 ## Module map
 
@@ -81,6 +81,7 @@ This is the canonical incremental guide for the paired JavaScript/HTML/CSS workb
 - [Q70 — Cascade layers](#q70)
 - [Q71 — Stale-safe autocomplete](#q71)
 - [Q72 — Accessible modal focus management](#q72)
+- [Rapid-fire 1–16 — language, iteration, scheduling, observers, and workers](#rapid-fire-1-16)
 - [Source provenance and verification](#sources)
 - [Next bounded section](#next)
 
@@ -3271,6 +3272,218 @@ flowchart TD
 
 Native modal dialog provides the top-layer and document-inert behavior; test actual focus order, browser/assistive-technology combinations, nested modal policy, trigger removal, validation errors, and reduced viewport/zoom. For a custom dialog, the application must implement and test those contracts itself rather than adding ARIA alone.
 
+<a id="rapid-fire-1-16"></a>
+
+## Rapid-fire bank 1–16
+
+These answers are short enough to say in an interview, but each names the boundary that prevents a misleading one-line answer.
+
+### 1. What is strict mode?
+
+Strict mode selects stricter syntax and runtime semantics. A classic script or ordinary function opts in with a directive prologue containing exactly `"use strict"`; module code and every part of a class are strict automatically. Among the observable differences, assigning an unresolvable name throws instead of creating a global property, several silent write failures throw, duplicate parameter names are restricted, and a plain call to a non-arrow function receives `undefined` as `this` rather than substituting the global object.
+
+### 2. Why is `typeof null` `"object"`?
+
+It is a historical compatibility artifact, not evidence that `null` is an object. The language has a distinct Null type with the single value `null`; test it with `value === null`. Use `typeof value === "object" && value !== null` only when the requirement is the broad object category, and remember that arrays and ordinary objects both pass that broad test.
+
+### 3. `Object.freeze` versus `const`
+
+`const` prevents assigning a different value to a binding. `Object.freeze(value)` changes one object's integrity level: the object becomes non-extensible and its existing own data properties become non-writable and non-configurable. Freeze is shallow—an unfrozen nested object can still change—and accessors may still expose mutable external state. Neither operation is a general deep-immutability system.
+
+### 4. `Map` versus `Object`
+
+Use `Map` when keys are arbitrary values, insertion-order iteration and a direct `size` are part of the contract, or prototype-key collisions should not exist. Use an object when modeling a record with named property keys and normal property/JSON semantics. `Map` key equality is `SameValueZero`; object keys are property keys, so non-symbol inputs are coerced to strings.
+
+### 5. What is a `Set` for?
+
+A `Set` models unique values and membership. Equality is `SameValueZero`, so repeated `NaN` values collapse and `0`/`-0` are the same entry. The ECMAScript contract requires average access time sublinear in collection size; it does **not** promise a particular hash-table implementation or worst-case O(1).
+
+### 6. What is the advantage of `WeakMap`?
+
+A `WeakMap` associates metadata with object or non-registered-symbol keys without keeping those keys alive solely because of the association. It is deliberately non-enumerable: exposing its keys would make garbage-collection timing observable. Use it for private per-object state or caches whose lifetime should follow the key, not for data that must be listed, counted, serialized, or retained independently.
+
+### Example 57 — separate binding, object, and collection ownership
+
+```javascript
+const settings = Object.freeze({theme: "dark", nested: {retries: 2}});
+settings.nested.retries = 3;          // allowed: nested object was not frozen
+// settings.theme = "light";          // TypeError in strict/module code
+// settings = {};                      // TypeError: const binding
+
+const account = {id: "A"};
+const metadata = new WeakMap([[account, {lastSeen: 7}]]);
+const roles = new Map([[account, new Set(["reader", "reader", "writer"])]]);
+
+console.log(typeof null, settings.nested.retries, roles.get(account).size,
+            metadata.get(account).lastSeen);
+// object 3 2 7
+```
+
+Trace:
+
+| Operation | Binding changes? | Top object changes? | Nested/key-owned state changes? |
+|---|---:|---:|---:|
+| mutate `settings.nested.retries` | no | no | yes |
+| assign `settings.theme` in strict code | no | rejected | no |
+| add duplicate `"reader"` to the set | no | no | no new entry |
+| drop the last strong reference to `account` | n/a | n/a | WeakMap entry may later be reclaimed; timing is unobservable |
+
+```mermaid
+flowchart TD
+    Binding["const binding"] --> Frozen["frozen top object"]
+    Frozen --> Nested["unfrozen nested object"]
+    Key["account object"] --> Map["Map retains key and roles"]
+    Key -. "weak association" .-> WeakMap["WeakMap metadata"]
+```
+
+### 7. `for...in` versus `for...of`
+
+`for...in` visits enumerable **string property keys**, including inherited ones, using the language's enumeration rules. It is usually the wrong loop for array values. `for...of` asks a value for its iterator and consumes the iterator's **values**; arrays, strings, maps, sets, and generators are iterable. For an own-property record use `Object.keys`, `Object.values`, or `Object.entries` explicitly.
+
+### 8. Destructuring rest versus spread
+
+Rest is a binding/parameter operation that collects what remains: `const [head, ...tail] = input`. Spread is expression syntax that expands values into an array, argument list, or object literal: `[head, ...tail]`. Array/argument spread consumes an iterable; object spread copies enumerable own properties into a new object. Both are shallow with respect to nested referenced objects.
+
+### 9. What is a generator function?
+
+A generator function (`function*`) returns a generator object without running its body to completion. Each `next(value)` resumes execution until the next `yield`, return, or throw and produces an iterator-result object. A generator is both an iterator and iterable, which makes it useful for lazy sequences and state machines. It is synchronous; use an async generator when producing awaited values over time.
+
+### Example 58 — choose keys, values, or a lazy sequence deliberately
+
+```javascript
+const inherited = {legacy: true};
+const record = Object.assign(Object.create(inherited), {first: 10, second: 20});
+
+console.log([...Object.keys(record)]);       // ["first", "second"]
+for (const key in record) console.log(key); // first, second, legacy
+for (const value of Object.values(record)) console.log(value); // 10, 20
+
+const [head, ...tail] = [1, 2, 3];
+const copy = [0, ...tail];
+
+function* ids(prefix, count) {
+  for (let index = 1; index <= count; index += 1) yield `${prefix}-${index}`;
+}
+console.log(head, copy, [...ids("item", 3)]);
+// 1 [0, 2, 3] ["item-1", "item-2", "item-3"]
+```
+
+Generator trace:
+
+| Call | Suspended/resumed point | Result |
+|---|---|---|
+| `iterator.next()` | enter; first `yield` | `{value: "item-1", done: false}` |
+| `iterator.next()` | after first `yield`; second `yield` | `{value: "item-2", done: false}` |
+| `iterator.return("stop")` | close generator | `{value: "stop", done: true}` |
+
+```mermaid
+stateDiagram-v2
+    [*] --> SuspendedStart: call generator
+    SuspendedStart --> SuspendedYield: next() reaches yield
+    SuspendedYield --> SuspendedYield: next() reaches next yield
+    SuspendedYield --> Completed: return(), return, or exhaustion
+    Completed --> [*]
+```
+
+### 10. What are examples of microtasks?
+
+Promise reaction jobs and callbacks passed to `queueMicrotask` enter the microtask queue. Mutation observer delivery is also scheduled by a microtask. After a task finishes, the event loop performs a microtask checkpoint and keeps draining newly queued microtasks before selecting a later task. An unbounded chain can therefore delay rendering and timers; “microtask” does not mean “free” or “parallel.”
+
+### 11. What is tree shaking?
+
+Tree shaking is build-time dead-code elimination based on the statically analyzable `import`/`export` graph. Removal is a bundler result, not an ESM runtime guarantee. Reachability, top-level side effects, package `sideEffects` metadata, re-export structure, compilation mode, and minification all affect the output; verify a production artifact rather than promising that every unused export disappears. See the deeper [Q68 module graph](#q68).
+
+### 12. What are ESM live bindings?
+
+An import is a read-only view of the exporting module's binding, not a copied value. If the exporter later assigns that binding, importers observe the new value. The importer cannot assign through the import name. Object mutation is a separate question: a live binding can continue to reference one mutable object even when the binding itself never changes.
+
+### 13. `DOMContentLoaded` versus `load`
+
+`DOMContentLoaded` fires after parsing completes and scripts scheduled to run when parsing finishes—including deferred classic scripts and module scripts—have run. It does not wait for every image and subresource. The window `load` event occurs later, after nothing remains that delays the load event. Async scripts and dynamically created resources follow their own timing, so use the event that matches the dependency rather than treating `load` as a universal initialization hook.
+
+### Example 59 — keep language jobs, build analysis, and document lifecycle separate
+
+```javascript
+// counter.js
+export let count = 0;
+export const increment = () => { count += 1; };
+
+// app.js
+import {count, increment} from "./counter.js";
+console.log(count); // 0
+increment();
+console.log(count); // 1: the import observes the exporter binding
+
+console.log("task");
+Promise.resolve().then(() => console.log("promise"));
+queueMicrotask(() => console.log("queued"));
+// task, promise, queued
+```
+
+Lifecycle trace for a page containing a deferred script and an image:
+
+| Order | Milestone | What it proves |
+|---:|---|---|
+| 1 | parser reaches end of document | DOM construction is complete |
+| 2 | deferred script executes | deferred work precedes `DOMContentLoaded` |
+| 3 | `DOMContentLoaded` | DOM-dependent initialization may run |
+| 4 | image finishes | this resource did not block `DOMContentLoaded` |
+| 5 | window `load` | load-delaying resources are complete |
+
+```mermaid
+flowchart TD
+    Source["ES module source"] --> Graph["static import/export graph"]
+    Graph --> Bundle["bundler reachability + side effects"]
+    Task["current task"] --> Micro["drain promise/queued microtasks"]
+    Parse["parse + deferred scripts"] --> DCL["DOMContentLoaded"]
+    DCL --> Load["load-delaying resources finish → load"]
+```
+
+### 14. What is `MutationObserver`?
+
+`MutationObserver` batches records for configured DOM changes—child-list, attribute, and/or character-data mutations—and invokes its callback asynchronously through mutation-observer microtask delivery. Configure only the scope and record types needed, process records in batches, and call `disconnect()` when the owner ends. It reports mutations, not layout geometry or user-visible intersection.
+
+### 15. What is `IntersectionObserver`?
+
+`IntersectionObserver` asynchronously reports when a target crosses configured intersection thresholds relative to a root element or the viewport. It avoids continuous scroll polling and synchronous geometry reads, but it is not pixel-perfect visibility, occlusion, or immediate layout information. Choose thresholds/root margins from product behavior, and `unobserve` or `disconnect` when observation is no longer needed.
+
+### 16. What is a Web Worker?
+
+A dedicated Web Worker runs script in a separate worker global scope and communicates with the creator through messages. It has no direct ownership of the page DOM. Use it for measured CPU work whose responsiveness benefit exceeds startup, memory, serialization, and transfer costs; ordinary network waiting is already asynchronous. Workers are relatively heavyweight, so prefer a bounded, long-lived worker or pool over one worker per tiny operation. See the transfer and profiling boundary in [Q66](#q66).
+
+### Example 60 — choose the observer or execution boundary from the signal
+
+```javascript
+const mutations = new MutationObserver(records => reconcile(records));
+mutations.observe(list, {childList: true, subtree: true});
+
+const intersections = new IntersectionObserver(entries => {
+  for (const entry of entries) {
+    if (entry.isIntersecting) preload(entry.target);
+  }
+}, {rootMargin: "200px", threshold: 0});
+intersections.observe(card);
+
+const worker = new Worker(new URL("./index-worker.js", import.meta.url), {type: "module"});
+worker.postMessage({buffer}, [buffer]); // transfer ownership of the ArrayBuffer
+worker.onmessage = ({data}) => renderIndex(data); // DOM remains on the main thread
+```
+
+| Requirement | Correct primitive | Cleanup/ownership boundary |
+|---|---|---|
+| react to nodes added/removed | `MutationObserver` | `disconnect()` with component |
+| prefetch near viewport | `IntersectionObserver` | `unobserve(target)` after fulfillment |
+| calculate a large index | Web Worker | terminate/pool/cancel; transfer large buffers |
+| update page markup | main thread DOM code | validate message and render safely |
+
+```mermaid
+flowchart LR
+    DOM["DOM mutations"] --> MO["MutationObserver records"]
+    View["root intersection"] --> IO["IntersectionObserver entries"]
+    Main["main: DOM + UI"] -->|"message / transfer"| Worker["worker: CPU state"]
+    Worker -->|"result"| Main
+```
+
 ## Decision checklist
 
 - Use `const` by default when the binding should not change; use `let` when reassignment is part of the model.
@@ -3339,6 +3552,10 @@ Native modal dialog provides the top-layer and document-inert behavior; test act
 - Establish cascade-layer order once, compare layers before specificity, and remember that important declarations reverse layer precedence.
 - For autocomplete, debounce for load, abort for efficiency, and fence every render by request identity for correctness.
 - For a modal, provide an accessible name, intentional initial focus, contained navigation, inert background, Escape/close behavior, and focus restoration.
+- Separate binding reassignment (`const`) from shallow object integrity (`Object.freeze`), and choose Map/Set/WeakMap from key and lifetime ownership.
+- Use `for...in` for enumerable property keys and `for...of` for iterable values; say whether rest collects or spread expands.
+- Keep microtask scheduling, module build analysis, live runtime bindings, and document lifecycle events as four different models.
+- Choose MutationObserver for DOM records, IntersectionObserver for asynchronous root intersection, and a Worker for measured CPU contention.
 
 <a id="sources"></a>
 
@@ -3346,9 +3563,9 @@ Native modal dialog provides the top-layer and document-inert behavior; test act
 
 Paired source comparison performed through 2026-10-16:
 
-- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1860. The newly processed Q67–Q72 range is lines 1760–1860, bounded by the rapid-fire bank at line 1861.
-- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 1253–1328 for Q67–Q72, bounded by the rapid-fire bank at rendered line 1329. It agrees on all six topics but is not promoted as a competing guide.
-- The repository edition adds cache-ownership and lifecycle gates, a build-graph/side-effect trace, exact functional-selector and layer precedence (including important-order reversal), identity-fenced autocomplete, native-dialog focus contracts, four connected executable examples, five focused diagrams, deterministic assertions, and current primary links.
+- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1926. The newly processed rapid-fire 1–16 range is lines 1861–1926, bounded by item 17 at line 1927; earlier Q1–Q72 are retained.
+- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 1329–1361 for rapid-fire items 1–16, bounded by item 17 at rendered line 1362. It agrees on all sixteen topics but is not promoted as a competing guide.
+- The repository edition adds exact ownership/lifetime boundaries, four connected executable examples, four focused diagrams, deterministic assertions, and current primary links across language mode, keyed collections, iteration, generators, scheduling, modules, lifecycle events, observers, and workers.
 
 Primary references checked through 2026-10-16:
 
@@ -3437,9 +3654,24 @@ Primary references checked through 2026-10-16:
 - [WAI-ARIA Authoring Practices — combobox pattern](https://www.w3.org/WAI/ARIA/apg/patterns/combobox/)
 - [WAI-ARIA Authoring Practices — modal dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/)
 - [HTML Living Standard — the `dialog` element](https://html.spec.whatwg.org/multipage/interactive-elements.html#the-dialog-element)
+- [ECMAScript — strict mode code](https://tc39.es/ecma262/multipage/ecmascript-language-source-code.html#sec-strict-mode-code)
+- [ECMAScript — `typeof`](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-typeof-operator)
+- [ECMAScript — `Object.freeze`](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-object.freeze)
+- [ECMAScript — Map, Set, and WeakMap](https://tc39.es/ecma262/multipage/keyed-collections.html)
+- [ECMAScript — `for...in` and `for...of`](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-for-in-and-for-of-statements)
+- [ECMAScript — array and object spread](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html)
+- [ECMAScript — binding rest elements](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-destructuring-binding-patterns)
+- [ECMAScript — generator objects](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-generator-objects)
+- [ECMAScript — modules and module namespace bindings](https://tc39.es/ecma262/multipage/ecmascript-language-scripts-and-modules.html#sec-modules)
+- [HTML Living Standard — event loops and microtask checkpoints](https://html.spec.whatwg.org/multipage/webappapis.html#event-loops)
+- [webpack — tree shaking](https://webpack.js.org/guides/tree-shaking/)
+- [HTML Living Standard — stopping the parser, `DOMContentLoaded`, and `load`](https://html.spec.whatwg.org/multipage/parsing.html#the-end)
+- [DOM Standard — Mutation observers](https://dom.spec.whatwg.org/#mutation-observers)
+- [Intersection Observer](https://w3c.github.io/IntersectionObserver/)
+- [HTML Living Standard — Web workers](https://html.spec.whatwg.org/multipage/workers.html)
 
 <a id="next"></a>
 
 ## Next bounded section
 
-Continue with rapid-fire items 1–16 only: strict mode through Web Workers. The Markdown range is lines 1861–1926, bounded by item 17 at line 1927; the DOCX range is rendered lines 1329–1361, bounded by item 17 at rendered line 1362. Re-read both exact ranges before editing; items 17–32 and the final revision sheet remain outside that pass.
+Continue with rapid-fire items 17–32 only: Service Workers through the critical rendering path. The Markdown range is lines 1927–1989, bounded by the Final Revision Sheet anchor at line 1991; the DOCX range is rendered lines 1362–1393, bounded by the Final Revision Sheet at rendered line 1396. Re-read both exact ranges before editing; the Final Revision Sheet remains outside that pass.

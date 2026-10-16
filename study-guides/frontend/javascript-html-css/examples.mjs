@@ -1600,6 +1600,125 @@ export async function browserInteractionPolicyExample() {
   };
 }
 
+export function languageAndCollectionPolicyExample() {
+  let strictErrorName;
+  try {
+    Function('"use strict"; accidentalGlobal = 1;')();
+  } catch (error) {
+    strictErrorName = error.name;
+  }
+
+  const settings = Object.freeze({theme: 'dark', nested: {retries: 2}});
+  let frozenWriteError;
+  try {
+    settings.theme = 'light';
+  } catch (error) {
+    frozenWriteError = error.name;
+  }
+  settings.nested.retries = 3;
+
+  const account = {id: 'A'};
+  const roles = new Map([[account, new Set(['reader', 'reader', 'writer'])]]);
+  const metadata = new WeakMap([[account, {lastSeen: 7}]]);
+
+  return {
+    strictErrorName,
+    nullType: typeof null,
+    nullIsNull: null === null,
+    frozenWriteError,
+    shallowNestedRetries: settings.nested.retries,
+    mapHasIdentityKey: roles.has(account),
+    uniqueRoleCount: roles.get(account).size,
+    weakMetadata: metadata.get(account).lastSeen,
+    complexityContract: 'average-sublinear-not-guaranteed-O(1)'
+  };
+}
+
+export function iterationAndGeneratorPolicyExample() {
+  const inherited = {legacy: true};
+  const record = Object.assign(Object.create(inherited), {first: 10, second: 20});
+  const forInKeys = [];
+  for (const key in record) forInKeys.push(key);
+
+  const forOfValues = [];
+  for (const value of Object.values(record)) forOfValues.push(value);
+
+  const [head, ...tail] = [1, 2, 3];
+  const expanded = [0, ...tail];
+  const copiedRecord = {...record};
+
+  function* ids(prefix, count) {
+    for (let index = 1; index <= count; index += 1) {
+      yield `${prefix}-${index}`;
+    }
+  }
+  const iterator = ids('item', 3);
+  const first = iterator.next();
+  const second = iterator.next();
+  const closed = iterator.return('stop');
+
+  return {
+    ownKeys: Object.keys(record),
+    forInKeys,
+    forOfValues,
+    rest: {head, tail},
+    expanded,
+    copiedKeys: Object.keys(copiedRecord),
+    generator: [first, second, closed, iterator.next()]
+  };
+}
+
+export async function moduleAndLifecyclePolicyExample() {
+  let exportedCount = 0;
+  const importedLiveView = () => exportedCount;
+  const incrementExporter = () => { exportedCount += 1; };
+  const liveBindingTrace = [importedLiveView()];
+  incrementExporter();
+  liveBindingTrace.push(importedLiveView());
+
+  const microtasks = ['task'];
+  Promise.resolve().then(() => microtasks.push('promise'));
+  queueMicrotask(() => microtasks.push('queued'));
+  await Promise.resolve();
+
+  return {
+    liveBindingTrace,
+    microtasks,
+    treeShaking: {
+      phase: 'build-time',
+      inputs: ['static-module-graph', 'reachability', 'side-effects'],
+      guarantee: 'inspect-production-output'
+    },
+    lifecycle: ['parse-complete', 'deferred-script', 'DOMContentLoaded', 'image-complete', 'load']
+  };
+}
+
+export function observerAndWorkerPolicyExample() {
+  const choose = requirement => ({
+    'dom-records': 'MutationObserver',
+    'root-intersection': 'IntersectionObserver',
+    'cpu-contention': 'Web Worker',
+    'dom-update': 'main thread'
+  })[requirement];
+
+  return {
+    choices: [
+      choose('dom-records'),
+      choose('root-intersection'),
+      choose('cpu-contention'),
+      choose('dom-update')
+    ],
+    mutationDelivery: 'microtask-batched-records',
+    intersectionDelivery: 'asynchronous-threshold-crossings',
+    workerBoundary: {
+      communication: 'message-passing',
+      directDomAccess: false,
+      includeCost: ['startup', 'memory', 'serialization-or-transfer']
+    },
+    cleanup: ['disconnect-mutation', 'unobserve-intersection', 'terminate-or-pool-worker']
+  };
+}
+
 assert.deepEqual(constantBindingExample(), {name: 'Grace', skills: ['JS', 'HTML']});
 assert.deepEqual(hoistingExample(), [undefined, 7]);
 assert.equal(temporalDeadZoneErrorName(), 'ReferenceError');
@@ -1924,4 +2043,51 @@ assert.deepEqual(await browserInteractionPolicyExample(), {
   modal: ['trigger:open', 'dialog:initial-focus', 'tab:last-to-first', 'escape:close', 'trigger:restored']
 });
 
-console.log('JavaScript fundamentals examples: 58 scenario groups passed');
+assert.deepEqual(languageAndCollectionPolicyExample(), {
+  strictErrorName: 'ReferenceError',
+  nullType: 'object',
+  nullIsNull: true,
+  frozenWriteError: 'TypeError',
+  shallowNestedRetries: 3,
+  mapHasIdentityKey: true,
+  uniqueRoleCount: 2,
+  weakMetadata: 7,
+  complexityContract: 'average-sublinear-not-guaranteed-O(1)'
+});
+assert.deepEqual(iterationAndGeneratorPolicyExample(), {
+  ownKeys: ['first', 'second'],
+  forInKeys: ['first', 'second', 'legacy'],
+  forOfValues: [10, 20],
+  rest: {head: 1, tail: [2, 3]},
+  expanded: [0, 2, 3],
+  copiedKeys: ['first', 'second'],
+  generator: [
+    {value: 'item-1', done: false},
+    {value: 'item-2', done: false},
+    {value: 'stop', done: true},
+    {value: undefined, done: true}
+  ]
+});
+assert.deepEqual(await moduleAndLifecyclePolicyExample(), {
+  liveBindingTrace: [0, 1],
+  microtasks: ['task', 'promise', 'queued'],
+  treeShaking: {
+    phase: 'build-time',
+    inputs: ['static-module-graph', 'reachability', 'side-effects'],
+    guarantee: 'inspect-production-output'
+  },
+  lifecycle: ['parse-complete', 'deferred-script', 'DOMContentLoaded', 'image-complete', 'load']
+});
+assert.deepEqual(observerAndWorkerPolicyExample(), {
+  choices: ['MutationObserver', 'IntersectionObserver', 'Web Worker', 'main thread'],
+  mutationDelivery: 'microtask-batched-records',
+  intersectionDelivery: 'asynchronous-threshold-crossings',
+  workerBoundary: {
+    communication: 'message-passing',
+    directDomAccess: false,
+    includeCost: ['startup', 'memory', 'serialization-or-transfer']
+  },
+  cleanup: ['disconnect-mutation', 'unobserve-intersection', 'terminate-or-pool-worker']
+});
+
+console.log('JavaScript fundamentals examples: 62 scenario groups passed');
