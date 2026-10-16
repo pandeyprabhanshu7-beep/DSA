@@ -49,7 +49,7 @@ See [intake manifest](INTAKE_MANIFEST.json) for source hashes, statuses and exac
 
 ## Continue next
 
-Angular Q1–Q74 plus rapid-fire items 1–30 are now compared from the paired Markdown/DOCX sources and promoted into the one canonical frontend guide. Continue with the final bounded rapid-fire module (items 31–39), beginning at Markdown line 1660 and DOCX extracted line 1098; resolve the exact end-of-bank boundary in both sources before processing the following revision sheet, then consolidate against the richer canonical answers rather than duplicating them. Estimated next-batch budget: approximately 7,400 tokens. This heuristic reserves about 900 tokens for bounded paired-source range resolution, 1,500 for targeted primary-source refresh, 3,000 for distinct consolidation/teaching/HTML, and 2,000 for validation/checkpoint work. It is not account-quota telemetry.
+The confirmed database/caching source now has Section 1 promoted into the canonical [database guide](../databases/caching-java/). Continue with exactly Section 2, “B+ Trees: why indexes are shallow,” beginning at source line 134; resolve its exact ending boundary before processing. Estimated next-batch budget: approximately 7,600 tokens. This heuristic reserves about 1,200 tokens for bounded source-range resolution, 1,400 for targeted primary-source refresh, 3,100 for consolidation/examples/Java/HTML, and 1,900 for validation/checkpoint work. It is not account-quota telemetry.
 
 ## Maintain readers
 

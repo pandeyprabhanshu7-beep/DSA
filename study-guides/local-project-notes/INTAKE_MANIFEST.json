@@ -865,17 +865,19 @@
     "source": "database_internals_caching_java_master_guide.md",
     "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
     "source_version_id": "1",
-    "section": "Section 1 only: ACID, BASE, and the misleading SQL/NoSQL split, source lines 62-133",
+    "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
+    "section": "Section 2 only: B+ Trees: why indexes are shallow, beginning at source line 134; resolve exact end before processing",
     "status": "QUEUED",
-    "estimated_tokens": 7800,
-    "estimate_method": "Heuristic only: reserve ~1600 tokens to verify the bounded database source and canonical target, ~1400 for current primary references, ~3000 for deep consolidation/examples/HTML, and ~1800 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 7600,
+    "estimate_method": "Heuristic only: reserve ~1200 tokens to resolve the bounded B+ tree source range, ~1400 for primary references, ~3100 for deep consolidation/examples/Java/HTML, and ~1900 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
     "javascript": "Node v24.19.0 executed examples.mjs; all 70 scenario groups passed, including four new final-revision diagnosis and speaking-frame assertions.",
     "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 206630-character embedded payload equality, 77 unique anchors, 151 balanced fences, 54 Mermaid diagrams, inline JavaScript, fragment targets, relative links, JSON syntax, and the live 170-marker Java-placeholder invariant passed. All six content-commit remote blob hashes matched; no commit statuses or check runs were configured. Browser and assistive-technology integration plus Mermaid visual QA were not executed.",
-    "diagrams": "Fifty-four Mermaid diagrams are embedded in the canonical payload, including two new final-revision diagnostic flows; browser rendering and Mermaid visual QA were not executed.",
+    "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Section 1 reader adds four validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
+    "database": "Database Section 1 source version 1 was materialized and hashed. Java 17 source-file compilation/execution passed four scenario groups; deterministic reader generation passed exact 16395-character payload equality, source hash, 48 unique HTML IDs, 16 search entries, fragments, relative links, 7 balanced fences and 4 Mermaid sources; live DSA marker audit remains 170. All nine content-tree blobs matched and no GitHub status checks or check runs were configured. Standalone javac, browser, assistive-technology and Mermaid rendering QA were not executed.",
     "last_processed_at": "2026-10-16T02:12:55-04:00"
   },
   "angular_intake_checkpoint": {
@@ -901,5 +903,19 @@
     "next_section": "Paired source exhausted; rotate to database-caching-java Section 1, source lines 62-133",
     "estimated_next_tokens": 7800,
     "estimate_method": "Heuristic for bounded database-source verification, targeted primary-source refresh, deep consolidation/HTML and validation/checkpoint reserves; not actual quota percentage"
+  },
+  "database_caching_java_intake_checkpoint": {
+    "last_processed_at": "2026-10-16T03:51:02-04:00",
+    "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
+    "source_library_file_id": "libfile_969515775294819195d90fe08e46b7be",
+    "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
+    "source_version_id": "1",
+    "processed": "Section 1 only, ACID, BASE, and the misleading SQL/NoSQL split, source lines 62-133",
+    "status": "IN_PROGRESS",
+    "validation": "Four Java 17 source-launch scenario groups passed; deterministic reader generation and exact 16395-character payload equality passed with source hash, 48 unique IDs, 16 search entries, fragments, relative links, 7 balanced fences and 4 Mermaid sources. Live DSA marker audit remains 170; all nine content-tree blob hashes matched; no GitHub status checks or check runs were configured. Standalone javac and browser/assistive-technology/Mermaid visual QA were unavailable or not executed.",
+    "content_commit": "e0317d7701386e53c5c51c9e048a0c04aa1579ef",
+    "next_section": "Section 2, B+ Trees: why indexes are shallow, begins at source line 134; resolve exact end before processing",
+    "estimated_next_tokens": 7600,
+    "estimate_method": "Heuristic for bounded B+ tree source resolution, targeted primary-source refresh, deep consolidation/Java/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }

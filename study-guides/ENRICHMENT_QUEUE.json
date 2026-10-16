@@ -585,13 +585,27 @@
       "id": "database-caching-java",
       "domain": "System design/data",
       "canonical_target": "study-guides/databases/caching-java/",
-      "target_exists": false,
-      "status": "DISCOVERED",
+      "target_exists": true,
+      "status": "IN_PROGRESS",
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": null,
-      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "last_processed_at": "2026-10-16T03:51:02-04:00",
+      "processed_sections": [
+        "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references"
+      ],
+      "source_revision": {
+        "baseline_commit": "82620c4abba6411342c59db07c7f5c0c3a028e9c",
+        "selected_library_file_id": "libfile_969515775294819195d90fe08e46b7be",
+        "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
+        "selected_version_id": "1",
+        "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
+        "processed_lines": "62-133",
+        "canonical_sha256_after": "c15f6b517e26f825e62fec768e361280b2ce1e9a3c266722ab38fabc9945c0e5"
+      },
+      "content_commit": "e0317d7701386e53c5c51c9e048a0c04aa1579ef",
+      "validation": "Confirmed source version 1 was materialized and hashed; current PostgreSQL, MySQL, DynamoDB and original Dynamo primary references were checked. Java 17 source-file compilation/execution passed four scenario groups covering atomic rollback, conserved balances, overdraft rejection, unknown commit outcome/idempotency, stale replica/read-your-writes routing and convergent duplicate/reordered repair. Deterministic reader generation passed exact 16395-character Markdown payload equality, source SHA-256 metadata, 48 unique HTML IDs, 16 search entries, fragments, relative links, 7 balanced fences and 4 Mermaid sources. Standalone javac, browser, assistive-technology and Mermaid rendering QA were unavailable/not executed. Live DSA placeholder audit remains 170. All nine content-tree blob hashes matched; no commit statuses or check runs were configured.",
+      "next_action": "Process exactly Section 2, B+ Trees: why indexes are shallow, beginning at source line 134; resolve its exact end before reading or promoting it.",
       "priority": 12
     },
     {
@@ -924,14 +938,15 @@
       "JavaScript/HTML/CSS Q67-Q72: HTTP/Service Worker caches, ESM tree shaking, selector/layer specificity, autocomplete races and modal focus",
       "JavaScript/HTML/CSS rapid-fire 1-16: language and collection ownership, iteration/generators, scheduling/modules/lifecycle, observers and Web Workers",
       "JavaScript/HTML/CSS rapid-fire 17-32: Service Workers, rendering, browser security, native accessibility, CSS behavior, Shadow DOM and critical rendering",
-      "JavaScript/HTML/CSS Final Revision Sheet: trigger map, four diagnosis examples, trace tables, answer frame and self-test"
+      "JavaScript/HTML/CSS Final Revision Sheet: trigger map, four diagnosis examples, trace tables, answer frame and self-test",
+      "Database/caching Section 1: ACID/BASE contract, four failure scenarios, WAL/recovery and replica traces, convergent repair and quorum caveat"
     ],
-    "processed_section": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md lines 1991-2041 (SHA-256 742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0) and JavaScript_HTML_CSS_Interview_Workbook.docx rendered lines 1396-1445 (SHA-256 790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb): Final Revision Sheet validated and paired source exhausted",
-    "validation": "The Final Revision Sheet was compared in both source texts and consolidated into ten clue-to-model mappings, four executable diagnosis examples, trace tables, two decision diagrams, a five-part 30-second answer frame and a final self-test. Node v24.19.0 passed all 70 scenario groups; deterministic reader generation passed exact 206630-character payload equality, 77 unique anchors, 151 balanced fenced blocks, 54 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax and the live 170-marker invariant. All six content-commit remote blob hashes matched; no commit statuses or check runs were configured. Browser and assistive-technology integration plus Mermaid visual QA were not executed.",
-    "estimated_next_tokens": 7800,
-    "estimate_method": "Heuristic only for database source verification, current primary references, deep consolidation, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "08a08d4b7d520156d398b564ea42488c62bcc660",
-    "last_processed_at": "2026-10-16T02:12:55-04:00",
-    "next_batch_decision": "The JavaScript/HTML/CSS Final Revision Sheet is the sole bounded section in this pass and exhausts its paired sources. Weekly/hourly quota percentages were not exposed, so stop before the confirmed database/caching Section 1 and retain the conservative one-section checkpoint."
+    "processed_section": "database_internals_caching_java_master_guide.md lines 62-133 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 1, ACID, BASE, and the misleading SQL/NoSQL split",
+    "validation": "Confirmed source version 1 was materialized and hashed; Java 17 source-file compilation/execution passed four scenario groups; deterministic reader generation passed exact 16395-character payload equality, source hash, 48 unique IDs, 16 search entries, fragments, relative links, 7 balanced fences and 4 Mermaid sources; live DSA marker audit remains 170. All nine content-tree blobs matched and no GitHub status checks or check runs were configured. Standalone javac, browser, assistive-technology and Mermaid rendering QA were not executed.",
+    "estimated_next_tokens": 7600,
+    "estimate_method": "Heuristic only for resolving bounded B+ tree source limits, refreshing primary references, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "e0317d7701386e53c5c51c9e048a0c04aa1579ef",
+    "last_processed_at": "2026-10-16T03:51:02-04:00",
+    "next_batch_decision": "Section 1 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 2; resume at its exact start on source line 134 and resolve the end boundary before processing."
   }
 }
