@@ -5,7 +5,7 @@ description: Incremental, source-reconciled frontend interview guide with execut
 
 # JavaScript, HTML and CSS Interview Guide
 
-This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q66**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, responsive media, CSS layout, collection and promise implementations, lifecycle-safe utilities, prototype-aware property checks, a deliberately simplified `bind`, async iteration, safe HTTP retry policy, and Web Worker selection. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
+This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q72**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage and cache ownership, web security, semantic HTML, script delivery, accessible forms and dialogs, responsive media, CSS layout and layers, module optimization, collection and promise implementations, lifecycle-safe utilities, stale-safe autocomplete, and worker selection. Later rapid-fire and revision material remains queued; this is not a claim that the complete workbook has been promoted.
 
 ## Module map
 
@@ -75,6 +75,12 @@ This is the canonical incremental guide for the paired JavaScript/HTML/CSS workb
 - [Q64 — Async iterators and `for await...of`](#q64)
 - [Q65 — Idempotent retry with exponential backoff](#q65)
 - [Q66 — When to use a Web Worker](#q66)
+- [Q67 — HTTP cache versus Service Worker cache](#q67)
+- [Q68 — ES modules and tree shaking](#q68)
+- [Q69 — `:is()` and `:where()` specificity](#q69)
+- [Q70 — Cascade layers](#q70)
+- [Q71 — Stale-safe autocomplete](#q71)
+- [Q72 — Accessible modal focus management](#q72)
 - [Source provenance and verification](#sources)
 - [Next bounded section](#next)
 
@@ -2998,6 +3004,273 @@ flowchart LR
 
 The Long Tasks API's 50 ms threshold is a useful diagnostic signal, not a universal offload rule. Validate total interaction latency, transfer/clone cost, memory, error propagation, lifecycle (`terminate()` or cooperative cancellation), and fallback behavior on representative devices.
 
+<a id="q67"></a>
+
+## Q67. When do you use the HTTP cache versus a Service Worker cache?
+
+### Requirement
+
+Use the HTTP cache as the default transport cache. Response directives such as `Cache-Control`, freshness, validators (`ETag` or `Last-Modified`), request cache modes, and revalidation already integrate with browser fetches. Add a Service Worker only when the product needs application-controlled behavior such as an offline shell, custom fallbacks, route-specific cache strategies, or background coordination.
+
+The Cache API used by a Service Worker is a separate, persistent store. It does not automatically evict a response because its HTTP freshness lifetime expired, and updating the worker script does not update or delete old Cache objects. The application therefore owns cache names, matching rules, expiry/version metadata, migration, deletion, quota failure, and the security boundary. A `fetch()` made inside the worker can still be satisfied by the HTTP cache before it reaches the network.
+
+### Example 53 — put each cache under one clear owner
+
+| Resource | First policy | Add Service Worker storage when… | Main failure mode |
+|---|---|---|---|
+| hashed JS/CSS | long-lived HTTP cache + immutable URL | an offline shell must start | old named caches never deleted |
+| HTML/API response | short freshness + validator | a deliberate offline/stale fallback exists | serving stale or user-mismatched data |
+| personalized dashboard | `private`/no shared reuse as appropriate | data is safely keyed and an explicit offline requirement exists | cross-account disclosure |
+| image catalog | HTTP cache | route policy needs cache-first or offline browsing | quota growth and silent staleness |
+
+```mermaid
+sequenceDiagram
+    participant P as Page
+    participant S as Service Worker
+    participant C as CacheStorage
+    participant H as HTTP cache or network
+    P->>S: fetch request
+    S->>C: match versioned key
+    C-->>S: miss
+    S->>H: fetch(request)
+    H-->>S: response
+    S->>C: put safe clone
+    S-->>P: response
+```
+
+```javascript
+const CACHE = "app-shell-v4";
+const SHELL = ["/", "/app.8f3a.js", "/app.41c2.css"];
+
+self.addEventListener("install", event => {
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));
+});
+
+self.addEventListener("activate", event => {
+  event.waitUntil(caches.keys().then(names => Promise.all(
+    names.filter(name => name.startsWith("app-shell-") && name !== CACHE)
+      .map(name => caches.delete(name))
+  )));
+});
+
+self.addEventListener("fetch", event => {
+  if (event.request.method !== "GET" || event.request.mode === "navigate") return;
+  event.respondWith(caches.match(event.request).then(async cached => {
+    if (cached) return cached;
+    const response = await fetch(event.request);
+    if (response.ok && response.type === "basic") {
+      const cache = await caches.open(CACHE);
+      await cache.put(event.request, response.clone());
+    }
+    return response;
+  }));
+});
+```
+
+This sketch intentionally does not cache navigation or cross-origin/personalized responses. A production strategy also needs update UX, safe failure when offline, bounded storage, and tests across install/waiting/activate/controller transitions. Service Workers require a secure context (with the usual localhost development exception).
+
+<a id="q68"></a>
+
+## Q68. How do ES modules enable tree shaking?
+
+### Requirement
+
+Static `import` and `export` declarations give a bundler a module graph and named bindings it can analyze without executing the program. Starting from entry points, a production build can retain reachable exports and eliminate code proven unused. This is **build-time dead-code elimination**, not runtime garbage collection, and the exact result is tool- and configuration-dependent.
+
+Side effects constrain removal. Top-level polyfills, registrations, global listeners, CSS imports, or an inaccurately broad `"sideEffects": false` declaration can change behavior or cause required work to disappear. CommonJS indirection and opaque computed loading are also harder to analyze. Dynamic `import()` normally creates an asynchronous module boundary/code-split chunk; it is not evidence that the whole module can be discarded.
+
+### Example 54 — trace reachability and effects separately
+
+```javascript
+// math.js
+export const add = (a, b) => a + b;
+export const square = value => value * value;
+
+// telemetry.js — importing this module performs registration
+registerTelemetry();
+
+// app.js
+import {add} from "./math.js";
+import "./telemetry.js";
+console.log(add(2, 3));
+
+export const openAdmin = () => import("./admin.js");
+```
+
+```mermaid
+flowchart TD
+    Entry[app entry] --> Add[math.add retained]
+    Entry -. unused .-> Square[math.square removable]
+    Entry --> Effect[telemetry retained for side effect]
+    Entry --> Dynamic[admin separate async chunk]
+```
+
+| Node | Main chunk? | Why |
+|---|---:|---|
+| `app` | yes | entry point |
+| `math.add` | yes | statically imported and used |
+| `math.square` | normally no | export is unreachable and pure |
+| `telemetry` | yes | import-time effect must run |
+| `admin` | separate chunk | reachable through `import()` when invoked |
+
+Verify a production build with a bundle analyzer and a focused consumer fixture. Preserve side-effectful files explicitly (for example, `"sideEffects": ["**/*.css", "./telemetry.js"]`) rather than making a package-wide purity promise that is not true.
+
+<a id="q69"></a>
+
+## Q69. How do `:is()` and `:where()` affect specificity?
+
+### Requirement
+
+Both functional pseudo-classes accept a forgiving selector list and reduce repetition. The difference is deliberate cascade weight:
+
+- `:is(...)` contributes the specificity of the **most specific selector in its argument list**, not necessarily the branch that matched.
+- `:where(...)` and its arguments contribute zero specificity.
+
+The rest of the compound selector still contributes normally. This makes `:is()` useful for concise alternatives and `:where()` useful for low-priority defaults that consumers can override without an arms race.
+
+<a id="q70"></a>
+
+## Q70. What problem do cascade layers solve?
+
+### Requirement
+
+Cascade layers let an origin declare priority among concerns—such as reset, vendor, components, and utilities—before comparing selector specificity within a layer. For normal declarations, later layers win; unlayered normal declarations occupy an implicit final layer and outrank explicitly layered normal declarations. For `!important`, layer order reverses: earlier layers win, and explicitly layered important declarations outrank unlayered important declarations. This inversion preserves the protective purpose of early reset/guardrail layers.
+
+### Example 55 — zero-weight defaults and explicit layer policy
+
+```css
+@layer reset, vendor, components, utilities;
+
+@layer reset {
+  :where(button, input, select) { font: inherit; }
+}
+
+@layer components {
+  .checkout:is(.primary, #express) { color: firebrick; }
+}
+
+@layer utilities {
+  .text-blue { color: royalblue; }
+}
+```
+
+| Selector | Specificity |
+|---|---:|
+| `:where(.prose h1, .prose h2)` | `(0,0,0)` |
+| `button:is(:hover, :focus-visible)` | `(0,1,1)` |
+| `.checkout:is(.primary, #express)` | `(1,1,0)` |
+
+```mermaid
+flowchart TD
+    Match[Matching declarations] --> Importance[Origin and importance]
+    Importance --> Layer[Layer order]
+    Layer --> Specificity[Specificity within winning layer]
+    Specificity --> Scope[Scope proximity if relevant]
+    Scope --> Order[Source order]
+```
+
+Even though the component selector contains an ID and the utility selector does not, the later `utilities` layer wins for normal declarations. A later unlayered normal rule would win over both. Do not use `!important` merely to restore an accidental layer order; establish the layer statement once near the stylesheet entry point and keep third-party CSS in a named low-priority layer.
+
+<a id="q71"></a>
+
+## Q71. How do you build autocomplete without stale-result races?
+
+### Requirement
+
+Treat the current normalized query and a monotonically increasing request identity as the correctness boundary. Debounce keystrokes to reduce calls, abort superseded work to save resources, and still reject a late result whose identity/query is no longer current—an abort can race with completion or a transport may ignore it. Cache only under the normalized query (and every other result-shaping dimension such as locale/account), with an explicit freshness/invalidation policy.
+
+The UI state machine should distinguish idle/too-short, loading, results, empty, failure, and cancelled/superseded. For an editable combobox, keep DOM focus on the input, expose the popup relationship and expanded state, use `aria-activedescendant` for the active option when appropriate, and support Arrow keys, Enter, and Escape. Rate limiting, minimum length, server-side bounds, and safe text rendering remain necessary.
+
+### Example 56 — one ownership model for transient browser interaction
+
+```javascript
+let sequence = 0;
+let currentController;
+const cache = new Map();
+
+async function search(rawQuery) {
+  const query = rawQuery.trim().toLowerCase();
+  const token = ++sequence;
+  if (query.length < 2) return renderIdle();
+  if (cache.has(query)) return renderResults(cache.get(query));
+
+  currentController?.abort();
+  const controller = new AbortController();
+  currentController = controller;
+  renderLoading();
+  try {
+    const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const results = await response.json();
+    cache.set(query, results);
+    if (token !== sequence) return; // correctness gate even if abort lost the race
+    renderResults(results);
+  } catch (error) {
+    if (error.name !== "AbortError" && token === sequence) renderError(error);
+  }
+}
+```
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as Autocomplete
+    participant R as Requests
+    U->>A: query ca
+    A->>R: request 7
+    U->>A: query cat
+    A->>R: abort 7; request 8
+    R-->>A: response 7 arrives late
+    A->>A: token 7 is stale; ignore
+    R-->>A: response 8
+    A->>U: render cat results
+```
+
+The executable fixture deliberately lets the aborted request resolve and proves that identity fencing—not cancellation alone—prevents the stale render.
+
+<a id="q72"></a>
+
+## Q72. How do you manage focus in an accessible modal?
+
+### Requirement
+
+Prefer the native `<dialog>` element with `showModal()` when it fits. The modal must have an accessible name, move focus to a sensible element inside on open, keep keyboard navigation within its logical contents, support Escape (unless a critical flow has an explicitly justified alternative), make the rest of the document inert, and return focus to the invoking control when it closes. `aria-modal="true"` only communicates semantics; by itself it does not trap focus or disable the background.
+
+Choose initial focus for the task, not merely the first control. Focus a heading or other static element for long/structured content, the least destructive action for an irreversible confirmation, or the primary field for a short form. A visible close button should remain available.
+
+```html
+<button id="open-delete" type="button">Delete project</button>
+<dialog id="confirm-delete" aria-labelledby="delete-title">
+  <h2 id="delete-title" tabindex="-1" autofocus>Delete project?</h2>
+  <p>This action cannot be undone.</p>
+  <form method="dialog">
+    <button value="cancel">Cancel</button>
+    <button value="confirm">Delete</button>
+  </form>
+</dialog>
+
+<script>
+  const trigger = document.querySelector("#open-delete");
+  const dialog = document.querySelector("#confirm-delete");
+  trigger.addEventListener("click", () => dialog.showModal());
+  dialog.addEventListener("close", () => {
+    if (trigger.isConnected) trigger.focus();
+  });
+</script>
+```
+
+```mermaid
+flowchart TD
+    Trigger[Invoking control] --> Open[showModal and initial focus]
+    Open --> Inside[Tab and Shift+Tab stay inside]
+    Inside --> Close[Close button, form result, or Escape]
+    Close --> Trigger
+```
+
+Native modal dialog provides the top-layer and document-inert behavior; test actual focus order, browser/assistive-technology combinations, nested modal policy, trigger removal, validation errors, and reduced viewport/zoom. For a custom dialog, the application must implement and test those contracts itself rather than adding ARIA alone.
+
 ## Decision checklist
 
 - Use `const` by default when the binding should not change; use `let` when reassignment is part of the model.
@@ -3060,18 +3333,24 @@ The Long Tasks API's 50 ms threshold is a useful diagnostic signal, not a univer
 - Treat async iteration as demand-driven; propagate cancellation and close the iterator on early exit.
 - Retry only repeatable operations and transient failures; cap attempts/delay, add jitter, honor `Retry-After`, and abort promptly.
 - Move measured CPU contention—not ordinary network waiting—to a worker, and include serialization/transfer cost in the decision.
+- Let HTTP semantics own ordinary transport reuse; add Service Worker storage only for an explicit offline or custom-routing requirement, then own its versioning and eviction.
+- Treat tree shaking as production-build reachability constrained by side effects; verify the emitted bundle instead of promising removal from syntax alone.
+- Use `:is()` for concise alternatives and `:where()` for zero-weight defaults; remember that `:is()` takes the strongest argument specificity.
+- Establish cascade-layer order once, compare layers before specificity, and remember that important declarations reverse layer precedence.
+- For autocomplete, debounce for load, abort for efficiency, and fence every render by request identity for correctness.
+- For a modal, provide an accessible name, intentional initial focus, contained navigation, inert background, Escape/close behavior, and focus restoration.
 
 <a id="sources"></a>
 
 ## Source provenance and verification
 
-Paired source comparison performed through 2026-10-15:
+Paired source comparison performed through 2026-10-16:
 
-- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1759. The newly processed Q62–Q66 range is lines 1641–1759, bounded by Q67 at line 1760.
-- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 1167–1252 for Q62–Q66, bounded by Q67 at rendered line 1253. It agrees on all five topics but is not promoted as a competing guide.
-- The repository edition adds null-prototype and shadowing cases, an explicit native-`bind` construction boundary, iterator-closing/backpressure traces, idempotency and retry gates with jitter/cancellation/`Retry-After`, worker transfer/lifecycle decisions, four connected executable examples, four focused diagrams, deterministic assertions, and current primary links.
+- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1860. The newly processed Q67–Q72 range is lines 1760–1860, bounded by the rapid-fire bank at line 1861.
+- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 1253–1328 for Q67–Q72, bounded by the rapid-fire bank at rendered line 1329. It agrees on all six topics but is not promoted as a competing guide.
+- The repository edition adds cache-ownership and lifecycle gates, a build-graph/side-effect trace, exact functional-selector and layer precedence (including important-order reversal), identity-fenced autocomplete, native-dialog focus contracts, four connected executable examples, five focused diagrams, deterministic assertions, and current primary links.
 
-Primary references checked through 2026-10-15:
+Primary references checked through 2026-10-16:
 
 - [ECMAScript 2026 — Environment Records](https://tc39.es/ecma262/2026/multipage/executable-code-and-execution-contexts.html#sec-environment-records)
 - [ECMAScript 2026 — `let`, `const`, and `var` declarations](https://tc39.es/ecma262/2026/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations)
@@ -3150,9 +3429,17 @@ Primary references checked through 2026-10-15:
 - [HTML Living Standard — Web workers](https://html.spec.whatwg.org/multipage/workers.html)
 - [HTML Living Standard — structured clone and transferable objects](https://html.spec.whatwg.org/multipage/structured-data.html#transferable-objects)
 - [Long Tasks API](https://w3c.github.io/longtasks/)
+- [RFC 9111 — HTTP Caching](https://www.rfc-editor.org/rfc/rfc9111.html)
+- [Service Workers — lifecycle, fetch and Cache](https://w3c.github.io/ServiceWorker/)
+- [webpack — tree shaking and side effects](https://webpack.js.org/guides/tree-shaking/)
+- [Selectors Level 4 — specificity of `:is()` and `:where()`](https://drafts.csswg.org/selectors/#specificity-rules)
+- [CSS Cascade Level 5 — cascade layers and layer order](https://drafts.csswg.org/css-cascade-5/#layer-order)
+- [WAI-ARIA Authoring Practices — combobox pattern](https://www.w3.org/WAI/ARIA/apg/patterns/combobox/)
+- [WAI-ARIA Authoring Practices — modal dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/)
+- [HTML Living Standard — the `dialog` element](https://html.spec.whatwg.org/multipage/interactive-elements.html#the-dialog-element)
 
 <a id="next"></a>
 
 ## Next bounded section
 
-Continue with source Q67–Q72 only: HTTP versus Service Worker caching, ES-module tree shaking, `:is()`/`:where()` specificity, cascade layers, stale-safe autocomplete, and modal focus management. The Markdown range is lines 1760–1860, bounded by the rapid-fire bank at line 1861; the DOCX range is rendered lines 1253–1328, bounded by the rapid-fire bank at rendered line 1329. Re-read both exact ranges before editing; rapid-fire and revision material remain outside that pass.
+Continue with rapid-fire items 1–16 only: strict mode through Web Workers. The Markdown range is lines 1861–1926, bounded by item 17 at line 1927; the DOCX range is rendered lines 1329–1361, bounded by item 17 at rendered line 1362. Re-read both exact ranges before editing; items 17–32 and the final revision sheet remain outside that pass.

@@ -1462,6 +1462,144 @@ export async function retryAndWorkerPolicyExample() {
   };
 }
 
+export function cacheLayerPolicyExample() {
+  const choose = ({offlineRequired = false, customFallback = false, personalized = false}) => {
+    if (personalized) return 'http-private-or-network';
+    if (offlineRequired || customFallback) return 'service-worker-plus-http';
+    return 'http-cache';
+  };
+
+  return {
+    hashedAsset: choose({}),
+    offlineShell: choose({offlineRequired: true}),
+    personalizedDashboard: choose({personalized: true}),
+    cacheStorageFreshness: 'application-managed',
+    trace: [
+      'service-worker-fetch',
+      'cache-storage-miss',
+      'fetch',
+      'http-cache-or-network',
+      'cache-storage-put',
+      'response'
+    ]
+  };
+}
+
+export function treeShakingPolicyExample() {
+  const modules = [
+    {name: 'app', imported: true, sideEffect: false, exports: ['start']},
+    {name: 'math', imported: true, sideEffect: false, exports: ['add', 'square']},
+    {name: 'telemetry', imported: true, sideEffect: true, exports: []},
+    {name: 'admin', imported: 'dynamic', sideEffect: false, exports: ['openPanel']}
+  ];
+  const used = new Map([['app', ['start']], ['math', ['add']], ['admin', ['openPanel']]]);
+
+  return {
+    mainChunk: modules.filter(module => module.imported === true).map(module => module.name),
+    retainedExports: Object.fromEntries([...used].filter(([name]) => name !== 'admin')),
+    removedExports: ['math.square'],
+    retainedForSideEffects: ['telemetry'],
+    splitChunks: ['admin'],
+    boundary: 'build-output-policy-not-runtime-garbage-collection'
+  };
+}
+
+export function cssCascadePolicyExample() {
+  const layerOrder = ['reset', 'vendor', 'components', 'utilities'];
+  const layerRank = (layer, important) => {
+    if (layer === null) return important ? -1 : Number.POSITIVE_INFINITY;
+    const index = layerOrder.indexOf(layer);
+    return important ? layerOrder.length - index : index;
+  };
+  const compareTuple = (left, right) => {
+    for (let index = 0; index < left.length; index += 1) {
+      if (left[index] !== right[index]) return left[index] - right[index];
+    }
+    return 0;
+  };
+  const winner = declarations => declarations.reduce((best, candidate) => {
+    if (best.important !== candidate.important) return candidate.important ? candidate : best;
+    const layerDifference = layerRank(candidate.layer, candidate.important)
+      - layerRank(best.layer, best.important);
+    if (layerDifference !== 0) return layerDifference > 0 ? candidate : best;
+    const specificityDifference = compareTuple(candidate.specificity, best.specificity);
+    if (specificityDifference !== 0) return specificityDifference > 0 ? candidate : best;
+    return candidate.order > best.order ? candidate : best;
+  });
+
+  const component = {value: 'red', layer: 'components', important: false, specificity: [1, 1, 0], order: 1};
+  const utility = {value: 'blue', layer: 'utilities', important: false, specificity: [0, 1, 0], order: 2};
+  const unlayered = {value: 'green', layer: null, important: false, specificity: [0, 0, 1], order: 3};
+  const resetImportant = {value: 'black', layer: 'reset', important: true, specificity: [0, 0, 1], order: 4};
+  const utilityImportant = {value: 'orange', layer: 'utilities', important: true, specificity: [1, 1, 0], order: 5};
+
+  return {
+    isSpecificity: [1, 1, 0],
+    whereSpecificity: [0, 0, 0],
+    layeredNormalWinner: winner([component, utility]).value,
+    includingUnlayeredWinner: winner([component, utility, unlayered]).value,
+    importantLayerWinner: winner([resetImportant, utilityImportant]).value,
+    comparisonOrder: ['importance', 'layer', 'specificity', 'source-order']
+  };
+}
+
+export async function browserInteractionPolicyExample() {
+  const events = [];
+  const pending = new Map();
+  const cache = new Map();
+  let sequence = 0;
+  let activeController;
+  let currentQuery = '';
+
+  const request = (query, signal) => new Promise(resolve => {
+    signal.addEventListener('abort', () => events.push(`abort:${query}`), {once: true});
+    pending.set(query, resolve); // intentionally resolves even after abort to model a race
+    events.push(`start:${query}`);
+  });
+  const search = async rawQuery => {
+    const query = rawQuery.trim().toLowerCase();
+    currentQuery = query;
+    if (query.length < 2) return [];
+    if (cache.has(query)) {
+      events.push(`cache:${query}`);
+      return cache.get(query);
+    }
+    const token = ++sequence;
+    activeController?.abort();
+    const controller = new AbortController();
+    activeController = controller;
+    const results = await request(query, controller.signal);
+    cache.set(query, results);
+    if (token !== sequence || query !== currentQuery) {
+      events.push(`ignore:${query}`);
+      return undefined;
+    }
+    events.push(`render:${query}`);
+    return results;
+  };
+
+  const older = search(' CA ');
+  const latest = search('cat');
+  pending.get('ca')(['car']);
+  await Promise.resolve();
+  pending.get('cat')(['cat']);
+  const results = await Promise.all([older, latest]);
+  const cached = await search(' CAT ');
+
+  return {
+    events,
+    results,
+    cached,
+    modal: [
+      'trigger:open',
+      'dialog:initial-focus',
+      'tab:last-to-first',
+      'escape:close',
+      'trigger:restored'
+    ]
+  };
+}
+
 assert.deepEqual(constantBindingExample(), {name: 'Grace', skills: ['JS', 'HTML']});
 assert.deepEqual(hoistingExample(), [undefined, 7]);
 assert.equal(temporalDeadZoneErrorName(), 'ReferenceError');
@@ -1756,4 +1894,34 @@ await assert.rejects(
   /idempotent semantics/
 );
 
-console.log('JavaScript fundamentals examples: 54 scenario groups passed');
+assert.deepEqual(cacheLayerPolicyExample(), {
+  hashedAsset: 'http-cache',
+  offlineShell: 'service-worker-plus-http',
+  personalizedDashboard: 'http-private-or-network',
+  cacheStorageFreshness: 'application-managed',
+  trace: ['service-worker-fetch', 'cache-storage-miss', 'fetch', 'http-cache-or-network', 'cache-storage-put', 'response']
+});
+assert.deepEqual(treeShakingPolicyExample(), {
+  mainChunk: ['app', 'math', 'telemetry'],
+  retainedExports: {app: ['start'], math: ['add']},
+  removedExports: ['math.square'],
+  retainedForSideEffects: ['telemetry'],
+  splitChunks: ['admin'],
+  boundary: 'build-output-policy-not-runtime-garbage-collection'
+});
+assert.deepEqual(cssCascadePolicyExample(), {
+  isSpecificity: [1, 1, 0],
+  whereSpecificity: [0, 0, 0],
+  layeredNormalWinner: 'blue',
+  includingUnlayeredWinner: 'green',
+  importantLayerWinner: 'black',
+  comparisonOrder: ['importance', 'layer', 'specificity', 'source-order']
+});
+assert.deepEqual(await browserInteractionPolicyExample(), {
+  events: ['start:ca', 'abort:ca', 'start:cat', 'ignore:ca', 'render:cat', 'cache:cat'],
+  results: [undefined, ['cat']],
+  cached: ['cat'],
+  modal: ['trigger:open', 'dialog:initial-focus', 'tab:last-to-first', 'escape:close', 'trigger:restored']
+});
+
+console.log('JavaScript fundamentals examples: 58 scenario groups passed');
