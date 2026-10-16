@@ -405,7 +405,7 @@
       "bytes": 77677,
       "sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
       "status": "IN_PROGRESS",
-      "processed_range": "lines 166-1926 for Q1-Q72 plus rapid-fire items 1-16; latest bounded range is lines 1861-1926, bounded by item 17 at line 1927",
+      "processed_range": "lines 166-1989 for Q1-Q72 plus rapid-fire items 1-32; latest bounded range is lines 1927-1989, bounded by the Final Revision Sheet anchor at line 1991",
       "canonical_target": "study-guides/frontend/javascript-html-css/guide.md",
       "headings": [
         "# JavaScript, HTML and CSS Interview Workbook - Mermaid Edition",
@@ -863,18 +863,18 @@
   ],
   "next_batch": {
     "source": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md + JavaScript_HTML_CSS_Interview_Workbook.docx",
-    "section": "Rapid-fire items 17-32 only: Service Workers through the critical rendering path; Markdown lines 1927-1989 and DOCX rendered lines 1362-1393",
+    "section": "Final Revision Sheet only: Markdown lines 1991-2041 and DOCX rendered lines 1396-1445",
     "status": "QUEUED",
-    "estimated_tokens": 7600,
-    "estimate_method": "Heuristic only: reserve ~1500 tokens to compare rapid-fire items 17-32 across paired sources, ~1300 for current primary references, ~3000 for examples/traces/HTML, and ~1800 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 6200,
+    "estimate_method": "Heuristic only: reserve ~1200 tokens to compare the Final Revision Sheet across paired sources, ~1000 for current primary references, ~2400 for consolidation/examples/HTML, and ~1600 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "javascript": "Node v24.19.0 executed examples.mjs; all 62 scenario groups passed, including the new language/collection, iteration/generator, module/lifecycle, and observer/worker assertions.",
-    "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 174387-character embedded payload equality, 75 unique anchors, 135 balanced fences, 48 Mermaid diagrams, inline JavaScript, fragment targets, relative links, JSON syntax, the live 170-marker Java-placeholder invariant and all six content-commit remote blob hashes passed. Browser DOM/observer/Worker integration and Mermaid visual QA were not executed; no GitHub status checks are configured.",
-    "diagrams": "Forty-eight Mermaid diagrams are embedded in the canonical payload, including four new diagrams for binding/collection ownership, generator state, module/scheduling/lifecycle boundaries, and observer/worker selection; browser rendering and Mermaid visual QA were not executed.",
-    "last_processed_at": "2026-10-15T22:34:43-04:00"
+    "javascript": "Node v24.19.0 executed examples.mjs; all 66 scenario groups passed, including the new Service Worker/security, native accessibility, CSS/rendering, and Shadow DOM/critical-path assertions.",
+    "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 196089-character embedded payload equality, 76 unique anchors, 145 balanced fences, 52 Mermaid diagrams, inline JavaScript, fragment targets, relative links, JSON syntax, and the live 170-marker Java-placeholder invariant passed. Browser Service Worker/CSP/cookie/accessibility/layout/Shadow DOM integration and Mermaid visual QA were not executed; GitHub status checks are inspected after checkpoint publication.",
+    "diagrams": "Fifty-two Mermaid diagrams are embedded in the canonical payload, including four new diagrams for Service Worker routing, native control/naming selection, rendering invalidation, and critical rendering; browser rendering and Mermaid visual QA were not executed.",
+    "last_processed_at": "2026-10-16T01:33:09-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-14T16:16:21-04:00",
@@ -888,16 +888,16 @@
     "estimate_method": "Heuristic for the first bounded JavaScript/HTML/CSS paired-source section plus source resolution, targeted primary-source refresh, consolidation/teaching/HTML and validation/checkpoint reserves; not actual quota percentage"
   },
   "javascript_html_css_intake_checkpoint": {
-    "last_processed_at": "2026-10-15T22:34:43-04:00",
+    "last_processed_at": "2026-10-16T01:33:09-04:00",
     "source_markdown_sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
     "source_docx_sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
     "docx_source_file_id": "file_0000000037888211b9c20e5f69be6b09",
-    "processed": "Q1-Q72 plus rapid-fire items 1-16; latest bounded range is Markdown lines 1861-1926 and DOCX rendered lines 1329-1361, each bounded by item 17; earlier Q1-Q72 retained",
+    "processed": "Q1-Q72 plus rapid-fire items 1-32; latest bounded range is Markdown lines 1927-1989 and DOCX rendered lines 1362-1393, each bounded by the Final Revision Sheet; earlier Q1-Q72 and rapid-fire items 1-16 retained",
     "status": "PUBLISHED",
-    "validation": "Rapid-fire items 1-16 were compared in both source texts and consolidated with language-mode, shallow-integrity, keyed-collection, iteration, rest/spread, generator, microtask, module-binding, lifecycle-event, observer and worker boundaries. Four connected executable examples and four new Mermaid diagrams cover all sixteen items. Node v24.19.0 passed all 62 scenario groups; deterministic reader generation passed exact 174387-character payload equality, 75 unique anchors, 135 balanced fenced blocks, 48 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax, the live 170-marker invariant and all six content-commit remote blob hashes. Browser DOM/observer/Worker integration and Mermaid visual QA were not executed; no GitHub status checks are configured.",
-    "content_commit": "6ad1ac5be3281d02774e2e42150b6846f477dfef",
-    "next_section": "Rapid-fire items 17-32 only: Service Workers through the critical rendering path; Markdown lines 1927-1989 and DOCX rendered lines 1362-1393",
-    "estimated_next_tokens": 7600,
-    "estimate_method": "Heuristic for rapid-fire items 17-32 paired-source comparison, current primary references, implementations/traces/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "validation": "Rapid-fire items 17-32 were compared in both source texts and consolidated with Service Worker/cache ownership, rendering-stage caveats, CSP/SameSite defense-in-depth, native semantics/names, CSS inheritance/visibility/gaps/ratios/motion/logical properties, Shadow DOM, and critical rendering. Four connected executable examples and four new Mermaid diagrams cover all sixteen items. Node v24.19.0 passed all 66 scenario groups; deterministic reader generation passed exact 196089-character payload equality, 76 unique anchors, 145 balanced fenced blocks, 52 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax, the live 170-marker invariant and all six content-commit remote blob hashes. Browser Service Worker/CSP/cookie/accessibility/layout/Shadow DOM integration and Mermaid visual QA were not executed; GitHub status checks are inspected after checkpoint publication.",
+    "content_commit": "af3d5920389bbff75129a9026fa9559e7fbd4818",
+    "next_section": "Final Revision Sheet only: Markdown lines 1991-2041 and DOCX rendered lines 1396-1445",
+    "estimated_next_tokens": 6200,
+    "estimate_method": "Heuristic for the paired-source Final Revision Sheet plus source resolution, targeted primary-source refresh, consolidation/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
