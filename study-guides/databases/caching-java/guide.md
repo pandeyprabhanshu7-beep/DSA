@@ -1,6 +1,6 @@
 # Database Internals, Caching, and Java Connectivity
 
-> **Incremental canonical guide.** This publication deepens source Sections 1–3: **ACID/BASE contracts**, **B+ tree page economics**, and **LSM write/read/compaction mechanics**. Later source sections are deliberately queued rather than summarized prematurely.
+> **Incremental canonical guide.** This publication deepens source Sections 1–4: **ACID/BASE contracts**, **B+ tree page economics**, **LSM write/read/compaction mechanics**, and **row/column storage with CDC-fed analytics**. Later source sections are deliberately queued rather than summarized prematurely.
 
 ## Learning contract
 
@@ -624,6 +624,185 @@ Accessed 2026-10-16.
 18. [RocksDB Write Stalls](https://github.com/facebook/rocksdb/wiki/Write-Stalls): memtable, L0, and pending-compaction backpressure triggers.
 19. [RocksDB Compaction Stats and DB Status](https://github.com/facebook/rocksdb/wiki/Compaction-Stats-and-DB-Status): bytes, amplification, stall, and per-level operational metrics.
 
+# Section 4 — Row-oriented and column-oriented storage
+
+Row and column layouts answer different access patterns. A row store keeps the attributes of one record near one another, which is useful when a request reads or changes most of one record. A column store keeps values of one attribute together, which lets an analytical scan read only selected columns, compress similar values, and process vectors of values. Neither layout is automatically faster: predicates, sort order, indexes, compression, partitioning, batch size, merge debt, and hardware still determine the physical work.
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. estimate bytes requested by a full-row scan versus a selected-column scan without calling that estimate elapsed time;
+2. trace a batch/vector aggregation over aligned columns and identify its null/type/overflow contracts;
+3. explain immutable MergeTree parts, background merges, sparse primary-index marks, granules, and `ORDER BY` pruning;
+4. distinguish a sorting key from a uniqueness constraint and a partition key from a primary index;
+5. design an OLTP-to-OLAP path with a transactional outbox, stable event identity, per-aggregate versions, duplicate handling, gap detection, replay, and freshness reporting; and
+6. keep order acceptance on the transactional system instead of treating an asynchronous analytical projection as the source of truth.
+
+Write these requirements before choosing a layout:
+
+| Question | Example requirement | Consequence |
+|---|---|---|
+| What is the unit of work? | fetch and update one order | row locality and transactional indexes are valuable |
+| Which columns does the scan need? | `region_id`, `revenue_cents` from 10 million rows | column projection can avoid unrelated attributes |
+| Which predicates dominate? | tenant plus event-day range | sort key should place useful pruning prefixes first |
+| How fresh must analytics be? | dashboard may lag by 30 seconds | show a watermark; do not use it to confirm a just-written order |
+| Can delivery repeat or reorder? | connector retry and partition failover | stable event IDs, versions, idempotent application, and replay |
+| How are writes batched? | tens of thousands of facts per insert | fewer initial parts and less merge pressure |
+
+## Example 13 — byte selection is a bound, not a benchmark
+
+Assume 10,000,000 logical rows, an uncompressed modeled row width of 200 bytes, and a query that needs two 8-byte columns. The Java `scanEstimate` model calculates:
+
+| Layout estimate | Arithmetic | Bytes |
+|---|---:|---:|
+| row-oriented input | `10,000,000 × 200` | 2,000,000,000 |
+| selected columns | `10,000,000 × (8 + 8)` | 160,000,000 |
+| modeled reduction | `2,000,000,000 / 160,000,000` | 12.5× |
+
+```mermaid
+flowchart TD
+    Q["SUM revenue WHERE region = 1"] --> R["Row layout: decode 200-byte records"]
+    Q --> C["Column layout: read region + revenue"]
+    R --> RB["Modeled input: 2.0 GB"]
+    C --> CB["Modeled input: 160 MB"]
+    RB --> X["Filter and aggregate"]
+    CB --> X
+```
+
+This is a logical input estimate. It deliberately excludes compression ratios, metadata, mark/index reads, caching, predicate selectivity, prefetching, decompression CPU, vectorization, parallelism, and storage bandwidth. Therefore **12.5× less selected input is not a claim of 12.5× lower latency**. Conversely, a point update may favor a row layout because all fields and transactional metadata for one record are already colocated instead of being spread across column files or rewritten immutable parts.
+
+The model rejects zero/negative dimensions, integer overflow, and selected widths greater than the modeled row. Those checks matter: a capacity calculation that silently wraps is worse than no estimate.
+
+## Example 14 — process aligned columns in bounded batches
+
+The executable `sumRevenueForRegion` model receives aligned `regionIds` and `revenueCents` arrays. With regions `[1, 2, 1, 3, 1]`, revenues `[100, 200, 300, 400, 500]`, target `1`, and batch size `2`, it produces 900 cents across three batches.
+
+```mermaid
+flowchart LR
+    M["Marks choose candidate granules"] --> B1["Batch 1: rows 0..1"]
+    B1 --> B2["Batch 2: rows 2..3"]
+    B2 --> B3["Batch 3: row 4"]
+    B1 --> A["region mask + revenue sum"]
+    B2 --> A
+    B3 --> A
+```
+
+| Batch | Region vector | Revenue vector | Matching contribution | Running sum |
+|---:|---|---|---:|---:|
+| 1 | `[1, 2]` | `[100, 200]` | 100 | 100 |
+| 2 | `[1, 3]` | `[300, 400]` | 300 | 400 |
+| 3 | `[1]` | `[500]` | 500 | 900 |
+
+The arrays are a teaching analogue for columnar batches, not an implementation of ClickHouse. Production engines use typed compressed streams, null maps, selection masks, specialized functions, multiple execution threads, and CPU-vector-friendly loops. Still, the model exposes real contracts: arrays must have equal row counts, batch size must be positive, and the sum must have a defined overflow policy. Java's `Math.addExact` makes overflow a failure instead of corrupting the aggregate.
+
+## Example 15 — sparse marks prune granules, not individual rows
+
+For the MergeTree family, each insert creates a sorted immutable data part. Background merges combine parts. Data is physically ordered by the sorting key; a sparse primary index stores marks for granules instead of one entry per row. A query uses key conditions to identify candidate granules, then reads those granules and applies the remaining predicate. The primary key is **not a uniqueness constraint**.
+
+```mermaid
+flowchart TD
+    I["Batched INSERT"] --> P1["sorted part A"]
+    I --> P2["sorted part B"]
+    P1 --> MG["background merge"]
+    P2 --> MG
+    MG --> P3["larger sorted part"]
+    Q["tenant=2 and day 2..5"] --> MK["sparse marks"]
+    MK --> G["read candidate granules 3 and 4"]
+    G --> F["row-level predicate + projection"]
+```
+
+The Java scenario models six 8,192-row granules. Two can contain tenant 2 in day range 2–5, so the sparse filter selects granules 3 and 4: 16,384 candidate rows. It does **not** assert that every selected row matches or that all other engine-level skipping mechanisms have run.
+
+| Granule | Tenant bounds | Day bounds | Candidate? | Reason |
+|---:|---|---|---|---|
+| 0 | 1..1 | 1..3 | no | tenant cannot match |
+| 1 | 1..1 | 4..6 | no | tenant cannot match |
+| 2 | 1..2 | 7..9 | no | day range cannot overlap |
+| 3 | 2..2 | 1..3 | yes | both bounds may overlap |
+| 4 | 2..2 | 4..6 | yes | both bounds may overlap |
+| 5 | 3..3 | 1..9 | no | tenant cannot match |
+
+Pruning quality depends on physical order. For frequent `tenant_id = ? AND event_day BETWEEN ? AND ?` queries, an `ORDER BY (tenant_id, event_day, event_id)` prefix can make tenant/day ranges adjacent. Reversing the first two fields changes which predicates form a useful contiguous range. Put high-cardinality IDs in `PARTITION BY` only with evidence; excessive partitions multiply parts and metadata. Wide and Compact are storage formats for parts selected by size/row thresholds, not row-store versus column-store product modes.
+
+ClickHouse recommends batching inserts (at least 1,000 rows and ideally 10,000–100,000 in the cited guidance) because each insert otherwise creates a part and increases merge work. If client batching is impractical, asynchronous inserts can move batching to the server, but acknowledgement and retry settings still define the failure contract.
+
+## Example 16 — an analytical projection is replayable, not authoritative
+
+Use an OLTP transaction to change an order and insert its outbox event together. Logical decoding or a CDC connector publishes the committed outbox row. The analytical consumer applies events by stable `event_id` and per-order `version`. The dashboard reports its source watermark or lag; order confirmation reads the OLTP result, not the lagging projection.
+
+```mermaid
+sequenceDiagram
+    participant U as Order API
+    participant D as OLTP + outbox
+    participant C as CDC stream
+    participant P as OLAP projection
+    participant V as Dashboard
+    U->>D: transaction: order v1 + evt-1
+    D-->>U: committed order result
+    D->>C: committed outbox change
+    C->>P: evt-1, order-7, version 1
+    C->>P: evt-1 retry
+    P-->>C: duplicate ignored
+    C->>P: evt-3 arrives before evt-2
+    P-->>C: gap: expected version 2
+    C->>P: replay evt-2, then evt-3
+    V->>P: aggregate + source watermark
+```
+
+The Java `OrderProjection` proves this sequence:
+
+| Delivery | Current version | Decision | Resulting version/value |
+|---|---:|---|---|
+| `evt-1`, v1, 1000 | 0 | apply | v1 / 1000 |
+| same `evt-1` | 1 | duplicate | unchanged |
+| `evt-3`, v3, 1200 | 1 | gap; expect v2 | unchanged |
+| `evt-2`, v2, 1100 | 1 | apply | v2 / 1100 |
+| retry `evt-3` | 2 | apply | v3 / 1200 |
+| distinct old event, v2 | 3 | stale | unchanged |
+
+The gap event is not recorded as consumed because it must be retried after replay. A stale event ID may be remembered to avoid repeated work. Production implementations need durable deduplication/version state, a dead-letter or quarantine policy, retained/reconstructable source history, alerting on gaps and lag, and a reconciliation job that compares source counts/sums or business invariants. If the projection cannot replay from a retained log or source snapshot, “eventual consistency” has no mechanism that guarantees eventual repair.
+
+Debezium's outbox router uses the outbox `id` as an event identity suitable for duplicate removal and `aggregateid` as the message key, which is important for ordering within Kafka partitions. PostgreSQL logical decoding exposes committed row changes through replication slots; output plugins decode concurrent transactions in commit order and do not decode rolled-back transactions. Those facts do not make the entire end-to-end pipeline exactly once: connectors, brokers, consumers, and sinks still need explicit retry and idempotency behavior.
+
+## Complexity, operations, and review
+
+| Path | Useful model | Failure/latency risk |
+|---|---|---|
+| OLTP point read/write | indexed lookup plus transactional log work | lock/conflict retry, log sync, replica policy |
+| column projection scan | selected compressed column chunks | decompression, bandwidth, weak pruning, skew |
+| sparse-key pruning | index marks plus candidate granules | key order mismatch and granule over-read |
+| insert | sort/encode one new immutable part | tiny batches create too many parts |
+| merge | read input parts and write replacement part | disk/CPU pressure and temporary space |
+| CDC projection | apply/reject by event ID and version | duplicates, gaps, lag, retention loss |
+
+Operational signals should include parts per active partition, insert batch rows/bytes, merge backlog and throughput, bytes read after pruning, selected granules, compression ratio, query CPU and p95/p99 latency, CDC source position, consumer lag, oldest unprocessed event, gap/quarantine count, replay age, and reconciliation drift.
+
+Review questions:
+
+- Which fields does the query actually read, and what bytes are estimated before and after compression?
+- Is the claimed speedup a byte estimate or a measured latency result?
+- Does the sort-key prefix match equality and range predicates in order?
+- How many granules remain after mark pruning, and how many rows are examined afterward?
+- Are insert batches large enough to avoid part explosion, and can merges keep pace?
+- Are event identity and aggregate ordering separate concepts?
+- What happens to a duplicate, a stale version, and a forward version gap?
+- Which source watermark tells a user how fresh the dashboard is?
+- Which reconciliation process repairs a missed or poisoned event?
+- Which user decisions must remain on the transactional source of truth?
+
+### Primary references for Section 4
+
+Accessed 2026-10-16.
+
+20. [ClickHouse architecture overview](https://clickhouse.com/docs/development/architecture): column-oriented storage and vectorized/chunk-oriented execution.
+21. [Understanding the ClickHouse primary index](https://clickhouse.com/docs/guides/best-practices/sparse-primary-indexes): physical sort order, sparse marks, granules, candidate-range pruning, and non-unique primary keys.
+22. [MergeTree table engine](https://clickhouse.com/docs/engines/table-engines/mergetree-family/mergetree): sorted parts, marks, granule sizing, and Wide/Compact part formats.
+23. [Selecting an insert strategy](https://clickhouse.com/docs/concepts/best-practices/selecting-an-insert-strategy): client/server batching, part creation, merge load, and acknowledgement trade-offs.
+24. [ClickHouse data parts](https://clickhouse.com/docs/concepts/core-concepts/parts): immutable part creation and background merge mechanics.
+25. [Debezium Outbox Event Router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html): event identity, aggregate key, payload routing, and duplicate-handling support.
+26. [PostgreSQL logical decoding](https://www.postgresql.org/docs/current/logicaldecoding.html) and [output plugins](https://www.postgresql.org/docs/current/logicaldecoding-output-plugin.html): committed change streams, replication slots, transaction ordering, and rollback exclusion.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -631,8 +810,8 @@ Accessed 2026-10-16.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; and lines **177–230**, “LSM trees: moving write cost into compaction”
-- Deliberate continuation: Section 4, “Row-oriented versus column-oriented storage,” begins at source line 231; resolve its exact end before processing.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; and lines **231–286**, “Row-oriented versus column-oriented storage”
+- Deliberate continuation: Section 5 begins at source line 287; resolve its exact heading and end boundary before reading or processing it.
 
 Validation commands:
 

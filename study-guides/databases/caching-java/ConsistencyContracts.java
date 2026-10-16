@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Executable teaching models for guide Sections 1-3. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-4. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -327,6 +327,114 @@ public final class ConsistencyContracts {
         return new Amplification(wa, ra, headroom);
     }
 
+    record ScanEstimate(long rowStoreBytes, long selectedColumnBytes, double reductionFactor) {}
+
+    static ScanEstimate scanEstimate(long rows, int rowWidthBytes, int... selectedColumnWidths) {
+        if (rows <= 0 || rowWidthBytes <= 0 || selectedColumnWidths.length == 0) {
+            throw new IllegalArgumentException("positive rows, row width, and selected columns required");
+        }
+        long selectedWidth = 0;
+        for (int width : selectedColumnWidths) {
+            if (width <= 0) throw new IllegalArgumentException("column width must be positive");
+            selectedWidth = Math.addExact(selectedWidth, width);
+        }
+        if (selectedWidth > rowWidthBytes) {
+            throw new IllegalArgumentException("selected columns exceed the modeled row width");
+        }
+        long rowBytes = Math.multiplyExact(rows, rowWidthBytes);
+        long columnBytes = Math.multiplyExact(rows, selectedWidth);
+        return new ScanEstimate(rowBytes, columnBytes, rowBytes / (double) columnBytes);
+    }
+
+    record BatchAggregate(long sumCents, int batches, int rowsChecked) {}
+
+    static BatchAggregate sumRevenueForRegion(
+            int[] regionIds, long[] revenueCents, int targetRegion, int batchSize) {
+        if (regionIds.length != revenueCents.length || batchSize <= 0) {
+            throw new IllegalArgumentException("aligned columns and a positive batch size required");
+        }
+        long sum = 0;
+        int batches = 0;
+        for (int start = 0; start < regionIds.length; start += batchSize) {
+            int end = Math.min(start + batchSize, regionIds.length);
+            batches++;
+            for (int row = start; row < end; row++) {
+                if (regionIds[row] == targetRegion) {
+                    sum = Math.addExact(sum, revenueCents[row]);
+                }
+            }
+        }
+        return new BatchAggregate(sum, batches, regionIds.length);
+    }
+
+    record Granule(int minTenant, int maxTenant, long minDay, long maxDay, long rows) {
+        Granule {
+            if (minTenant > maxTenant || minDay > maxDay || rows <= 0) {
+                throw new IllegalArgumentException("invalid granule bounds");
+            }
+        }
+    }
+
+    record GranuleSelection(List<Integer> candidateIndexes, long candidateRows) {}
+
+    static GranuleSelection candidateGranules(
+            List<Granule> granules, int tenant, long fromDay, long toDay) {
+        if (fromDay > toDay) throw new IllegalArgumentException("invalid day range");
+        List<Integer> candidates = new ArrayList<>();
+        long rows = 0;
+        for (int i = 0; i < granules.size(); i++) {
+            Granule granule = granules.get(i);
+            boolean tenantMayMatch = granule.minTenant() <= tenant && tenant <= granule.maxTenant();
+            boolean dayMayMatch = granule.minDay() <= toDay && fromDay <= granule.maxDay();
+            if (tenantMayMatch && dayMayMatch) {
+                candidates.add(i);
+                rows = Math.addExact(rows, granule.rows());
+            }
+        }
+        return new GranuleSelection(List.copyOf(candidates), rows);
+    }
+
+    enum ApplyStatus { APPLIED, DUPLICATE, STALE, GAP }
+    record OrderEvent(String eventId, String orderId, long version, long amountCents) {
+        OrderEvent {
+            if (eventId.isBlank() || orderId.isBlank() || version <= 0 || amountCents < 0) {
+                throw new IllegalArgumentException("invalid order event");
+            }
+        }
+    }
+    record ProjectionResult(ApplyStatus status, long expectedVersion, long observedVersion) {}
+    record ProjectedOrder(long version, long amountCents) {}
+
+    static final class OrderProjection {
+        private final Set<String> seenEventIds = new HashSet<>();
+        private final Map<String, ProjectedOrder> orders = new HashMap<>();
+
+        ProjectionResult apply(OrderEvent event) {
+            ProjectedOrder current = orders.get(event.orderId());
+            long currentVersion = current == null ? 0 : current.version();
+            long expected = currentVersion + 1;
+            if (seenEventIds.contains(event.eventId())) {
+                return new ProjectionResult(ApplyStatus.DUPLICATE, expected, event.version());
+            }
+            if (event.version() <= currentVersion) {
+                seenEventIds.add(event.eventId());
+                return new ProjectionResult(ApplyStatus.STALE, expected, event.version());
+            }
+            if (event.version() != expected) {
+                return new ProjectionResult(ApplyStatus.GAP, expected, event.version());
+            }
+            orders.put(event.orderId(), new ProjectedOrder(event.version(), event.amountCents()));
+            seenEventIds.add(event.eventId());
+            return new ProjectionResult(ApplyStatus.APPLIED, expected, event.version());
+        }
+
+        ProjectedOrder order(String orderId) { return orders.get(orderId); }
+
+        long totalAmountCents() {
+            return orders.values().stream().mapToLong(ProjectedOrder::amountCents).sum();
+        }
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -512,6 +620,63 @@ public final class ConsistencyContracts {
         } catch (IllegalArgumentException expected) {}
     }
 
+    private static void columnSelectionScenarios() {
+        ScanEstimate estimate = scanEstimate(10_000_000L, 200, 8, 8);
+        assert estimate.rowStoreBytes() == 2_000_000_000L;
+        assert estimate.selectedColumnBytes() == 160_000_000L;
+        assert estimate.reductionFactor() == 12.5;
+        try {
+            scanEstimate(10, 8, 8, 8);
+            throw new AssertionError("impossible selected width accepted");
+        } catch (IllegalArgumentException expected) {}
+    }
+
+    private static void vectorBatchScenarios() {
+        BatchAggregate aggregate = sumRevenueForRegion(
+                new int[] {1, 2, 1, 3, 1},
+                new long[] {100, 200, 300, 400, 500},
+                1,
+                2);
+        assert aggregate.sumCents() == 900;
+        assert aggregate.batches() == 3;
+        assert aggregate.rowsChecked() == 5;
+        assert sumRevenueForRegion(new int[] {}, new long[] {}, 1, 4).sumCents() == 0;
+    }
+
+    private static void granulePruningScenarios() {
+        List<Granule> granules = List.of(
+                new Granule(1, 1, 1, 3, 8_192),
+                new Granule(1, 1, 4, 6, 8_192),
+                new Granule(1, 2, 7, 9, 8_192),
+                new Granule(2, 2, 1, 3, 8_192),
+                new Granule(2, 2, 4, 6, 8_192),
+                new Granule(3, 3, 1, 9, 8_192));
+        GranuleSelection selection = candidateGranules(granules, 2, 2, 5);
+        assert selection.candidateIndexes().equals(List.of(3, 4));
+        assert selection.candidateRows() == 16_384;
+        assert candidateGranules(granules, 9, 1, 9).candidateIndexes().isEmpty();
+    }
+
+    private static void projectionScenarios() {
+        OrderProjection projection = new OrderProjection();
+        OrderEvent v1 = new OrderEvent("evt-1", "order-7", 1, 1_000);
+        assert projection.apply(v1).status() == ApplyStatus.APPLIED;
+        assert projection.apply(v1).status() == ApplyStatus.DUPLICATE;
+
+        OrderEvent v3 = new OrderEvent("evt-3", "order-7", 3, 1_200);
+        ProjectionResult gap = projection.apply(v3);
+        assert gap.status() == ApplyStatus.GAP && gap.expectedVersion() == 2;
+        assert projection.order("order-7").amountCents() == 1_000;
+
+        assert projection.apply(new OrderEvent("evt-2", "order-7", 2, 1_100)).status()
+                == ApplyStatus.APPLIED;
+        assert projection.apply(v3).status() == ApplyStatus.APPLIED;
+        assert projection.apply(new OrderEvent("evt-old", "order-7", 2, 999)).status()
+                == ApplyStatus.STALE;
+        assert projection.order("order-7").version() == 3;
+        assert projection.totalAmountCents() == 1_200;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -528,7 +693,11 @@ public final class ConsistencyContracts {
         lsmSnapshotReadScenarios();
         lsmTombstoneScenarios();
         lsmAmplificationScenarios();
-        System.out.println("PASS 12 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification");
+        columnSelectionScenarios();
+        vectorBatchScenarios();
+        granulePruningScenarios();
+        projectionScenarios();
+        System.out.println("PASS 16 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection");
     }
 }
 
