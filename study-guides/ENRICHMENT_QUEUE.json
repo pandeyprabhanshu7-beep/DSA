@@ -232,7 +232,7 @@
       "status": "IN_PROGRESS",
       "last_read_at": "2026-10-15",
       "sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
-      "selection": "Read and selected as the broader structural source; Q1-Q72 through line 1860 were compared and promoted, while rapid-fire items 1-32 and revision material remain queued."
+      "selection": "Read and selected as the broader structural source; Q1-Q72 plus rapid-fire items 1-16 through line 1926 were compared and promoted, while rapid-fire items 17-32 and revision material remain queued."
     },
     {
       "name": "DSA_Tree_FAANG_Mermaid_Question_Workbook.md",
@@ -357,7 +357,7 @@
       "status": "IN_PROGRESS",
       "last_read_at": "2026-10-15",
       "sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
-      "selection": "Read and compared through rendered line 1328 for Q1-Q72; it corroborates the Mermaid edition but this older DOCX is not promoted as a competing canonical guide."
+      "selection": "Read and compared through rendered line 1361 for Q1-Q72 plus rapid-fire items 1-16; it corroborates the Mermaid edition but this older DOCX is not promoted as a competing canonical guide."
     },
     {
       "name": "DSA_Graph_FAANG_Question_Workbook.docx",
@@ -715,8 +715,8 @@
         "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md",
         "JavaScript_HTML_CSS_Interview_Workbook.docx"
       ],
-      "last_processed_at": "2026-10-15T21:53:50-04:00",
-      "next_action": "Compare and deepen rapid-fire items 1-16 only: strict mode through Web Workers; Markdown lines 1861-1926 and DOCX rendered lines 1329-1361.",
+      "last_processed_at": "2026-10-15T22:34:43-04:00",
+      "next_action": "Compare and deepen rapid-fire items 17-32 only: Service Workers through the critical rendering path; Markdown lines 1927-1989 and DOCX rendered lines 1362-1393.",
       "completed_sections": [
         "Q1-Q4: bindings, declaration instantiation and TDZ, lexical scope, and per-iteration loop capture",
         "Q5-Q10: primitive/reference values, equality, null/undefined/NaN, shallow/deep copy, array transforms, optional chaining and nullish coalescing",
@@ -730,18 +730,19 @@
         "Q52-Q56: sparse map/reduce semantics, depth-controlled flattening, identity-preserving grouping, and ordered promise aggregation",
         "Q57-Q61: one-shot outcome policy, stable event dispatch, bounded task concurrency, nested microtasks, and closure lifetime",
         "Q62-Q66: prototype-aware ownership, simplified bind, async iteration, safe retry/backoff, and Web Worker selection",
-        "Q67-Q72: HTTP and Service Worker cache ownership, ESM tree shaking, :is()/:where() specificity, cascade layers, stale-safe autocomplete, and modal focus management"
+        "Q67-Q72: HTTP and Service Worker cache ownership, ESM tree shaking, :is()/:where() specificity, cascade layers, stale-safe autocomplete, and modal focus management",
+        "Rapid-fire 1-16: strict mode, null type history, object/collection ownership, iteration/rest/spread/generators, microtasks/modules/lifecycle events, observers, and Web Workers"
       ],
       "source_revision": {
         "source_markdown_sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
-        "source_markdown_lines": "1760-1860 for Q67-Q72, bounded by the rapid-fire bank at line 1861; earlier Q1-Q66 retained",
+        "source_markdown_lines": "1861-1926 for rapid-fire items 1-16, bounded by item 17 at line 1927; earlier Q1-Q72 retained",
         "source_docx_sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
-        "source_docx_range": "rendered lines 1253-1328 for Q67-Q72, bounded by the rapid-fire bank at rendered line 1329; earlier Q1-Q66 retained",
+        "source_docx_range": "rendered lines 1329-1361 for rapid-fire items 1-16, bounded by item 17 at rendered line 1362; earlier Q1-Q72 retained",
         "retrieval": "Both bounded source texts read from ChatGPT Library on 2026-10-16",
-        "baseline_main_head": "4881e8e78af9dd2fca976bf3f26953f7f682bdde"
+        "baseline_main_head": "0b538d06da11d8c4201f2497abaac705ffc7942e"
       },
-      "validation": "Q67-Q72 were compared in both actual source texts and consolidated with HTTP/CacheStorage ownership, Service Worker lifecycle, module reachability and side-effect boundaries, exact selector/layer precedence, identity-fenced autocomplete, and native modal focus contracts. Four connected executable examples and five new Mermaid diagrams cover all six questions. Node v24.19.0 passed all 58 scenario groups; deterministic reader generation passed exact 159120-character payload equality, 74 unique anchors, 127 balanced fenced blocks, 44 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax and the live 170-marker invariant. All six content-commit remote blob hashes matched. Browser Service Worker/DOM integration and Mermaid visual QA were not executed; no GitHub status checks are configured.",
-      "last_successful_commit": "4aae4c9bd19e7363ffe195cadd1b1d4ec501295c",
+      "validation": "Rapid-fire items 1-16 were compared in both actual source texts and consolidated with exact language-mode, shallow-integrity, keyed-collection, iteration, rest/spread, generator, microtask, module-binding, lifecycle-event, observer, and worker boundaries. Four connected executable examples and four new Mermaid diagrams cover all sixteen items. Node v24.19.0 passed all 62 scenario groups; deterministic reader generation passed exact 174387-character payload equality, 75 unique anchors, 135 balanced fenced blocks, 48 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax and the live 170-marker invariant. All six content-commit remote blob hashes matched. Browser DOM/observer/Worker integration and Mermaid visual QA were not executed; no GitHub status checks are configured.",
+      "last_successful_commit": "6ad1ac5be3281d02774e2e42150b6846f477dfef",
       "publish_state": "PUBLISHED",
       "priority": 16
     },
@@ -862,7 +863,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10, Angular Q1-Q74 plus rapid-fire items 1-39, and JavaScript/HTML/CSS Q1-Q72 are processed. Continue the confirmed JavaScript_HTML_CSS paired sources with rapid-fire items 1-16 only (Markdown lines 1861-1926; DOCX rendered lines 1329-1361); later rapid-fire/revision material and Angular Final Revision Sheet stay queued.",
+    "next_action": "Core advanced-tree sections 1-10, Angular Q1-Q74 plus rapid-fire items 1-39, and JavaScript/HTML/CSS Q1-Q72 plus rapid-fire items 1-16 are processed. Continue the confirmed JavaScript_HTML_CSS paired sources with rapid-fire items 17-32 only (Markdown lines 1927-1989; DOCX rendered lines 1362-1393); the JavaScript/HTML/CSS and Angular Final Revision Sheets stay queued.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -918,14 +919,15 @@
       "JavaScript/HTML/CSS Q52-Q56: map/reduce sparse semantics, iterative flattening, Map grouping and Promise.all coordination",
       "JavaScript/HTML/CSS Q57-Q61: once outcome policy, stable EventEmitter dispatch, bounded task concurrency, nested event-loop ordering and closure lifetime",
       "JavaScript/HTML/CSS Q62-Q66: property ownership, simplified bind, async iteration, retry/backoff and Web Worker selection",
-      "JavaScript/HTML/CSS Q67-Q72: HTTP/Service Worker caches, ESM tree shaking, selector/layer specificity, autocomplete races and modal focus"
+      "JavaScript/HTML/CSS Q67-Q72: HTTP/Service Worker caches, ESM tree shaking, selector/layer specificity, autocomplete races and modal focus",
+      "JavaScript/HTML/CSS rapid-fire 1-16: language and collection ownership, iteration/generators, scheduling/modules/lifecycle, observers and Web Workers"
     ],
-    "processed_section": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md lines 1760-1860 (SHA-256 742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0) and JavaScript_HTML_CSS_Interview_Workbook.docx rendered lines 1253-1328 (SHA-256 790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb): Q67-Q72 validated for the canonical frontend guide",
-    "validation": "Q67-Q72 were compared in both source texts and consolidated with HTTP/CacheStorage ownership, Service Worker lifecycle, module reachability/side-effect boundaries, exact selector/layer precedence, identity-fenced autocomplete, and native modal focus contracts. Four connected executable examples and five new Mermaid diagrams cover all six questions. Node v24.19.0 passed all 58 scenario groups; deterministic reader generation passed exact 159120-character payload equality, 74 unique anchors, 127 balanced fenced blocks, 44 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax and the live 170-marker invariant. All six content-commit remote blob hashes matched. Browser Service Worker/DOM integration and Mermaid visual QA were not executed; no GitHub status checks are configured.",
-    "estimated_next_tokens": 8200,
-    "estimate_method": "Heuristic only for rapid-fire items 1-16 paired-source comparison, current primary references, teaching implementation, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "4aae4c9bd19e7363ffe195cadd1b1d4ec501295c",
-    "last_processed_at": "2026-10-15T21:53:50-04:00",
-    "next_batch_decision": "JavaScript/HTML/CSS Q67-Q72 are the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before rapid-fire items 1-16 and retain the conservative one-section checkpoint."
+    "processed_section": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md lines 1861-1926 (SHA-256 742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0) and JavaScript_HTML_CSS_Interview_Workbook.docx rendered lines 1329-1361 (SHA-256 790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb): rapid-fire items 1-16 validated for the canonical frontend guide",
+    "validation": "Rapid-fire items 1-16 were compared in both source texts and consolidated with language-mode, shallow-integrity, keyed-collection, iteration, rest/spread, generator, microtask, module-binding, lifecycle-event, observer and worker boundaries. Four connected executable examples and four new Mermaid diagrams cover all sixteen items. Node v24.19.0 passed all 62 scenario groups; deterministic reader generation passed exact 174387-character payload equality, 75 unique anchors, 135 balanced fenced blocks, 48 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax and the live 170-marker invariant. All six content-commit remote blob hashes matched. Browser DOM/observer/Worker integration and Mermaid visual QA were not executed; no GitHub status checks are configured.",
+    "estimated_next_tokens": 7600,
+    "estimate_method": "Heuristic only for rapid-fire items 17-32 paired-source comparison, current primary references, teaching implementation, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "6ad1ac5be3281d02774e2e42150b6846f477dfef",
+    "last_processed_at": "2026-10-15T22:34:43-04:00",
+    "next_batch_decision": "JavaScript/HTML/CSS rapid-fire items 1-16 are the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before items 17-32 and retain the conservative one-section checkpoint."
   }
 }
