@@ -1308,6 +1308,160 @@ export async function eventLoopAndLifetimePolicyExample() {
   };
 }
 
+export function propertyOwnershipPolicyExample() {
+  const defaults = {theme: 'system', retries: 3};
+  const settings = Object.create(defaults);
+  settings.theme = 'dark';
+  const dictionary = Object.create(null);
+  dictionary.hasOwnProperty = 'data, not a method';
+  dictionary.region = 'us-east-1';
+
+  const inspect = (object, key) => ({
+    key,
+    exists: key in object,
+    own: Object.hasOwn(object, key),
+    value: object[key]
+  });
+  return {
+    prototypeIsDefaults: Object.getPrototypeOf(settings) === defaults,
+    checks: [inspect(settings, 'theme'), inspect(settings, 'retries'), inspect(settings, 'missing')],
+    nullPrototypeOwnRegion: Object.hasOwn(dictionary, 'region'),
+    shadowedMethodIsSafe: Object.hasOwn(dictionary, 'hasOwnProperty')
+  };
+}
+
+export function simpleBind(fn, thisArg, ...boundArgs) {
+  if (typeof fn !== 'function') throw new TypeError('fn must be callable');
+  return function simplifiedBound(...laterArgs) {
+    return Reflect.apply(fn, thisArg, [...boundArgs, ...laterArgs]);
+  };
+}
+
+export function simpleBindPolicyExample() {
+  function format(prefix, suffix) {
+    return `${prefix}${this.name}${suffix}`;
+  }
+  const receiver = {name: 'Ada'};
+  const greet = simpleBind(format, receiver, 'Hello ');
+
+  function Person(name) { this.name = name; }
+  const nativePerson = Person.bind({name: 'ignored'}, 'Lin');
+  const simplifiedReceiver = {name: 'before'};
+  const simplifiedPerson = simpleBind(Person, simplifiedReceiver, 'Grace');
+  const nativeInstance = new nativePerson();
+  const simplifiedInstance = new simplifiedPerson();
+
+  return {
+    callResult: greet('!'),
+    callOverrideIgnored: greet.call({name: 'Other'}, '?'),
+    nativeConstructedName: nativeInstance.name,
+    simplifiedConstructedOwnName: Object.hasOwn(simplifiedInstance, 'name'),
+    simplifiedReceiverName: simplifiedReceiver.name
+  };
+}
+
+export async function asyncIteratorPolicyExample() {
+  const events = [];
+  async function* pages() {
+    try {
+      for (let page = 1; page <= 3; page += 1) {
+        events.push(`fetch:${page}`);
+        await Promise.resolve();
+        yield [`item-${page}`];
+      }
+    } finally {
+      events.push('closed');
+    }
+  }
+
+  const received = [];
+  for await (const page of pages()) {
+    events.push(`consume:${page[0]}`);
+    received.push(...page);
+    if (received.length === 2) break;
+  }
+  return {received, events, thirdPageRequested: events.includes('fetch:3')};
+}
+
+export function parseRetryAfter(value, now = Date.now()) {
+  if (value == null) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? Math.max(0, timestamp - now) : undefined;
+}
+
+export function abortableDelay(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
+    }, {once: true});
+  });
+}
+
+export async function retryIdempotent(operation, {
+  method = 'GET', idempotencyKey, attempts = 3, baseDelayMs = 100,
+  maxDelayMs = 5000, signal, random = Math.random,
+  sleep = abortableDelay,
+  shouldRetry = error => error?.retryable === true
+} = {}) {
+  if (!Number.isInteger(attempts) || attempts < 1) throw new RangeError('attempts must be positive');
+  const idempotentMethods = new Set(['GET', 'HEAD', 'PUT', 'DELETE', 'OPTIONS', 'TRACE']);
+  const safeToRepeat = idempotentMethods.has(method.toUpperCase()) || Boolean(idempotencyKey);
+  if (!safeToRepeat && attempts > 1) throw new Error('automatic retry requires idempotent semantics');
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    signal?.throwIfAborted();
+    try {
+      return await operation(attempt);
+    } catch (error) {
+      if (attempt === attempts || !shouldRetry(error)) throw error;
+      const cap = Math.min(maxDelayMs, baseDelayMs * (2 ** (attempt - 1)));
+      const jittered = Math.floor(random() * cap);
+      const delay = Number.isFinite(error.retryAfterMs)
+        ? Math.min(maxDelayMs, Math.max(0, error.retryAfterMs))
+        : jittered;
+      await sleep(delay, signal);
+    }
+  }
+}
+
+export function chooseExecutionSite({estimatedTaskMs, needsDom = false, networkBound = false, transferable = false}) {
+  if (needsDom) return {site: 'main-thread', reason: 'DOM ownership'};
+  if (networkBound) return {site: 'main-thread-async', reason: 'waiting is not CPU contention'};
+  if (estimatedTaskMs >= 50) {
+    return {site: 'worker-candidate', reason: transferable ? 'CPU work with transferable input' : 'profile clone cost first'};
+  }
+  return {site: 'main-thread', reason: 'small task; worker overhead may dominate'};
+}
+
+export async function retryAndWorkerPolicyExample() {
+  const delays = [];
+  const attempts = [];
+  const value = await retryIdempotent(async attempt => {
+    attempts.push(attempt);
+    if (attempt < 3) {
+      const error = new Error('temporary');
+      error.retryable = true;
+      if (attempt === 1) error.retryAfterMs = 700;
+      throw error;
+    }
+    return 'ok';
+  }, {attempts: 3, baseDelayMs: 200, random: () => 0.5, sleep: async ms => delays.push(ms)});
+
+  return {
+    value,
+    attempts,
+    delays,
+    retryAfterSeconds: parseRetryAfter('2', 0),
+    cpuChoice: chooseExecutionSite({estimatedTaskMs: 80, transferable: true}),
+    domChoice: chooseExecutionSite({estimatedTaskMs: 80, needsDom: true}),
+    networkChoice: chooseExecutionSite({estimatedTaskMs: 80, networkBound: true})
+  };
+}
+
 assert.deepEqual(constantBindingExample(), {name: 'Grace', skills: ['JS', 'HTML']});
 assert.deepEqual(hoistingExample(), [undefined, 7]);
 assert.equal(temporalDeadZoneErrorName(), 'ReferenceError');
@@ -1569,4 +1723,37 @@ assert.deepEqual(await eventLoopAndLifetimePolicyExample(), {
   secondDispose: false
 });
 
-console.log('JavaScript fundamentals examples: 50 scenario groups passed');
+assert.deepEqual(propertyOwnershipPolicyExample(), {
+  prototypeIsDefaults: true,
+  checks: [
+    {key: 'theme', exists: true, own: true, value: 'dark'},
+    {key: 'retries', exists: true, own: false, value: 3},
+    {key: 'missing', exists: false, own: false, value: undefined}
+  ],
+  nullPrototypeOwnRegion: true,
+  shadowedMethodIsSafe: true
+});
+assert.deepEqual(simpleBindPolicyExample(), {
+  callResult: 'Hello Ada!',
+  callOverrideIgnored: 'Hello Ada?',
+  nativeConstructedName: 'Lin',
+  simplifiedConstructedOwnName: false,
+  simplifiedReceiverName: 'Grace'
+});
+assert.deepEqual(await asyncIteratorPolicyExample(), {
+  received: ['item-1', 'item-2'],
+  events: ['fetch:1', 'consume:item-1', 'fetch:2', 'consume:item-2', 'closed'],
+  thirdPageRequested: false
+});
+assert.deepEqual(await retryAndWorkerPolicyExample(), {
+  value: 'ok', attempts: [1, 2, 3], delays: [700, 200], retryAfterSeconds: 2000,
+  cpuChoice: {site: 'worker-candidate', reason: 'CPU work with transferable input'},
+  domChoice: {site: 'main-thread', reason: 'DOM ownership'},
+  networkChoice: {site: 'main-thread-async', reason: 'waiting is not CPU contention'}
+});
+await assert.rejects(
+  retryIdempotent(async () => 'no', {method: 'POST', attempts: 2}),
+  /idempotent semantics/
+);
+
+console.log('JavaScript fundamentals examples: 54 scenario groups passed');

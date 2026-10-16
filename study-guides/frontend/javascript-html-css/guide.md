@@ -5,7 +5,7 @@ description: Incremental, source-reconciled frontend interview guide with execut
 
 # JavaScript, HTML and CSS Interview Guide
 
-This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q61**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, responsive media, visibility semantics, native lazy loading, accessible search-friendly markup, the CSS cascade and box model, Flexbox/Grid sizing, positioning, stacking contexts, responsive units, component queries, runtime design tokens, layout stability, CSS naming, collection and promise implementations, one-shot functions, event emitters, concurrency limiting, nested event-loop ordering, and closure lifetime. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
+This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q66**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage, web security, semantic HTML, script delivery, accessible forms, responsive media, CSS layout, collection and promise implementations, lifecycle-safe utilities, prototype-aware property checks, a deliberately simplified `bind`, async iteration, safe HTTP retry policy, and Web Worker selection. Later questions remain queued; this is not a claim that the complete workbook has been promoted.
 
 ## Module map
 
@@ -70,6 +70,11 @@ This is the canonical incremental guide for the paired JavaScript/HTML/CSS workb
 - [Q59 — Limit promise-task concurrency](#q59)
 - [Q60 — Predict nested event-loop ordering](#q60)
 - [Q61 — Prevent closure-retention leaks](#q61)
+- [Q62 — Own versus inherited properties](#q62)
+- [Q63 — Implement a simplified `bind`](#q63)
+- [Q64 — Async iterators and `for await...of`](#q64)
+- [Q65 — Idempotent retry with exponential backoff](#q65)
+- [Q66 — When to use a Web Worker](#q66)
 - [Source provenance and verification](#sources)
 - [Next bounded section](#next)
 
@@ -2774,6 +2779,225 @@ Use this diagnosis order:
 
 `WeakMap`, `WeakRef`, and `FinalizationRegistry` are specialized tools, not substitutes for lifecycle ownership. Garbage-collection timing is intentionally not observable enough for a deterministic unit test; test registration/disposal behavior, then use heap snapshots for retention evidence.
 
+<a id="q62"></a>
+
+## Q62. How do you distinguish own and inherited properties?
+
+### Requirement
+
+`Object.create(proto)` creates a new ordinary object whose `[[Prototype]]` is `proto`; it does not copy the prototype's properties. `key in object` asks whether a property exists anywhere along the lookup chain, while `Object.hasOwn(object, key)` asks whether the object itself owns that key. Prefer `Object.hasOwn` over `object.hasOwnProperty(...)`: a null-prototype dictionary has no inherited method, and ordinary input may shadow that name.
+
+### Example 49 — configuration inheritance without ownership confusion
+
+```javascript
+const defaults = {theme: "system", retries: 3};
+const settings = Object.create(defaults);
+settings.theme = "dark";
+
+Object.hasOwn(settings, "theme");   // true
+"theme" in settings;                // true
+Object.hasOwn(settings, "retries"); // false
+"retries" in settings;              // true
+settings.retries;                    // 3, found on defaults
+```
+
+```mermaid
+flowchart LR
+    Settings["settings own: theme"] -->|"[[Prototype]]"| Defaults["defaults own: retries"]
+    Own["Object.hasOwn(settings, key)"] --> Settings
+    In["key in settings"] --> Settings
+    In --> Defaults
+```
+
+| Probe | `theme` | `retries` | `missing` |
+|---|---:|---:|---:|
+| `Object.hasOwn(settings, key)` | true | false | false |
+| `key in settings` | true | true | false |
+| `settings[key]` | `"dark"` | `3` | `undefined` |
+
+Use ownership when validating record fields, serializing deliberate input, or distinguishing an override from a default. Use `in` when inherited capability is intentionally part of the contract. Neither operation is an authorization check, and both can invoke proxy traps.
+
+<a id="q63"></a>
+
+## Q63. Implement a simplified `bind`
+
+### Requirement
+
+A useful interview implementation fixes a receiver, prepends partial arguments, forwards later arguments, and preserves the return or thrown value. Label it **simplified**, not a polyfill: native bound functions are exotic objects with specified `name`/`length` behavior and special construction semantics. If a constructable target is called with `new boundFn(...)`, native `bind` ignores the stored receiver and forwards construction to the target.
+
+### Example 50 — call binding and the constructor boundary
+
+```javascript
+function simpleBind(fn, thisArg, ...boundArgs) {
+  if (typeof fn !== "function") throw new TypeError("fn must be callable");
+  return function simplifiedBound(...laterArgs) {
+    return Reflect.apply(fn, thisArg, [...boundArgs, ...laterArgs]);
+  };
+}
+
+function format(prefix, suffix) {
+  return `${prefix}${this.name}${suffix}`;
+}
+const helloAda = simpleBind(format, {name: "Ada"}, "Hello ");
+helloAda("!"); // "Hello Ada!"
+```
+
+```mermaid
+flowchart TD
+    Call["wrapper(laterArgs)"] --> Merge["boundArgs + laterArgs"]
+    Merge --> Apply["Reflect.apply(target, fixedThis, args)"]
+    New["new nativeBound(...)"] --> Construct["construct target; ignore fixedThis"]
+    Warning["simpleBind does not implement this branch"] -.-> New
+```
+
+| Invocation | Native `bind` | This simplified helper |
+|---|---|---|
+| normal call | fixed receiver, merged arguments | same teaching behavior |
+| `.call(other)` on result | stored receiver still wins | stored receiver still wins |
+| `new result()` | constructs target when target is constructable | incorrectly applies target to stored receiver |
+| arrow target | lexical `this` still wins | lexical `this` still wins |
+
+Do not “repair” this helper casually with `instanceof wrapper`: exact native behavior also includes `new.target`, constructability, prototype, metadata, and proxy-observable details. Use native `bind` in production.
+
+<a id="q64"></a>
+
+## Q64. What are async iterators and `for await...of`?
+
+### Requirement
+
+An async iterable exposes `Symbol.asyncIterator`; its iterator's `next()` returns a promise for an iterator result. An async generator implements that protocol conveniently. `for await...of` awaits each step, so a demand-driven producer can fetch only when the consumer asks for the next page. Breaking the loop performs iterator closing and gives an async generator's `finally` block a cleanup opportunity.
+
+### Example 51 — paged demand, early exit, and cleanup
+
+```javascript
+async function* pages(fetchPage, signal) {
+  let cursor = "start";
+  try {
+    while (cursor !== null) {
+      signal?.throwIfAborted();
+      const page = await fetchPage(cursor, {signal});
+      cursor = page.nextCursor;
+      yield page.items;
+    }
+  } finally {
+    console.log("iterator closed");
+  }
+}
+
+for await (const page of pages(fetchPage, controller.signal)) {
+  await renderPage(page);
+  if (userHasEnough()) break;
+}
+```
+
+```mermaid
+sequenceDiagram
+    participant C as Consumer
+    participant I as Async iterator
+    participant S as Source
+    C->>I: next()
+    I->>S: fetch page 1
+    S-->>I: items
+    I-->>C: await result
+    C->>C: process page
+    C->>I: next() only when ready
+    C->>I: return() on break
+    I->>I: finally cleanup
+```
+
+Trace for the executable example: `fetch:1 → consume:item-1 → fetch:2 → consume:item-2 → closed`; page 3 is never requested. This is pull-based pacing, not a universal memory guarantee: a producer may prebuffer internally, and collecting every yielded value still creates an unbounded result. Pass cancellation to the underlying I/O and keep cleanup in `finally`.
+
+<a id="q65"></a>
+
+## Q65. How do you retry an idempotent HTTP request with exponential backoff?
+
+### Requirement
+
+Retry only when both dimensions allow it: the operation is safe to repeat **and** the failure is plausibly transient. HTTP defines GET, HEAD, PUT, DELETE, OPTIONS, and TRACE as idempotent methods; an application can also make a write repeatable with a server-enforced idempotency key. Do not automatically replay an arbitrary POST because a transport failure may have happened after the server committed it.
+
+### Example 52 — bounded full-jitter backoff with `Retry-After`
+
+```javascript
+const abortableDelay = (ms, signal) => new Promise((resolve, reject) => {
+  const timer = setTimeout(resolve, ms);
+  signal?.addEventListener("abort", () => {
+    clearTimeout(timer);
+    reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+  }, {once: true});
+});
+
+async function retryIdempotent(operation, {
+  attempts = 3, baseDelayMs = 100, maxDelayMs = 5000,
+  signal, random = Math.random, sleep = abortableDelay,
+  shouldRetry = error => error.retryable === true
+} = {}) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    signal?.throwIfAborted();
+    try {
+      return await operation(attempt);
+    } catch (error) {
+      if (attempt === attempts || !shouldRetry(error)) throw error;
+      const cap = Math.min(maxDelayMs, baseDelayMs * 2 ** (attempt - 1));
+      const wait = Number.isFinite(error.retryAfterMs)
+        ? Math.min(maxDelayMs, Math.max(0, error.retryAfterMs))
+        : Math.floor(random() * cap); // full jitter
+      await sleep(wait, signal);
+    }
+  }
+}
+```
+
+The runnable module additionally rejects automatic retries for non-idempotent methods unless an idempotency key is supplied and parses both forms of `Retry-After`.
+
+| Attempt | Result | Exponential cap | Selected delay | Why |
+|---:|---|---:|---:|---|
+| 1 | retryable failure | 200 ms | 700 ms | server `Retry-After` wins |
+| 2 | retryable failure | 400 ms | 200 ms | deterministic 0.5 full jitter |
+| 3 | success | — | — | return result |
+
+Production policy must cap attempts and delay, honor cancellation and `Retry-After`, classify status/network failures explicitly, record attempt metrics, and use jitter so many clients do not synchronize. A 503 can carry `Retry-After`; it is not a command to retry forever.
+
+<a id="q66"></a>
+
+## Q66. When should work move to a Web Worker?
+
+### Requirement
+
+A dedicated worker runs script in a separate worker global scope and communicates with its creator through messages. It cannot directly manipulate the creator's DOM. Choose it for measured CPU work that blocks responsiveness long enough to justify startup and data-transfer cost—not merely because an operation is asynchronous. Network waiting is already non-blocking; moving a fetch alone usually does not remove CPU pressure.
+
+```javascript
+// main.js
+const worker = new Worker(new URL("./score-worker.js", import.meta.url), {type: "module"});
+worker.onmessage = ({data}) => renderScores(data);
+const buffer = rows.buffer;
+worker.postMessage({buffer}, [buffer]); // transfers ownership; buffer is detached here
+
+// score-worker.js
+self.onmessage = ({data}) => {
+  const rows = new Float64Array(data.buffer);
+  const scores = calculateScores(rows);
+  self.postMessage(scores.buffer, [scores.buffer]);
+};
+```
+
+```mermaid
+flowchart LR
+    Main["Main thread: UI and DOM"] -->|"message + transfer"| Worker["Worker: CPU calculation"]
+    Worker -->|"result message + transfer"| Main
+    Main --> Measure["Performance and Long Tasks evidence"]
+    Measure --> Decide["Benefit exceeds startup and transfer cost"]
+```
+
+| Workload | First choice | Reason |
+|---|---|---|
+| 3 ms formatting task | main thread | worker overhead may dominate |
+| repeated 80 ms image/data transform | profile a worker | CPU work risks long tasks |
+| code that needs `document` | main thread or split the model | worker has no direct DOM access |
+| slow API response with little parsing | async fetch on main | waiting is not CPU contention |
+| large `ArrayBuffer` transform | worker + transfer list | avoids cloning bytes when ownership can move |
+
+The Long Tasks API's 50 ms threshold is a useful diagnostic signal, not a universal offload rule. Validate total interaction latency, transfer/clone cost, memory, error propagation, lifecycle (`terminate()` or cooperative cancellation), and fallback behavior on representative devices.
+
 ## Decision checklist
 
 - Use `const` by default when the binding should not change; use `let` when reassignment is part of the model.
@@ -2831,6 +3055,11 @@ Use this diagnosis order:
 - Limit concurrency with lazy factories and an explicit error/cancellation policy, not with promises that already started.
 - For nested event-loop output, append jobs to the queues in registration order and drain the full microtask checkpoint.
 - Diagnose closure retention from a long-lived root through the callback and its environment; end the owning lifecycle explicitly.
+- Use `Object.hasOwn` for record ownership and `in` only when inherited presence is part of the contract.
+- Call a teaching `bind` implementation simplified unless it faithfully covers native construction and metadata semantics.
+- Treat async iteration as demand-driven; propagate cancellation and close the iterator on early exit.
+- Retry only repeatable operations and transient failures; cap attempts/delay, add jitter, honor `Retry-After`, and abort promptly.
+- Move measured CPU contention—not ordinary network waiting—to a worker, and include serialization/transfer cost in the decision.
 
 <a id="sources"></a>
 
@@ -2838,9 +3067,9 @@ Use this diagnosis order:
 
 Paired source comparison performed through 2026-10-15:
 
-- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1640. The newly processed Q57–Q61 range is lines 1488–1640, bounded by Q62 at line 1641.
-- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 1035–1166 for Q57–Q61, bounded by Q62 at rendered line 1167. It agrees on all five topics but is not promoted as a competing guide.
-- The repository edition adds explicit one-shot outcome/re-entry semantics, stable emitter dispatch, an idempotent unsubscribe contract, ordered bounded concurrency with selectable settlement policy, a nested microtask trace, closure reachability/lifecycle guidance, four connected executable examples, four focused diagrams, deterministic assertions, and current primary links.
+- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1759. The newly processed Q62–Q66 range is lines 1641–1759, bounded by Q67 at line 1760.
+- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 1167–1252 for Q62–Q66, bounded by Q67 at rendered line 1253. It agrees on all five topics but is not promoted as a competing guide.
+- The repository edition adds null-prototype and shadowing cases, an explicit native-`bind` construction boundary, iterator-closing/backpressure traces, idempotency and retry gates with jitter/cancellation/`Retry-After`, worker transfer/lifecycle decisions, four connected executable examples, four focused diagrams, deterministic assertions, and current primary links.
 
 Primary references checked through 2026-10-15:
 
@@ -2912,9 +3141,18 @@ Primary references checked through 2026-10-15:
 - [HTML Living Standard — event loops and microtask checkpoints](https://html.spec.whatwg.org/multipage/webappapis.html#event-loops)
 - [DOM Standard — removing event listeners and abortable listeners](https://dom.spec.whatwg.org/#dom-eventtarget-removeeventlistener)
 - [Node.js — Events and `EventEmitter`](https://nodejs.org/api/events.html)
+- [ECMAScript — `Object.create`, `Object.hasOwn`, and fundamental objects](https://tc39.es/ecma262/multipage/fundamental-objects.html)
+- [ECMAScript — `Function.prototype.bind`](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-function.prototype.bind)
+- [ECMAScript — async iterator objects and `for-await-of`](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-asynciterator-interface)
+- [RFC 9110 — idempotent methods](https://www.rfc-editor.org/rfc/rfc9110.html#name-idempotent-methods)
+- [RFC 9110 — `Retry-After`](https://www.rfc-editor.org/rfc/rfc9110.html#field.retry-after)
+- [DOM Standard — `AbortSignal`](https://dom.spec.whatwg.org/#interface-AbortSignal)
+- [HTML Living Standard — Web workers](https://html.spec.whatwg.org/multipage/workers.html)
+- [HTML Living Standard — structured clone and transferable objects](https://html.spec.whatwg.org/multipage/structured-data.html#transferable-objects)
+- [Long Tasks API](https://w3c.github.io/longtasks/)
 
 <a id="next"></a>
 
 ## Next bounded section
 
-Continue with source Q62–Q66: prototype-aware property checks, a simplified `bind`, async iterators, retry/backoff policy, and Web Worker selection. The Markdown range begins at line 1641 and is bounded by Q67 at line 1760; the DOCX range begins at rendered line 1167 and is bounded by Q67 at rendered line 1253. Re-read both exact ranges before editing.
+Continue with source Q67–Q72 only: HTTP versus Service Worker caching, ES-module tree shaking, `:is()`/`:where()` specificity, cascade layers, stale-safe autocomplete, and modal focus management. The Markdown range is lines 1760–1860, bounded by the rapid-fire bank at line 1861; the DOCX range is rendered lines 1253–1328, bounded by the rapid-fire bank at rendered line 1329. Re-read both exact ranges before editing; rapid-fire and revision material remain outside that pass.
