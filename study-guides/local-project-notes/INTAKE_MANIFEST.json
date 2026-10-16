@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "9216b99651c01aa94f7af41b266a267f50088a23",
+  "last_successful_commit": "d2ab5e14d36679ee80c3027c100d88eeccdee20f",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -866,19 +866,19 @@
     "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
     "source_version_id": "1",
     "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-    "section": "Section 3 only: LSM trees: moving write cost into compaction, beginning at source line 177; resolve exact end before processing",
+    "section": "Section 4 only: row-oriented versus column-oriented storage, beginning at source line 231; resolve exact end before processing",
     "status": "QUEUED",
     "estimated_tokens": 7800,
-    "estimate_method": "Heuristic only: reserve ~1200 tokens to resolve the bounded LSM source range, ~1500 for primary references, ~3200 for deep consolidation/examples/Java/HTML, and ~1900 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimate_method": "Heuristic only: reserve ~1200 tokens to resolve the bounded row/column source range, ~1500 for primary references, ~3200 for deep consolidation/examples/Java/HTML, and ~1900 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
     "javascript": "Node v24.19.0 executed examples.mjs; all 70 scenario groups passed, including four new final-revision diagnosis and speaking-frame assertions.",
     "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 206630-character embedded payload equality, 77 unique anchors, 151 balanced fences, 54 Mermaid diagrams, inline JavaScript, fragment targets, relative links, JSON syntax, and the live 170-marker Java-placeholder invariant passed. All six content-commit remote blob hashes matched; no commit statuses or check runs were configured. Browser and assistive-technology integration plus Mermaid visual QA were not executed.",
-    "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Sections 1-2 reader now has eight validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
-    "database": "Database Sections 1-2 use confirmed source version 1 through line 176. Section 2 was compared with the existing focused B+ tree module and consolidated as complementary storage-engine coverage. Java 17 source launch passed eight total scenario groups; deterministic reader generation passed exact 28585-character payload equality, source hash, 68 unique HTML IDs, 28 search entries, fragments, allowed relative links, 12 balanced fences and 8 Mermaid sources; live DSA marker audit remains 170. Seven content-tree blobs matched and no GitHub commit statuses were configured. Standalone javac, browser, assistive-technology and Mermaid visual QA were not executed.",
-    "last_processed_at": "2026-10-16T07:20:06-04:00"
+    "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Sections 1-3 reader now has 12 validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
+    "database": "Database Sections 1-3 use confirmed source version 1 through line 230. Section 3 was bounded by the Section 4 heading and consolidated with current RocksDB primary documentation. Java 17 source launch passed 12 total scenario groups; deterministic reader generation passed exact 42055-character payload equality, source hash, 81 unique HTML IDs, 41 search entries, fragments, allowed relative links, 16 balanced fences and 12 Mermaid sources; live DSA marker audit remains 170. Four content blobs were published atomically with an expected-head guard. Standalone javac, browser, assistive-technology and Mermaid visual QA were not executed.",
+    "last_processed_at": "2026-10-16T09:08:22-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-14T16:16:21-04:00",
@@ -905,17 +905,18 @@
     "estimate_method": "Heuristic for bounded database-source verification, targeted primary-source refresh, deep consolidation/HTML and validation/checkpoint reserves; not actual quota percentage"
   },
   "database_caching_java_intake_checkpoint": {
-    "last_processed_at": "2026-10-16T07:20:06-04:00",
+    "last_processed_at": "2026-10-16T09:08:22-04:00",
     "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
     "source_library_file_id": "libfile_969515775294819195d90fe08e46b7be",
     "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
     "source_version_id": "1",
-    "processed": "Sections 1-2, ACID/BASE and B+ trees, source lines 62-176; latest bounded section is lines 134-176",
+    "processed": "Sections 1-3, ACID/BASE, B+ trees and LSM trees, source lines 62-230; latest bounded section is lines 177-230",
     "status": "IN_PROGRESS",
-    "validation": "Section 2 was compared with the existing focused B+ tree module to avoid duplicate coverage. Java 17 source launch passed eight total scenario groups; deterministic reader generation and exact 28585-character payload equality passed with source hash, 68 unique IDs, 28 search entries, fragments, allowed relative links, 12 balanced fences and 8 Mermaid sources. Live DSA marker audit remains 170; all seven content-tree blob hashes matched; no GitHub commit statuses were configured. Standalone javac and browser/assistive-technology/Mermaid visual QA were unavailable or not executed.",
-    "content_commit": "9216b99651c01aa94f7af41b266a267f50088a23",
-    "next_section": "Section 3, LSM trees: moving write cost into compaction, begins at source line 177; resolve exact end before processing",
+    "validation": "Section 3 was bounded by the Section 4 heading and consolidated with current RocksDB primary documentation. Java 17 source launch passed 12 total scenario groups; deterministic reader generation and exact 42055-character payload equality passed with source hash, 81 unique IDs, 41 search entries, fragments, allowed relative links, 16 balanced fences and 12 Mermaid sources. Live DSA marker audit remains 170; four content blobs were published atomically with an expected-head guard. Standalone javac and browser/assistive-technology/Mermaid visual QA were unavailable or not executed.",
+    "content_commit": "d2ab5e14d36679ee80c3027c100d88eeccdee20f",
+    "next_section": "Section 4, row-oriented versus column-oriented storage, begins at source line 231; resolve exact end before processing",
     "estimated_next_tokens": 7800,
     "estimate_method": "Heuristic for bounded LSM source resolution, targeted primary-source refresh, deep consolidation/Java/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
+
