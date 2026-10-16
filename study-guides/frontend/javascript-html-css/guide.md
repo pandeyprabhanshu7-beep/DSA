@@ -5,7 +5,7 @@ description: Incremental, source-reconciled frontend interview guide with execut
 
 # JavaScript, HTML and CSS Interview Guide
 
-This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q72 plus rapid-fire items 1–16**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage and cache ownership, web security, semantic HTML, script delivery, accessible forms and dialogs, responsive media, CSS layout and layers, module optimization, collection and promise implementations, lifecycle-safe utilities, stale-safe autocomplete, observers, and worker selection. Rapid-fire items 17–32 and revision material remain queued; this is not a claim that the complete workbook has been promoted.
+This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q72 plus rapid-fire items 1–32**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage and cache ownership, web security, semantic HTML, script delivery, accessible forms and dialogs, responsive media, CSS layout and layers, module optimization, collection and promise implementations, lifecycle-safe utilities, stale-safe autocomplete, observers, worker selection, Service Workers, resilient browser security, native accessibility, logical CSS, Shadow DOM, and the critical rendering path. The Final Revision Sheet remains queued; this is not a claim that the complete workbook has been promoted.
 
 ## Module map
 
@@ -82,6 +82,7 @@ This is the canonical incremental guide for the paired JavaScript/HTML/CSS workb
 - [Q71 — Stale-safe autocomplete](#q71)
 - [Q72 — Accessible modal focus management](#q72)
 - [Rapid-fire 1–16 — language, iteration, scheduling, observers, and workers](#rapid-fire-1-16)
+- [Rapid-fire 17–32 — offline, security, accessibility, CSS, Shadow DOM, and rendering](#rapid-fire-17-32)
 - [Source provenance and verification](#sources)
 - [Next bounded section](#next)
 
@@ -3484,6 +3485,293 @@ flowchart LR
     Worker -->|"result"| Main
 ```
 
+<a id="rapid-fire-17-32"></a>
+
+## Rapid-fire bank 17–32
+
+These answers connect browser primitives to their ownership boundaries. The important interview move is to state what each primitive controls, what it does **not** control, and which behavior still needs browser or assistive-technology testing.
+
+### 17. What is a Service Worker?
+
+A Service Worker is an event-driven worker registered for an origin and scope. The browser may start it to handle lifecycle events, intercepted requests, push, or background work even when no page execution context is alive. A controlled request can be answered from `CacheStorage`, synthesized, forwarded to `fetch`, or allowed to follow the network stack. This does not make CacheStorage an HTTP cache: the application owns its keys, freshness, version migration, quota failures, and eviction behavior.
+
+Installation and control are deliberately separate. A new worker normally installs, waits while an older worker controls clients, activates, and then controls a later navigation (or explicitly claimed clients). Version cache names and delete obsolete caches during activation; do not let two worker versions silently interpret one mutable cache differently. Service Workers require a secure context, with the usual localhost development exception, and every fetch strategy needs an offline/error outcome.
+
+### 18. Repaint versus composite
+
+Layout determines geometry; paint records/draws pixels for visual effects; compositing assembles painted layers into the final frame. A geometry change such as `width` can require layout, paint, and compositing. A color change ordinarily needs paint and compositing. Animating `transform` or `opacity` is often eligible for compositing without layout and may avoid repaint, but layer promotion and rasterization are implementation decisions—not a CSS guarantee. Excess layers cost memory, uploads, and management, so measure in browser performance tooling before adding `will-change`.
+
+### 19. What is CSP?
+
+Content Security Policy is a response policy that restricts where executable code and other resources may come from. A strong script policy authorizes intended scripts with nonces or hashes and avoids broad allowances such as `'unsafe-inline'`; `object-src 'none'` and a constrained `base-uri` commonly close additional injection paths. Deploy `Content-Security-Policy-Report-Only` first when compatibility risk is high, examine violations, and then enforce.
+
+CSP reduces the impact of markup/script injection; it does not validate input, perform output encoding, sanitize HTML, fix dangerous DOM sinks, or replace dependency integrity and server-side authorization. A nonce must be unpredictable and unique per response, attached only to trusted script elements, and not copied indiscriminately into attacker-controlled markup.
+
+### 20. What do `SameSite` cookies control?
+
+`SameSite` restricts when a cookie is attached to cross-site requests. `Strict` is the narrowest; `Lax` permits same-site use plus a limited class of cross-site top-level navigations; `None` opts into cross-site use and requires `Secure`. “Site” is not the same concept as origin, so subdomains and scheme rules matter. `HttpOnly`, `Secure`, a narrow `Path`/`Domain`, and appropriate lifetime are separate controls.
+
+Treat `SameSite` as defense in depth against CSRF, not the only proof that a state-changing request is intentional. Keep unsafe actions off `GET`, validate an anti-CSRF token or equivalent request-bound signal, verify origin information where appropriate, and remember that XSS can defeat many in-origin defenses.
+
+### Example 61 — route requests and security controls by owner
+
+```javascript
+self.addEventListener("install", event => {
+  event.waitUntil(caches.open("shell-v3").then(cache =>
+    cache.addAll(["/", "/app.7f31.js", "/styles.a19c.css"])
+  ));
+});
+
+self.addEventListener("activate", event => {
+  event.waitUntil(
+    caches.keys().then(keys => Promise.all(
+      keys.filter(key => key.startsWith("shell-") && key !== "shell-v3")
+          .map(key => caches.delete(key))
+    ))
+  );
+});
+
+self.addEventListener("fetch", event => {
+  if (event.request.mode === "navigate") {
+    event.respondWith(fetch(event.request).catch(() => caches.match("/")));
+  }
+});
+```
+
+One compatible response might add:
+
+```http
+Content-Security-Policy: default-src 'self'; script-src 'nonce-{RANDOM_PER_RESPONSE}'; object-src 'none'; base-uri 'none'
+Set-Cookie: session=opaque; Secure; HttpOnly; SameSite=Lax; Path=/
+```
+
+The placeholder above describes a server-generated unpredictable nonce; it is not a literal reusable value. The deterministic fixture in [`examples.mjs`](examples.mjs) checks the policy matrix, while a real browser test must exercise upgrade timing, offline navigation, quota/eviction, CSP violation reporting, cookie redirects, and cross-site requests.
+
+| Request or threat | Primary owner | Fallback / independent defense |
+|---|---|---|
+| hashed static asset | HTTP cache or explicit CacheStorage strategy | versioned URL and bounded eviction |
+| offline document navigation | Service Worker route | cached shell or explicit offline response |
+| injected inline script | context-safe output handling | enforced nonce/hash CSP |
+| cross-site state-changing request | server CSRF validation | `SameSite`, origin checks, safe-method discipline |
+
+```mermaid
+flowchart TD
+    Request["controlled request"] --> SW{"Service Worker route?"}
+    SW -->|"cached/versioned"| Cache["CacheStorage response"]
+    SW -->|"network policy"| Fetch["Fetch → HTTP cache/network"]
+    Fetch --> Response["response constrained by CSP/cookie policy"]
+    Cache --> Response
+```
+
+### 21. Semantic `<button>` versus `role="button"`
+
+A native `<button>` already participates in focus navigation, responds to keyboard and pointer activation, exposes button semantics, supports disabled/form behavior, and emits the expected events. `role="button"` changes accessibility semantics only. A custom element still needs focusability, Enter/Space handling without duplicate activation, disabled-state behavior, high-contrast focus styling, and form semantics when relevant.
+
+Use the native element whenever its contract matches. If visual styling motivated a `<div role="button">`, style the `<button>` instead. Also set `type="button"` for non-submit actions inside forms so the default submit behavior is intentional.
+
+### 22. When should an image use `alt=""`?
+
+Use an empty `alt` for an `<img>` whose only purpose is decoration or whose information is already completely conveyed by adjacent text. That tells user agents the image contributes no text alternative. Omit the image from markup or use a CSS background when it is purely decorative and has no semantic reason to exist.
+
+Do **not** use empty alternative text for an informative chart, an image containing essential text, or the only content of a functional link/button. Describe the information or function, not the pixels. The decision depends on the image's purpose in this context, so the same file may need different alternatives in different uses.
+
+### 23. `aria-label` versus a visible label
+
+Prefer visible text associated through native HTML because everyone can perceive it, translators can find it, and speech-input users can say it. For a form control, use `<label for>` or a wrapping label. Use `aria-labelledby` when existing visible text should supply the accessible name. Use `aria-label` when there is genuinely no suitable visible label, such as an icon-only close button—and localize and test that name.
+
+An ARIA name can override descendant text in the accessibility API, so keep visible and programmatic names aligned. A placeholder is not a durable label. ARIA changes exposed semantics; it does not add keyboard behavior, focusability, validation, or visible instructions.
+
+### Example 62 — preserve native interaction and name every meaningful object
+
+```html
+<button type="button" class="save">
+  <img src="/icons/save.svg" alt="">
+  Save draft
+</button>
+
+<label for="email">Work email</label>
+<input id="email" name="email" type="email" autocomplete="email">
+
+<button type="button" aria-label="Close settings">
+  <svg aria-hidden="true" focusable="false"><!-- decorative icon --></svg>
+</button>
+
+<figure>
+  <img src="/charts/revenue.png" alt="Quarterly revenue rose to $4M.">
+  <figcaption>Revenue by quarter</figcaption>
+</figure>
+```
+
+| Node | Visible name | Programmatic name | Keyboard contract |
+|---|---|---|---|
+| Save `<button>` | Save draft | text content; icon ignored | native Enter/Space/click |
+| email input | Work email | associated `<label>` | native editing |
+| Close `<button>` | icon only | `aria-label` | native button behavior |
+| revenue image | chart + caption | informative `alt` | not interactive |
+
+```mermaid
+flowchart TD
+    Intent["What does the user do or learn?"] --> Native{"Native element fits?"}
+    Native -->|"yes"| Contract["Use native semantics + behavior"]
+    Native -->|"no"| Custom["Implement semantics, focus, keyboard, state"]
+    Contract --> Name["Prefer visible associated name"]
+    Custom --> Name
+```
+
+### 24. What is CSS inheritance?
+
+Inheritance is the computed-value transfer from a parent to a child for an inherited property when the child has no winning declaration. Text-oriented properties such as `color` and many font properties usually inherit; box geometry such as margins, padding, borders, and layout modes generally does not. Every property also accepts CSS-wide keywords: `inherit`, `initial`, `unset`, `revert`, and `revert-layer`, each with a different purpose.
+
+Inheritance is only one stage after the cascade selects a declaration. Custom properties inherit by default, but their token stream is substituted when another property computes; a missing or invalid variable can invalidate that later declaration. Inspect the computed value and winning rule rather than assuming “the parent style did not apply.”
+
+### 25. Pseudo-class versus pseudo-element
+
+A pseudo-class selects an existing element in a state or relationship, such as `:hover`, `:focus-visible`, `:checked`, or `:nth-child(2)`. A pseudo-element represents an abstract subpart or generated box, such as `::before`, `::marker`, `::selection`, or `::first-line`. The double-colon spelling distinguishes pseudo-elements, although legacy single-colon forms remain compatible for a few old ones.
+
+Generated content is not a substitute for essential document content or controls. Its accessibility exposure is not the durable source of truth, and a pseudo-element is not a normal DOM child that application code can own like an element.
+
+### 26. `display: none` versus `opacity: 0`
+
+`display: none` causes the element and descendants to generate no boxes; hidden descendants are also absent from normal focus and accessibility exposure. `opacity: 0` keeps layout boxes, hit testing, descendants, and possible focusability while painting them fully transparent. An invisible-but-interactive control is usually a defect.
+
+Choose the property from the state model. For a removed panel use `hidden`/`display: none`; for a fading panel coordinate opacity with visibility, inertness, focus, and transition completion. Do not infer accessibility from pixels alone. Also remember that `opacity` below `1` creates a stacking context.
+
+### 27. `gap` versus margins
+
+`gap`, `row-gap`, and `column-gap` create gutters between tracks, flex items/lines, or columns according to the formatting context; they do not add an outer gutter before the first or after the last item. Margins belong to individual boxes and are appropriate for external separation or when spacing must travel with the component. Vertical block margins can collapse; gaps do not.
+
+Prefer a parent-owned gap when the container owns repeated-item rhythm. Prefer component margins when the item owns separation from unrelated neighbors. Avoid global “every child except last” selectors when the actual contract is a container gutter.
+
+### 28. What does `aspect-ratio` do?
+
+`aspect-ratio` supplies a preferred width-to-height ratio used by automatic sizing. It affects the result only when at least one dimension is automatic; min/max constraints and content can still win. Replaced elements such as images also have a natural ratio, and `auto <ratio>` can use a supplied ratio until intrinsic data is available.
+
+Use HTML `width` and `height` attributes for images when the intrinsic dimensions are known; the browser can reserve the ratio before CSS and image bytes arrive. Use CSS `aspect-ratio` for component boxes or intentional cropping, usually with `object-fit`. A ratio reserves shape, not necessarily a fixed size.
+
+### 29. What is `prefers-reduced-motion`?
+
+`prefers-reduced-motion: reduce` indicates that the user requested less nonessential motion. Use it to remove or shorten large translations, parallax, zooming, autoplay movement, and decorative looping while keeping state changes understandable. Do not replace motion with an abrupt change that hides essential feedback; a short fade or immediate stable state may be better.
+
+Treat the default/no-preference branch as permission to use only purposeful motion, not as a request for maximum animation. Test both modes and avoid JavaScript-only assumptions; if script must react, use `matchMedia` and handle preference changes.
+
+### 30. What are logical CSS properties?
+
+Logical properties express layout in flow-relative axes. `margin-inline-start` follows the inline start edge, `padding-block` follows the block axis, and `inline-size`/`block-size` replace width/height when the intent is writing-mode relative. In left-to-right horizontal writing, inline start is left; in right-to-left it is right; vertical writing changes the axes again.
+
+Use logical properties for layout intent, not as blind search-and-replace. A physical property is still correct for a physical object such as a screen-edge safe area or directional artwork. When physical and logical declarations target the same used side, normal cascade order determines the winner, which can create subtle overrides.
+
+### Example 63 — encode layout, visibility, motion, and direction as separate policies
+
+```css
+.card-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
+  gap: 1rem;
+}
+.card {
+  color: var(--text);
+  margin-block: 0;
+}
+.card__media {
+  inline-size: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+.card__action::before { content: "→"; }
+.card__action:hover { text-decoration: underline; }
+.panel[hidden] { display: none; }
+.panel[data-fading] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.slide { transform: translateX(0); transition: transform 240ms; }
+@media (prefers-reduced-motion: reduce) {
+  .slide { transition: none; }
+}
+```
+
+`transform` remains physical in current interoperable CSS, so test directional movement for each supported writing mode; use logical positioning when flow-relative movement is the actual contract.
+
+Rendering trace:
+
+| Change | Likely earliest invalidated work | Interview caveat |
+|---|---|---|
+| `inline-size`/`width` | layout | descendants and paint regions may change |
+| `color` | paint | geometry usually stays stable |
+| `transform` | composite candidate | promotion/raster behavior is browser-specific |
+| `[hidden]` | layout/box tree | focus must not be left inside |
+| `opacity: 0` | compositing/paint state | layout and interaction can remain |
+
+```mermaid
+flowchart TD
+    Style["computed style change"] --> Geometry{"Geometry changes?"}
+    Geometry -->|"yes"| Layout["layout"]
+    Geometry -->|"no"| Pixels{"Pixels change?"}
+    Layout --> Paint["paint"]
+    Pixels -->|"yes"| Paint
+    Pixels -->|"transform/opacity candidate"| Composite["composite"]
+    Paint --> Composite
+```
+
+### 31. What is Shadow DOM?
+
+A shadow root is a node tree attached to a host that establishes encapsulation boundaries for DOM traversal, event retargeting, and CSS scoping. Light-DOM children can be composed into the rendered shadow tree through named or default `<slot>` elements. Open mode exposes `host.shadowRoot`; closed mode hides that convenience reference, but it is not a security boundary.
+
+Encapsulation is intentionally permeable through defined mechanisms: inherited properties and custom properties can cross the host boundary, slotted nodes remain owned by light DOM, events may be composed and retargeted, and component authors can expose parts or slots. Accessibility still depends on meaningful host/inner semantics, names, focus order, and tested browser/assistive-technology behavior.
+
+### 32. What is the critical rendering path?
+
+The phrase describes the dependency chain from response bytes to the first pixels: parse HTML into a DOM, obtain and parse render-blocking CSS into a CSSOM, compute styles, build the relevant box/render structures, lay out geometry, paint, and composite. This is a useful performance model, not one single normative algorithm shared byte-for-byte by every engine. Parsing, preload discovery, script execution, style work, layout, and painting can overlap or repeat.
+
+Inline only truly critical CSS, load the rest without breaking the cascade, avoid parser-blocking scripts on the critical path, preload only high-confidence critical resources, reserve media dimensions, reduce dependency chains, and measure real LCP/render timing. `async` scripts execute when ready and do not preserve document order; deferred/module scripts and stylesheet dependencies have their own ordering rules.
+
+### Example 64 — compose a component while tracing first-render dependencies
+
+```javascript
+class ProfileCard extends HTMLElement {
+  constructor() {
+    super();
+    const root = this.attachShadow({mode: "open"});
+    root.innerHTML = \`
+      <style>
+        :host { display: block; color: var(--profile-color, CanvasText); }
+        article { border: 1px solid; padding: 1rem; }
+      </style>
+      <article>
+        <slot name="name"></slot>
+        <slot></slot>
+      </article>\`;
+  }
+}
+customElements.define("profile-card", ProfileCard);
+```
+
+```html
+<profile-card>
+  <h2 slot="name">Ada</h2>
+  <p>Compiler engineer</p>
+</profile-card>
+```
+
+| Step | Required input | Useful optimization question |
+|---:|---|---|
+| parse HTML / discover resources | document bytes | is server response fast and streamable? |
+| build CSSOM / execute blocking work | critical styles and scripts | is it truly required before first render? |
+| style and layout | DOM, CSSOM, fonts/intrinsic sizes | are dimensions reserved and selectors/layout bounded? |
+| paint and composite | geometry and visual properties | is the changing property measured as a bottleneck? |
+
+```mermaid
+flowchart TD
+    HTML["HTML bytes"] --> DOM["DOM + discovered resources"]
+    CSS["critical CSS"] --> CSSOM["CSSOM"]
+    DOM --> Style["style / box construction"]
+    CSSOM --> Style
+    Style --> Layout["layout"]
+    Layout --> Paint["paint"]
+    Paint --> Composite["composite pixels"]
+```
+
 ## Decision checklist
 
 - Use `const` by default when the binding should not change; use `let` when reassignment is part of the model.
@@ -3556,6 +3844,13 @@ flowchart LR
 - Use `for...in` for enumerable property keys and `for...of` for iterable values; say whether rest collects or spread expands.
 - Keep microtask scheduling, module build analysis, live runtime bindings, and document lifecycle events as four different models.
 - Choose MutationObserver for DOM records, IntersectionObserver for asynchronous root intersection, and a Worker for measured CPU contention.
+- Give every Service Worker route an explicit freshness, version, offline, quota, and failure policy; do not confuse CacheStorage with the HTTP cache.
+- Treat CSP and `SameSite` as defense-in-depth layers, not replacements for context-safe output handling, CSRF validation, or authorization.
+- Prefer native controls and visible labels; ARIA changes exposed semantics but does not manufacture keyboard behavior or focus ownership.
+- Separate layout presence, painted visibility, hit testing, focusability, and accessibility exposure when hiding or fading UI.
+- Use container-owned `gap`, flow-relative logical properties, reserved aspect ratios, and reduced-motion alternatives from their named contracts.
+- Treat Shadow DOM as an encapsulation/composition boundary rather than a security boundary, and test its focus and accessible-name behavior.
+- Use the critical rendering path as a measurement model: reduce blocking dependencies, reserve geometry, and verify in browser tooling.
 
 <a id="sources"></a>
 
@@ -3563,9 +3858,9 @@ flowchart LR
 
 Paired source comparison performed through 2026-10-16:
 
-- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1926. The newly processed rapid-fire 1–16 range is lines 1861–1926, bounded by item 17 at line 1927; earlier Q1–Q72 are retained.
-- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 1329–1361 for rapid-fire items 1–16, bounded by item 17 at rendered line 1362. It agrees on all sixteen topics but is not promoted as a competing guide.
-- The repository edition adds exact ownership/lifetime boundaries, four connected executable examples, four focused diagrams, deterministic assertions, and current primary links across language mode, keyed collections, iteration, generators, scheduling, modules, lifecycle events, observers, and workers.
+- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1989. The newly processed rapid-fire 17–32 range is lines 1927–1989, bounded by the Final Revision Sheet anchor at line 1991; earlier Q1–Q72 and rapid-fire 1–16 are retained.
+- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 1362–1393 for rapid-fire items 17–32, bounded by the Final Revision Sheet at rendered line 1396. It agrees on all sixteen topics but is not promoted as a competing guide.
+- The repository edition adds exact security, rendering, accessibility and encapsulation boundaries, four connected executable examples, four focused diagrams, deterministic assertions, and current primary links across Service Workers, CSP/cookies, native semantics, CSS behavior, Shadow DOM, and first rendering.
 
 Primary references checked through 2026-10-16:
 
@@ -3644,6 +3939,23 @@ Primary references checked through 2026-10-16:
 - [RFC 9110 — `Retry-After`](https://www.rfc-editor.org/rfc/rfc9110.html#field.retry-after)
 - [DOM Standard — `AbortSignal`](https://dom.spec.whatwg.org/#interface-AbortSignal)
 - [HTML Living Standard — Web workers](https://html.spec.whatwg.org/multipage/workers.html)
+- [Service Workers — lifecycle, fetch, and CacheStorage](https://w3c.github.io/ServiceWorker/)
+- [Content Security Policy Level 3](https://www.w3.org/TR/CSP3/)
+- [HTTP State Management Mechanism draft — `SameSite`](https://httpwg.org/http-extensions/draft-ietf-httpbis-rfc6265bis.html)
+- [HTML Living Standard — the `button` element](https://html.spec.whatwg.org/multipage/form-elements.html#the-button-element)
+- [WAI Images Tutorial — decorative images](https://www.w3.org/WAI/tutorials/images/decorative/)
+- [WAI Forms Tutorial — labeling controls](https://www.w3.org/WAI/tutorials/forms/labels/)
+- [CSS Cascading and Inheritance](https://drafts.csswg.org/css-cascade/)
+- [CSS Pseudo-Elements Level 4](https://drafts.csswg.org/css-pseudo-4/)
+- [CSS Display — box generation](https://drafts.csswg.org/css-display/)
+- [CSS Color — opacity](https://drafts.csswg.org/css-color/#transparency)
+- [CSS Box Alignment — gaps](https://drafts.csswg.org/css-align/#gaps)
+- [CSS Sizing Level 4 — preferred aspect ratios](https://drafts.csswg.org/css-sizing-4/#aspect-ratio)
+- [Media Queries Level 5 — `prefers-reduced-motion`](https://drafts.csswg.org/mediaqueries-5/#prefers-reduced-motion)
+- [CSS Logical Properties and Values](https://drafts.csswg.org/css-logical/)
+- [HTML Living Standard — Shadow DOM and slots](https://html.spec.whatwg.org/multipage/scripting.html#the-slot-element)
+- [DOM Standard — shadow trees](https://dom.spec.whatwg.org/#shadow-trees)
+- [HTML Living Standard — parsing](https://html.spec.whatwg.org/multipage/parsing.html)
 - [HTML Living Standard — structured clone and transferable objects](https://html.spec.whatwg.org/multipage/structured-data.html#transferable-objects)
 - [Long Tasks API](https://w3c.github.io/longtasks/)
 - [RFC 9111 — HTTP Caching](https://www.rfc-editor.org/rfc/rfc9111.html)
@@ -3674,4 +3986,4 @@ Primary references checked through 2026-10-16:
 
 ## Next bounded section
 
-Continue with rapid-fire items 17–32 only: Service Workers through the critical rendering path. The Markdown range is lines 1927–1989, bounded by the Final Revision Sheet anchor at line 1991; the DOCX range is rendered lines 1362–1393, bounded by the Final Revision Sheet at rendered line 1396. Re-read both exact ranges before editing; the Final Revision Sheet remains outside that pass.
+Continue with the Final Revision Sheet only. The Markdown range is lines 1991–2041 and the DOCX rendered range is lines 1396–1445. Re-read both exact ranges before editing; no later workbook section exists, but the wider repository intake and placeholder backlog remain separate and incomplete.

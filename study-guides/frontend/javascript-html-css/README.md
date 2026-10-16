@@ -4,7 +4,7 @@
 - [Responsive searchable HTML](guide.html)
 - [Runnable JavaScript examples](examples.mjs)
 
-The guide is incremental. Q1–Q72 plus rapid-fire items 1–16 were compared across the paired Library workbooks and promoted through 2026-10-16. Rapid-fire items 17–32 are next (Markdown lines 1927–1989; DOCX rendered lines 1362–1393); the final revision sheet remains queued. The later Mermaid workbook is the structural source, while the DOCX is a corroborating companion rather than a competing edition.
+The guide is incremental. Q1–Q72 plus rapid-fire items 1–32 were compared across the paired Library workbooks and promoted through 2026-10-16. The Final Revision Sheet is next (Markdown lines 1991–2041; DOCX rendered lines 1396–1445). The later Mermaid workbook is the structural source, while the DOCX is a corroborating companion rather than a competing edition.
 
 Source hashes and exact processed ranges are recorded in [the guide](guide.md#source-provenance-and-verification), the [source inventory](../../SOURCE_INVENTORY.md), and the [intake manifest](../../local-project-notes/INTAKE_MANIFEST.json).
 

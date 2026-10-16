@@ -1719,6 +1719,91 @@ export function observerAndWorkerPolicyExample() {
   };
 }
 
+export function serviceWorkerSecurityPolicyExample() {
+  const route = ({kind, online}) => {
+    if (kind === 'navigation' && !online) return 'offline-shell';
+    if (kind === 'versioned-asset') return 'cache-first';
+    if (kind === 'api-read') return online ? 'network-with-cache-fallback' : 'cached-api-or-error';
+    return 'network';
+  };
+  const cookie = sameSite => ({
+    Strict: 'same-site-only',
+    Lax: 'same-site-plus-safe-top-level-navigation',
+    None: 'cross-site-requires-secure'
+  })[sameSite];
+
+  return {
+    routes: [
+      route({kind: 'navigation', online: false}),
+      route({kind: 'versioned-asset', online: true}),
+      route({kind: 'api-read', online: false}),
+      route({kind: 'mutation', online: true})
+    ],
+    lifecycle: ['install-new-worker', 'wait', 'activate', 'control-future-client'],
+    csp: {
+      executableScript: 'nonce-or-hash-authorized',
+      inlineHandler: 'blocked-without-explicit-policy',
+      boundary: 'xss-impact-reduction-not-input-validation'
+    },
+    cookies: [cookie('Strict'), cookie('Lax'), cookie('None')],
+    csrfBoundary: 'same-site-is-defense-in-depth'
+  };
+}
+
+export function nativeAccessibilityPolicyExample() {
+  const control = ({native, keyboard, name}) => ({
+    activation: native === 'button' ? 'native-keyboard-and-click' : keyboard ? 'author-implemented' : 'missing',
+    accessibleName: name || 'missing'
+  });
+  return {
+    native: control({native: 'button', name: 'Save'}),
+    roleOnly: control({native: 'div', keyboard: false, name: 'Save'}),
+    decorativeImage: {alt: '', exposedName: false},
+    informativeImage: {alt: 'Quarterly revenue rose to $4M', exposedName: true},
+    labelPreference: ['visible-text', 'aria-labelledby', 'aria-label-when-no-visible-label-fits']
+  };
+}
+
+export function cssRenderingPolicyExample() {
+  const visibility = mode => ({
+    none: {layout: false, painted: false, mayReceiveInput: false},
+    transparent: {layout: true, painted: true, mayReceiveInput: true}
+  })[mode];
+  const changeCost = property => ({
+    width: ['layout', 'paint', 'composite'],
+    color: ['paint', 'composite'],
+    transform: ['composite-candidate']
+  })[property];
+
+  return {
+    inherited: {color: true, marginInline: false},
+    selectors: {hover: 'pseudo-class', before: 'pseudo-element'},
+    hidden: visibility('none'),
+    transparent: visibility('transparent'),
+    changeCosts: [changeCost('width'), changeCost('color'), changeCost('transform')],
+    spacing: {betweenItems: 'gap', externalSeparation: 'margin'},
+    mediaBox: {aspectRatio: '16 / 9', preferredHeightAt320: 180},
+    motion: {default: 'animate', reduced: 'remove-nonessential-motion'},
+    logicalInset: {ltr: 'inline-start', rtl: 'inline-end'}
+  };
+}
+
+export function shadowAndCriticalPathPolicyExample() {
+  const criticalPath = ['parse-html', 'build-dom', 'parse-css', 'build-cssom', 'style', 'layout', 'paint', 'composite'];
+  return {
+    shadow: {
+      styleScope: 'shadow-tree',
+      lightDomComposition: 'slot-assignment',
+      absoluteIsolation: false,
+      accessibilityStillRequired: true
+    },
+    criticalPath,
+    cssBlocksFirstRender: true,
+    asyncScriptOrdering: 'independent-download-order',
+    measurementBoundary: 'browser-performance-tools'
+  };
+}
+
 assert.deepEqual(constantBindingExample(), {name: 'Grace', skills: ['JS', 'HTML']});
 assert.deepEqual(hoistingExample(), [undefined, 7]);
 assert.equal(temporalDeadZoneErrorName(), 'ReferenceError');
@@ -2090,4 +2175,46 @@ assert.deepEqual(observerAndWorkerPolicyExample(), {
   cleanup: ['disconnect-mutation', 'unobserve-intersection', 'terminate-or-pool-worker']
 });
 
-console.log('JavaScript fundamentals examples: 62 scenario groups passed');
+assert.deepEqual(serviceWorkerSecurityPolicyExample(), {
+  routes: ['offline-shell', 'cache-first', 'cached-api-or-error', 'network'],
+  lifecycle: ['install-new-worker', 'wait', 'activate', 'control-future-client'],
+  csp: {
+    executableScript: 'nonce-or-hash-authorized',
+    inlineHandler: 'blocked-without-explicit-policy',
+    boundary: 'xss-impact-reduction-not-input-validation'
+  },
+  cookies: ['same-site-only', 'same-site-plus-safe-top-level-navigation', 'cross-site-requires-secure'],
+  csrfBoundary: 'same-site-is-defense-in-depth'
+});
+assert.deepEqual(nativeAccessibilityPolicyExample(), {
+  native: {activation: 'native-keyboard-and-click', accessibleName: 'Save'},
+  roleOnly: {activation: 'missing', accessibleName: 'Save'},
+  decorativeImage: {alt: '', exposedName: false},
+  informativeImage: {alt: 'Quarterly revenue rose to $4M', exposedName: true},
+  labelPreference: ['visible-text', 'aria-labelledby', 'aria-label-when-no-visible-label-fits']
+});
+assert.deepEqual(cssRenderingPolicyExample(), {
+  inherited: {color: true, marginInline: false},
+  selectors: {hover: 'pseudo-class', before: 'pseudo-element'},
+  hidden: {layout: false, painted: false, mayReceiveInput: false},
+  transparent: {layout: true, painted: true, mayReceiveInput: true},
+  changeCosts: [['layout', 'paint', 'composite'], ['paint', 'composite'], ['composite-candidate']],
+  spacing: {betweenItems: 'gap', externalSeparation: 'margin'},
+  mediaBox: {aspectRatio: '16 / 9', preferredHeightAt320: 180},
+  motion: {default: 'animate', reduced: 'remove-nonessential-motion'},
+  logicalInset: {ltr: 'inline-start', rtl: 'inline-end'}
+});
+assert.deepEqual(shadowAndCriticalPathPolicyExample(), {
+  shadow: {
+    styleScope: 'shadow-tree',
+    lightDomComposition: 'slot-assignment',
+    absoluteIsolation: false,
+    accessibilityStillRequired: true
+  },
+  criticalPath: ['parse-html', 'build-dom', 'parse-css', 'build-cssom', 'style', 'layout', 'paint', 'composite'],
+  cssBlocksFirstRender: true,
+  asyncScriptOrdering: 'independent-download-order',
+  measurementBoundary: 'browser-performance-tools'
+});
+
+console.log('JavaScript fundamentals examples: 66 scenario groups passed');
