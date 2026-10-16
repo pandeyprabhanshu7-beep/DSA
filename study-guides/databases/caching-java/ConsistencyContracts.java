@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Executable teaching models for guide Sections 1-4. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-5. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -435,6 +435,125 @@ public final class ConsistencyContracts {
         }
     }
 
+    enum SnapshotPolicy { STATEMENT, TRANSACTION }
+    record CommittedValue(long version, int value) {}
+    record RepeatRead(int first, int second, long firstSnapshot, long secondSnapshot) {}
+
+    static RepeatRead repeatReadAfterCommit(SnapshotPolicy policy) {
+        List<CommittedValue> history = List.of(
+                new CommittedValue(1, 10),
+                new CommittedValue(2, 20));
+        long transactionSnapshot = 1;
+        long firstSnapshot = transactionSnapshot;
+        // A concurrent transaction commits version 2 between the two statements.
+        long secondSnapshot = policy == SnapshotPolicy.STATEMENT ? 2 : transactionSnapshot;
+        return new RepeatRead(
+                visibleAt(history, firstSnapshot),
+                visibleAt(history, secondSnapshot),
+                firstSnapshot,
+                secondSnapshot);
+    }
+
+    private static int visibleAt(List<CommittedValue> history, long snapshot) {
+        CommittedValue visible = null;
+        for (CommittedValue candidate : history) {
+            if (candidate.version() <= snapshot
+                    && (visible == null || candidate.version() > visible.version())) {
+                visible = candidate;
+            }
+        }
+        if (visible == null) throw new IllegalArgumentException("snapshot predates history");
+        return visible.value();
+    }
+
+    record RosterResult(boolean aliceOnCall, boolean bobOnCall, boolean secondCommitted) {
+        int onCallCount() { return (aliceOnCall ? 1 : 0) + (bobOnCall ? 1 : 0); }
+    }
+
+    static RosterResult concurrentOffCall(boolean validatePredicateVersion) {
+        boolean alice = true;
+        boolean bob = true;
+        long rosterVersion = 1;
+        long aliceSnapshotVersion = rosterVersion;
+        long bobSnapshotVersion = rosterVersion;
+        assert alice && bob; // both transactions read the same two-person snapshot
+
+        alice = false;
+        rosterVersion++; // Alice commits an update to her own row
+
+        if (validatePredicateVersion && bobSnapshotVersion != rosterVersion) {
+            return new RosterResult(alice, bob, false); // serialization failure; retry Bob
+        }
+        bob = false; // snapshot isolation alone sees no same-row write/write conflict
+        return new RosterResult(alice, bob, true);
+    }
+
+    record CounterOutcome(int storedValue, boolean conflictDetected) {}
+
+    static CounterOutcome blindIncrement(int initial) {
+        int firstRead = initial;
+        int secondRead = initial;
+        int afterFirstCommit = Math.incrementExact(firstRead);
+        int afterSecondCommit = Math.incrementExact(secondRead); // overwrites the first result
+        assert afterFirstCommit == initial + 1;
+        return new CounterOutcome(afterSecondCommit, false);
+    }
+
+    static CounterOutcome versionCheckedIncrement(int initial) {
+        int value = initial;
+        long version = 1;
+        long firstExpected = version;
+        long secondExpected = version;
+        value = Math.incrementExact(value);
+        version++;
+        boolean secondConflicted = secondExpected != version;
+        assert firstExpected + 1 == version;
+        return new CounterOutcome(value, secondConflicted);
+    }
+
+    static final class SerializableCounter {
+        private int value;
+        private long version;
+
+        SerializableCounter(int value) { this.value = value; }
+
+        record Snapshot(int value, long version) {}
+        Snapshot snapshot() { return new Snapshot(value, version); }
+
+        boolean commit(Snapshot snapshot, int nextValue) {
+            if (snapshot.version() != version) return false;
+            value = nextValue;
+            version++;
+            return true;
+        }
+
+        void concurrentIncrement() {
+            value = Math.incrementExact(value);
+            version++;
+        }
+    }
+
+    record RetryOutcome(int attempts, int committedValue, List<String> durableEffects) {}
+
+    static RetryOutcome incrementWithWholeTransactionRetry(
+            SerializableCounter counter, String operationId, int maxAttempts) {
+        if (operationId.isBlank() || maxAttempts <= 0) {
+            throw new IllegalArgumentException("operation ID and positive attempt bound required");
+        }
+        Set<String> outbox = new HashSet<>();
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            SerializableCounter.Snapshot snapshot = counter.snapshot();
+            int decidedValue = Math.incrementExact(snapshot.value());
+            if (attempt == 1) counter.concurrentIncrement(); // force one serialization conflict
+            if (counter.commit(snapshot, decidedValue)) {
+                outbox.add(operationId); // publish only with the successful commit
+                return new RetryOutcome(attempt, decidedValue, List.copyOf(outbox));
+            }
+            // A real client rolls back and reruns every read and decision with backoff/deadline.
+        }
+        throw new IllegalStateException("retry budget exhausted");
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -677,6 +796,45 @@ public final class ConsistencyContracts {
         assert projection.totalAmountCents() == 1_200;
     }
 
+    private static void statementSnapshotScenarios() {
+        RepeatRead readCommitted = repeatReadAfterCommit(SnapshotPolicy.STATEMENT);
+        assert readCommitted.first() == 10 && readCommitted.second() == 20;
+        assert readCommitted.firstSnapshot() == 1 && readCommitted.secondSnapshot() == 2;
+
+        RepeatRead repeatable = repeatReadAfterCommit(SnapshotPolicy.TRANSACTION);
+        assert repeatable.first() == 10 && repeatable.second() == 10;
+        assert repeatable.firstSnapshot() == repeatable.secondSnapshot();
+    }
+
+    private static void writeSkewScenarios() {
+        RosterResult snapshotIsolation = concurrentOffCall(false);
+        assert snapshotIsolation.secondCommitted();
+        assert snapshotIsolation.onCallCount() == 0;
+
+        RosterResult serializable = concurrentOffCall(true);
+        assert !serializable.secondCommitted();
+        assert serializable.onCallCount() == 1;
+    }
+
+    private static void lostUpdateScenarios() {
+        CounterOutcome blind = blindIncrement(10);
+        assert blind.storedValue() == 11 && !blind.conflictDetected();
+        CounterOutcome guarded = versionCheckedIncrement(10);
+        assert guarded.storedValue() == 11 && guarded.conflictDetected();
+    }
+
+    private static void serializationRetryScenarios() {
+        RetryOutcome outcome = incrementWithWholeTransactionRetry(
+                new SerializableCounter(10), "op-counter-7", 3);
+        assert outcome.attempts() == 2;
+        assert outcome.committedValue() == 12;
+        assert outcome.durableEffects().equals(List.of("op-counter-7"));
+        try {
+            incrementWithWholeTransactionRetry(new SerializableCounter(0), "", 3);
+            throw new AssertionError("blank operation ID accepted");
+        } catch (IllegalArgumentException expected) {}
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -697,7 +855,11 @@ public final class ConsistencyContracts {
         vectorBatchScenarios();
         granulePruningScenarios();
         projectionScenarios();
-        System.out.println("PASS 16 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection");
+        statementSnapshotScenarios();
+        writeSkewScenarios();
+        lostUpdateScenarios();
+        serializationRetryScenarios();
+        System.out.println("PASS 20 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry");
     }
 }
 

@@ -1,6 +1,6 @@
 # Database Internals, Caching, and Java Connectivity
 
-> **Incremental canonical guide.** This publication deepens source Sections 1–4: **ACID/BASE contracts**, **B+ tree page economics**, **LSM write/read/compaction mechanics**, and **row/column storage with CDC-fed analytics**. Later source sections are deliberately queued rather than summarized prematurely.
+> **Incremental canonical guide.** This publication deepens source Sections 1–5: **ACID/BASE contracts**, **B+ tree page economics**, **LSM write/read/compaction mechanics**, **row/column storage with CDC-fed analytics**, and **isolation anomalies with engine-specific semantics**. Later source sections are deliberately queued rather than summarized prematurely.
 
 ## Learning contract
 
@@ -803,6 +803,199 @@ Accessed 2026-10-16.
 25. [Debezium Outbox Event Router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html): event identity, aggregate key, payload routing, and duplicate-handling support.
 26. [PostgreSQL logical decoding](https://www.postgresql.org/docs/current/logicaldecoding.html) and [output plugins](https://www.postgresql.org/docs/current/logicaldecoding-output-plugin.html): committed change streams, replication slots, transaction ordering, and rollback exclusion.
 
+# Section 5 — Isolation: name the anomaly, snapshot, and repair
+
+An isolation label is only the start of the contract. State which rows or predicates must remain stable, whether ordinary reads use a statement or transaction snapshot, which statements lock current index ranges, which conflicts can abort, and how the caller retries. The SQL-standard phenomenon table is a portable minimum; PostgreSQL and InnoDB deliberately implement stronger or different behavior in important cases.
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. identify dirty reads, non-repeatable reads, phantoms, lost updates, and write skew from a two-transaction history;
+2. distinguish a statement snapshot from a transaction snapshot and a snapshot read from a locking/current read;
+3. explain why PostgreSQL Repeatable Read prevents phantoms yet can allow write skew, and why Serializable may abort a transaction;
+4. explain why InnoDB Repeatable Read ordinary `SELECT` and locking DML can observe different effective states;
+5. select an invariant repair: declarative constraint, atomic statement, version check, stable lock target, or Serializable retry; and
+6. retry a complete transaction within a bound while keeping external effects idempotent and resolving unknown commit outcomes.
+
+Write these requirements before choosing an isolation level:
+
+| Question | Example requirement | Consequence |
+|---|---|---|
+| Which facts form the invariant? | at least one engineer remains on call | protecting only each engineer's own row is insufficient |
+| Must a reread be stable? | one report uses one database snapshot | use a transaction snapshot or an explicitly exported snapshot |
+| Must a predicate be stable for writes? | no new OPEN order may enter the selected range | use serializable validation or a locking design whose scanned index range is understood |
+| May a conflict abort? | checkout may retry twice within 150 ms | retry the whole decision with jitter and a deadline |
+| Can the operation be repeated? | payment operation ID is unique | store the operation result atomically; never replay an external effect blindly |
+| How long may a snapshot live? | export finishes within five minutes | monitor oldest transaction age and vacuum/purge debt |
+
+## Example 17 — classify the history before prescribing a level
+
+“Possible” below means the standard-style minimum does not generally prohibit the phenomenon. It does not mean every engine or execution exhibits it. Write skew is a serialization anomaly across a predicate or invariant; it is not one of the original three phenomena used to summarize the weaker SQL levels.
+
+| Isolation level: standard-style minimum | Dirty read | Non-repeatable read | Phantom | Write skew |
+|---|---|---|---|---|
+| Read Uncommitted | possible | possible | possible | possible |
+| Read Committed | prevented | possible | possible | possible |
+| Repeatable Read | prevented | prevented | possible | possible |
+| Serializable | prevented | prevented | prevented | prevented among committed transactions |
+
+Use a trace rather than a label:
+
+| Phenomenon | Initial state | Interleaving | Broken assumption |
+|---|---|---|---|
+| dirty read | `price=10` | A writes 20; B reads 20; A rolls back | B treated uncommitted state as real |
+| non-repeatable read | `price=10` | A reads 10; B commits 20; A rereads 20 | one row stayed stable across A's statements |
+| phantom | two OPEN orders | A counts 2; B commits another OPEN order; A counts 3 | the predicate result stayed stable |
+| lost update | `counter=10` | A and B read 10; each blindly writes 11 | both increments were preserved |
+| write skew | Alice and Bob are on call | each sees two on call; each updates only self to off | stable snapshots preserved a cross-row invariant |
+
+```mermaid
+sequenceDiagram
+    participant A as Transaction A
+    participant D as Database
+    participant B as Transaction B
+    A->>D: SELECT price -> 10
+    B->>D: UPDATE price=20; COMMIT
+    A->>D: SELECT price
+    D-->>A: RC -> 20; transaction snapshot -> 10
+```
+
+The Java `repeatReadAfterCommit` scenario makes only this visibility rule executable. Under a statement-snapshot policy it reads versions 1 then 2 and returns 10 then 20. Under a transaction-snapshot policy both reads use version 1 and return 10 then 10. It is a deterministic history model, not a substitute for an integration test against a selected engine and driver.
+
+PostgreSQL maps Read Uncommitted to Read Committed. At Read Committed each command sees a snapshot as of that command's start. PostgreSQL Repeatable Read uses one transaction snapshot and does not allow phantom reads, which is stronger than the table's minimum, but serialization anomalies such as write skew can remain. PostgreSQL Serializable adds Serializable Snapshot Isolation monitoring and rejects dangerous histories so that only serializable transactions commit.
+
+## Example 18 — stable snapshots do not protect a cross-row invariant
+
+Suppose the rule is “at least one engineer is on call.” Alice and Bob each read the same snapshot containing `Alice=on, Bob=on`. Each changes a different row, so ordinary snapshot isolation finds no same-row write/write conflict. Both commits can leave zero engineers on call.
+
+```mermaid
+sequenceDiagram
+    participant A as Alice transaction
+    participant D as Snapshot database
+    participant B as Bob transaction
+    A->>D: read Alice=on, Bob=on
+    B->>D: read Alice=on, Bob=on
+    A->>D: set Alice=off; COMMIT
+    B->>D: set Bob=off; COMMIT
+    Note over A,B: different rows changed; invariant is false
+```
+
+The executable `concurrentOffCall(false)` trace commits both row changes and proves `onCallCount()==0`. With predicate-version validation enabled, Alice's commit changes the roster version, Bob's stale decision is rejected, and one engineer remains on call. This models the outcome of serializable conflict detection, not PostgreSQL's internal SSI graph.
+
+Repair choices depend on the schema and workload:
+
+- express the invariant as a database constraint when it can be represented and enforced atomically;
+- route every decision through a roster guard row and lock it in a stable order;
+- use Serializable for all participating reads and writes, then retry rejected transactions; or
+- redesign the aggregate so the invariant is updated through one atomic record or command.
+
+Locking only the row each transaction updates does not repair this history. Nor does a partial retry after the original reads: the decision must be recomputed from a new snapshot.
+
+## Example 19 — InnoDB snapshot reads and current locking reads are different contracts
+
+InnoDB Repeatable Read ordinary consistent reads use the snapshot established by the first such read. Locking reads, `UPDATE`, and `DELETE` instead operate with locking/current-read behavior. MySQL's own 8.4 manual cautions against mixing locking and nonlocking statements when the application expects one coherent view. Under Read Committed, each consistent read receives a fresh snapshot and ordinary gap locking is reduced, so phantoms may occur.
+
+```mermaid
+flowchart TD
+    Q["What statement executes?"] --> S["ordinary SELECT"]
+    Q --> L["FOR UPDATE / UPDATE / DELETE"]
+    S --> V["MVCC consistent read view"]
+    L --> C["current index scan + locks"]
+    C --> U["unique equality: record lock"]
+    C --> R["range/non-unique: scanned range; gap/next-key rules vary"]
+```
+
+At InnoDB Repeatable Read, a suitable unique-index equality generally locks only the found index record. A range or non-unique search generally locks the scanned index range with gap or next-key locks. At Read Committed, InnoDB generally locks records rather than gaps except for foreign-key and duplicate-key checks. The actual plan therefore changes the lock footprint: without a useful index a locking statement can scan and lock far more records than the business predicate suggests.
+
+Do not infer these details from JDBC's constants. `Connection.TRANSACTION_REPEATABLE_READ` describes portable phenomenon prohibitions, not PostgreSQL's stronger phantom behavior or InnoDB's statement-specific locking. Configure the connection before beginning work because JDBC declares changing isolation during a transaction implementation-defined:
+
+```java
+try (Connection connection = dataSource.getConnection()) {
+    connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+    connection.setAutoCommit(false);
+    try {
+        // Execute every read, validation, and write for one attempt here.
+        connection.commit();
+    } catch (SQLException failure) {
+        connection.rollback();
+        throw failure;
+    }
+}
+```
+
+An integration test should run the exact indexed predicate concurrently, capture SQLSTATEs and wait outcomes, and inspect the engine's lock/transaction diagnostics. A generic Java unit model cannot prove an engine's lock plan.
+
+## Example 20 — prevent lost updates and retry the whole decision
+
+Two clients that both read counter 10 and blindly assign 11 lose one increment. The Java `blindIncrement` trace makes that failure explicit. Prefer one atomic statement when the operation is commutative:
+
+```sql
+UPDATE counters SET value = value + 1 WHERE counter_id = :id;
+```
+
+For an optimistic edit, compare the version that was read:
+
+```sql
+UPDATE article
+SET body = :body, version = version + 1
+WHERE tenant_id = :tenant AND id = :id AND version = :expected;
+-- 1 row: success. 0 rows: missing object or version conflict; reread before retry.
+```
+
+The executable `versionCheckedIncrement` trace lets the first writer move version 1 to 2 and rejects the second writer's expected version 1 rather than overwriting silently.
+
+PostgreSQL documents SQLSTATE `40001` as a serialization failure and requires retrying the **complete transaction**, including the logic that selected SQL and values. More than one retry may be necessary, so production code needs an attempt bound, deadline, jittered backoff, metrics, and a non-retry path. The Java `incrementWithWholeTransactionRetry` scenario injects one concurrent increment: attempt 1 conflicts, attempt 2 rereads value 11, commits 12, and publishes one durable operation ID.
+
+```mermaid
+flowchart TD
+    B["begin attempt"] --> R["read snapshot + decide"]
+    R --> W["validate and write"]
+    W -->|committed| O["publish durable outbox/result"]
+    W -->|40001 or deadlock| X["rollback + bounded backoff"]
+    X --> B
+    W -->|network lost after COMMIT| Q["query by operation ID; do not blind-replay"]
+```
+
+A deadlock victim or serialization failure says the attempt did not commit and may be retried when business effects are transactionally staged or idempotent. A network failure after `COMMIT` was sent is an **unknown outcome**: the server might have committed. Resolve it through a unique operation ID and stored result. Sending email, charging a card, or publishing directly inside a retriable body can duplicate the effect; write an outbox row in the transaction and dispatch it idempotently after commit.
+
+## MVCC retention, operations, and review
+
+Snapshot readers reduce reader/writer blocking, but old snapshots retain visibility requirements. PostgreSQL vacuum and InnoDB purge cannot reclaim every obsolete version while an eligible old transaction may still need it. A long export should not keep a broad transaction open across user interaction or network calls.
+
+```mermaid
+flowchart LR
+    S["snapshot at version 100"] --> V["version 95 remains visible"]
+    W["writer commits version 105"] --> N["new snapshots see 105"]
+    V --> G["reclaim only after no required snapshot needs 95"]
+```
+
+Monitor oldest active transaction/snapshot age, dead tuples or undo history, vacuum/purge progress, serialization failures by operation, deadlocks, retry attempts, lock waits, transaction latency, and unknown-outcome resolutions. Correlate failures with the indexed statement and isolation level; an aggregate error rate alone does not reveal the dangerous history.
+
+Review questions:
+
+- Which exact history is disallowed: dirty read, reread change, phantom, lost update, or write skew?
+- Is each read a statement snapshot, transaction snapshot, or locking/current read?
+- Which rows or index ranges does the actual plan inspect and lock?
+- Does the repair protect the invariant or only the row being updated?
+- Is every read and decision rerun after a serialization failure?
+- What attempt/deadline budget prevents retry storms?
+- Which operation ID resolves an unknown commit result?
+- Which external effects are staged transactionally or made idempotent?
+- How old can a snapshot become before version retention threatens operations?
+
+### Primary references for Section 5
+
+Accessed 2026-10-16.
+
+27. [PostgreSQL 18 transaction isolation](https://www.postgresql.org/docs/current/transaction-iso.html): standard phenomena, Read Committed command snapshots, Repeatable Read snapshot behavior, PostgreSQL's Read Uncommitted mapping, and Serializable conflict detection.
+28. [PostgreSQL 18 serialization failure handling](https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html): complete-transaction retry and the possibility of multiple attempts.
+29. [PostgreSQL 18 application-level consistency](https://www.postgresql.org/docs/current/applevel-consistency.html): Serializable conflict monitoring and explicit-lock alternatives.
+30. [MySQL 8.4 InnoDB transaction isolation levels](https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html): per-level snapshots, locking reads, gap behavior, and the warning about mixed read modes.
+31. [MySQL 8.4 consistent nonlocking reads](https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html): read views, Repeatable Read's first-read snapshot, Read Committed's fresh snapshots, and DML visibility caveats.
+32. [MySQL 8.4 locks set by statements](https://dev.mysql.com/doc/refman/8.4/en/innodb-locks-set.html): unique equality, scanned ranges, missing-index effects, and next-key locks.
+33. [Java SE 17 `Connection`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/Connection.html): auto-commit, commit/rollback boundaries, portable isolation constants, and isolation-configuration timing.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -810,8 +1003,8 @@ Accessed 2026-10-16.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; and lines **231–286**, “Row-oriented versus column-oriented storage”
-- Deliberate continuation: Section 5 begins at source line 287; resolve its exact heading and end boundary before reading or processing it.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; and lines **287–356**, “Isolation: exact anomalies and engine-specific differences”
+- Deliberate continuation: Section 6, “Local, distributed, and two-level caches,” begins at source line **357** and remains unprocessed.
 
 Validation commands:
 
