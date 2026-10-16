@@ -1804,6 +1804,84 @@ export function shadowAndCriticalPathPolicyExample() {
   };
 }
 
+export async function runtimeDiagnosisRevisionExample() {
+  const diagnose = clue => ({
+    'timer + Promise output': 'stack-microtasks-next-task',
+    'returned callback remembers value': 'closure-lexical-environment',
+    'detached method / arrow': 'call-site-this-vs-lexical-this',
+    'property missing on object': 'own-then-prototype-lookup',
+    'nested object changed after spread': 'shallow-copy-shared-reference'
+  })[clue] ?? 'collect-more-evidence';
+
+  const output = ['script'];
+  setTimeout(() => output.push('timer'), 0);
+  Promise.resolve().then(() => output.push('promise'));
+  return Promise.resolve().then(() => ({
+    diagnoses: [
+      diagnose('timer + Promise output'),
+      diagnose('returned callback remembers value'),
+      diagnose('detached method / arrow'),
+      diagnose('property missing on object'),
+      diagnose('nested object changed after spread')
+    ],
+    outputBeforeNextTask: [...output]
+  }));
+}
+
+export function browserOwnershipRevisionExample() {
+  const owner = clue => ({
+    'hundreds of child click handlers': 'delegated-listener-on-stable-ancestor',
+    'stale network response': 'abort-plus-request-identity',
+    'slow first render': 'network-script-style-layout-paint-measurement',
+    'cross-site mutation': 'server-csrf-validation-plus-cookie-defense'
+  })[clue];
+  return {
+    owners: [
+      owner('hundreds of child click handlers'),
+      owner('stale network response'),
+      owner('slow first render'),
+      owner('cross-site mutation')
+    ],
+    staleResponseTrace: ['request:A', 'request:B', 'resolve:B/render', 'resolve:A/ignore'],
+    invariant: 'only-the-current-request-may-render'
+  };
+}
+
+export function interfaceDiagnosisRevisionExample() {
+  const plan = clue => ({
+    'style not applying': ['selector-match', 'origin-importance-layer', 'specificity', 'scope-proximity', 'source-order'],
+    'z-index not working': ['find-stacking-context', 'compare-within-context', 'move-or-use-top-layer'],
+    'component responsive to parent width': ['establish-query-container', 'query-inline-size', 'test-narrow-and-wide'],
+    'icon-only action': ['native-button', 'localized-accessible-name', 'keyboard-and-focus-test']
+  })[clue];
+  return {
+    cascade: plan('style not applying'),
+    stacking: plan('z-index not working'),
+    container: plan('component responsive to parent width'),
+    accessibility: plan('icon-only action')
+  };
+}
+
+export function speakingFrameRevisionExample() {
+  const frame = ({definition, value, mechanism, example, boundary}) =>
+    [definition, value, mechanism, example, boundary];
+  return {
+    closure: frame({
+      definition: 'A closure is a function plus its captured lexical environment.',
+      value: 'It preserves state after the creating call returns.',
+      mechanism: 'Name resolution follows outer-environment links from creation scope.',
+      example: 'A counter callback retains its private count binding.',
+      boundary: 'A long-lived callback can retain more state than intended.'
+    }),
+    specializations: {
+      output: 'narrate-environments-and-queues-before-final-output',
+      htmlCss: 'describe-browser-and-assistive-technology-behavior',
+      performance: 'identify-network-script-layout-paint-or-unnecessary-work',
+      security: 'state-threat-model-before-mitigation'
+    }
+  };
+}
+
 assert.deepEqual(constantBindingExample(), {name: 'Grace', skills: ['JS', 'HTML']});
 assert.deepEqual(hoistingExample(), [undefined, 7]);
 assert.equal(temporalDeadZoneErrorName(), 'ReferenceError');
@@ -2217,4 +2295,46 @@ assert.deepEqual(shadowAndCriticalPathPolicyExample(), {
   measurementBoundary: 'browser-performance-tools'
 });
 
-console.log('JavaScript fundamentals examples: 66 scenario groups passed');
+assert.deepEqual(await runtimeDiagnosisRevisionExample(), {
+  diagnoses: [
+    'stack-microtasks-next-task',
+    'closure-lexical-environment',
+    'call-site-this-vs-lexical-this',
+    'own-then-prototype-lookup',
+    'shallow-copy-shared-reference'
+  ],
+  outputBeforeNextTask: ['script', 'promise']
+});
+assert.deepEqual(browserOwnershipRevisionExample(), {
+  owners: [
+    'delegated-listener-on-stable-ancestor',
+    'abort-plus-request-identity',
+    'network-script-style-layout-paint-measurement',
+    'server-csrf-validation-plus-cookie-defense'
+  ],
+  staleResponseTrace: ['request:A', 'request:B', 'resolve:B/render', 'resolve:A/ignore'],
+  invariant: 'only-the-current-request-may-render'
+});
+assert.deepEqual(interfaceDiagnosisRevisionExample(), {
+  cascade: ['selector-match', 'origin-importance-layer', 'specificity', 'scope-proximity', 'source-order'],
+  stacking: ['find-stacking-context', 'compare-within-context', 'move-or-use-top-layer'],
+  container: ['establish-query-container', 'query-inline-size', 'test-narrow-and-wide'],
+  accessibility: ['native-button', 'localized-accessible-name', 'keyboard-and-focus-test']
+});
+assert.deepEqual(speakingFrameRevisionExample(), {
+  closure: [
+    'A closure is a function plus its captured lexical environment.',
+    'It preserves state after the creating call returns.',
+    'Name resolution follows outer-environment links from creation scope.',
+    'A counter callback retains its private count binding.',
+    'A long-lived callback can retain more state than intended.'
+  ],
+  specializations: {
+    output: 'narrate-environments-and-queues-before-final-output',
+    htmlCss: 'describe-browser-and-assistive-technology-behavior',
+    performance: 'identify-network-script-layout-paint-or-unnecessary-work',
+    security: 'state-threat-model-before-mitigation'
+  }
+});
+
+console.log('JavaScript fundamentals examples: 70 scenario groups passed');

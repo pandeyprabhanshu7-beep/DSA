@@ -5,7 +5,7 @@ description: Incremental, source-reconciled frontend interview guide with execut
 
 # JavaScript, HTML and CSS Interview Guide
 
-This is the canonical incremental guide for the paired JavaScript/HTML/CSS workbooks. It currently reconciles **Q1–Q72 plus rapid-fire items 1–32**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage and cache ownership, web security, semantic HTML, script delivery, accessible forms and dialogs, responsive media, CSS layout and layers, module optimization, collection and promise implementations, lifecycle-safe utilities, stale-safe autocomplete, observers, worker selection, Service Workers, resilient browser security, native accessibility, logical CSS, Shadow DOM, and the critical rendering path. The Final Revision Sheet remains queued; this is not a claim that the complete workbook has been promoted.
+This is the canonical guide for the paired JavaScript/HTML/CSS workbooks. It reconciles **Q1–Q72, rapid-fire items 1–32, and the Final Revision Sheet**: execution fundamentals, value semantics, the function/object model, asynchronous JavaScript, browser events and rendering, storage and cache ownership, web security, semantic HTML, script delivery, accessible forms and dialogs, responsive media, CSS layout and layers, module optimization, collection and promise implementations, lifecycle-safe utilities, stale-safe autocomplete, observers, worker selection, Service Workers, resilient browser security, native accessibility, logical CSS, Shadow DOM, the critical rendering path, and a final interview-diagnosis system. The paired workbook intake is fully reconciled; the wider repository intake and placeholder backlog remain separate and incomplete.
 
 ## Module map
 
@@ -83,8 +83,9 @@ This is the canonical incremental guide for the paired JavaScript/HTML/CSS workb
 - [Q72 — Accessible modal focus management](#q72)
 - [Rapid-fire 1–16 — language, iteration, scheduling, observers, and workers](#rapid-fire-1-16)
 - [Rapid-fire 17–32 — offline, security, accessibility, CSS, Shadow DOM, and rendering](#rapid-fire-17-32)
+- [Final Revision Sheet — trigger map and 30-second answers](#final-revision)
 - [Source provenance and verification](#sources)
-- [Next bounded section](#next)
+- [Next bounded intake](#next)
 
 ## The model before the syntax
 
@@ -3772,6 +3773,186 @@ flowchart TD
     Paint --> Composite["composite pixels"]
 ```
 
+<a id="final-revision"></a>
+
+## Final Revision Sheet
+
+The two retained workbooks agree on ten high-value clue-to-model mappings and one answer shape. Treat the map as a **starting hypothesis**, not a keyword oracle: restate the evidence, select the owning mechanism, trace one concrete case, and name the boundary that would falsify the diagnosis.
+
+### Pattern / trigger map
+
+| Interview clue | First model to test | Fast verification | Important boundary |
+|---|---|---|---|
+| timer + Promise output | current stack → microtask checkpoint → later task | write queue append order before output | rendering and host task selection are outside ECMAScript |
+| returned callback remembers value | closure + lexical environment | draw creation scope and reachable bindings | a closure retains reachable values, not a frozen snapshot |
+| detached method / arrow | call-site `this` vs lexical `this` | mark reference form at each invocation | `bind` and construction add separate rules |
+| property missing on object | own property → prototype-chain lookup | inspect own descriptor, then prototypes | `Object.hasOwn` and `in` answer different questions |
+| nested object changed after spread | shallow copy + shared reference | draw two outer objects pointing to one child | clone depth and supported value types are explicit contracts |
+| hundreds of child click handlers | event delegation | locate stable ancestor and closest actionable target | non-bubbling or retargeted events need separate handling |
+| stale network response | cancellation + request identity | reverse completion order in a test | abort saves work; identity fencing preserves correctness |
+| style not applying | matching → cascade → specificity → scope proximity → source order | inspect the winning computed-style declaration | inheritance happens after the cascade chooses/omits a value |
+| `z-index` not working | ancestor stacking context | walk ancestors that establish contexts | larger numbers cannot escape a parent context |
+| component responds to parent width | container query | name the query container and containment feature | viewport policy still belongs to media queries |
+
+```mermaid
+flowchart TD
+    Clue["Restate the observed clue"] --> Owner{"Which owner?"}
+    Owner -->|language| Env["bindings / call site / queues"]
+    Owner -->|browser| Browser["events / requests / rendering"]
+    Owner -->|CSS + UI| UI["cascade / layout / semantics"]
+    Env --> Verify["trace one counterexample"]
+    Browser --> Verify
+    UI --> Verify
+    Verify --> Boundary["state trade-off and boundary"]
+```
+
+### Example 65 — diagnose runtime clues before calculating output
+
+```javascript
+export function runtimeDiagnosisRevisionExample() {
+  const diagnose = clue => ({
+    "timer + Promise output": "stack-microtasks-next-task",
+    "returned callback remembers value": "closure-lexical-environment",
+    "detached method / arrow": "call-site-this-vs-lexical-this",
+    "property missing on object": "own-then-prototype-lookup",
+    "nested object changed after spread": "shallow-copy-shared-reference"
+  })[clue] ?? "collect-more-evidence";
+
+  const output = ["script"];
+  setTimeout(() => output.push("timer"), 0);
+  Promise.resolve().then(() => output.push("promise"));
+  return Promise.resolve().then(() => ({
+    diagnoses: [
+      diagnose("timer + Promise output"),
+      diagnose("returned callback remembers value"),
+      diagnose("detached method / arrow"),
+      diagnose("property missing on object"),
+      diagnose("nested object changed after spread")
+    ],
+    outputBeforeNextTask: [...output]
+  }));
+}
+```
+
+Trace the event-loop case without guessing:
+
+| Moment | Stack / action | Microtask queue | Timer task source | Output |
+|---|---|---|---|---|
+| script begins | run script | empty | empty | `script` |
+| timer scheduled | run script | empty | timer callback | `script` |
+| reaction scheduled | run script | promise reaction | timer callback | `script` |
+| script ends | checkpoint begins | reaction | timer callback | `script` |
+| reaction runs | append `promise` | empty | timer callback | `script, promise` |
+| later task | append `timer` | empty | empty | `script, promise, timer` |
+
+The executable example intentionally observes only through the microtask checkpoint; the timer belongs to a later task. For a real output question, also state any host assumptions instead of presenting one browser schedule as a universal ECMAScript rule.
+
+### Example 66 — assign browser behavior to the correct owner
+
+```javascript
+export function browserOwnershipRevisionExample() {
+  const owner = clue => ({
+    "hundreds of child click handlers": "delegated-listener-on-stable-ancestor",
+    "stale network response": "abort-plus-request-identity",
+    "slow first render": "network-script-style-layout-paint-measurement",
+    "cross-site mutation": "server-csrf-validation-plus-cookie-defense"
+  })[clue];
+  return {
+    owners: [
+      owner("hundreds of child click handlers"),
+      owner("stale network response"),
+      owner("slow first render"),
+      owner("cross-site mutation")
+    ],
+    staleResponseTrace: ["request:A", "request:B", "resolve:B/render", "resolve:A/ignore"],
+    invariant: "only-the-current-request-may-render"
+  };
+}
+```
+
+Four prompts that sound like “JavaScript problems” have different owners:
+
+| Prompt | Mechanism | Verification | Do not claim |
+|---|---|---|---|
+| 500 row actions | one stable ancestor listener + target resolution | insert/remove rows during a dispatch test | delegation eliminates every per-item need |
+| A then B, but A finishes last | abort old request and fence commits by identity | resolve promises in reverse order | abort alone prevents every late result |
+| page feels slow | instrument request, script, style/layout, paint and long tasks | compare repeated traces, not one screenshot | all slowness is “the DOM” |
+| forged state-changing request | server validates intent and authorization | cross-site and direct-request tests | `SameSite` or CORS is authorization |
+
+### Example 67 — debug CSS and interface clues in dependency order
+
+```javascript
+export function interfaceDiagnosisRevisionExample() {
+  const plan = clue => ({
+    "style not applying": ["selector-match", "origin-importance-layer", "specificity", "scope-proximity", "source-order"],
+    "z-index not working": ["find-stacking-context", "compare-within-context", "move-or-use-top-layer"],
+    "component responsive to parent width": ["establish-query-container", "query-inline-size", "test-narrow-and-wide"],
+    "icon-only action": ["native-button", "localized-accessible-name", "keyboard-and-focus-test"]
+  })[clue];
+  return {
+    cascade: plan("style not applying"),
+    stacking: plan("z-index not working"),
+    container: plan("component responsive to parent width"),
+    accessibility: plan("icon-only action")
+  };
+}
+```
+
+The diagnostic order matters. A non-matching selector cannot win the cascade; a winning `z-index` cannot escape an ancestor stacking context; a container query has no size query without the intended query container; and ARIA cannot add the activation behavior that a native button already owns.
+
+```mermaid
+flowchart TD
+    Symptom["UI symptom"] --> Match{"Rule matches?"}
+    Match -->|no| Selector["fix selector / state"]
+    Match -->|yes| Cascade["origin → importance → layer → specificity → scope → order"]
+    Cascade --> Geometry{"Geometry or overlap?"}
+    Geometry -->|overlap| Stack["inspect ancestor stacking contexts"]
+    Geometry -->|responsive| Container["inspect query container + size"]
+    Geometry -->|interaction| Semantics["native semantics + name + focus"]
+```
+
+### Example 68 — build a 30-second answer that can expand
+
+```javascript
+export function speakingFrameRevisionExample() {
+  const frame = ({definition, value, mechanism, example, boundary}) =>
+    [definition, value, mechanism, example, boundary];
+  return {
+    closure: frame({
+      definition: "A closure is a function plus its captured lexical environment.",
+      value: "It preserves state after the creating call returns.",
+      mechanism: "Name resolution follows outer-environment links from creation scope.",
+      example: "A counter callback retains its private count binding.",
+      boundary: "A long-lived callback can retain more state than intended."
+    }),
+    specializations: {
+      output: "narrate-environments-and-queues-before-final-output",
+      htmlCss: "describe-browser-and-assistive-technology-behavior",
+      performance: "identify-network-script-layout-paint-or-unnecessary-work",
+      security: "state-threat-model-before-mitigation"
+    }
+  };
+}
+```
+
+The answer frame is:
+
+1. **Definition:** one precise sentence.
+2. **Why it matters:** the problem or user impact it addresses.
+3. **Mechanism:** the state transition or ownership rule.
+4. **Example:** one concrete trace, preferably with a counterexample.
+5. **Trade-off / edge case:** where the model stops or the cost appears.
+
+Do not begin with a code dump unless asked. For an output question, narrate environments and queues before the output. For HTML/CSS, include browser and assistive-technology behavior. For performance, identify the measured bottleneck. For security, state the threat model and enforcement boundary before naming mitigations.
+
+### Final self-test
+
+- Can I explain each trigger without using the trigger word as its own definition?
+- Can I draw the owning state: environment, queue, object graph, request identity, cascade, stacking context, or query container?
+- Can I give one counterexample that would change the diagnosis?
+- Can I say what must be verified in a browser, assistive technology, network trace, or production bundle?
+- Can I stop after 30 seconds, then expand into the linked deep section when prompted?
+
 ## Decision checklist
 
 - Use `const` by default when the binding should not change; use `let` when reassignment is part of the model.
@@ -3856,11 +4037,11 @@ flowchart TD
 
 ## Source provenance and verification
 
-Paired source comparison performed through 2026-10-16:
+Paired source comparison completed on 2026-10-16:
 
-- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–1989. The newly processed rapid-fire 17–32 range is lines 1927–1989, bounded by the Final Revision Sheet anchor at line 1991; earlier Q1–Q72 and rapid-fire 1–16 are retained.
-- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 1362–1393 for rapid-fire items 17–32, bounded by the Final Revision Sheet at rendered line 1396. It agrees on all sixteen topics but is not promoted as a competing guide.
-- The repository edition adds exact security, rendering, accessibility and encapsulation boundaries, four connected executable examples, four focused diagrams, deterministic assertions, and current primary links across Service Workers, CSP/cookies, native semantics, CSS behavior, Shadow DOM, and first rendering.
+- `JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md`, SHA-256 `742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0`, lines 166–2041. The final processed range is the Final Revision Sheet at lines 1991–2041; earlier Q1–Q72 and rapid-fire 1–32 are retained.
+- `JavaScript_HTML_CSS_Interview_Workbook.docx`, SHA-256 `790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb`, rendered lines 1396–1445 for the Final Revision Sheet. It corroborates the ten trigger mappings, speaking template and official-reading list but is not promoted as a competing guide.
+- The repository edition turns the source's compact sheet into four executable diagnosis examples, two focused decision diagrams, trace tables, counterexample boundaries, a five-part answer frame, and a final self-test while retaining links to the deeper Q1–Q72 and rapid-fire coverage.
 
 Primary references checked through 2026-10-16:
 
@@ -3981,9 +4162,13 @@ Primary references checked through 2026-10-16:
 - [DOM Standard — Mutation observers](https://dom.spec.whatwg.org/#mutation-observers)
 - [Intersection Observer](https://w3c.github.io/IntersectionObserver/)
 - [HTML Living Standard — Web workers](https://html.spec.whatwg.org/multipage/workers.html)
+- [HTML Living Standard — event loops and microtask checkpoints](https://html.spec.whatwg.org/multipage/webappapis.html#event-loops)
+- [ECMAScript — ordinary object property lookup](https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-ordinary-object-internal-methods-and-internal-slots-get-p-receiver)
+- [CSS Cascading and Inheritance Level 6 — cascade sorting order](https://drafts.csswg.org/css-cascade-6/#cascade-sort)
+- [WAI-ARIA Authoring Practices — accessible names and descriptions](https://www.w3.org/WAI/ARIA/apg/practices/names-and-descriptions/)
 
 <a id="next"></a>
 
-## Next bounded section
+## Next bounded intake
 
-Continue with the Final Revision Sheet only. The Markdown range is lines 1991–2041 and the DOCX rendered range is lines 1396–1445. Re-read both exact ranges before editing; no later workbook section exists, but the wider repository intake and placeholder backlog remain separate and incomplete.
+The paired JavaScript/HTML/CSS workbook is fully reconciled. Rotate to the confirmed System design/data source `database_internals_caching_java_master_guide.md` (Library file `file_00000000dadc81f59cf6b82ca990a48a`) and compare/deepen **Section 1, “ACID, BASE, and the misleading SQL/NoSQL split,” source lines 62–133 only**. The wider repository intake and live Java-placeholder backlog remain incomplete.
