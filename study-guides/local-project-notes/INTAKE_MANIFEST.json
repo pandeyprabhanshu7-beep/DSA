@@ -405,7 +405,7 @@
       "bytes": 77677,
       "sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
       "status": "IN_PROGRESS",
-      "processed_range": "lines 166-1759 for Q1-Q66; latest bounded range Q62-Q66 is lines 1641-1759, bounded by Q67 at line 1760",
+      "processed_range": "lines 166-1860 for Q1-Q72; latest bounded range Q67-Q72 is lines 1760-1860, bounded by the rapid-fire bank at line 1861",
       "canonical_target": "study-guides/frontend/javascript-html-css/guide.md",
       "headings": [
         "# JavaScript, HTML and CSS Interview Workbook - Mermaid Edition",
@@ -863,18 +863,18 @@
   ],
   "next_batch": {
     "source": "JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md + JavaScript_HTML_CSS_Interview_Workbook.docx",
-    "section": "Q67-Q72 only: HTTP/Service Worker caching, ESM tree shaking, :is()/:where(), cascade layers, autocomplete races, and modal focus management; Markdown lines 1760-1860 and DOCX rendered lines 1253-1328",
+    "section": "Rapid-fire items 1-16 only: strict mode through Web Workers; Markdown lines 1861-1926 and DOCX rendered lines 1329-1361",
     "status": "QUEUED",
-    "estimated_tokens": 9200,
-    "estimate_method": "Heuristic only: reserve ~1800 tokens to compare Q62-Q66 across paired sources, ~1500 for current primary references, ~3900 for implementations/traces/HTML, and ~2000 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 8200,
+    "estimate_method": "Heuristic only: reserve ~1700 tokens to compare rapid-fire items 1-16 across paired sources, ~1400 for current primary references, ~3200 for examples/traces/HTML, and ~1900 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
-    "javascript": "Node v24.19.0 executed examples.mjs; all 54 scenario groups passed, including property ownership, simplified bind call/constructor boundaries, async iterator closing, retry timing/idempotency guards and worker-selection assertions.",
-    "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 144751-character embedded payload equality, 68 unique anchors, 117 balanced fences, 39 Mermaid diagrams, inline JavaScript, fragment targets, relative links, JSON syntax, the live 170-marker Java-placeholder invariant and all nine content-commit remote blob hashes passed. Browser worker/DOM and Mermaid visual QA were not executed; no GitHub status checks are configured.",
-    "diagrams": "Thirty-nine Mermaid diagrams are embedded in the canonical payload, including four new diagrams for prototype lookup, simplified bind semantics, async iteration and worker messaging; browser rendering and Mermaid visual QA were not executed.",
-    "last_processed_at": "2026-10-15T16:22:20-04:00"
+    "javascript": "Node v24.19.0 executed examples.mjs; all 58 scenario groups passed, including cache ownership, module reachability, selector/layer precedence, request-identity fencing and modal-focus assertions.",
+    "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 159120-character embedded payload equality, 74 unique anchors, 127 balanced fences, 44 Mermaid diagrams, inline JavaScript, fragment targets, relative links, JSON syntax, the live 170-marker Java-placeholder invariant and all six content-commit remote blob hashes passed. Browser Service Worker/DOM and Mermaid visual QA were not executed; no GitHub status checks are configured.",
+    "diagrams": "Forty-four Mermaid diagrams are embedded in the canonical payload, including five new diagrams for cache layering, module reachability, cascade ordering, autocomplete races and modal focus; browser rendering and Mermaid visual QA were not executed.",
+    "last_processed_at": "2026-10-15T21:53:50-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-14T16:16:21-04:00",
@@ -888,16 +888,16 @@
     "estimate_method": "Heuristic for the first bounded JavaScript/HTML/CSS paired-source section plus source resolution, targeted primary-source refresh, consolidation/teaching/HTML and validation/checkpoint reserves; not actual quota percentage"
   },
   "javascript_html_css_intake_checkpoint": {
-    "last_processed_at": "2026-10-15T16:22:20-04:00",
+    "last_processed_at": "2026-10-15T21:53:50-04:00",
     "source_markdown_sha256": "742ef1042828659004807171e384cfa22decd4589dbbb384d59910df6217fdd0",
     "source_docx_sha256": "790f96df8880d825180a99171978d4fd301eeb7f3e1490c570a42028d5778bfb",
     "docx_source_file_id": "file_0000000037888211b9c20e5f69be6b09",
-    "processed": "Q1-Q66; latest bounded range is Markdown lines 1641-1759 and DOCX rendered lines 1167-1252 for Q62-Q66, each bounded by Q67; earlier Q1-Q61 retained",
+    "processed": "Q1-Q72; latest bounded range is Markdown lines 1760-1860 and DOCX rendered lines 1253-1328 for Q67-Q72, each bounded by the rapid-fire bank; earlier Q1-Q66 retained",
     "status": "PUBLISHED",
-    "validation": "Q62-Q66 were compared in both source texts and consolidated with own/inherited lookup traces, an explicit simplified-bind construction boundary, demand-driven iterator closing, bounded jittered retry policy and worker-selection/transfer guidance. Four connected executable examples and four new Mermaid diagrams cover all five questions. Node v24.19.0 passed all 54 scenario groups; deterministic reader generation passed exact 144751-character payload equality, 68 unique anchors, 117 balanced fenced blocks, 39 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax, the live 170-marker invariant and all nine content-commit remote blob hashes. Browser Worker/DOM integration and Mermaid visual QA were not executed; no GitHub status checks are configured.",
-    "content_commit": "122bcb33dac99334359c56238c93a358e2c5788e",
-    "next_section": "Q67-Q72 only: HTTP/Service Worker caching, ESM tree shaking, :is()/:where(), cascade layers, autocomplete races, and modal focus management; Markdown lines 1760-1860 and DOCX rendered lines 1253-1328",
-    "estimated_next_tokens": 9200,
-    "estimate_method": "Heuristic for Q62-Q66 paired-source comparison, current primary references, implementations/traces/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "validation": "Q67-Q72 were compared in both source texts and consolidated with HTTP/CacheStorage ownership, Service Worker lifecycle, module reachability/side-effect boundaries, exact selector/layer precedence, identity-fenced autocomplete, and native modal focus contracts. Four connected executable examples and five new Mermaid diagrams cover all six questions. Node v24.19.0 passed all 58 scenario groups; deterministic reader generation passed exact 159120-character payload equality, 74 unique anchors, 127 balanced fenced blocks, 44 Mermaid diagrams, parseable inline JavaScript, fragments, relative links, JSON syntax, the live 170-marker invariant and all six content-commit remote blob hashes. Browser Service Worker/DOM integration and Mermaid visual QA were not executed; no GitHub status checks are configured.",
+    "content_commit": "4aae4c9bd19e7363ffe195cadd1b1d4ec501295c",
+    "next_section": "Rapid-fire items 1-16 only: strict mode through Web Workers; Markdown lines 1861-1926 and DOCX rendered lines 1329-1361",
+    "estimated_next_tokens": 8200,
+    "estimate_method": "Heuristic for rapid-fire items 1-16 paired-source comparison, current primary references, implementations/traces/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
