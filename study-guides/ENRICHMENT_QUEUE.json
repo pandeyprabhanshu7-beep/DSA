@@ -102,7 +102,7 @@
       "status": "IN_PROGRESS",
       "last_read_at": "2026-10-17",
       "sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-      "selection": "Sections 1-6, source lines 62-396, read and promoted into the incremental canonical database guide; later sections remain queued."
+      "selection": "Sections 1-7, source lines 62-493, read and promoted into the incremental canonical database guide; later sections remain queued."
     },
     {
       "name": "top_5_system_design_interview_blueprints.md",
@@ -593,14 +593,15 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-17T18:55:21-04:00",
+      "last_processed_at": "2026-10-17T19:45:15-04:00",
       "processed_sections": [
         "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
         "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios",
         "Section 3: LSM trees — WAL/memtable recovery, snapshot-visible version selection, Bloom-filter limits, tombstone retention, compaction trade-offs, amplification/headroom accounting and write-stall signals",
         "Section 4: row/column storage — byte-selection bounds, vector batches, MergeTree parts and sparse-granule pruning, insert batching, and replayable idempotent CDC projections",
         "Section 5: isolation — anomaly classification, statement and transaction snapshots, PostgreSQL and InnoDB differences, write-skew and lost-update repairs, MVCC retention, whole-transaction retry and unknown outcomes",
-        "Section 6: cache topology — duplicated L1 capacity and conditional latency arithmetic, Window TinyLFU admission intuition, Redis client-tracking disconnect recovery, Memcached placement semantics, two-level invalidation and scoped authorization-safe keys"
+        "Section 6: cache topology — duplicated L1 capacity and conditional latency arithmetic, Window TinyLFU admission intuition, Redis client-tracking disconnect recovery, Memcached placement semantics, two-level invalidation and scoped authorization-safe keys",
+        "Section 7: read/write strategies — stale-resurrection fencing, typed read-through outcomes and local coalescing, write-through durable repair, and write-behind idempotent ordered replay with backpressure"
       ],
       "source_revision": {
         "baseline_commit": "e8961ba3f7208a18faa548925ae1b3fa6d21f3c8",
@@ -608,12 +609,12 @@
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-396",
-        "canonical_sha256_after": "c017a5018f37c26f45f49b0f32f0b9bca7440cd25e3f7290f7c37481c926f365"
+        "processed_lines": "62-493",
+        "canonical_sha256_after": "366c0325108b4715dcc37f92a9b8e6d018c6eea3250dbaaa571366af067ff25a"
       },
-      "content_commit": "243ac46f6d65d61c9a5252809fc181ccf8deac45",
-      "validation": "Exact source lines 357-396 were bounded by the Section 7 heading and consolidated against current Caffeine, Redis, Memcached and Guava primary documentation. Java 17 source launch and compilation through the installed jdk.compiler module passed 24 total scenario groups, including four new topology-estimate, admission, two-level-invalidation and cache-key-scope groups. Deterministic reader generation passed exact 83521-character Markdown payload equality, source SHA-256 metadata, 124 unique HTML IDs, 65 search entries, fragments, allowed relative links, 32 balanced fences and 25 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live DSA placeholder audit remains 170. Four content blobs matched and were published atomically with an expected-head guard.",
-      "next_action": "Process exactly Section 7, Four read/write strategies, source lines 397-493, bounded by the Section 8 heading.",
+      "content_commit": "3fae45fd5b67218a9945834a767fdc18c4ed4cb6",
+      "validation": "Exact source lines 397-493 were bounded by the Section 8 heading and consolidated against current AWS, Caffeine, Debezium and Apache Kafka primary documentation. Java 17 source launch and compilation through the installed jdk.compiler module passed 28 total scenario groups, including four new cache-aside-race, read-through-outcome, write-through-repair and write-behind-replay groups. Deterministic reader generation passed exact 98478-character Markdown payload equality, source SHA-256 metadata, 147 unique HTML IDs, 73 search entries, fragments, allowed relative links, 39 balanced fences and 29 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. Four content blobs matched and were published atomically with an expected-head guard.",
+      "next_action": "Process exactly Section 8, Eviction internals: LRU, LFU, FIFO and 2Q, source lines 494-556, bounded by the Section 9 heading.",
       "priority": 12
     },
     {
@@ -952,15 +953,16 @@
       "Database/caching Section 3: LSM recovery/read/compaction mechanics, tombstone safety, amplification accounting, disk headroom and stall signals",
       "Database/caching Section 4: row/column byte accounting, vector batches, sparse-granule pruning, insert batching and replayable CDC projection contracts",
       "Database/caching Section 5: isolation anomalies, engine-specific snapshot and locking behavior, write-skew and lost-update repairs, whole-transaction retry and unknown outcomes",
-      "Database/caching Section 6: local/distributed/two-level topology arithmetic, Window TinyLFU admission, client-tracking recovery, Memcached placement, invalidation and scoped keys"
+      "Database/caching Section 6: local/distributed/two-level topology arithmetic, Window TinyLFU admission, client-tracking recovery, Memcached placement, invalidation and scoped keys",
+      "Database/caching Section 7: cache-aside stale-resurrection fencing, typed read-through outcomes, write-through durable repair and write-behind ordered replay/backpressure"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 357-396 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 6, Local, distributed, and two-level caches",
-    "validation": "Section 6 was bounded by the Section 7 heading and consolidated with current Caffeine, Redis, Memcached and Guava primary documentation. Java 17 source launch and compilation through jdk.compiler passed 24 total scenario groups; deterministic reader generation passed exact 83521-character payload equality, 124 unique IDs, 65 search entries, fragments, allowed relative links, 32 balanced fences and 25 Mermaid sources; live DSA marker audit remains 170. Four content blobs matched and were published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
+    "processed_section": "database_internals_caching_java_master_guide.md lines 397-493 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 7, Four read/write strategies",
+    "validation": "Section 7 was bounded by the Section 8 heading and consolidated with current AWS, Caffeine, Debezium and Apache Kafka primary documentation. Java 17 source launch and compilation through jdk.compiler passed 28 total scenario groups; deterministic reader generation passed exact 98478-character payload equality, 147 unique IDs, 73 search entries, fragments, allowed relative links, 39 balanced fences and 29 Mermaid sources; live canonical DSA marker audit remains 170. Four content blobs matched and were published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
     "estimated_next_tokens": 7800,
-    "estimate_method": "Heuristic only for bounded read/write-strategy source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "243ac46f6d65d61c9a5252809fc181ccf8deac45",
-    "last_processed_at": "2026-10-17T18:55:21-04:00",
-    "next_batch_decision": "Section 6 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 7; resume at source lines 397-493, bounded by the Section 8 heading."
+    "estimate_method": "Heuristic only for bounded eviction-internals source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "3fae45fd5b67218a9945834a767fdc18c4ed4cb6",
+    "last_processed_at": "2026-10-17T19:45:15-04:00",
+    "next_batch_decision": "Section 7 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 8; resume at source lines 494-556, bounded by the Section 9 heading."
   }
 }
 
