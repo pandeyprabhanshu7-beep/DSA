@@ -102,7 +102,7 @@
       "status": "IN_PROGRESS",
       "last_read_at": "2026-10-16",
       "sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-      "selection": "Sections 1-4, source lines 62-286, read and promoted into the incremental canonical database guide; later sections remain queued."
+      "selection": "Sections 1-5, source lines 62-356, read and promoted into the incremental canonical database guide; later sections remain queued."
     },
     {
       "name": "top_5_system_design_interview_blueprints.md",
@@ -593,25 +593,26 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-16T10:09:14-04:00",
+      "last_processed_at": "2026-10-16T12:49:27-04:00",
       "processed_sections": [
         "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
         "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios",
         "Section 3: LSM trees — WAL/memtable recovery, snapshot-visible version selection, Bloom-filter limits, tombstone retention, compaction trade-offs, amplification/headroom accounting and write-stall signals",
-        "Section 4: row/column storage — byte-selection bounds, vector batches, MergeTree parts and sparse-granule pruning, insert batching, and replayable idempotent CDC projections"
+        "Section 4: row/column storage — byte-selection bounds, vector batches, MergeTree parts and sparse-granule pruning, insert batching, and replayable idempotent CDC projections",
+        "Section 5: isolation — anomaly classification, statement and transaction snapshots, PostgreSQL and InnoDB differences, write-skew and lost-update repairs, MVCC retention, whole-transaction retry and unknown outcomes"
       ],
       "source_revision": {
-        "baseline_commit": "236f18d627382594fbc70b0d9041db9f6d435a76",
+        "baseline_commit": "10db860ec14cb3a3d6a2012b1aef374404797435",
         "selected_library_file_id": "libfile_969515775294819195d90fe08e46b7be",
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-286",
-        "canonical_sha256_after": "9eaf0e2d55fe942e79c10732d85813c5d7a9c04c0b51266847ae27436a5e0fc6"
+        "processed_lines": "62-356",
+        "canonical_sha256_after": "d945b05830898734ced93b8544a0752649e0059c5104ddac8e8e9346dc9050e9"
       },
-      "content_commit": "5fd68848f02fa9fa62475c09f52c72df7dc1154b",
-      "validation": "Exact source lines 231-286 were bounded by the Section 5 heading and consolidated against current ClickHouse, PostgreSQL and Debezium primary documentation. Java 17 source-file execution passed 16 total scenario groups, including four new byte-selection, vector-batch, sparse-granule and CDC-projection groups. Deterministic reader generation passed exact 55339-character Markdown payload equality, source SHA-256 metadata, 89 unique HTML IDs, 49 search entries, fragments, allowed relative links, 20 balanced fences and 16 Mermaid sources. Standalone javac was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live DSA placeholder audit remains 170. Four content blobs were published atomically with an expected-head guard.",
-      "next_action": "Process exactly Section 5, Isolation: exact anomalies and engine-specific differences, beginning at source line 287; resolve its exact end before reading or promoting it.",
+      "content_commit": "e00cc2dd35cd04d7809cf32703713afd532448a6",
+      "validation": "Exact source lines 287-356 were bounded by the Section 6 heading and consolidated against current PostgreSQL 18, MySQL 8.4 InnoDB and Java SE 17 primary documentation. Java 17 source-file execution passed 20 total scenario groups, including four new statement-snapshot, write-skew, lost-update and whole-transaction-retry groups. Deterministic reader generation passed exact 69706-character Markdown payload equality, source SHA-256 metadata, 116 unique HTML IDs, 57 search entries, fragments, allowed relative links, 28 balanced fences and 21 Mermaid sources. Standalone javac was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live DSA placeholder audit remains 170. Four content blobs matched and were published atomically with an expected-head guard.",
+      "next_action": "Process exactly Section 6, Local, distributed, and two-level caches, beginning at source line 357; resolve its exact end before reading or promoting it.",
       "priority": 12
     },
     {
@@ -885,7 +886,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and the full JavaScript/HTML/CSS paired source are processed; Angular's Final Revision Sheet remains queued. Continue the confirmed database source with Section 5 only, 'Isolation: exact anomalies and engine-specific differences,' beginning at line 287, after resolving its exact end.",
+    "next_action": "Core advanced-tree sections 1-10 and the full JavaScript/HTML/CSS paired source are processed; Angular's Final Revision Sheet remains queued. Continue the confirmed database source with Section 6 only, 'Local, distributed, and two-level caches,' beginning at line 357, after resolving its exact end.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -948,15 +949,16 @@
       "Database/caching Section 1: ACID/BASE contract, four failure scenarios, WAL/recovery and replica traces, convergent repair and quorum caveat",
       "Database/caching Section 2: B+ tree page economics, access traces, layout amplification, splits and fill-factor trade-offs",
       "Database/caching Section 3: LSM recovery/read/compaction mechanics, tombstone safety, amplification accounting, disk headroom and stall signals",
-      "Database/caching Section 4: row/column byte accounting, vector batches, sparse-granule pruning, insert batching and replayable CDC projection contracts"
+      "Database/caching Section 4: row/column byte accounting, vector batches, sparse-granule pruning, insert batching and replayable CDC projection contracts",
+      "Database/caching Section 5: isolation anomalies, engine-specific snapshot and locking behavior, write-skew and lost-update repairs, whole-transaction retry and unknown outcomes"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 231-286 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 4, Row-oriented versus column-oriented storage",
-    "validation": "Section 4 was bounded by the Section 5 heading and consolidated with current ClickHouse, PostgreSQL and Debezium primary documentation. Java 17 source launch passed 16 total scenario groups; deterministic reader generation passed exact 55339-character payload equality, 89 unique IDs, 49 search entries, fragments, allowed relative links, 20 balanced fences and 16 Mermaid sources; live DSA marker audit remains 170. Four content blobs were published atomically with an expected-head guard. Standalone javac was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
+    "processed_section": "database_internals_caching_java_master_guide.md lines 287-356 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 5, Isolation: exact anomalies and engine-specific differences",
+    "validation": "Section 5 was bounded by the Section 6 heading and consolidated with current PostgreSQL 18, MySQL 8.4 InnoDB and Java SE 17 primary documentation. Java 17 source launch passed 20 total scenario groups; deterministic reader generation passed exact 69706-character payload equality, 116 unique IDs, 57 search entries, fragments, allowed relative links, 28 balanced fences and 21 Mermaid sources; live DSA marker audit remains 170. Four content blobs matched and were published atomically with an expected-head guard. Standalone javac was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
     "estimated_next_tokens": 7800,
-    "estimate_method": "Heuristic only for resolving bounded isolation source limits, refreshing primary references, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "5fd68848f02fa9fa62475c09f52c72df7dc1154b",
-    "last_processed_at": "2026-10-16T10:09:14-04:00",
-    "next_batch_decision": "Section 4 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 5; resume at its exact start on source line 287 and resolve the end boundary before processing."
+    "estimate_method": "Heuristic only for resolving bounded cache-topology source limits, refreshing primary references, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "e00cc2dd35cd04d7809cf32703713afd532448a6",
+    "last_processed_at": "2026-10-16T12:49:27-04:00",
+    "next_batch_decision": "Section 5 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 6; resume at its exact start on source line 357 and resolve the end boundary before processing."
   }
 }
 
