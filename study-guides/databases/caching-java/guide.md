@@ -996,6 +996,197 @@ Accessed 2026-10-16.
 32. [MySQL 8.4 locks set by statements](https://dev.mysql.com/doc/refman/8.4/en/innodb-locks-set.html): unique equality, scanned ranges, missing-index effects, and next-key locks.
 33. [Java SE 17 `Connection`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/Connection.html): auto-commit, commit/rollback boundaries, portable isolation constants, and isolation-configuration timing.
 
+# Section 6 — Cache topology: local, distributed, and two-level
+
+A cache topology is a placement and failure contract, not merely a latency choice. A JVM-local cache removes a network hop but creates one independent copy per process. A distributed cache shares values but adds routing, serialization, network tails, hot-key pressure, and failover behavior. An L1 + L2 design combines both and therefore has **two freshness boundaries** to bound and observe.
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. choose local, distributed, or two-level caching from latency, capacity, failure, and freshness requirements;
+2. separate maximum size, expiry, eviction, and admission instead of calling all four “LRU”;
+3. quantify duplicated L1 memory and conditional L2/origin traffic before adding a tier;
+4. explain why one JVM's loader, lock, or invalidation does not coordinate other JVMs;
+5. handle missed or reordered invalidations, including flushing an untrusted local cache after a tracking connection is lost; and
+6. design a cache key that preserves tenant, locale, schema, revision, and authorization boundaries.
+
+Write the contract before selecting a product:
+
+| Requirement | Example | Design consequence |
+|---|---|---|
+| Authority | PostgreSQL owns article version 6 | every cache copy is disposable and versioned |
+| Freshness | ordinary article ≤30 s stale; permission revocation 0 s | TTL may cover the article; authorization is checked against current policy |
+| Failure mode | Redis loss may increase latency, not corrupt results | bounded fallback and origin load shedding are mandatory |
+| Capacity | 12 JVMs, 50,000 local entries each | local capacity is duplicated, not fleet-global |
+| Key scope | tenant + article + locale + renderer version | a bare `articleId` is unsafe |
+| Recovery | node may miss invalidations while disconnected | reconnect establishes a new trust boundary and flushes L1 |
+
+| Topology | Placement and useful property | Dominant risk |
+|---|---|---|
+| Caffeine/Guava local | each JVM; no network or serialization on a hit | divergent nodes, duplicated heap, cold starts, GC pressure |
+| Redis distributed | shared remote service with TTLs and atomic server commands | network tail, hot keys, memory pressure, failover semantics |
+| Memcached distributed | client/proxy routes each key to an ephemeral server | node loss becomes misses/errors; servers do not synchronize or replicate |
+| L1 local + L2 distributed | hot reads stop at the JVM; fleet shares the next tier | two invalidation races, two capacities, and ambiguous ownership if undocumented |
+
+The focused examples below complement the repository's broader system-design caching chapter: they concentrate on JVM placement, admission, client tracking, and multi-tenant safety rather than repeating cache-aside strategy coverage.
+
+## Example 21 — quantify topology before adding a tier
+
+Assume 12 service instances, each allowing 50,000 L1 entries, one million L2 entries, and an estimated 1,024 bytes per serialized entry including key/value overhead for this planning model.
+
+| Quantity | Calculation | Result |
+|---|---:|---:|
+| duplicated L1 bytes | `12 × 50,000 × 1,024` | 614,400,000 B ≈ 586 MiB |
+| shared L2 bytes | `1,000,000 × 1,024` | 1,024,000,000 B ≈ 977 MiB |
+| fleet entries represented by L1 | at most `12 × 50,000` physical copies | not necessarily 600,000 distinct keys |
+
+For an arithmetic-mean teaching estimate, let the L1 hit rate be 90%, the conditional L2 hit rate after an L1 miss be 80%, and service times be 0.0001 ms, 1.2 ms, and 8 ms for L1, L2, and the authority:
+
+`E = L1 + P(L1 miss) × [L2 + P(L2 miss | L1 miss) × authority]`
+
+`E = 0.0001 + 0.10 × (1.2 + 0.20 × 8) = 0.2801 ms`
+
+The executable `topologyEstimate` model in [ConsistencyContracts.java](ConsistencyContracts.java) checks those bytes and the conditional-probability formula. It is not a p99 prediction: correlated misses, retries, queueing, connection pools, payload size, failover, and hot-key skew dominate tails.
+
+```mermaid
+flowchart TD
+    R["request on JVM A"] --> L1{"A's bounded L1"}
+    L1 -->|hit| X["return versioned value"]
+    L1 -->|miss| L2{"shared L2"}
+    L2 -->|hit| F["fill A's L1"]
+    L2 -->|miss| D["authoritative database"]
+    D --> P["publish to L2, then L1 under version rules"]
+    P --> X
+    F --> X
+```
+
+Measure hit ratios **by tier and outcome**: L1 hit, L2 hit after L1 miss, authority fallback, timeout, rejected fallback, and stale/invalidated read. A 95% combined hit rate can still hide a useless L1 or an overloaded origin during synchronized expiry.
+
+## Example 22 — admission is not eviction
+
+Four different decisions are often collapsed into “LRU”:
+
+- **capacity:** how much memory or how many weighted entries may be retained;
+- **expiry:** when age makes an entry ineligible (`expireAfterWrite`, `expireAfterAccess`, or a per-entry policy);
+- **eviction:** which resident becomes the victim when space is needed; and
+- **admission:** whether the incoming candidate deserves to displace that victim.
+
+Caffeine documents Window TinyLFU: a small admission window captures recency bursts, a frequency sketch estimates historic use, and a candidate competes for the main space. It is not a synchronized linked-list LRU. The following trace is deliberately a **simplified admission comparison**, not Caffeine's internal implementation:
+
+| Candidate | Estimated frequency | Main victim | Victim frequency | Teaching decision |
+|---|---:|---|---:|---|
+| one-off scan key | 1 | hot profile | 8 | reject scan key; retain profile |
+| popular article | 9 | warm profile | 8 | admit article; evict profile |
+
+The Java `tinyLfuAdmissionModel` asserts both outcomes. A real sketch is approximate, ages history, and operates with window/main segments; tests should therefore evaluate the library with representative request traces rather than assert its private queue layout.
+
+```mermaid
+flowchart LR
+    N["new candidate"] --> W["small recency window"]
+    W --> C{"candidate estimate > victim estimate?"}
+    C -->|yes| A["admit to main space"]
+    C -->|no| R["reject candidate"]
+    A --> E["evict selected resident"]
+```
+
+A Caffeine loading cache may coalesce compatible loads **inside one JVM**. It does not create a fleet-wide single-flight. Twelve cold JVMs may still issue twelve authority reads for the same key. Cross-process coordination needs a shared lease, request collapsing tier, prewarming plan, or an origin that safely absorbs the concurrency. Guava also supplies bounded/loading caches but separate JVM caches do not synchronize automatically; its maintenance and removal-listener timing must not be mistaken for a real-time coherence protocol.
+
+## Example 23 — a two-level cache must distrust missed invalidations
+
+Initial state: nodes A and B hold article version 5 in L1, and L2 also holds version 5. B commits version 6 to the authority. The application invalidates L2 and emits the L1 invalidation, but A's invalidation connection was lost.
+
+| Step | Node A | Node B | L2 | Authority |
+|---:|---|---|---|---|
+| 1 | v5 | v5 | v5 | v5 |
+| 2: A disconnects | v5, now untrusted | v5 | v5 | v5 |
+| 3: commit v6 | v5, event missed | invalidates v5 | invalidated | v6 |
+| 4: unsafe implementation | serves stale v5 | reloads v6 | may refill v6 | v6 |
+| 5: safe reconnect | flush A; reload v6 | v6 | v6 | v6 |
+
+```mermaid
+sequenceDiagram
+    participant A as JVM A L1
+    participant R as Shared L2 / tracking
+    participant B as Writer on JVM B
+    participant D as Authority
+    A->>R: read article -> v5; cache locally
+    R--xA: invalidation connection lost
+    B->>D: commit v6
+    B->>R: replace/delete shared key
+    R--xA: invalidation v5 missed
+    Note over A: local v5 is no longer trustworthy
+    A->>A: reconnect boundary: flush L1
+    A->>R: miss and reload v6
+```
+
+Redis client-side caching calls this server-assisted mechanism **Tracking**. Default tracking remembers keys read by a client; broadcast mode trades server-side tracking memory for prefix invalidations. The Redis reference explicitly requires flushing the local cache when the invalidation connection is lost. With separate data and invalidation connections, an invalidation can also arrive before an older `GET` response; a “caching-in-progress” placeholder prevents that late response from repopulating the key. Same-connection RESP3 ordering avoids that particular two-connection race, but not every application-level DB/Redis race.
+
+The Java `TwoLevelCache` scenario models the application boundary: A's ordinary read is rejected while invalidations are untrusted, `reconnectAndFlush` discards v5, and the next read loads v6. It does not pretend Redis queries the database; the application owns commit, L2 mutation, and repair ordering.
+
+Use one explicit multi-node policy:
+
+1. bounded local TTL with a stated staleness budget and bounded fill duration;
+2. reliable invalidation delivery with per-node recovery/watermarks;
+3. immutable revision keys plus a separately resolved current revision; or
+4. no data cache for facts—such as current authorization revocations—that cannot tolerate stale reads.
+
+A competing-consumer queue is not fan-out: if only one JVM receives each event, the other L1 copies remain stale. Pub/Sub-style delivery is a hint unless disconnect and replay semantics close that gap.
+
+## Example 24 — key scope and authorization are correctness boundaries
+
+Caching personalized HTML under `article:7` allows the first tenant, locale, renderer, or permission context to contaminate the next request. A safer logical key is:
+
+`(tenantId, articleId, locale, rendererSchemaVersion, contentRevision or permissionEpoch)`
+
+| Request difference | Unsafe result with `article:7` | Required treatment |
+|---|---|---|
+| tenant A vs tenant B | cross-tenant disclosure | tenant is mandatory in the key/namespace |
+| `en-US` vs `fr-FR` | wrong language | locale is a key dimension |
+| renderer v3 vs v4 | incompatible representation | version the key or invalidate the old schema |
+| permission epoch 11 vs 12 | revoked user sees old personalized body | reauthorize each request or change the revision/epoch |
+
+```mermaid
+flowchart TD
+    Q["incoming request"] --> A{"authorized now?"}
+    A -->|no| D["deny; do not consult personalized value"]
+    A -->|yes| K["build scoped key"]
+    K --> C{"cache hit for exact scope?"}
+    C -->|yes| S["serve versioned value"]
+    C -->|no| O["load authority and publish safely"]
+```
+
+The Java `ScopedCacheKey` proves equal article IDs do not collide across tenants or permission epochs, and `mayServePersonalizedValue` refuses a cached value when current authorization fails. Prefer caching permission-independent article data and authorizing every request; putting a permission epoch in a key is useful only when that epoch itself is current and cannot be served from the stale object being protected.
+
+## Distributed placement, failure, and operations
+
+Memcached's official documentation makes the ownership boundary unusually clear: clients receive a server list, hash a key to a server, and decide what to do when that server is unreachable. Servers do not coordinate, broadcast, or replicate with each other. Losing a node therefore means errors or misses and origin reloads, not an automatic coherent failover. Client/proxy failover that remaps keys can cause a miss wave; it must not turn a disposable cache into a second authority.
+
+For Redis or Memcached, monitor per-tier p50/p95/p99 latency, timeout/error rates, hit/miss/eviction/expiry counts, item and byte occupancy, hot keys, network bytes, connection-pool wait, backend-node distribution, failover/remap rate, origin fallback concurrency, loader coalescing, invalidation lag/disconnects, reconnect flushes, and value-version regressions. For JVM L1 add heap retained bytes, allocation/GC pressure, entry weight distribution, load success/failure time, and node-by-node hit-rate skew.
+
+Review questions:
+
+- Is L1 capacity stated per JVM, per pod, or for the whole fleet?
+- Is L2 hit rate conditional on an L1 miss?
+- Which tier owns expiry, admission, and version validation?
+- Can an older fill arrive after invalidation and repopulate stale data?
+- What exactly happens when the invalidation channel disconnects?
+- Does every intended cache owner receive an event, or only one consumer?
+- Are key routing and server membership consistent across clients?
+- Which dimensions prevent tenant, locale, schema, and permission leakage?
+- How much origin concurrency is allowed during cold start or node loss?
+- Can the cache be deleted completely without losing committed business state?
+
+### Primary references for Section 6
+
+Accessed 2026-10-17.
+
+34. [Caffeine efficiency](https://github.com/ben-manes/caffeine/wiki/Efficiency): Window TinyLFU's admission window, frequency sketch, recency/frequency trade-off, and comparison with plain LRU.
+35. [Redis client-side caching reference](https://redis.io/docs/latest/develop/reference/client-side-caching/): tracking modes, invalidation delivery, separate-connection ordering race, reconnect flush, TTL, and client memory bounds.
+36. [Redis client-side caching introduction](https://redis.io/docs/latest/develop/clients/client-side-caching/): supported-client behavior, disconnect flushing, suitable key workloads, and capacity estimation.
+37. [Memcached documentation](https://docs.memcached.org/) and [FAQ](https://docs.memcached.org/userguide/faq/): client-side routing, disconnected servers, lack of replication, ephemeral failure semantics, and network round-trip costs.
+38. [Guava cache guide](https://github.com/google/guava/wiki/cachesexplained): local cache population, size/time eviction, maintenance timing, and removal-listener behavior.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -1003,8 +1194,8 @@ Accessed 2026-10-16.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; and lines **287–356**, “Isolation: exact anomalies and engine-specific differences”
-- Deliberate continuation: Section 6, “Local, distributed, and two-level caches,” begins at source line **357** and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; and lines **357–396**, “Local, distributed, and two-level caches”
+- Deliberate continuation: Section 7, “Four read/write strategies,” begins at source line **397** and remains unprocessed.
 
 Validation commands:
 

@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Executable teaching models for guide Sections 1-5. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-6. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -554,6 +554,132 @@ public final class ConsistencyContracts {
         throw new IllegalStateException("retry budget exhausted");
     }
 
+    record TopologyEstimate(
+            long duplicatedLocalBytes, long sharedBytes, double expectedReadMillis) {}
+
+    static TopologyEstimate topologyEstimate(
+            int instances,
+            long l1EntriesPerInstance,
+            long l2Entries,
+            long averageEntryBytes,
+            double l1HitRate,
+            double l2HitRateAfterL1Miss,
+            double l1Millis,
+            double l2Millis,
+            double authorityMillis) {
+        if (instances <= 0 || l1EntriesPerInstance < 0 || l2Entries < 0
+                || averageEntryBytes <= 0 || l1HitRate < 0 || l1HitRate > 1
+                || l2HitRateAfterL1Miss < 0 || l2HitRateAfterL1Miss > 1
+                || l1Millis < 0 || l2Millis < 0 || authorityMillis < 0) {
+            throw new IllegalArgumentException("invalid topology estimate");
+        }
+        long duplicatedLocalBytes = Math.multiplyExact(
+                Math.multiplyExact((long) instances, l1EntriesPerInstance), averageEntryBytes);
+        long sharedBytes = Math.multiplyExact(l2Entries, averageEntryBytes);
+        double l1MissRate = 1 - l1HitRate;
+        double l2MissRate = 1 - l2HitRateAfterL1Miss;
+        double expectedReadMillis = l1Millis
+                + l1MissRate * (l2Millis + l2MissRate * authorityMillis);
+        return new TopologyEstimate(duplicatedLocalBytes, sharedBytes, expectedReadMillis);
+    }
+
+    record AdmissionDecision(boolean admitted, String retainedKey) {}
+
+    static AdmissionDecision tinyLfuAdmissionModel(
+            String candidateKey, int candidateFrequency, String victimKey, int victimFrequency) {
+        if (candidateKey.isBlank() || victimKey.isBlank()
+                || candidateFrequency < 0 || victimFrequency < 0) {
+            throw new IllegalArgumentException("keys and non-negative estimates required");
+        }
+        boolean admitted = candidateFrequency > victimFrequency;
+        return new AdmissionDecision(admitted, admitted ? candidateKey : victimKey);
+    }
+
+    record CacheValue(long version, String payload) {
+        CacheValue {
+            if (version < 0 || payload == null) throw new IllegalArgumentException("invalid value");
+        }
+    }
+
+    static final class TwoLevelCache {
+        private final Map<String, CacheValue> authority = new HashMap<>();
+        private final Map<String, CacheValue> l2 = new HashMap<>();
+        private final Map<String, Map<String, CacheValue>> l1ByNode = new HashMap<>();
+        private final Set<String> trustedInvalidationConnection = new HashSet<>();
+
+        void registerNode(String node) {
+            l1ByNode.put(node, new HashMap<>());
+            trustedInvalidationConnection.add(node);
+        }
+
+        void commitAuthority(String key, CacheValue value) {
+            CacheValue current = authority.get(key);
+            if (current != null && value.version() <= current.version()) {
+                throw new IllegalArgumentException("version must advance");
+            }
+            authority.put(key, value);
+        }
+
+        CacheValue read(String node, String key) {
+            Map<String, CacheValue> l1 = requireNode(node);
+            if (!trustedInvalidationConnection.contains(node)) {
+                throw new IllegalStateException("local cache is untrusted until reconnect flush");
+            }
+            CacheValue local = l1.get(key);
+            if (local != null) return local;
+            CacheValue shared = l2.get(key);
+            if (shared == null) {
+                shared = Objects.requireNonNull(authority.get(key), "authority miss");
+                l2.put(key, shared);
+            }
+            l1.put(key, shared);
+            return shared;
+        }
+
+        void loseInvalidationConnection(String node) {
+            requireNode(node);
+            trustedInvalidationConnection.remove(node);
+        }
+
+        void invalidateAfterCommit(String key, Set<String> nodesThatReceivedEvent) {
+            l2.remove(key);
+            for (String node : nodesThatReceivedEvent) requireNode(node).remove(key);
+        }
+
+        CacheValue unsafeLocalForTrace(String node, String key) {
+            return requireNode(node).get(key);
+        }
+
+        void reconnectAndFlush(String node) {
+            requireNode(node).clear();
+            trustedInvalidationConnection.add(node);
+        }
+
+        private Map<String, CacheValue> requireNode(String node) {
+            Map<String, CacheValue> cache = l1ByNode.get(node);
+            if (cache == null) throw new IllegalArgumentException("unknown node");
+            return cache;
+        }
+    }
+
+    record ScopedCacheKey(
+            String tenant, String articleId, String locale, int schemaVersion, long permissionEpoch) {
+        ScopedCacheKey {
+            if (tenant.isBlank() || articleId.isBlank() || locale.isBlank()
+                    || schemaVersion <= 0 || permissionEpoch < 0) {
+                throw new IllegalArgumentException("invalid cache-key dimension");
+            }
+        }
+    }
+
+    static String unsafeArticleKey(String articleId) {
+        return "article:" + articleId;
+    }
+
+    static boolean mayServePersonalizedValue(boolean authorizedNow, CacheValue cached) {
+        return authorizedNow && cached != null;
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -835,6 +961,61 @@ public final class ConsistencyContracts {
         } catch (IllegalArgumentException expected) {}
     }
 
+    private static void topologyEstimateScenarios() {
+        TopologyEstimate estimate = topologyEstimate(
+                12, 50_000, 1_000_000, 1_024,
+                0.90, 0.80,
+                0.0001, 1.2, 8.0);
+        assert estimate.duplicatedLocalBytes() == 614_400_000L;
+        assert estimate.sharedBytes() == 1_024_000_000L;
+        assert Math.abs(estimate.expectedReadMillis() - 0.2801) < 0.0000001;
+        try {
+            topologyEstimate(0, 1, 1, 1, 0.5, 0.5, 0, 1, 1);
+            throw new AssertionError("zero instances accepted");
+        } catch (IllegalArgumentException expected) {}
+    }
+
+    private static void admissionScenarios() {
+        AdmissionDecision scan = tinyLfuAdmissionModel("one-off-scan", 1, "hot-profile", 8);
+        assert !scan.admitted() && scan.retainedKey().equals("hot-profile");
+        AdmissionDecision popular = tinyLfuAdmissionModel("popular-article", 9, "warm-profile", 8);
+        assert popular.admitted() && popular.retainedKey().equals("popular-article");
+    }
+
+    private static void twoLevelInvalidationScenarios() {
+        TwoLevelCache cache = new TwoLevelCache();
+        cache.registerNode("A");
+        cache.registerNode("B");
+        cache.commitAuthority("article:7", new CacheValue(5, "old"));
+        assert cache.read("A", "article:7").version() == 5;
+        assert cache.read("B", "article:7").version() == 5;
+
+        cache.loseInvalidationConnection("A");
+        cache.commitAuthority("article:7", new CacheValue(6, "new"));
+        cache.invalidateAfterCommit("article:7", Set.of("B"));
+        assert cache.unsafeLocalForTrace("A", "article:7").version() == 5;
+        try {
+            cache.read("A", "article:7");
+            throw new AssertionError("untrusted local cache served after disconnect");
+        } catch (IllegalStateException expected) {}
+
+        cache.reconnectAndFlush("A");
+        assert cache.read("A", "article:7").version() == 6;
+        assert cache.read("B", "article:7").version() == 6;
+    }
+
+    private static void cacheKeyScopeScenarios() {
+        assert unsafeArticleKey("7").equals(unsafeArticleKey("7")); // tenant collision
+        ScopedCacheKey tenantA = new ScopedCacheKey("tenant-a", "7", "en-US", 3, 11);
+        ScopedCacheKey tenantB = new ScopedCacheKey("tenant-b", "7", "en-US", 3, 11);
+        ScopedCacheKey newPermissions = new ScopedCacheKey("tenant-a", "7", "en-US", 3, 12);
+        assert !tenantA.equals(tenantB);
+        assert !tenantA.equals(newPermissions);
+        CacheValue personalized = new CacheValue(6, "private-body");
+        assert !mayServePersonalizedValue(false, personalized);
+        assert mayServePersonalizedValue(true, personalized);
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -859,7 +1040,11 @@ public final class ConsistencyContracts {
         writeSkewScenarios();
         lostUpdateScenarios();
         serializationRetryScenarios();
-        System.out.println("PASS 20 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry");
+        topologyEstimateScenarios();
+        admissionScenarios();
+        twoLevelInvalidationScenarios();
+        cacheKeyScopeScenarios();
+        System.out.println("PASS 24 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope");
     }
 }
 
