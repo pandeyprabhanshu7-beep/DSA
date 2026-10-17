@@ -1,5 +1,7 @@
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -7,7 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Executable teaching models for guide Sections 1-6. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-7. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -680,6 +682,177 @@ public final class ConsistencyContracts {
         return authorizedNow && cached != null;
     }
 
+    record PendingFill(CacheValue value, long observedGeneration) {}
+
+    static final class CacheAsideRace {
+        private CacheValue authority;
+        private CacheValue cache;
+        private long generation;
+
+        CacheAsideRace(CacheValue initial) { authority = initial; }
+
+        PendingFill beginMiss() { return new PendingFill(authority, generation); }
+
+        void commitAndInvalidate(CacheValue next) {
+            if (next.version() <= authority.version()) {
+                throw new IllegalArgumentException("authority version must advance");
+            }
+            authority = next;
+            generation++;
+            cache = null;
+        }
+
+        void publishUnsafe(PendingFill fill) { cache = fill.value(); }
+
+        boolean publishIfCurrent(PendingFill fill) {
+            if (fill.observedGeneration() != generation
+                    || fill.value().version() < authority.version()) return false;
+            cache = fill.value();
+            return true;
+        }
+
+        CacheValue cacheValue() { return cache; }
+        CacheValue authorityValue() { return authority; }
+    }
+
+    enum LoadKind { VALUE, ABSENT, FAILURE }
+    record LoadOutcome(LoadKind kind, CacheValue value) {
+        LoadOutcome {
+            Objects.requireNonNull(kind, "kind");
+            if ((kind == LoadKind.VALUE) != (value != null)) {
+                throw new IllegalArgumentException("only VALUE has a value");
+            }
+        }
+    }
+    record LoadWave(LoadOutcome outcome, int loaderCalls, boolean cached) {}
+
+    static final class ReadThroughModel {
+        private final Map<String, CacheValue> values = new HashMap<>();
+        private final Set<String> knownAbsent = new HashSet<>();
+        private int loaderCalls;
+
+        LoadWave requestWave(
+                String key, int sameJvmCallers, LoadOutcome loaded, boolean negativeCacheAbsent) {
+            if (key.isBlank() || sameJvmCallers <= 0) {
+                throw new IllegalArgumentException("key and positive caller count required");
+            }
+            CacheValue cached = values.get(key);
+            if (cached != null) {
+                return new LoadWave(new LoadOutcome(LoadKind.VALUE, cached), loaderCalls, true);
+            }
+            if (knownAbsent.contains(key)) {
+                return new LoadWave(new LoadOutcome(LoadKind.ABSENT, null), loaderCalls, true);
+            }
+
+            // One local in-flight computation represents same-key coalescing in one JVM.
+            loaderCalls++;
+            if (loaded.kind() == LoadKind.VALUE) values.put(key, loaded.value());
+            if (loaded.kind() == LoadKind.ABSENT && negativeCacheAbsent) knownAbsent.add(key);
+            return new LoadWave(loaded, loaderCalls,
+                    loaded.kind() == LoadKind.VALUE
+                            || (loaded.kind() == LoadKind.ABSENT && negativeCacheAbsent));
+        }
+    }
+
+    enum WriteThroughStatus { COMMITTED_AND_CACHED, COMMITTED_REPAIR_QUEUED }
+    record RepairTask(String operationId, String key, CacheValue value) {}
+
+    static final class WriteThroughStore {
+        private final Map<String, CacheValue> authority = new HashMap<>();
+        private final Map<String, CacheValue> cache = new HashMap<>();
+        private final Map<String, RepairTask> repairOutbox = new HashMap<>();
+        private final Set<String> degradedKeys = new HashSet<>();
+        private final Set<String> appliedRepairs = new HashSet<>();
+
+        void seed(String key, CacheValue value) {
+            authority.put(key, value);
+            cache.put(key, value);
+        }
+
+        WriteThroughStatus write(
+                String operationId, String key, CacheValue value, boolean cacheWriteFails) {
+            if (operationId.isBlank() || key.isBlank()) {
+                throw new IllegalArgumentException("operation ID and key required");
+            }
+            CacheValue current = authority.get(key);
+            if (current != null && value.version() <= current.version()) {
+                throw new IllegalArgumentException("authority version must advance");
+            }
+            authority.put(key, value); // committed; a later cache error cannot undo this
+            if (cacheWriteFails) {
+                repairOutbox.putIfAbsent(operationId, new RepairTask(operationId, key, value));
+                degradedKeys.add(key);
+                return WriteThroughStatus.COMMITTED_REPAIR_QUEUED;
+            }
+            cache.put(key, value);
+            degradedKeys.remove(key);
+            return WriteThroughStatus.COMMITTED_AND_CACHED;
+        }
+
+        CacheValue read(String key) {
+            return degradedKeys.contains(key) ? authority.get(key) : cache.get(key);
+        }
+
+        void replayRepair(String operationId) {
+            RepairTask task = Objects.requireNonNull(repairOutbox.get(operationId), "repair task");
+            if (appliedRepairs.add(operationId)) cache.put(task.key(), task.value());
+            if (cache.get(task.key()).version() >= authority.get(task.key()).version()) {
+                degradedKeys.remove(task.key());
+            }
+        }
+
+        CacheValue cached(String key) { return cache.get(key); }
+        int repairCount() { return repairOutbox.size(); }
+    }
+
+    record WriteIntent(String operationId, String key, CacheValue value) {}
+    enum EnqueueStatus { ACKNOWLEDGED, REJECTED_FULL }
+    enum ReplayStatus { APPLIED, DUPLICATE, VERSION_GAP }
+
+    static final class WriteBehindStore {
+        private final int capacity;
+        private final Deque<WriteIntent> durableQueue = new ArrayDeque<>();
+        private final Map<String, CacheValue> visibleCache = new HashMap<>();
+        private final Map<String, CacheValue> authority = new HashMap<>();
+        private final Set<String> appliedOperationIds = new HashSet<>();
+
+        WriteBehindStore(int capacity) {
+            if (capacity <= 0) throw new IllegalArgumentException("positive capacity required");
+            this.capacity = capacity;
+        }
+
+        EnqueueStatus submit(WriteIntent intent) {
+            Objects.requireNonNull(intent, "intent");
+            if (intent.operationId().isBlank() || intent.key().isBlank()) {
+                throw new IllegalArgumentException("operation ID and key required");
+            }
+            if (durableQueue.size() == capacity) return EnqueueStatus.REJECTED_FULL;
+            durableQueue.addLast(intent); // durable enqueue is the acknowledgement boundary
+            CacheValue visible = visibleCache.get(intent.key());
+            if (visible == null || intent.value().version() >= visible.version()) {
+                visibleCache.put(intent.key(), intent.value());
+            }
+            return EnqueueStatus.ACKNOWLEDGED;
+        }
+
+        ReplayStatus replayNext() {
+            WriteIntent intent = Objects.requireNonNull(durableQueue.pollFirst(), "empty queue");
+            if (!appliedOperationIds.add(intent.operationId())) return ReplayStatus.DUPLICATE;
+            CacheValue current = authority.get(intent.key());
+            long expected = current == null ? 1 : current.version() + 1;
+            if (intent.value().version() != expected) {
+                appliedOperationIds.remove(intent.operationId());
+                return ReplayStatus.VERSION_GAP;
+            }
+            authority.put(intent.key(), intent.value());
+            return ReplayStatus.APPLIED;
+        }
+
+        CacheValue visible(String key) { return visibleCache.get(key); }
+        CacheValue authoritative(String key) { return authority.get(key); }
+        int queued() { return durableQueue.size(); }
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -1016,6 +1189,81 @@ public final class ConsistencyContracts {
         assert mayServePersonalizedValue(true, personalized);
     }
 
+    private static void cacheAsideRaceScenarios() {
+        CacheAsideRace unsafe = new CacheAsideRace(new CacheValue(5, "old"));
+        PendingFill oldRead = unsafe.beginMiss();
+        unsafe.commitAndInvalidate(new CacheValue(6, "new"));
+        unsafe.publishUnsafe(oldRead);
+        assert unsafe.cacheValue().version() == 5; // stale resurrection
+
+        CacheAsideRace fenced = new CacheAsideRace(new CacheValue(5, "old"));
+        PendingFill fencedRead = fenced.beginMiss();
+        fenced.commitAndInvalidate(new CacheValue(6, "new"));
+        assert !fenced.publishIfCurrent(fencedRead);
+        assert fenced.cacheValue() == null;
+        assert fenced.authorityValue().version() == 6;
+    }
+
+    private static void readThroughScenarios() {
+        ReadThroughModel cache = new ReadThroughModel();
+        LoadWave first = cache.requestWave("article:7", 20,
+                new LoadOutcome(LoadKind.VALUE, new CacheValue(6, "body")), false);
+        assert first.loaderCalls() == 1 && first.cached();
+        LoadWave hit = cache.requestWave("article:7", 20,
+                new LoadOutcome(LoadKind.FAILURE, null), false);
+        assert hit.loaderCalls() == 1 && hit.outcome().kind() == LoadKind.VALUE;
+
+        LoadWave failed = cache.requestWave("article:8", 20,
+                new LoadOutcome(LoadKind.FAILURE, null), true);
+        assert failed.loaderCalls() == 2 && !failed.cached();
+        LoadWave recovered = cache.requestWave("article:8", 20,
+                new LoadOutcome(LoadKind.VALUE, new CacheValue(1, "recovered")), false);
+        assert recovered.loaderCalls() == 3 && recovered.outcome().kind() == LoadKind.VALUE;
+
+        LoadWave absent = cache.requestWave("article:404", 20,
+                new LoadOutcome(LoadKind.ABSENT, null), true);
+        LoadWave negativeHit = cache.requestWave("article:404", 20,
+                new LoadOutcome(LoadKind.FAILURE, null), true);
+        assert absent.loaderCalls() == 4 && negativeHit.loaderCalls() == 4;
+        assert negativeHit.outcome().kind() == LoadKind.ABSENT;
+    }
+
+    private static void writeThroughRepairScenarios() {
+        WriteThroughStore store = new WriteThroughStore();
+        store.seed("article:7", new CacheValue(5, "old"));
+        WriteThroughStatus status = store.write(
+                "op-article-6", "article:7", new CacheValue(6, "new"), true);
+        assert status == WriteThroughStatus.COMMITTED_REPAIR_QUEUED;
+        assert store.repairCount() == 1;
+        assert store.cached("article:7").version() == 5;
+        assert store.read("article:7").version() == 6; // authority while coherence is degraded
+        store.replayRepair("op-article-6");
+        store.replayRepair("op-article-6");
+        assert store.cached("article:7").version() == 6;
+        assert store.read("article:7").version() == 6;
+    }
+
+    private static void writeBehindScenarios() {
+        WriteBehindStore store = new WriteBehindStore(3);
+        WriteIntent v1 = new WriteIntent("op-1", "profile:7", new CacheValue(1, "one"));
+        WriteIntent v2 = new WriteIntent("op-2", "profile:7", new CacheValue(2, "two"));
+        assert store.submit(v1) == EnqueueStatus.ACKNOWLEDGED;
+        assert store.submit(v2) == EnqueueStatus.ACKNOWLEDGED;
+        assert store.submit(v1) == EnqueueStatus.ACKNOWLEDGED; // retry before worker observes it
+        assert store.visible("profile:7").version() == 2;
+        assert store.submit(new WriteIntent(
+                "op-3", "profile:7", new CacheValue(3, "three"))) == EnqueueStatus.REJECTED_FULL;
+        assert store.replayNext() == ReplayStatus.APPLIED;
+        assert store.replayNext() == ReplayStatus.APPLIED;
+        assert store.replayNext() == ReplayStatus.DUPLICATE;
+        assert store.authoritative("profile:7").version() == 2;
+
+        assert store.submit(new WriteIntent(
+                "op-4", "profile:7", new CacheValue(4, "four"))) == EnqueueStatus.ACKNOWLEDGED;
+        assert store.replayNext() == ReplayStatus.VERSION_GAP;
+        assert store.authoritative("profile:7").version() == 2;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -1044,7 +1292,11 @@ public final class ConsistencyContracts {
         admissionScenarios();
         twoLevelInvalidationScenarios();
         cacheKeyScopeScenarios();
-        System.out.println("PASS 24 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope");
+        cacheAsideRaceScenarios();
+        readThroughScenarios();
+        writeThroughRepairScenarios();
+        writeBehindScenarios();
+        System.out.println("PASS 28 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay");
     }
 }
 

@@ -1187,6 +1187,197 @@ Accessed 2026-10-17.
 37. [Memcached documentation](https://docs.memcached.org/) and [FAQ](https://docs.memcached.org/userguide/faq/): client-side routing, disconnected servers, lack of replication, ephemeral failure semantics, and network round-trip costs.
 38. [Guava cache guide](https://github.com/google/guava/wiki/cachesexplained): local cache population, size/time eviction, maintenance timing, and removal-listener behavior.
 
+# Section 7 — Four read/write strategies: ownership, acknowledgement, and repair
+
+Cache-aside, read-through, write-through, and write-behind are not interchangeable labels for “use a cache.” Each chooses who loads or writes, which component acknowledges success, and what must happen after a partial failure. The database remains authoritative in the first three strategies described here. Write-behind is safe only when a durable queue or log—not volatile cache memory—owns every acknowledged write until the database applies it.
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. name the authority, acknowledgement boundary, freshness target, and repair owner for each strategy;
+2. reproduce the cache-aside stale-resurrection race and reject an obsolete fill with a generation or version fence;
+3. distinguish “not found” from “load failed” in a read-through API and limit same-key load coalescing to its actual scope;
+4. handle database success followed by cache failure without claiming the entire write failed; and
+5. design write-behind around durable enqueue-before-acknowledge, idempotent ordered replay, and explicit backpressure.
+
+| Strategy | Read miss owner | Write/acknowledgement boundary | Required failure contract |
+|---|---|---|---|
+| Cache-aside | application reads authority, then attempts publication | database commit is durable; cache deletion/update is separate | obsolete fills cannot republish; cache failure degrades performance/freshness, not authority |
+| Read-through | cache abstraction invokes a loader | normally same as the application's database write path | loader failure is not absence; coalescing scope and negative-cache policy are explicit |
+| Write-through | miss still needs lazy/read-through loading | database commit, then cache mutation in this model | database success plus cache failure becomes “committed, repair pending” |
+| Write-behind | cache usually serves the newly accepted value | durable queue/log append before success is returned | bounded queue, idempotent consumer, per-key order/version checks, lag and poison-message handling |
+
+A useful review sentence is: **“This request is successful when ___ is durable; if the next step fails, ___ repairs it while reads follow ___.”** If those blanks are unclear, the strategy is incomplete.
+
+## Example 25 — cache-aside can resurrect a value after deletion
+
+Cache-aside usually reads `cache → database → cache` and writes `database commit → cache delete`. “Delete after commit” avoids invalidating for a transaction that later rolls back, but it does not close the race between a slow reader and a writer:
+
+| Step | Reader | Writer | Cache | Authority |
+|---:|---|---|---|---|
+| 1 | misses and starts reading | — | empty | v5 |
+| 2 | receives v5, pauses | commits v6 | empty | v6 |
+| 3 | still paused | deletes key | empty | v6 |
+| 4 | publishes its earlier result | — | **v5 resurrected** | v6 |
+
+```mermaid
+sequenceDiagram
+    participant R as Reader
+    participant C as Cache
+    participant D as Authority
+    participant W as Writer
+    R->>C: GET key -> miss
+    R->>D: read -> v5
+    W->>D: commit v6
+    W->>C: delete key
+    R->>C: unsafe SET v5
+    Note over C,D: cache regresses to v5 after invalidation
+```
+
+The executable `CacheAsideRace` reproduces that history, then repairs it with a per-key generation fence. A fill records the generation observed before loading and publishes only if the generation still matches and its version is not older than the authority:
+
+```java
+PendingFill fill = cache.beginMiss();       // captures v5, generation 0
+cache.commitAndInvalidate(v6);              // authority v6, generation 1
+boolean published = cache.publishIfCurrent(fill);
+assert !published;                          // obsolete v5 cannot reappear
+```
+
+An immutable key such as `article:7:v6` also prevents v5 from overwriting v6, provided the separately resolved “current version” pointer is itself coherent. A compare-and-set, server-side script, or shared generation record can fence a distributed cache. A JVM-local counter does not coordinate other nodes. If generation metadata expires, is evicted, or resets to an old value, the same number can reappear—the ABA problem—so the fence must be monotonic and at least as durable as the race window it protects.
+
+Delayed double-delete can reduce the probability that a slow fill survives, but the delay is a timing estimate, not a proof. TTL is also a bound from the **late insertion time**: if the stale fill lands 900 ms after the writer and receives a 30-second TTL, it may remain stale for almost another 30 seconds. Treat delete, expiry, and retry as repair tools unless a version/generation rule makes publication safe.
+
+## Example 26 — read-through must represent value, absence, and failure separately
+
+A read-through cache attaches the loader to the cache abstraction. Caffeine's population API can atomically compute an absent entry and offers synchronous and asynchronous loading caches. That removes duplicated loading code and can collapse compatible same-key work **inside that cache instance**; it does not turn twelve JVMs into one distributed single-flight.
+
+```mermaid
+flowchart TD
+    Q["same-key requests in JVM A"] --> L{"local entry or in-flight load?"}
+    L -->|present| V["return typed outcome"]
+    L -->|absent| O["invoke one bounded loader"]
+    O -->|value| P["cache value"]
+    O -->|missing| N["optional short negative entry"]
+    O -->|timeout/error| F["propagate failure; do not cache as missing"]
+```
+
+The loader result should be a sum type rather than a nullable value:
+
+```java
+enum LoadKind { VALUE, ABSENT, FAILURE }
+record LoadOutcome(LoadKind kind, CacheValue value) {}
+```
+
+The Java `ReadThroughModel` sends a wave of 20 same-JVM callers through one modeled loader call. A value is cached; an explicit `ABSENT` may be negatively cached for a deliberately short policy; `FAILURE` is never converted to absence or retained. The next wave after a timeout therefore calls the loader again and may recover.
+
+| Loader result | Client meaning | Cache action |
+|---|---|---|
+| `VALUE(v6)` | object exists | retain v6 under normal size/expiry policy |
+| `ABSENT` | authoritative lookup completed and found no object | optionally retain a short negative entry if creation visibility permits it |
+| `FAILURE(timeout)` | existence is unknown | surface/fallback according to policy; do not turn outage into a false 404 |
+
+Bound the loader by timeout, origin concurrency, and caller deadline. Observe value, absence, failure, timeout, coalesced-waiter count, and load duration separately. Cross-JVM stampede control needs a shared lease/coordinator or an authority designed for the aggregate concurrency; a local `CacheLoader` is not that coordinator.
+
+## Example 27 — write-through has a committed-but-not-cached outcome
+
+In this guide, write-through means `commit authority → update or invalidate cache`. The order preserves the database as authority. It also creates an unavoidable partial-failure state because an ordinary SQL transaction and a remote cache command do not share one atomic commit:
+
+| Step | Result |
+|---:|---|
+| 1 | operation `op-article-6` commits v6 in the database |
+| 2 | cache write times out; its outcome may itself be unknown |
+| 3 | old cache still contains v5 |
+| 4 | service records a durable repair task and marks the key's coherence degraded |
+| 5 | reads for that key route to the authority until idempotent repair installs v6 |
+
+```mermaid
+flowchart TD
+    W["write with operation ID"] --> D{"database commit"}
+    D -->|failed| X["rollback / report not committed"]
+    D -->|succeeded| C{"cache mutation"}
+    C -->|succeeded| S["committed and cached"]
+    C -->|failed or unknown| R["durable repair + degraded key"]
+    R --> A["read authority until repair catches up"]
+```
+
+The executable `WriteThroughStore` returns `COMMITTED_REPAIR_QUEUED`, not a generic error implying “nothing happened.” It preserves the operation ID and desired version in a repair outbox, routes reads to the authority while the key is degraded, and makes replay idempotent:
+
+```java
+WriteThroughStatus status = store.write(
+    "op-article-6", "article:7", v6, true); // inject cache failure
+assert status == COMMITTED_REPAIR_QUEUED;
+assert store.read("article:7").version() == 6;
+store.replayRepair("op-article-6");
+store.replayRepair("op-article-6");          // duplicate is harmless
+```
+
+A transactional outbox written in the same database transaction as the business change is a common durable hand-off. Debezium's outbox event router documents a unique event ID for duplicate removal and uses the aggregate ID as the message key, which is important for partition ordering. Cache repair consumers should still compare versions because delivery can be duplicated, delayed, or reordered around deployment and recovery.
+
+Do not blindly retry the whole client operation after an unknown response: the database may already contain v6. Query by operation ID or return a status endpoint. Also do not promise “cache is never stale” merely because the happy-path diagram has two arrows; that promise requires a defined partial-failure and read-routing contract.
+
+## Example 28 — write-behind begins with a durable queue, not a dirty map
+
+Write-behind acknowledges before the database applies the mutation. Therefore the acknowledged write must first survive process and cache-node loss. A volatile map plus a background thread is data loss with a delay; the safe boundary is a replicated durable queue/log or an equivalent persistent journal.
+
+```mermaid
+flowchart TD
+    Q["write op ID + key version"] --> B{"durable queue has capacity?"}
+    B -->|no| R["reject / backpressure; do not acknowledge"]
+    B -->|yes| A["append durably, expose value, acknowledge"]
+    A --> P["partitioned per-key worker"]
+    P --> I{"duplicate or next version?"}
+    I -->|duplicate| K["skip idempotently"]
+    I -->|next| D["apply database transaction"]
+    I -->|gap| G["pause key and repair/replay"]
+```
+
+The `WriteBehindStore` uses a bounded durable-queue model. It acknowledges only after enqueue, exposes the newest accepted version in the cache, rejects when capacity is full, deduplicates by operation ID, and requires the next per-key version at replay. Its trace accepts versions 1 and 2 plus a duplicate retry, rejects a fourth request while the queue is full, applies 1 then 2, skips the duplicate, and detects a later version-4 gap rather than silently jumping over version 3.
+
+| Queue condition | Correct behavior | Incorrect shortcut |
+|---|---|---|
+| full or unavailable | block within a deadline or reject before acknowledgement | accept into process memory and hope |
+| duplicate operation ID | return prior result or skip replay | apply mutation twice |
+| version gap/out-of-order key | pause that key, replay/repair, alert | overwrite the authority with whichever arrived last |
+| poison record | bounded retries, quarantine, preserve visibility | spin forever and block the whole partition invisibly |
+| lag above freshness/SLO bound | shed writes, increase workers safely, or degrade feature | let an unbounded backlog become recovery time |
+
+Kafka's producer configuration documents idempotent writes and ordering constraints for retries. Those producer guarantees do not make a database consumer idempotent: the worker still needs an operation-ID uniqueness rule or version-checked database mutation. Coalescing several queued assignments into the latest value is valid only when intermediate states are semantically disposable; increments, inventory reservations, audit transitions, and notifications usually are not.
+
+## Strategy selection, operations, and review
+
+Choose from the contract, not the shortest diagram:
+
+- Use cache-aside when selective population and simple ownership matter and bounded staleness is acceptable, but fence publication when an obsolete fill can violate the freshness requirement.
+- Use read-through when central loader behavior and typed miss/failure handling improve consistency, while documenting whether coalescing is local or distributed.
+- Use write-through when a hotter post-write cache justifies extra write latency, and make “database committed, cache repair pending” a first-class outcome.
+- Use write-behind only when lower foreground latency or write coalescing justifies durable-queue operations, replay semantics, and the period in which the cache/log is ahead of the database.
+
+Monitor by state transition: stale-publication rejections, generation/version regressions, loader calls and coalesced waiters, negative-cache hits, load failures by cause, database-commit/cache-failure outcomes, repair backlog age, degraded-key reads, durable-queue depth/bytes/oldest age, enqueue rejections, replay duplicates, version gaps, poison records, per-key lag, and database apply latency.
+
+Review questions:
+
+- What exact component is authoritative before and after acknowledgement?
+- Can a late fill publish an older value after an invalidation?
+- Does “not found” mean a completed authoritative lookup or a swallowed timeout?
+- Is same-key coalescing per thread, JVM, cache cluster, or fleet?
+- How does the caller learn that the database committed but the cache did not?
+- Where is repair intent durable, and what makes replay idempotent?
+- Does write-behind preserve per-key order and detect missing versions?
+- What happens before acknowledgement when the queue is full?
+- Is coalescing legal for this business mutation, or are intermediate states meaningful?
+- Which metrics prove the cache can still be deleted or rebuilt without losing acknowledged business data?
+
+### Primary references for Section 7
+
+Accessed 2026-10-17.
+
+39. [AWS Database Caching Strategies Using Redis — caching patterns](https://docs.aws.amazon.com/whitepapers/latest/database-caching-strategies-using-redis/caching-patterns.html): cache-aside retrieval order, database-first write-through population, combined lazy loading, and expiry guidance.
+40. [Amazon ElastiCache caching strategies](https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/Strategies.html): lazy-loading miss steps, write-through steps and costs, empty-node behavior, and TTL limits.
+41. [Caffeine population](https://github.com/ben-manes/caffeine/wiki/Population): atomic compute-if-absent, synchronous/asynchronous loading caches, computation failure behavior, and bulk-loading APIs.
+42. [Debezium outbox event router](https://debezium.io/documentation/reference/transformations/outbox-event-router.html): durable outbox capture, event IDs for deduplication, aggregate keys, and ordering relevance.
+43. [Apache Kafka 4.0 producer configuration](https://kafka.apache.org/40/configuration/producer-configs/): idempotent producer requirements, retry duplication risk, and ordering constraints for in-flight requests.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -1194,8 +1385,8 @@ Accessed 2026-10-17.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; and lines **357–396**, “Local, distributed, and two-level caches”
-- Deliberate continuation: Section 7, “Four read/write strategies,” begins at source line **397** and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; and lines **397–493**, “Four read/write strategies”
+- Deliberate continuation: Section 8, “Eviction internals: LRU, LFU, FIFO and 2Q,” is source lines **494–556**, bounded by the Section 9 heading, and remains unprocessed.
 
 Validation commands:
 
