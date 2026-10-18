@@ -3879,6 +3879,242 @@ Accessed 2026-10-18.
 109. [Connector/J security properties](https://dev.mysql.com/doc/connector-j/en/connector-j-connp-props-security.html): `sslMode`, certificate/hostname verification, trust stores, `serverRSAPublicKeyFile`, and default-disabled `allowPublicKeyRetrieval`.
 
 
+# Section 19 — From connection to prepared query
+
+Once a physical session reaches `ReadyForQuery`, JDBC calls still have to become protocol messages, server objects and result rows. `PreparedStatement` is the application API; it does not promise that every call creates or reuses a named server-side prepared statement. With pgJDBC, the PreparedStatement API normally uses PostgreSQL's extended-query protocol, initially through an unnamed statement. Repeated executions can cross `prepareThreshold` and become a named server-prepared statement.
+
+```mermaid
+sequenceDiagram
+    participant A as Java application
+    participant J as pgJDBC
+    participant P as PostgreSQL
+    A->>J: prepareStatement(sql)
+    A->>J: setLong(1, tenantId); setTimestamp(2, cutoff)
+    J->>P: Parse when required
+    J->>P: Bind values and result formats
+    J->>P: Describe portal when metadata is required
+    J->>P: Execute portal
+    P-->>J: RowDescription and DataRow batches
+    J->>P: Sync
+    P-->>J: CommandComplete and ReadyForQuery
+    J-->>A: ResultSet rows
+```
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. distinguish JDBC `PreparedStatement`, PostgreSQL extended-query messages, unnamed statements, named prepared statements and portals;
+2. narrate `Parse → Bind → Describe → Execute → Sync` and identify the exact resynchronization point after an error;
+3. explain why bound values are separated from SQL syntax while dynamic table, column and direction choices still require an allowlist;
+4. predict when pgJDBC uses an unnamed extended statement versus a named server-prepared statement;
+5. explain why server preparation is connection-local and can conflict with transaction-pooling proxies or result-shape-changing DDL;
+6. derive when `fetchSize` creates cursor-backed incremental retrieval and when rows are buffered instead;
+7. close `ResultSet`, statement, transaction and pooled connection lease in a failure-safe order; and
+8. locate failures using the last completed network, authentication, initialization, borrow, query or commit stage.
+
+## Example 73 — separate JDBC API choice from pgJDBC query mode
+
+`prepareStatement(...)` is not equivalent to “the server already owns a durable named plan.” pgJDBC uses the extended protocol for `PreparedStatement`; before the threshold it can repeatedly replace an unnamed statement. At the threshold (five executions by default), it can create a named prepared statement whose handle, plan and metadata may be reused on that physical connection.
+
+```java
+assert pgQueryMode(false, 0, 5, false) == PgQueryMode.SIMPLE_QUERY;
+assert pgQueryMode(true, 0, 5, false) == PgQueryMode.UNNAMED_EXTENDED;
+assert pgQueryMode(true, 3, 5, false) == PgQueryMode.UNNAMED_EXTENDED;
+assert pgQueryMode(true, 4, 5, false) == PgQueryMode.NAMED_PREPARED;
+
+// Disables named server preparation, not the PreparedStatement API itself.
+assert pgQueryMode(true, 99, 0, false) == PgQueryMode.UNNAMED_EXTENDED;
+```
+
+Trace for a threshold of five:
+
+| Application execution | Protocol statement identity | Parse text sent? | Reusable server object afterward? |
+|---:|---|---|---|
+| 1 | unnamed | yes | replaced by a later unnamed `Parse` |
+| 2–4 | unnamed | yes per modeled execution | no stable named handle |
+| 5 | named, for example `S_1` | yes | yes, on this physical session |
+| 6+ | `S_1` | normally no new `Parse` | bind/execute can reuse handle, plan and metadata |
+
+```mermaid
+stateDiagram-v2
+    [*] --> JDBCPrepared
+    JDBCPrepared --> UnnamedExtended: execution below threshold
+    UnnamedExtended --> UnnamedExtended: replace unnamed statement
+    UnnamedExtended --> NamedPrepared: threshold reached
+    NamedPrepared --> NamedPrepared: reuse on same physical session
+    NamedPrepared --> Invalid: DDL changes result shape
+    NamedPrepared --> Gone: physical session closes
+```
+
+This optimization trades memory for fewer SQL-text/metadata transfers and possible plan reuse. pgJDBC bounds its per-connection statement cache; a large pool multiplies both driver-side and server-side prepared-state cost. Use explicit projection columns rather than `SELECT *` when DDL might change a cached result shape. With a transaction-pooling proxy, verify that named prepared statements are tracked safely or disable named server preparation rather than assuming the next logical checkout reaches the same backend session.
+
+## Example 74 — model the extended-query cycle and its error boundary
+
+The extended protocol gives distinct lifetimes to statements and portals. `Parse` creates a statement. `Bind` combines a statement with parameter values and result-format choices to create a portal. `Execute` runs that portal. A nonzero maximum row count can end with `PortalSuspended`; another `Execute` continues it. `Sync` ends the command segment and produces `ReadyForQuery`.
+
+```java
+ExtendedQueryCycle first = extendedQueryCycle(false, true, 0);
+assert first.frontendMessages().equals(List.of(
+        "Parse", "Bind", "Describe portal", "Execute(maxRows=0)", "Sync"));
+assert first.readyForQueryAfterSync();
+
+ExtendedQueryCycle pagedReuse = extendedQueryCycle(true, false, 50);
+assert !pagedReuse.frontendMessages().contains("Parse");
+assert pagedReuse.possibleExecuteTerminals().contains("PortalSuspended");
+```
+
+| Message | Creates/uses | Important outcome |
+|---|---|---|
+| `Parse` | prepared-statement object | `ParseComplete` or `ErrorResponse` |
+| `Bind` | portal plus parameter values | `BindComplete` or `ErrorResponse` |
+| `Describe portal` | result metadata request | `RowDescription`, `NoData`, or error |
+| `Execute` | runs portal | rows then `CommandComplete`, `PortalSuspended`, or error |
+| `Sync` | recovery/transaction boundary | exactly one `ReadyForQuery` for the sync |
+
+```mermaid
+flowchart TD
+    P["Parse statement"] --> B["Bind values into portal"]
+    B --> D["Describe portal"]
+    D --> E["Execute portal"]
+    E --> C{"execution terminal"}
+    C -->|CommandComplete| S["Sync"]
+    C -->|PortalSuspended| E
+    C -->|ErrorResponse| X["discard until Sync"]
+    X --> S
+    S --> R["ReadyForQuery with transaction status"]
+```
+
+After an extended-query error, PostgreSQL discards messages until `Sync`, then emits `ReadyForQuery`. Therefore `CommandComplete` is not the whole-cycle boundary, and an absent `CommandComplete` does not by itself prove which later pipelined commands ran. Track each `Sync` and its matching `ReadyForQuery`; for a pipeline, count synchronization points rather than assuming every command returns a completion message.
+
+## Example 75 — bind data values; allowlist SQL structure
+
+Binding prevents a value such as a tenant ID or timestamp from being parsed as SQL syntax. It does not make arbitrary identifiers safe: a placeholder occupies a parameter/value position, not a table name, column name, keyword or `ASC`/`DESC` token. Select structural fragments from code-owned allowlists and keep user data in placeholders.
+
+```java
+String sql = safeOrderQuery("total_cents", true);
+assert sql.equals("SELECT id, total_cents FROM orders "
+        + "WHERE tenant_id = ? AND created_at >= ? ORDER BY total_cents DESC");
+
+try {
+    safeOrderQuery("total_cents DESC; DROP TABLE orders; --", true);
+    throw new AssertionError("unapproved identifier entered SQL text");
+} catch (IllegalArgumentException expected) {}
+```
+
+Corresponding JDBC use:
+
+```java
+try (PreparedStatement ps = connection.prepareStatement(sql)) {
+    ps.setLong(1, tenantId);
+    ps.setObject(2, cutoffInstant);
+    try (ResultSet rs = ps.executeQuery()) {
+        while (rs.next()) {
+            consume(rs.getLong("id"), rs.getLong("total_cents"));
+        }
+    }
+}
+```
+
+```mermaid
+flowchart LR
+    U["request: sort field and values"] --> A{"structure allowlisted?"}
+    A -->|no| R["reject request"]
+    A -->|yes| Q["assemble fixed SQL shape"]
+    Q --> B["Bind tenant and cutoff values"]
+    B --> P["Parse SQL; values stay data"]
+```
+
+The allowlist lookup is `O(1)` average time for a fixed hash set. The security invariant matters more than that cost: no request-controlled text reaches an identifier or grammar slot unless it maps to one exact code-owned fragment. Also bind with a type-specific setter when practical; type ambiguity can change inferred parameter types and prepared-plan reuse.
+
+## Example 76 — fetch incrementally and close in ownership order
+
+A returned `ResultSet` does not prove constant-memory retrieval. In pgJDBC, cursor-backed fetching requires a positive fetch size, autocommit disabled, and a forward-only result set. The default fetch size of zero buffers all rows. A fetch size without the other preconditions is not a streaming guarantee.
+
+```java
+FetchPlan buffered = fetchPlan(true, true, 0, 10_000, 200, true);
+assert buffered.mode() == RetrievalMode.BUFFER_ALL_DEFAULT;
+assert buffered.estimatedPeakPayloadBytes() == 2_000_000;
+
+FetchPlan cursor = fetchPlan(false, true, 250, 10_000, 200, true);
+assert cursor.mode() == RetrievalMode.CURSOR_BATCHED;
+assert cursor.estimatedPeakPayloadBytes() == 50_000;
+assert cursor.executeCycles() == 40;
+```
+
+The payload estimate is a lower-bound teaching model: `rows held × average row bytes`. Driver objects, decoded strings, TLS/network buffers and application collections add memory. Smaller fetch batches reduce live row payload but increase `Execute`/response cycles; choose a size through load tests, latency targets and row-width measurements.
+
+Failure-safe resource structure:
+
+```java
+try (Connection connection = dataSource.getConnection()) {
+    connection.setAutoCommit(false);
+    try (PreparedStatement ps = connection.prepareStatement(sql)) {
+        ps.setFetchSize(250);
+        try (ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) consume(rs);
+        }
+        connection.commit();
+    } catch (SQLException | RuntimeException failure) {
+        connection.rollback();
+        throw failure;
+    }
+} // returns the logical lease only after result, statement and transaction cleanup
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Application
+    participant J as pgJDBC
+    participant P as PostgreSQL portal
+    A->>J: executeQuery with fetchSize 250
+    J->>P: Execute maxRows 250
+    P-->>J: 250 rows plus PortalSuspended
+    loop while rows remain
+        J->>P: Execute maxRows 250
+        P-->>J: next batch or CommandComplete
+    end
+    A->>J: close ResultSet and statement
+    A->>J: commit or rollback
+    A->>J: close pooled connection lease
+```
+
+`ResultSet.close()` releases JDBC/database resources promptly; closing or re-executing its generating statement also closes it automatically. Explicit nested scopes still make the ownership boundary reviewable and keep rollback inside the outer connection scope before the lease returns to the pool.
+
+## Failure-location map and review
+
+| Last successful stage | Candidate causes | Safe first evidence |
+|---|---|---|
+| name resolution | wrong endpoint, resolver timeout | resolved addresses and configured host |
+| TCP SYN sent | firewall, route, listener, accept pressure | timed socket attempt and server accept telemetry |
+| TCP established | TLS policy or certificate mismatch | negotiated protocol, trust and hostname result |
+| TLS established | account policy, password, SCRAM/plugin mismatch | authentication method and server auth log without secrets |
+| authentication passed | bad initialization SQL or unsupported setting | initialization SQLSTATE and proxy pooling mode |
+| borrow succeeded, query failed | permission, syntax, constraint, lock timeout, stale socket | SQLSTATE, transaction state and query correlation ID |
+| `COMMIT` sent, response absent | durable outcome unknown | operation-ID/status reconciliation; never blind replay |
+
+Review questions:
+
+- Is the code discussing a JDBC object, an unnamed protocol statement, a named server statement or a portal?
+- At which execution does `prepareThreshold` create named prepared state, and on which physical connection does it live?
+- Can a transaction-pooling proxy preserve or track that state?
+- Are all request-controlled values bound, and are every dynamic identifier/direction choices allowlisted?
+- Does an error path still send/reach `Sync` and observe `ReadyForQuery` before reuse?
+- Does incremental retrieval satisfy all three pgJDBC cursor conditions: autocommit off, forward-only result, positive fetch size?
+- Are row width, batch count and peak application memory measured rather than inferred from `ResultSet` alone?
+- Are result, statement, transaction and pooled lease closed or resolved in that ownership order?
+
+### Primary references for Section 19
+
+Accessed 2026-10-18.
+
+110. [PostgreSQL 18 frontend/backend message flow](https://www.postgresql.org/docs/current/protocol-flow.html): extended-query `Parse`, `Bind`, portals, `Execute`, `PortalSuspended`, `Sync`, error discard and `ReadyForQuery` semantics.
+111. [pgJDBC server-prepared statements](https://jdbc.postgresql.org/documentation/server-prepare/): extended protocol for `PreparedStatement`, default `prepareThreshold`, named-statement reuse, binary transfer, per-connection cache limits and DDL/result-shape caveats.
+112. [pgJDBC query and result processing](https://jdbc.postgresql.org/documentation/query/): cursor requirements, positive fetch size, autocommit-off and forward-only result behavior.
+113. [Java 17 `PreparedStatement`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/PreparedStatement.html): prepared statement API, typed parameter binding, execution and metadata contracts.
+114. [Java 17 `ResultSet`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/ResultSet.html): cursor movement, prompt close behavior, statement-owned automatic closure and holdability.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -3886,8 +4122,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; and lines **907–941**, “MySQL has a different authentication order”
-- Deliberate continuation: Section 19, “From connection to prepared query,” spans source lines **942–974** and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; and lines **942–974**, “From connection to prepared query”
+- Deliberate continuation: Section 20, “Explicit production contract,” spans source lines **975–1090** and remains unprocessed.
 
 Validation commands:
 

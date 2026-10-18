@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-18. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-19. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -2162,6 +2162,96 @@ public final class ConsistencyContracts {
         return List.copyOf(mismatches);
     }
 
+    enum PgQueryMode { SIMPLE_QUERY, UNNAMED_EXTENDED, NAMED_PREPARED }
+
+    static PgQueryMode pgQueryMode(
+            boolean preparedStatementApi,
+            int completedExecutions,
+            int prepareThreshold,
+            boolean forceSimple) {
+        if (completedExecutions < 0 || prepareThreshold < 0) {
+            throw new IllegalArgumentException("execution counts cannot be negative");
+        }
+        if (forceSimple || !preparedStatementApi) return PgQueryMode.SIMPLE_QUERY;
+        if (prepareThreshold == 0 || completedExecutions + 1 < prepareThreshold) {
+            return PgQueryMode.UNNAMED_EXTENDED;
+        }
+        return PgQueryMode.NAMED_PREPARED;
+    }
+
+    record ExtendedQueryCycle(
+            List<String> frontendMessages,
+            List<String> possibleExecuteTerminals,
+            boolean readyForQueryAfterSync) {}
+
+    static ExtendedQueryCycle extendedQueryCycle(
+            boolean namedStatementAlreadyPrepared,
+            boolean describePortal,
+            int maximumRows) {
+        if (maximumRows < 0) throw new IllegalArgumentException("maximumRows cannot be negative");
+        List<String> frontend = new ArrayList<>();
+        if (!namedStatementAlreadyPrepared) frontend.add("Parse");
+        frontend.add("Bind");
+        if (describePortal) frontend.add("Describe portal");
+        frontend.add("Execute(maxRows=" + maximumRows + ")");
+        frontend.add("Sync");
+        List<String> terminals = maximumRows == 0
+                ? List.of("CommandComplete", "EmptyQueryResponse", "ErrorResponse")
+                : List.of("CommandComplete", "PortalSuspended", "ErrorResponse");
+        return new ExtendedQueryCycle(List.copyOf(frontend), terminals, true);
+    }
+
+    private static final Set<String> SAFE_ORDER_COLUMNS =
+            Set.of("created_at", "id", "total_cents");
+
+    static String safeOrderQuery(String requestedColumn, boolean descending) {
+        if (!SAFE_ORDER_COLUMNS.contains(requestedColumn)) {
+            throw new IllegalArgumentException("unapproved SQL identifier");
+        }
+        return "SELECT id, total_cents FROM orders "
+                + "WHERE tenant_id = ? AND created_at >= ? ORDER BY "
+                + requestedColumn + (descending ? " DESC" : " ASC");
+    }
+
+    enum RetrievalMode {
+        BUFFER_ALL_DEFAULT,
+        BUFFER_ALL_CURSOR_INELIGIBLE,
+        CURSOR_BATCHED
+    }
+
+    record FetchPlan(
+            RetrievalMode mode,
+            long estimatedPeakPayloadBytes,
+            int executeCycles,
+            List<String> cleanupEvents) {}
+
+    static FetchPlan fetchPlan(
+            boolean autoCommit,
+            boolean forwardOnly,
+            int fetchSize,
+            int expectedRows,
+            int averageRowBytes,
+            boolean querySucceeded) {
+        if (fetchSize < 0 || expectedRows < 0 || averageRowBytes <= 0) {
+            throw new IllegalArgumentException("invalid fetch dimensions");
+        }
+        boolean cursorEligible = fetchSize > 0 && !autoCommit && forwardOnly;
+        RetrievalMode mode = cursorEligible
+                ? RetrievalMode.CURSOR_BATCHED
+                : fetchSize == 0
+                        ? RetrievalMode.BUFFER_ALL_DEFAULT
+                        : RetrievalMode.BUFFER_ALL_CURSOR_INELIGIBLE;
+        long rowsHeld = cursorEligible ? Math.min(fetchSize, expectedRows) : expectedRows;
+        long peakPayload = Math.multiplyExact(rowsHeld, averageRowBytes);
+        int cycles = cursorEligible && expectedRows > 0
+                ? Math.toIntExact((expectedRows + (long) fetchSize - 1) / fetchSize)
+                : 1;
+        List<String> cleanup = new ArrayList<>(List.of("close ResultSet", "close PreparedStatement"));
+        if (!autoCommit) cleanup.add(querySucceeded ? "commit transaction" : "rollback transaction");
+        cleanup.add("close pooled Connection lease");
+        return new FetchPlan(mode, peakPayload, cycles, List.copyOf(cleanup));
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -3237,6 +3327,58 @@ public final class ConsistencyContracts {
                 List.of("collation", "timeZone", "isolation"));
     }
 
+    private static void pgQueryModeScenarios() {
+        assert pgQueryMode(false, 0, 5, false) == PgQueryMode.SIMPLE_QUERY;
+        assert pgQueryMode(true, 0, 5, false) == PgQueryMode.UNNAMED_EXTENDED;
+        assert pgQueryMode(true, 3, 5, false) == PgQueryMode.UNNAMED_EXTENDED;
+        assert pgQueryMode(true, 4, 5, false) == PgQueryMode.NAMED_PREPARED;
+        assert pgQueryMode(true, 99, 5, true) == PgQueryMode.SIMPLE_QUERY;
+        assert pgQueryMode(true, 99, 0, false) == PgQueryMode.UNNAMED_EXTENDED;
+    }
+
+    private static void extendedQueryCycleScenarios() {
+        ExtendedQueryCycle first = extendedQueryCycle(false, true, 0);
+        assert first.frontendMessages().equals(List.of(
+                "Parse", "Bind", "Describe portal", "Execute(maxRows=0)", "Sync"));
+        assert first.possibleExecuteTerminals().equals(List.of(
+                "CommandComplete", "EmptyQueryResponse", "ErrorResponse"));
+        assert first.readyForQueryAfterSync();
+
+        ExtendedQueryCycle pagedReuse = extendedQueryCycle(true, false, 50);
+        assert !pagedReuse.frontendMessages().contains("Parse");
+        assert pagedReuse.possibleExecuteTerminals().contains("PortalSuspended");
+    }
+
+    private static void preparedBoundaryScenarios() {
+        String safe = safeOrderQuery("total_cents", true);
+        assert safe.endsWith("ORDER BY total_cents DESC");
+        assert safe.chars().filter(ch -> ch == '?').count() == 2;
+        try {
+            safeOrderQuery("total_cents DESC; DROP TABLE orders; --", true);
+            throw new AssertionError("unapproved identifier entered SQL text");
+        } catch (IllegalArgumentException expected) {}
+    }
+
+    private static void fetchAndLifecycleScenarios() {
+        FetchPlan buffered = fetchPlan(true, true, 0, 10_000, 200, true);
+        assert buffered.mode() == RetrievalMode.BUFFER_ALL_DEFAULT;
+        assert buffered.estimatedPeakPayloadBytes() == 2_000_000;
+        assert buffered.executeCycles() == 1;
+
+        FetchPlan cursor = fetchPlan(false, true, 250, 10_000, 200, true);
+        assert cursor.mode() == RetrievalMode.CURSOR_BATCHED;
+        assert cursor.estimatedPeakPayloadBytes() == 50_000;
+        assert cursor.executeCycles() == 40;
+        assert cursor.cleanupEvents().equals(List.of(
+                "close ResultSet", "close PreparedStatement", "commit transaction",
+                "close pooled Connection lease"));
+
+        FetchPlan rollback = fetchPlan(false, true, 250, 400, 200, false);
+        assert rollback.cleanupEvents().contains("rollback transaction");
+        assert fetchPlan(true, true, 250, 400, 200, true).mode()
+                == RetrievalMode.BUFFER_ALL_CURSOR_INELIGIBLE;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -3313,7 +3455,11 @@ public final class ConsistencyContracts {
         mysqlPluginNegotiationScenarios();
         cachingSha2Scenarios();
         mysqlSessionContractScenarios();
-        System.out.println("PASS 72 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract");
+        pgQueryModeScenarios();
+        extendedQueryCycleScenarios();
+        preparedBoundaryScenarios();
+        fetchAndLifecycleScenarios();
+        System.out.println("PASS 76 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle");
     }
 }
 
