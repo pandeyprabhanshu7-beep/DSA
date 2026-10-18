@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-21. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-22. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -2541,6 +2541,156 @@ public final class ConsistencyContracts {
         return new CacheAdmission(DegradedAdmission.REJECTED, redisAttempted, false);
     }
 
+    record MutableDocument(String id, long version, String body) {
+        MutableDocument {
+            if (id == null || id.isBlank() || version <= 0 || body == null) {
+                throw new IllegalArgumentException("valid document identity/version/body required");
+            }
+        }
+    }
+
+    record MutationEvent(String eventId, String aggregateId, long version, String body) {
+        MutationEvent {
+            if (eventId == null || eventId.isBlank()
+                    || aggregateId == null || aggregateId.isBlank()
+                    || version <= 0 || body == null) {
+                throw new IllegalArgumentException("valid outbox event required");
+            }
+        }
+    }
+
+    record CommittedMutation(MutableDocument document, MutationEvent event) {}
+
+    static CommittedMutation mutateWithOutbox(
+            MutableDocument current,
+            long expectedVersion,
+            String newBody,
+            String eventId,
+            boolean failBeforeCommit) {
+        Objects.requireNonNull(current, "current");
+        Objects.requireNonNull(newBody, "newBody");
+        if (current.version() != expectedVersion) {
+            throw new IllegalStateException("optimistic version conflict");
+        }
+        long nextVersion = Math.addExact(current.version(), 1);
+        MutableDocument stagedDocument =
+                new MutableDocument(current.id(), nextVersion, newBody);
+        MutationEvent stagedEvent =
+                new MutationEvent(eventId, current.id(), nextVersion, newBody);
+        if (failBeforeCommit) throw new InjectedFailure();
+        return new CommittedMutation(stagedDocument, stagedEvent);
+    }
+
+    enum DeliveryState { PENDING, CLAIMED, DELIVERED }
+
+    static final class DurableOutbox {
+        private static final class Delivery {
+            final MutationEvent event;
+            DeliveryState state = DeliveryState.PENDING;
+            String owner;
+
+            Delivery(MutationEvent event) { this.event = event; }
+        }
+
+        private final List<Delivery> rows = new ArrayList<>();
+
+        void append(MutationEvent event) {
+            Objects.requireNonNull(event, "event");
+            if (rows.stream().anyMatch(row -> row.event.eventId().equals(event.eventId()))) {
+                throw new IllegalArgumentException("duplicate event ID");
+            }
+            rows.add(new Delivery(event));
+        }
+
+        List<MutationEvent> claim(String worker, int limit) {
+            if (worker == null || worker.isBlank() || limit <= 0) {
+                throw new IllegalArgumentException("worker and positive limit required");
+            }
+            List<MutationEvent> claimed = new ArrayList<>();
+            for (Delivery row : rows) {
+                if (row.state == DeliveryState.PENDING && claimed.size() < limit) {
+                    row.state = DeliveryState.CLAIMED;
+                    row.owner = worker;
+                    claimed.add(row.event);
+                }
+            }
+            return List.copyOf(claimed);
+        }
+
+        boolean acknowledge(String worker, String eventId) {
+            Delivery row = requireEvent(eventId);
+            if (row.state != DeliveryState.CLAIMED || !Objects.equals(worker, row.owner)) {
+                return false;
+            }
+            row.state = DeliveryState.DELIVERED;
+            row.owner = null;
+            return true;
+        }
+
+        int recoverClaims(String failedWorker) {
+            int recovered = 0;
+            for (Delivery row : rows) {
+                if (row.state == DeliveryState.CLAIMED
+                        && Objects.equals(row.owner, failedWorker)) {
+                    row.state = DeliveryState.PENDING;
+                    row.owner = null;
+                    recovered++;
+                }
+            }
+            return recovered;
+        }
+
+        DeliveryState state(String eventId) { return requireEvent(eventId).state; }
+
+        private Delivery requireEvent(String eventId) {
+            return rows.stream()
+                    .filter(row -> row.event.eventId().equals(eventId))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("unknown event"));
+        }
+    }
+
+    enum EventApplication { APPLIED, DUPLICATE, STALE }
+
+    static final class VersionedCacheGeneration {
+        private final Set<String> seenEventIds = new HashSet<>();
+        private long generation;
+        private long cachedVersion;
+        private String cachedBody;
+
+        EventApplication apply(MutationEvent event) {
+            Objects.requireNonNull(event, "event");
+            if (!seenEventIds.add(event.eventId())) return EventApplication.DUPLICATE;
+            if (event.version() <= generation) return EventApplication.STALE;
+            generation = event.version();
+            if (cachedVersion < generation) {
+                cachedVersion = 0;
+                cachedBody = null;
+            }
+            return EventApplication.APPLIED;
+        }
+
+        boolean publishLoaded(long loadedVersion, String body) {
+            Objects.requireNonNull(body, "body");
+            if (loadedVersion < generation || loadedVersion < cachedVersion) return false;
+            cachedVersion = loadedVersion;
+            cachedBody = body;
+            return true;
+        }
+
+        long generation() { return generation; }
+        long cachedVersion() { return cachedVersion; }
+        String cachedBody() { return cachedBody; }
+    }
+
+    enum MutableReadPath { BYPASS_CACHE, VERSION_VALIDATED_CACHE }
+
+    static MutableReadPath mutableReadPath(boolean versionValidationEstablished) {
+        return versionValidationEstablished
+                ? MutableReadPath.VERSION_VALIDATED_CACHE
+                : MutableReadPath.BYPASS_CACHE;
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -3792,6 +3942,70 @@ public final class ConsistencyContracts {
         assert saturated.redisAttempted() && !saturated.databasePermitAcquired();
     }
 
+    private static void mutableRowOutboxTransactionScenarios() {
+        MutableDocument before = new MutableDocument("article-42", 7, "old");
+        CommittedMutation committed = mutateWithOutbox(
+                before, 7, "new", "event-8", false);
+        assert committed.document().version() == 8;
+        assert committed.event().version() == 8;
+        assert committed.event().aggregateId().equals(before.id());
+
+        try {
+            mutateWithOutbox(before, 7, "not committed", "event-fail", true);
+            throw new AssertionError("injected transaction failure did not fire");
+        } catch (InjectedFailure expected) {
+            assert before.version() == 7 && before.body().equals("old");
+        }
+        try {
+            mutateWithOutbox(before, 6, "lost update", "event-conflict", false);
+            throw new AssertionError("stale expected version accepted");
+        } catch (IllegalStateException expected) {}
+    }
+
+    private static void durableOutboxRelayScenarios() {
+        DurableOutbox outbox = new DurableOutbox();
+        outbox.append(new MutationEvent("e8", "article-42", 8, "v8"));
+        outbox.append(new MutationEvent("e9", "article-42", 9, "v9"));
+
+        assert outbox.claim("worker-a", 1).stream()
+                .map(MutationEvent::eventId).toList().equals(List.of("e8"));
+        assert outbox.claim("worker-b", 2).stream()
+                .map(MutationEvent::eventId).toList().equals(List.of("e9"));
+        assert !outbox.acknowledge("worker-b", "e8");
+        assert outbox.recoverClaims("worker-a") == 1;
+        assert outbox.claim("worker-c", 1).get(0).eventId().equals("e8");
+        assert outbox.acknowledge("worker-c", "e8");
+        assert outbox.state("e8") == DeliveryState.DELIVERED;
+    }
+
+    private static void monotonicCacheEventScenarios() {
+        VersionedCacheGeneration cache = new VersionedCacheGeneration();
+        assert cache.publishLoaded(7, "v7");
+        MutationEvent v9 = new MutationEvent("e9", "article-42", 9, "v9");
+        assert cache.apply(v9) == EventApplication.APPLIED;
+        assert cache.generation() == 9 && cache.cachedBody() == null;
+        assert cache.apply(v9) == EventApplication.DUPLICATE;
+
+        MutationEvent stale = new MutationEvent("e8", "article-42", 8, "v8");
+        assert cache.apply(stale) == EventApplication.STALE;
+        assert cache.generation() == 9;
+        assert cache.publishLoaded(9, "v9");
+        assert cache.cachedVersion() == 9 && cache.cachedBody().equals("v9");
+    }
+
+    private static void staleReaderFenceScenarios() {
+        VersionedCacheGeneration cache = new VersionedCacheGeneration();
+        assert cache.publishLoaded(7, "loaded before update");
+        assert cache.apply(new MutationEvent("e8", "article-42", 8, "v8"))
+                == EventApplication.APPLIED;
+        assert !cache.publishLoaded(7, "late stale publication");
+        assert cache.cachedBody() == null;
+        assert cache.publishLoaded(8, "current publication");
+
+        assert mutableReadPath(false) == MutableReadPath.BYPASS_CACHE;
+        assert mutableReadPath(true) == MutableReadPath.VERSION_VALIDATED_CACHE;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -3880,7 +4094,11 @@ public final class ConsistencyContracts {
         ownerCheckedPublicationScenarios();
         cacheAsideCoordinatorScenarios();
         cooldownAndBulkheadScenarios();
-        System.out.println("PASS 84 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead");
+        mutableRowOutboxTransactionScenarios();
+        durableOutboxRelayScenarios();
+        monotonicCacheEventScenarios();
+        staleReaderFenceScenarios();
+        System.out.println("PASS 88 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing");
     }
 }
 

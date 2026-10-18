@@ -4634,6 +4634,261 @@ Accessed 2026-10-18.
 126. [Reactor threading and schedulers](https://projectreactor.io/docs/core/release/reference/coreFeatures/schedulers.html): execution context, bounded elastic work and the non-blocking scheduler boundary.
 
 
+# Section 22 — If you cache mutable rows instead
+
+Immutable revision keys make stale overwrite impossible because version 7 and version 8 have different identities. A mutable key such as `cms:article:{tenant|article}` removes that protection. Correctness now needs three durable facts: the database row's version, an outbox event committed with the update, and a cache generation that never moves backward.
+
+```mermaid
+flowchart TD
+    W["writer"] --> TX["one DB transaction"]
+    TX --> ROW["row body + version"]
+    TX --> OUT["durable outbox event"]
+    OUT --> RELAY["claim, publish, acknowledge"]
+    RELAY --> GEN["advance cache generation"]
+    GEN --> FENCE["reject older reader publication"]
+```
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. update a mutable row with optimistic version checking and insert its uniquely identified outbox event in the **same** database transaction;
+2. explain why “update database, then publish an event” and best-effort pub/sub both have crash windows;
+3. claim queue-like outbox rows concurrently without treating `SKIP LOCKED` as a general consistent read;
+4. recover abandoned claims from durable state and acknowledge only the worker that owns a claim;
+5. make duplicate and out-of-order events harmless by advancing the cache generation monotonically;
+6. prevent an in-flight reader that loaded version 7 from repopulating a cache after version 8 invalidated it;
+7. distinguish cache invalidation from generation-aware publication; and
+8. bypass the mutable cache when strict correctness is required but version validation is not yet established.
+
+The four examples below are executable in `ConsistencyContracts.java` and raise the suite from 84 to 88 scenario groups.
+
+## Example 85 — commit the row and outbox event together
+
+The writer uses compare-and-set semantics: update only when the stored version equals the caller's expected version, increment it, return the new version, then insert one outbox event before committing. Zero updated rows means a version conflict, not success. A failure before commit leaves neither the new row nor the event visible.
+
+```java
+MutableDocument before = new MutableDocument("article-42", 7, "old");
+CommittedMutation committed = mutateWithOutbox(
+        before, 7, "new", "event-8", false);
+assert committed.document().version() == 8;
+assert committed.event().version() == 8;
+
+try {
+    mutateWithOutbox(before, 7, "not committed", "event-fail", true);
+} catch (InjectedFailure expected) {
+    assert before.version() == 7 && before.body().equals("old");
+}
+```
+
+```sql
+CREATE TABLE article (
+    tenant_id UUID NOT NULL,
+    article_id UUID NOT NULL,
+    version BIGINT NOT NULL CHECK (version > 0),
+    body TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, article_id)
+);
+
+CREATE TABLE cache_outbox (
+    event_id UUID PRIMARY KEY,
+    aggregate_key TEXT NOT NULL,
+    aggregate_version BIGINT NOT NULL CHECK (aggregate_version > 0),
+    event_type TEXT NOT NULL,
+    payload JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    claimed_by TEXT,
+    claim_until TIMESTAMPTZ,
+    delivered_at TIMESTAMPTZ
+);
+CREATE INDEX cache_outbox_pending
+    ON cache_outbox (created_at, event_id)
+    WHERE delivered_at IS NULL;
+```
+
+```java
+CommittedMutation updateArticle(
+        UUID tenant, UUID article, long expectedVersion, String body, UUID eventId) {
+    return transactionTemplate.execute(status -> {
+        List<Long> versions = jdbc.query(
+            """
+            UPDATE article
+               SET body = ?, version = version + 1
+             WHERE tenant_id = ? AND article_id = ? AND version = ?
+             RETURNING version
+            """,
+            (rs, row) -> rs.getLong(1), body, tenant, article, expectedVersion);
+        if (versions.size() != 1) throw new OptimisticConflict();
+        long version = versions.get(0);
+        jdbc.update(
+            """
+            INSERT INTO cache_outbox
+              (event_id, aggregate_key, aggregate_version, event_type, payload)
+            VALUES (?, ?, ?, 'article-updated', jsonb_build_object('version', ?))
+            """,
+            eventId, tenant + "|" + article, version, version);
+        return new CommittedMutation(
+            new MutableDocument(article.toString(), version, body),
+            new MutationEvent(eventId.toString(), article.toString(), version, body));
+    });
+}
+```
+
+Do not catch the outbox insert failure and commit the article anyway. The unique `event_id` gives downstream consumers a deduplication key; the aggregate key keeps related events ordered when a broker supports keyed partitioning. Debezium's outbox event router likewise defines a unique event ID and aggregate key, and expects outbox records to be inserts.
+
+| Failure point | Row visible? | Event visible? | Required result |
+|---|---:|---:|---|
+| version predicate matches, all statements commit | yes, version 8 | yes, version 8 | relay may proceed |
+| stale expected version | no change | no | report conflict |
+| event insert fails | no change | no | roll back transaction |
+| process dies after commit | yes | yes | recovered relay resumes |
+
+## Example 86 — claim durably, skip work owned by another relay
+
+Multiple relays can claim different pending events with `FOR UPDATE SKIP LOCKED`. PostgreSQL explicitly describes this as useful for queue-like tables and unsuitable for a general consistent view. Keep the claim transaction short: mark ownership and a lease deadline, commit, perform the external cache call, then acknowledge in another transaction only if ownership still matches.
+
+```sql
+WITH candidates AS (
+    SELECT event_id
+      FROM cache_outbox
+     WHERE delivered_at IS NULL
+       AND (claim_until IS NULL OR claim_until < clock_timestamp())
+     ORDER BY created_at, event_id
+     FOR UPDATE SKIP LOCKED
+     LIMIT 50
+)
+UPDATE cache_outbox AS o
+   SET claimed_by = :worker,
+       claim_until = clock_timestamp() + interval '30 seconds'
+  FROM candidates AS c
+ WHERE o.event_id = c.event_id
+RETURNING o.event_id, o.aggregate_key, o.aggregate_version, o.payload;
+```
+
+```java
+DurableOutbox outbox = new DurableOutbox();
+outbox.append(new MutationEvent("e8", "article-42", 8, "v8"));
+outbox.append(new MutationEvent("e9", "article-42", 9, "v9"));
+
+assert outbox.claim("worker-a", 1).get(0).eventId().equals("e8");
+assert outbox.claim("worker-b", 2).get(0).eventId().equals("e9");
+assert outbox.recoverClaims("worker-a") == 1;
+assert outbox.claim("worker-c", 1).get(0).eventId().equals("e8");
+assert outbox.acknowledge("worker-c", "e8");
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Relay A
+    participant DB as PostgreSQL outbox
+    participant B as Relay B
+    participant C as Cache
+    A->>DB: claim e8; commit
+    B->>DB: claim skips e8, gets e9; commit
+    A-xC: crashes before acknowledgement
+    Note over DB: e8 claim lease expires
+    B->>DB: reclaim e8
+    B->>C: repeat version-aware operation
+    B->>DB: acknowledge if owner still B
+```
+
+Exactly-once delivery is not required here. A crash after the cache operation but before acknowledgement causes redelivery; idempotent handling makes that safe. Monitor oldest pending age, claim age, attempts and dead-letter count—not only queue depth.
+
+## Example 87 — duplicates and stale events cannot move generation backward
+
+The cache maintains a generation per mutable aggregate. Applying event 9 advances the generation and invalidates any older cached body. Reapplying the same event is a duplicate; receiving event 8 afterward is stale. Neither may lower generation 9.
+
+```java
+VersionedCacheGeneration cache = new VersionedCacheGeneration();
+assert cache.publishLoaded(7, "v7");
+
+MutationEvent v9 = new MutationEvent("e9", "article-42", 9, "v9");
+assert cache.apply(v9) == EventApplication.APPLIED;
+assert cache.generation() == 9 && cache.cachedBody() == null;
+assert cache.apply(v9) == EventApplication.DUPLICATE;
+
+MutationEvent v8 = new MutationEvent("e8", "article-42", 8, "v8");
+assert cache.apply(v8) == EventApplication.STALE;
+assert cache.generation() == 9;
+```
+
+One Redis script can compare and advance generation atomically:
+
+```lua
+-- KEYS[1] generation, KEYS[2] mutable value; ARGV[1] fixed-width version
+local current = redis.call('GET', KEYS[1]) or '00000000000000000000'
+if ARGV[1] <= current then return 0 end
+redis.call('SET', KEYS[1], ARGV[1])
+redis.call('DEL', KEYS[2])
+return 1
+```
+
+Encode nonnegative `BIGINT` versions as identical-width decimal strings before lexical comparison. Do not use Lua `tonumber` for arbitrary 64-bit versions: Lua 5.1 numbers are doubles and cannot represent every integer above \(2^{53}\) exactly. Pass both keys explicitly and place them in the same Redis Cluster hash slot. The event operation is `O(1)`; the durable relay, not Redis pub/sub, owns replay progress.
+
+| Incoming event | Stored generation | Result | New generation |
+|---:|---:|---|---:|
+| 9 / new ID | 7 | apply and invalidate value | 9 |
+| 9 / same ID | 9 | duplicate no-op | 9 |
+| 8 / unseen ID | 9 | stale no-op | 9 |
+| 10 / new ID | 9 | apply and invalidate value | 10 |
+
+## Example 88 — invalidation alone does not fence an in-flight reader
+
+Reader R can load version 7, pause, then race an update to version 8. Deleting the value on the version-8 event is insufficient: R can wake afterward and put version 7 back. Publication must include the loaded version and atomically compare it with the current generation.
+
+```java
+VersionedCacheGeneration cache = new VersionedCacheGeneration();
+assert cache.publishLoaded(7, "loaded before update");
+assert cache.apply(new MutationEvent("e8", "article-42", 8, "v8"))
+        == EventApplication.APPLIED;
+assert !cache.publishLoaded(7, "late stale publication");
+assert cache.cachedBody() == null;
+assert cache.publishLoaded(8, "current publication");
+
+assert mutableReadPath(false) == MutableReadPath.BYPASS_CACHE;
+```
+
+```mermaid
+sequenceDiagram
+    participant R as Reader R
+    participant DB as PostgreSQL
+    participant O as Outbox relay
+    participant C as Versioned cache
+    R->>DB: read body and version 7
+    DB-->>R: v7 body
+    Note over DB: writer commits row v8 + event v8
+    O->>C: advance generation to 8; delete old value
+    R->>C: publish loaded v7 if generation <= 7
+    C-->>R: rejected, generation is 8
+    R->>DB: retry or return authoritative v7 per API contract
+```
+
+The read API must define its consistency contract. A snapshot reader may legitimately return the version it read but must not publish it after a newer generation exists. A strict “latest” read retries or rechecks the database version within its deadline. Until generation validation is deployed and tested, bypass the mutable cache for strict paths.
+
+## Production checklist and observability
+
+- Enforce `(aggregate_key, aggregate_version)` uniqueness when one version should emit one event; always keep `event_id` unique.
+- Keep row update and outbox insert in one local database transaction; a broker call is never part of that atomic boundary.
+- Bound relay batch size, claim lease and retries; use a dead-letter state with an operator-visible reason after a finite policy.
+- Order by aggregate where required. Global outbox creation order does not imply cross-partition delivery order.
+- Make acknowledge ownership-checked and never mark delivered before the cache/broker operation succeeds.
+- Treat cache publication as optional; database commit is authoritative.
+- Prefer immutable version addressing when history is acceptable—it removes this mutable-key race entirely.
+- Test duplicate, reversed, gapped and replayed event sequences plus crashes before/after claim, cache update and acknowledgement.
+
+Expose update conflicts, outbox insert failures, pending age, claim recovery, delivery attempts, duplicate/stale/applied events, rejected stale publications and strict-cache bypass. Tags stay bounded (`event_type`, result, relay shard), never event IDs, aggregate IDs, bodies or worker UUIDs.
+
+### Primary references for Section 22
+
+Accessed 2026-10-18.
+
+127. [Debezium stable outbox event router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html): reliable outbox capture, unique event IDs, aggregate keys/order and insert-only outbox expectations.
+128. [PostgreSQL 18 `UPDATE`](https://www.postgresql.org/docs/current/sql-update.html): predicate-controlled updates and `RETURNING` of post-update values.
+129. [PostgreSQL 18 `SELECT` locking clause](https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE): `FOR UPDATE`, `NOWAIT`, `SKIP LOCKED`, and the queue-consumer suitability caveat.
+130. [PostgreSQL 18 explicit locking](https://www.postgresql.org/docs/current/explicit-locking.html): row-lock lifetime, conflicts, deadlock behavior and transaction-end release.
+131. [Redis Lua scripting](https://redis.io/docs/latest/develop/programmability/eval-intro/): explicit `KEYS`/`ARGV`, script-cache volatility and atomic server-side commands.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -4641,8 +4896,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; and lines **1091–1340**, “Complete Java cache-aside component”
-- Deliberate continuation: Section 22, “If you cache mutable rows instead,” spans source lines **1341–1364**, bounded by the Phase 6 / Section 23 heading, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; and lines **1341–1364**, “If you cache mutable rows instead”
+- Deliberate continuation: Section 23, “Fault-injection and integration test matrix,” spans source lines **1365–1409**, bounded by the Section 24 heading, and remains unprocessed.
 
 Validation commands:
 
