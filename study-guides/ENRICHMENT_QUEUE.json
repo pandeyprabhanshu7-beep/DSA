@@ -102,7 +102,7 @@
       "status": "IN_PROGRESS",
       "last_read_at": "2026-10-17",
       "sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-      "selection": "Sections 1-8, source lines 62-556, read and promoted into the incremental canonical database guide; later sections remain queued."
+      "selection": "Sections 1-9, source lines 62-588, read and promoted into the incremental canonical database guide; later sections remain queued."
     },
     {
       "name": "top_5_system_design_interview_blueprints.md",
@@ -593,7 +593,7 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-17T20:33:20-04:00",
+      "last_processed_at": "2026-10-17T21:35:49-04:00",
       "processed_sections": [
         "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
         "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios",
@@ -602,7 +602,8 @@
         "Section 5: isolation — anomaly classification, statement and transaction snapshots, PostgreSQL and InnoDB differences, write-skew and lost-update repairs, MVCC retention, whole-transaction retry and unknown outcomes",
         "Section 6: cache topology — duplicated L1 capacity and conditional latency arithmetic, Window TinyLFU admission intuition, Redis client-tracking disconnect recovery, Memcached placement semantics, two-level invalidation and scoped authorization-safe keys",
         "Section 7: read/write strategies — stale-resurrection fencing, typed read-through outcomes and local coalescing, write-through durable repair, and write-behind idempotent ordered replay with backpressure",
-        "Section 8: eviction internals — exact LRU, LFU with deterministic ties and aging, FIFO, and full 2Q with bounded ghost history and scan-resistance traces"
+        "Section 8: eviction internals — exact LRU, LFU with deterministic ties and aging, FIFO, and full 2Q with bounded ghost history and scan-resistance traces",
+        "Section 9: cache stampede — burst arithmetic, per-key local single-flight, owner-checked Redis fill leases, finite waiter outcomes, bounded stale and database fallback"
       ],
       "source_revision": {
         "baseline_commit": "e8961ba3f7208a18faa548925ae1b3fa6d21f3c8",
@@ -610,12 +611,12 @@
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-556",
-        "canonical_sha256_after": "15c833a8596bb01870a6de4e4bb677e5759ffcb428ba3f2141e45e64c1173318"
+        "processed_lines": "62-588",
+        "canonical_sha256_after": "4f60a24a3b73e168e533211fefc5ac414ffd35d65b2f8d66baeb68762989b9c1"
       },
-      "content_commit": "6ebebf9bf13ab51397529b6132e696db7a3786db",
-      "validation": "Exact source lines 494-556 were bounded by the Section 9 heading and consolidated against current Redis, Java 17 LinkedHashMap, original 2Q and Memcached primary documentation. Java 17 source launch and compilation through the installed jdk.compiler module passed 32 total scenario groups, including four new exact-LRU, LFU-aging, FIFO and full-2Q groups. Deterministic reader generation passed exact 112061-character Markdown payload equality, source SHA-256 metadata, 161 unique HTML IDs, 81 search entries, fragments, allowed relative links, 44 balanced fences and 33 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. Four content blobs matched and were published atomically with an expected-head guard.",
-      "next_action": "Process exactly Section 9, Cache stampede: coordinate fills, bound fallback, source lines 557-588, bounded by the Section 10 heading.",
+      "content_commit": "c38678133860dad6cd4fc7ff8c0b3560cd963be5",
+      "validation": "Exact source lines 557-588 were bounded by the Section 10 heading and consolidated against current Redis distributed-lock and cluster specifications, Java 17 ConcurrentHashMap/CompletableFuture/Semaphore documentation, and RFC 5861. Java 17 source launch and compilation through the installed jdk.compiler module passed 36 total scenario groups, including four new stampede-arithmetic, local-single-flight, fill-lease-ownership and bounded-fallback groups. Deterministic reader generation passed exact 125565-character Markdown payload equality, source SHA-256 metadata, 196 unique HTML IDs, 89 search entries, fragments, allowed relative links, 52 balanced fences and 37 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. The final content tree was published atomically with expected-head guards.",
+      "next_action": "Process exactly Section 10, Cache penetration: absent keys and Bloom filters, source lines 589-615, bounded by the Section 11 heading.",
       "priority": 12
     },
     {
@@ -889,7 +890,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and the full JavaScript/HTML/CSS paired source are processed; Angular's Final Revision Sheet remains queued. Continue the confirmed database source with Section 9 only, 'Cache stampede: coordinate fills, bound fallback,' source lines 557-588.",
+    "next_action": "Core advanced-tree sections 1-10 and the full JavaScript/HTML/CSS paired source are processed; Angular's Final Revision Sheet remains queued. Continue the confirmed database source with Section 10 only, 'Cache penetration: absent keys and Bloom filters,' source lines 589-615.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -956,15 +957,16 @@
       "Database/caching Section 5: isolation anomalies, engine-specific snapshot and locking behavior, write-skew and lost-update repairs, whole-transaction retry and unknown outcomes",
       "Database/caching Section 6: local/distributed/two-level topology arithmetic, Window TinyLFU admission, client-tracking recovery, Memcached placement, invalidation and scoped keys",
       "Database/caching Section 7: cache-aside stale-resurrection fencing, typed read-through outcomes, write-through durable repair and write-behind ordered replay/backpressure",
-      "Database/caching Section 8: exact LRU, LFU with deterministic ties and aging, FIFO, and full 2Q with bounded ghost history and scan-resistance traces"
+      "Database/caching Section 8: exact LRU, LFU with deterministic ties and aging, FIFO, and full 2Q with bounded ghost history and scan-resistance traces",
+      "Database/caching Section 9: stampede arithmetic, per-key local single-flight, owner-checked Redis fill leases, finite waiter outcomes and bounded stale/database fallback"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 494-556 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 8, Eviction internals: LRU, LFU, FIFO and 2Q",
-    "validation": "Section 8 was bounded by the Section 9 heading and consolidated with current Redis, Java 17 LinkedHashMap, original 2Q and Memcached primary documentation. Java 17 source launch and compilation through jdk.compiler passed 32 total scenario groups; deterministic reader generation passed exact 112061-character payload equality, 161 unique IDs, 81 search entries, fragments, allowed relative links, 44 balanced fences and 33 Mermaid sources; live canonical DSA marker audit remains 170. Four content blobs matched and were published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
-    "estimated_next_tokens": 6200,
-    "estimate_method": "Heuristic only for bounded cache-stampede source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "6ebebf9bf13ab51397529b6132e696db7a3786db",
-    "last_processed_at": "2026-10-17T20:33:20-04:00",
-    "next_batch_decision": "Section 8 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 9; resume at source lines 557-588, bounded by the Section 10 heading."
+    "processed_section": "database_internals_caching_java_master_guide.md lines 557-588 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 9, Cache stampede: coordinate fills, bound fallback",
+    "validation": "Section 9 was bounded by the Section 10 heading and consolidated with current Redis distributed-lock and cluster specifications, Java 17 concurrency documentation and RFC 5861. Java 17 source launch and compilation through jdk.compiler passed 36 total scenario groups; deterministic reader generation passed exact 125565-character payload equality, 196 unique IDs, 89 search entries, fragments, allowed relative links, 52 balanced fences and 37 Mermaid sources; live canonical DSA marker audit remains 170. The final content tree was published atomically with expected-head guards. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
+    "estimated_next_tokens": 6100,
+    "estimate_method": "Heuristic only for bounded cache-penetration/Bloom-filter source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "c38678133860dad6cd4fc7ff8c0b3560cd963be5",
+    "last_processed_at": "2026-10-17T21:35:49-04:00",
+    "next_batch_decision": "Section 9 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 10; resume at source lines 589-615, bounded by the Section 11 heading."
   }
 }
 
