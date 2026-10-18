@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-12. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-13. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -1471,6 +1471,111 @@ public final class ConsistencyContracts {
         return new DeadlineBudget(totalMillis, totalMillis - spent, false);
     }
 
+    record ConnectionStartupCost(
+            long dnsMillis,
+            long tcpMillis,
+            long tlsMillis,
+            long authenticationMillis,
+            long backendStartupMillis,
+            long initializationMillis,
+            long totalMillis) {}
+
+    static ConnectionStartupCost connectionStartupCost(
+            long dnsMillis,
+            long tcpMillis,
+            long tlsMillis,
+            long authenticationMillis,
+            long backendStartupMillis,
+            long initializationMillis) {
+        long[] phases = {
+            dnsMillis, tcpMillis, tlsMillis, authenticationMillis,
+            backendStartupMillis, initializationMillis
+        };
+        long total = 0;
+        for (long phase : phases) {
+            if (phase < 0) throw new IllegalArgumentException("startup phases must not be negative");
+            total = Math.addExact(total, phase);
+        }
+        return new ConnectionStartupCost(
+                dnsMillis,
+                tcpMillis,
+                tlsMillis,
+                authenticationMillis,
+                backendStartupMillis,
+                initializationMillis,
+                total);
+    }
+
+    record ConnectionChurn(
+            long opensPerSecond,
+            long retentionSeconds,
+            long estimatedRetainedSockets,
+            long opensPerMinute) {}
+
+    static ConnectionChurn connectionChurn(long opensPerSecond, long retentionSeconds) {
+        if (opensPerSecond < 0 || retentionSeconds < 0) {
+            throw new IllegalArgumentException("churn inputs must not be negative");
+        }
+        return new ConnectionChurn(
+                opensPerSecond,
+                retentionSeconds,
+                Math.multiplyExact(opensPerSecond, retentionSeconds),
+                Math.multiplyExact(opensPerSecond, 60));
+    }
+
+    record ConcurrencyGate(
+            int running,
+            int waiting,
+            int rejected,
+            boolean databaseOversubscribed) {}
+
+    static ConcurrencyGate concurrencyGate(
+            int simultaneousRequests,
+            int poolSize,
+            int callerWaitLimit,
+            int databaseSafeConcurrency) {
+        if (simultaneousRequests < 0 || poolSize <= 0 || callerWaitLimit < 0
+                || databaseSafeConcurrency <= 0) {
+            throw new IllegalArgumentException("invalid concurrency-gate dimension");
+        }
+        int running = Math.min(simultaneousRequests, poolSize);
+        int remaining = simultaneousRequests - running;
+        int waiting = Math.min(remaining, callerWaitLimit);
+        int rejected = remaining - waiting;
+        return new ConcurrencyGate(
+                running, waiting, rejected, running > databaseSafeConcurrency);
+    }
+
+    enum ConnectionReturnAction { REUSE, ROLLBACK_THEN_REUSE, EVICT }
+
+    static ConnectionReturnAction connectionReturnAction(
+            boolean connectionHealthy, boolean transactionOpen) {
+        if (!connectionHealthy) return ConnectionReturnAction.EVICT;
+        if (transactionOpen) return ConnectionReturnAction.ROLLBACK_THEN_REUSE;
+        return ConnectionReturnAction.REUSE;
+    }
+
+    static final class ConnectionUseGuard {
+        private final String owner;
+        private boolean open = true;
+
+        ConnectionUseGuard(String owner) {
+            this.owner = Objects.requireNonNull(owner, "owner");
+        }
+
+        void execute(String caller) {
+            if (!open) throw new IllegalStateException("connection lease is closed");
+            if (!owner.equals(caller)) {
+                throw new IllegalStateException("connection used by a concurrent borrower");
+            }
+        }
+
+        void close(String caller) {
+            execute(caller);
+            open = false;
+        }
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -2165,6 +2270,58 @@ public final class ConsistencyContracts {
         assert deadlineAfterQueues(200, 50, 150).exhausted();
     }
 
+    private static void connectionStartupCostScenarios() {
+        ConnectionStartupCost cold = connectionStartupCost(2, 8, 16, 9, 6, 4);
+        assert cold.totalMillis() == 45;
+        ConnectionStartupCost noDnsOrTls = connectionStartupCost(0, 8, 0, 9, 6, 4);
+        assert noDnsOrTls.totalMillis() == 27;
+        try {
+            connectionStartupCost(0, -1, 0, 0, 0, 0);
+            throw new AssertionError("negative startup phase accepted");
+        } catch (IllegalArgumentException expected) {}
+    }
+
+    private static void connectionChurnScenarios() {
+        ConnectionChurn perRequest = connectionChurn(400, 60);
+        assert perRequest.estimatedRetainedSockets() == 24_000;
+        assert perRequest.opensPerMinute() == 24_000;
+
+        ConnectionChurn pooledRefresh = connectionChurn(2, 60);
+        assert pooledRefresh.estimatedRetainedSockets() == 120;
+        assert pooledRefresh.opensPerMinute() == 120;
+    }
+
+    private static void poolConcurrencyGateScenarios() {
+        ConcurrencyGate bounded = concurrencyGate(120, 24, 60, 24);
+        assert bounded.running() == 24;
+        assert bounded.waiting() == 60;
+        assert bounded.rejected() == 36;
+        assert !bounded.databaseOversubscribed();
+
+        ConcurrencyGate oversized = concurrencyGate(120, 120, 0, 24);
+        assert oversized.running() == 120;
+        assert oversized.waiting() == 0;
+        assert oversized.databaseOversubscribed();
+    }
+
+    private static void connectionOwnershipScenarios() {
+        ConnectionUseGuard lease = new ConnectionUseGuard("request-A");
+        lease.execute("request-A");
+        try {
+            lease.execute("request-B");
+            throw new AssertionError("concurrent borrower accepted");
+        } catch (IllegalStateException expected) {}
+        lease.close("request-A");
+        try {
+            lease.execute("request-A");
+            throw new AssertionError("closed lease remained usable");
+        } catch (IllegalStateException expected) {}
+
+        assert connectionReturnAction(true, false) == ConnectionReturnAction.REUSE;
+        assert connectionReturnAction(true, true) == ConnectionReturnAction.ROLLBACK_THEN_REUSE;
+        assert connectionReturnAction(false, false) == ConnectionReturnAction.EVICT;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -2217,7 +2374,11 @@ public final class ConsistencyContracts {
         logicalConnectionLeaseScenarios();
         explicitDatabaseRoutingScenarios();
         poolingModeAndDeadlineScenarios();
-        System.out.println("PASS 48 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline");
+        connectionStartupCostScenarios();
+        connectionChurnScenarios();
+        poolConcurrencyGateScenarios();
+        connectionOwnershipScenarios();
+        System.out.println("PASS 52 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership");
     }
 }
 

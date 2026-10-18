@@ -2466,6 +2466,216 @@ Accessed 2026-10-18.
 68. [PgBouncer administration and `SHOW` fields](https://www.pgbouncer.org/usage): active/waiting client and server states, wait time, prepared-statement counts, and lifecycle commands.
 69. [pgJDBC connection and failover properties](https://jdbc.postgresql.org/documentation/use/): read-only modes, `targetServerType`, host selection, and separate write/read pool examples.
 
+# Section 13 — What a physical connection costs
+
+A physical database connection is a protocol session, not merely a Java object. Depending on cache state and configuration, creation can include name resolution, local socket allocation, TCP establishment, PostgreSQL SSL negotiation, a TLS handshake, a startup message, authentication exchanges, backend/session allocation, parameter status, and initialization SQL before `ReadyForQuery`. A no-argument Java `Socket` is explicitly unconnected; the network operation occurs when code calls `connect` or uses a connecting constructor.
+
+Pooling amortizes those steps and puts a concurrency gate in front of the database. It does **not** make an individual SQL statement execute faster. When the database's safe concurrent-work limit is 24, enlarging the pool from 24 to 120 permits more simultaneous pressure; it does not create five times the CPU, memory bandwidth, locks, or I/O capacity.
+
+```mermaid
+sequenceDiagram
+    participant App as Java request
+    participant Net as TCP and TLS
+    participant Auth as PostgreSQL startup
+    participant DB as Backend session
+    App->>Net: resolve and connect
+    Net->>Net: TCP plus optional TLS
+    Net->>Auth: StartupMessage and authentication
+    Auth->>DB: allocate and initialize session
+    DB-->>App: ParameterStatus and ReadyForQuery
+```
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. separate Java object allocation from DNS, TCP, TLS, authentication, backend startup, and session initialization;
+2. measure cold physical creation separately from warm logical checkout;
+3. estimate connection churn and retained TCP close state without assuming one universal operating-system timeout;
+4. explain why the pool size is a database concurrency limit, not a desired number of always-running queries;
+5. preserve reserved PostgreSQL connection slots and avoid treating `max_connections` as free capacity;
+6. keep a JDBC connection scoped to one borrower at a time; and
+7. decide whether a returned physical session is reusable, must be rolled back/reset, or must be evicted.
+
+Measure at these boundaries rather than reporting one ambiguous “connection latency”:
+
+| Boundary | Start | Completion | Useful metric |
+|---|---|---|---|
+| pool checkout | caller invokes `getConnection()` | logical handle returned | checkout histogram, pending callers, timeout count |
+| physical creation | pool decides to grow/replace | physical session becomes pool-ready | creation histogram and failures by phase |
+| PostgreSQL startup | frontend sends startup/auth traffic | `ReadyForQuery` received | authentication method, startup latency, failure class |
+| borrow interval | logical handle returned | handle closed | hold-time histogram and leak count |
+| database work | first command begins | command/transaction completes | active queries, lock/I/O waits, service time |
+
+## Example 49 — account for the cold-start phases
+
+Assume an observed cold creation trace records 2 ms for name resolution, 8 ms for TCP, 16 ms for TLS, 9 ms for authentication, 6 ms for backend startup, and 4 ms for initialization. The illustrative total is 45 ms. A reused physical connection may need only a 2 ms logical checkout and validation path, but that does not mean TLS or authentication became intrinsically faster; the request avoided repeating them.
+
+| Phase | Observed duration | Network/protocol event |
+|---|---:|---|
+| DNS/cache lookup | 2 ms | resolve configured host when necessary |
+| TCP establishment | 8 ms | create a connected byte stream |
+| PostgreSQL SSL + TLS | 16 ms | negotiate encryption; traditional SSLRequest adds protocol work |
+| authentication | 9 ms | one or more method-specific exchanges |
+| backend/startup | 6 ms | establish session and emit initial status |
+| initialization | 4 ms | driver/pool application settings |
+| **total** | **45 ms** | usable only after startup completes |
+
+```java
+ConnectionStartupCost cold = connectionStartupCost(2, 8, 16, 9, 6, 4);
+assert cold.totalMillis() == 45;
+
+ConnectionStartupCost noDnsOrTls = connectionStartupCost(0, 8, 0, 9, 6, 4);
+assert noDnsOrTls.totalMillis() == 27;
+```
+
+```mermaid
+flowchart LR
+    D["DNS 2 ms"] --> T["TCP 8 ms"]
+    T --> S["TLS 16 ms"]
+    S --> A["auth 9 ms"]
+    A --> B["backend 6 ms"]
+    B --> I["init 4 ms = 45 ms total"]
+```
+
+The numbers are measurements, not constants. DNS can be cached, Unix-domain sockets omit TCP, TLS versions and resumption change the handshake, authentication methods may require multiple exchanges, and infrastructure can add proxies. PostgreSQL's current protocol documents startup parameters, method-dependent authentication, backend initialization, `ParameterStatus`, `BackendKeyData`, and the final `ReadyForQuery`. It also documents both the traditional SSLRequest negotiation and a controlled-environment direct TLS mode that can avoid one round trip.
+
+The cost function is `O(p)` for `p` measured phases—six here—and uses checked addition. Record connection-attempt outcome and time for resolve, TCP, TLS, authentication, startup, and initialization independently. Do not infer phase time by subtracting unrelated request metrics.
+
+## Example 50 — quantify connection churn and TIME-WAIT pressure
+
+Suppose a service opens and actively closes 400 TCP database connections per second. If the measured effective retained-close window on that host is 60 seconds, a steady-state estimate is `400 × 60 = 24,000` retained sockets and 24,000 new connections per minute. A pool replacing two physical sessions per second under the same assumption estimates 120 retained sockets.
+
+```java
+ConnectionChurn perRequest = connectionChurn(400, 60);
+assert perRequest.estimatedRetainedSockets() == 24_000;
+assert perRequest.opensPerMinute() == 24_000;
+
+ConnectionChurn pooledRefresh = connectionChurn(2, 60);
+assert pooledRefresh.estimatedRetainedSockets() == 120;
+```
+
+```mermaid
+flowchart TD
+    R["400 requests each second"] --> O["400 physical opens and closes"]
+    O --> W["retained close state"]
+    W --> P["24,000 sockets at a measured 60 s window"]
+    R --> H["pooled logical borrows"]
+    H --> F["2 physical refreshes each second"]
+    F --> Q["120 sockets at the same window"]
+```
+
+RFC 9293 requires the active closer to linger in TIME-WAIT for 2×MSL while also describing timestamp-based support for higher establishment rates. Actual ephemeral-port ranges, MSL choices, NAT/proxy ownership, reuse rules, and telemetry are platform-specific. Therefore the Java model accepts a measured retention value rather than hard-coding 60 seconds. Inspect the application host, sidecar, load balancer, NAT, and database endpoint that actually owns the active close.
+
+The estimate is `O(1)` time and space. Monitor physical opens/closes, establishment failures, TCP states, ephemeral-port usage, file descriptors, NAT table pressure, TLS/authentication CPU, Hikari creation failures, and database backend churn. If churn suddenly rises, investigate connection lifetime alignment, mass retirement, network idle limits, authentication failures, and health-check behavior before raising limits.
+
+## Example 51 — use the pool as a concurrency gate
+
+For 120 simultaneous requests, assume the database has been load-tested for 24 concurrent queries. A service gate permits 24 holders, allows 60 callers to wait within their deadlines, and rejects or sheds the remaining 36. This example uses an explicit caller-wait limit around the pool; Hikari itself waits for availability until `connectionTimeout` and then throws `SQLException`.
+
+| Plan | Running | Waiting | Rejected | DB safe concurrency | Interpretation |
+|---|---:|---:|---:|---:|---|
+| bounded gate | 24 | 60 | 36 | 24 | DB work stays within tested limit |
+| pool enlarged to 120 | 120 | 0 | 0 | 24 | 5× oversubscribed; no extra DB resources appeared |
+| pool 24, no wait budget | 24 | 0 | 96 | 24 | protects DB but sheds aggressively |
+| pool 12, wait 60 | 12 | 60 | 48 | 24 | underuses tested concurrency; may be intentional during degradation |
+
+```java
+ConcurrencyGate bounded = concurrencyGate(120, 24, 60, 24);
+assert bounded.running() == 24;
+assert bounded.waiting() == 60;
+assert bounded.rejected() == 36;
+assert !bounded.databaseOversubscribed();
+
+ConcurrencyGate oversized = concurrencyGate(120, 120, 0, 24);
+assert oversized.running() == 120;
+assert oversized.databaseOversubscribed();
+```
+
+```mermaid
+flowchart TD
+    B["120 simultaneous callers"] --> G{"bounded admission"}
+    G -->|24| X["execute within tested DB concurrency"]
+    G -->|60| W["wait within caller deadline"]
+    G -->|36| R["typed overload or retry-later"]
+```
+
+Hikari defines `maximumPoolSize` as the total idle-plus-in-use physical connections and blocks checkout callers up to `connectionTimeout` when all are busy. Its sizing guidance emphasizes that excess connections can reduce performance and recommends testing around a small starting point instead of mapping front-end users one-to-one onto backends. PostgreSQL also sizes resources from `max_connections`, including shared memory, and provides reserved and superuser-reserved slots; those slots are emergency capacity, not normal pool headroom.
+
+The gate is `O(1)`. Tune with a workload representative of query mix, transaction length, cache hit rate, locks, CPU, I/O, and replicas. Plot throughput and p50/p95/p99 service time while sweeping concurrency. A rising checkout wait with stable database latency suggests admission pressure; rising database latency/locks with high active sessions suggests the pool may already be too large.
+
+## Example 52 — one borrower owns the connection until clean return
+
+A JDBC connection is a stateful protocol stream. pgJDBC states that the driver is not thread-safe, gives no guarantee that connection methods are synchronized, and notes that concurrent requests to one PostgreSQL backend must be serialized. Scope one logical lease to one request or transaction, close it on every path, and never retain it in a singleton or hand it to parallel tasks.
+
+```java
+ConnectionUseGuard lease = new ConnectionUseGuard("request-A");
+lease.execute("request-A");
+
+try {
+    lease.execute("request-B");
+    throw new AssertionError("concurrent borrower accepted");
+} catch (IllegalStateException expected) {}
+
+lease.close("request-A");
+assert connectionReturnAction(true, false) == ConnectionReturnAction.REUSE;
+assert connectionReturnAction(true, true) == ConnectionReturnAction.ROLLBACK_THEN_REUSE;
+assert connectionReturnAction(false, false) == ConnectionReturnAction.EVICT;
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Borrowed: checkout to request A
+    Borrowed --> Reusable: healthy and clean
+    Borrowed --> Reset: transaction still open
+    Reset --> Reusable: rollback and restore state
+    Borrowed --> Evicted: broken protocol or network
+    Reusable --> [*]: return to pool
+    Evicted --> [*]: close physical session
+```
+
+Use try-with-resources for the logical handle. On return, the real pool/driver must decide from actual state and exceptions: unfinished work requires rollback/reset, a broken network/protocol session must be evicted, and only a healthy clean session is reusable. Test state restoration for auto-commit, isolation, read-only, schema/catalog, warnings, session variables, temporary objects, and advisory locks used by the application. Hikari's `maxLifetime` retires a connection only after it is no longer in use and applies negative attenuation to avoid synchronized mass retirement.
+
+The guard and return decision are `O(1)`. Production evidence is borrow/hold histograms, active/idle/pending counts, rollback-on-return count, evictions by cause, validation failures, leak detections, maximum-age retirements, and physical creations. A low average checkout time does not excuse a connection leaked for minutes in the tail.
+
+## Operations, complexity, and review
+
+| Risk | Measurement | Control | Failure signal |
+|---|---|---|---|
+| slow physical setup | creation phases and failure class | reuse, warm minimum only when justified, bounded connect timeout | cold creation tail exceeds caller budget |
+| connection churn | opens/closes, TCP states, ports, FDs | pooling and staggered lifetime | TIME-WAIT/port/NAT pressure rises |
+| database oversubscription | active sessions, CPU, locks, I/O, service time | small load-tested pool and bounded admission | more concurrency reduces throughput |
+| dirty return | open transactions and changed session state | try-with-resources, rollback/reset, eviction | next borrower observes previous state |
+| concurrent handle use | ownership and transaction scope | one borrower per connection | interleaved protocol/state failures |
+| exhausted server slots | normal and reserved slot usage | budget below usable `max_connections` | emergency/admin connection unavailable |
+
+Review questions:
+
+- Is “connection latency” split into checkout and physical-creation measurements?
+- Which startup phases are skipped on a warm borrow, and which validations still run?
+- Does the active closer own TIME-WAIT on the host being monitored?
+- Are ephemeral ports, file descriptors, NAT state, TLS CPU, and authentication CPU included in incident dashboards?
+- Was the database's safe concurrency found by load testing, or copied from `max_connections`?
+- Are PostgreSQL reserved slots excluded from every application pool budget?
+- Does every checkout inherit one caller deadline and one owner?
+- Can parallel tasks accidentally share the same JDBC connection or ORM session?
+- Which session mutations are reset, forbidden, or made transaction-local?
+- Are broken sessions evicted and incomplete transactions rolled back before reuse?
+- Are connection lifetime settings staggered relative to proxy/database/network limits?
+- Can the system shed overload before database work becomes slower for everyone?
+
+### Primary references for Section 13
+
+Accessed 2026-10-18.
+
+70. [PostgreSQL 18 frontend/backend protocol — message flow](https://www.postgresql.org/docs/current/protocol-flow.html): startup, authentication exchanges, backend initialization, `ReadyForQuery`, SSL negotiation, cancellation, and termination.
+71. [PostgreSQL 18 connections and authentication settings](https://www.postgresql.org/docs/current/runtime-config-connection.html): `max_connections`, resource allocation, reserved slots, TCP and SSL settings.
+72. [HikariCP README and configuration](https://github.com/brettwooldridge/HikariCP): checkout timeout, maximum pool size, connection lifetime, keepalive, metrics, and leak detection.
+73. [HikariCP wiki — About Pool Sizing](https://github.com/brettwooldridge/HikariCP/wiki/About-Pool-Sizing): resource-bound concurrency, small-pool guidance, workload testing, and mixed-duration caveats.
+74. [Java SE 17 `Socket`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/net/Socket.html): unconnected constructors, connecting constructors, `connect`, socket options, and close behavior.
+75. [pgJDBC multithreaded environment guidance](https://jdbc.postgresql.org/documentation/thread/): driver thread-safety and serialization expectations for one backend connection.
+76. [RFC 9293 — Transmission Control Protocol](https://www.rfc-editor.org/rfc/rfc9293.html): TCP establishment/close state and TIME-WAIT requirements.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -2473,8 +2683,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; and lines **638–687**, “Architecture: pool objects are not network proxies”
-- Deliberate continuation: Section 13, “What a physical connection costs,” is source lines **688–718**, bounded by the Section 14 heading, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; and lines **688–718**, “What a physical connection costs”
+- Deliberate continuation: Section 14, “HikariCP controls and pool metrics,” begins at source line **719** and remains unprocessed.
 
 Validation commands:
 
