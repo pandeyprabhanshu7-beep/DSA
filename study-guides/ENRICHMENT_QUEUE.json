@@ -593,7 +593,7 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-18T12:09:57-04:00",
+      "last_processed_at": "2026-10-18T12:46:11-04:00",
       "processed_sections": [
         "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
         "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios",
@@ -611,7 +611,8 @@
         "Section 14: HikariCP controls and pool metrics — idle-retirement eligibility, joined timeout budgets, workload/global-capacity sizing and correlated telemetry diagnosis",
         "Section 15: JDBC API versus network protocol — driver selection, DataSource acquisition paths, vendor wire-protocol layering and configuration-dependent PostgreSQL startup variants",
         "Section 16: full chronological PostgreSQL trace — monotonic startup states, byte-stream framing, TLS/SCRAM assurance boundaries and logical-versus-physical trace correlation",
-        "Section 17: stage-by-stage PostgreSQL mechanics — address/timeout ownership, TLS admission evidence, SCRAM channel-binding/completion policy and pooling-safe session baselines"
+        "Section 17: stage-by-stage PostgreSQL mechanics — address/timeout ownership, TLS admission evidence, SCRAM channel-binding/completion policy and pooling-safe session baselines",
+        "Section 18: MySQL authentication order — server-first capability/TLS negotiation, plugin switching, caching_sha2_password fast/full paths and verified session contracts"
       ],
       "source_revision": {
         "baseline_commit": "e8961ba3f7208a18faa548925ae1b3fa6d21f3c8",
@@ -619,12 +620,12 @@
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-906",
-        "canonical_sha256_after": "9b6b9de5e7405f10dfc561afbdf07e929dcba7ed961e9b0838f61c63b3a993af"
+        "processed_lines": "62-941",
+        "canonical_sha256_after": "ea9d81850dd1eb7a0b9ea44a57d74bc057720097bf7dd4e223d6b0b55c3d51c9"
       },
-      "content_commit": "8acff19c75653a144e63cf60b972105597666b20",
-      "validation": "Exact source lines 820-906 were bounded by the Section 18 heading and consolidated against current pgJDBC connection/SSL guidance, PostgreSQL 18 protocol/SASL documentation, TLS 1.3, HikariCP and PgBouncer primary documentation. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 68 total scenario groups, including four new socket-attempt/timeout, TLS-policy, SCRAM-negotiation and session-baseline groups. Deterministic reader generation passed exact 248515-character Markdown payload equality, source SHA-256 metadata, 589 unique HTML IDs, 153 search entries, fragments, allowed relative links, 124 balanced fences and 75 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. The content tree was published atomically with an expected-head guard.",
-      "next_action": "Process exactly Section 18, MySQL has a different authentication order, source lines 907-941, bounded by the Section 19 heading.",
+      "content_commit": "8c09ef4d602cd4b47b614fd51bd6a25f8fd51cbd",
+      "validation": "Exact source lines 907-941 were bounded by the Section 19 heading and consolidated against current MySQL classic-protocol connection, HandshakeV10, SSLRequest, MySQL 8.4 caching_sha2_password and Connector/J security documentation. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 72 total scenario groups, including four new MySQL handshake-order, plugin-negotiation, caching_sha2_password-path and session-contract groups. Deterministic reader generation passed exact 263056-character Markdown payload equality, source SHA-256 metadata, 642 unique HTML IDs, 161 search entries, fragments, allowed relative links, 133 balanced fences and 80 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. The content tree was published atomically with an expected-head guard.",
+      "next_action": "Process exactly Section 19, From connection to prepared query, source lines 942-974, bounded by the Section 20 heading.",
       "priority": 12
     },
     {
@@ -898,7 +899,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 18 only, 'MySQL has a different authentication order,' source lines 907-941, bounded by the Section 19 heading.",
+    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 19 only, 'From connection to prepared query,' source lines 942-974, bounded by the Section 20 heading.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -974,15 +975,16 @@
       "Database/caching Section 14: Hikari controls versus metrics, idle-retirement eligibility, joined timeout budgets, global sizing and correlated telemetry diagnosis",
       "Database/caching Section 15: JDBC API/driver/pool/wire/transport boundaries and configuration-dependent PostgreSQL startup variants",
       "Database/caching Section 16: PostgreSQL startup chronology, stream framing, assurance boundaries and pool-trace correlation",
-      "Database/caching Section 17: PostgreSQL address/timeout ownership, TLS admission evidence, SCRAM channel-binding/completion policy and pooling-safe session baselines"
+      "Database/caching Section 17: PostgreSQL address/timeout ownership, TLS admission evidence, SCRAM channel-binding/completion policy and pooling-safe session baselines",
+      "Database/caching Section 18: MySQL server-first negotiation, TLS capability evidence, authentication-plugin switching, SHA-2 fast/full paths and session-contract admission"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 820-906 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 17, Stage-by-stage mechanics",
-    "validation": "Section 17 was bounded by the Section 18 heading and consolidated with current pgJDBC, PostgreSQL 18, TLS 1.3, HikariCP and PgBouncer primary documentation. Java 17 source launch and compilation through jdk.compiler passed 68 total scenario groups; deterministic reader generation passed exact 248515-character payload equality, 589 unique IDs, 153 search entries, fragments, allowed relative links, 124 balanced fences and 75 Mermaid sources; live canonical DSA marker audit remains 170. The content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
-    "estimated_next_tokens": 6200,
-    "estimate_method": "Heuristic only for bounded MySQL authentication-order source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "8acff19c75653a144e63cf60b972105597666b20",
-    "last_processed_at": "2026-10-18T12:09:57-04:00",
-    "next_batch_decision": "Section 17 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 18; resume at source lines 907-941, bounded by the Section 19 heading."
+    "processed_section": "database_internals_caching_java_master_guide.md lines 907-941 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 18, MySQL has a different authentication order",
+    "validation": "Section 18 was bounded by the Section 19 heading and consolidated with current MySQL classic-protocol, HandshakeV10, SSLRequest, MySQL 8.4 caching_sha2_password and Connector/J security documentation. Java 17 source launch and compilation through jdk.compiler passed 72 total scenario groups; deterministic reader generation passed exact 263056-character payload equality, 642 unique IDs, 161 search entries, fragments, allowed relative links, 133 balanced fences and 80 Mermaid sources; live canonical DSA marker audit remains 170. The content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
+    "estimated_next_tokens": 6400,
+    "estimate_method": "Heuristic only for bounded prepared-query source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "8c09ef4d602cd4b47b614fd51bd6a25f8fd51cbd",
+    "last_processed_at": "2026-10-18T12:46:11-04:00",
+    "next_batch_decision": "Section 18 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 19; resume at source lines 942-974, bounded by the Section 20 heading."
   }
 }
 
