@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-14. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-15. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -1710,6 +1710,88 @@ public final class ConsistencyContracts {
         return PoolSignal.HEALTHY;
     }
 
+    enum JdbcDriverKind { POSTGRESQL, MYSQL, UNSUPPORTED }
+
+    static JdbcDriverKind jdbcDriverForUrl(String url) {
+        Objects.requireNonNull(url, "url");
+        if (url.startsWith("jdbc:postgresql:")) return JdbcDriverKind.POSTGRESQL;
+        if (url.startsWith("jdbc:mysql:") || url.startsWith("jdbc:mysql+srv:")) {
+            return JdbcDriverKind.MYSQL;
+        }
+        return JdbcDriverKind.UNSUPPORTED;
+    }
+
+    enum DataSourceKind { BASIC_VENDOR, HIKARI_POOL }
+    enum AcquisitionPath { FRESH_PHYSICAL, BORROW_IDLE, GROW_PHYSICAL, WAIT_OR_TIMEOUT }
+
+    static AcquisitionPath acquisitionPath(
+            DataSourceKind kind, int idleConnections, int totalConnections, int maximumPoolSize) {
+        Objects.requireNonNull(kind, "kind");
+        if (idleConnections < 0 || totalConnections < 0 || idleConnections > totalConnections
+                || maximumPoolSize <= 0 || totalConnections > maximumPoolSize) {
+            throw new IllegalArgumentException("invalid acquisition state");
+        }
+        if (kind == DataSourceKind.BASIC_VENDOR) return AcquisitionPath.FRESH_PHYSICAL;
+        if (idleConnections > 0) return AcquisitionPath.BORROW_IDLE;
+        if (totalConnections < maximumPoolSize) return AcquisitionPath.GROW_PHYSICAL;
+        return AcquisitionPath.WAIT_OR_TIMEOUT;
+    }
+
+    record JdbcLayerStack(
+            JdbcDriverKind driver,
+            String jdbcApi,
+            String wireProtocol,
+            String defaultTransport,
+            boolean httpByDefault) {}
+
+    static JdbcLayerStack jdbcLayerStack(String url) {
+        JdbcDriverKind driver = jdbcDriverForUrl(url);
+        return switch (driver) {
+            case POSTGRESQL -> new JdbcLayerStack(
+                    driver, "JDBC", "PostgreSQL frontend/backend v3", "TCP", false);
+            case MYSQL -> new JdbcLayerStack(
+                    driver, "JDBC", "MySQL classic protocol", "TCP", false);
+            case UNSUPPORTED -> throw new IllegalArgumentException("unsupported JDBC URL");
+        };
+    }
+
+    enum PgTransport { TCP, UNIX_DOMAIN_SOCKET }
+    enum PgEncryption { PLAINTEXT, SSL_REQUEST_TLS, DIRECT_TLS, GSSAPI }
+    enum PgAuthentication { SCRAM_SHA_256, CLIENT_CERTIFICATE }
+
+    record PgHandshakePlan(
+            List<String> phases,
+            boolean sendsSslRequest,
+            boolean performsTlsHandshake,
+            boolean performsScramExchange) {}
+
+    static PgHandshakePlan pgHandshakePlan(
+            PgTransport transport,
+            PgEncryption encryption,
+            PgAuthentication authentication,
+            boolean tlsResumption) {
+        Objects.requireNonNull(transport, "transport");
+        Objects.requireNonNull(encryption, "encryption");
+        Objects.requireNonNull(authentication, "authentication");
+        if (transport == PgTransport.UNIX_DOMAIN_SOCKET
+                && (encryption == PgEncryption.SSL_REQUEST_TLS
+                        || encryption == PgEncryption.DIRECT_TLS)) {
+            throw new IllegalArgumentException("TLS-over-TCP teaching path needs TCP");
+        }
+        List<String> phases = new ArrayList<>();
+        phases.add(transport == PgTransport.TCP ? "TCP connect" : "Unix socket connect");
+        boolean sslRequest = encryption == PgEncryption.SSL_REQUEST_TLS;
+        boolean tls = sslRequest || encryption == PgEncryption.DIRECT_TLS;
+        if (sslRequest) phases.add("SSLRequest and one-byte response");
+        if (encryption == PgEncryption.GSSAPI) phases.add("GSSAPI negotiation");
+        if (tls) phases.add(tlsResumption ? "resumed TLS handshake" : "full TLS handshake");
+        phases.add("StartupMessage");
+        boolean scram = authentication == PgAuthentication.SCRAM_SHA_256;
+        phases.add(scram ? "SCRAM-SHA-256 exchange" : "client-certificate authentication");
+        phases.add("ParameterStatus, BackendKeyData, ReadyForQuery");
+        return new PgHandshakePlan(List.copyOf(phases), sslRequest, tls, scram);
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -2509,6 +2591,67 @@ public final class ConsistencyContracts {
                 == PoolSignal.HEALTHY;
     }
 
+    private static void jdbcDriverSelectionScenarios() {
+        assert jdbcDriverForUrl("jdbc:postgresql://db.example/app")
+                == JdbcDriverKind.POSTGRESQL;
+        assert jdbcDriverForUrl("jdbc:mysql://db.example/app") == JdbcDriverKind.MYSQL;
+        assert jdbcDriverForUrl("jdbc:mysql:replication://primary,replica/app")
+                == JdbcDriverKind.MYSQL;
+        assert jdbcDriverForUrl("https://db.example/app") == JdbcDriverKind.UNSUPPORTED;
+    }
+
+    private static void dataSourceAcquisitionScenarios() {
+        assert acquisitionPath(DataSourceKind.BASIC_VENDOR, 0, 0, 8)
+                == AcquisitionPath.FRESH_PHYSICAL;
+        assert acquisitionPath(DataSourceKind.HIKARI_POOL, 3, 5, 8)
+                == AcquisitionPath.BORROW_IDLE;
+        assert acquisitionPath(DataSourceKind.HIKARI_POOL, 0, 5, 8)
+                == AcquisitionPath.GROW_PHYSICAL;
+        assert acquisitionPath(DataSourceKind.HIKARI_POOL, 0, 8, 8)
+                == AcquisitionPath.WAIT_OR_TIMEOUT;
+    }
+
+    private static void jdbcLayerStackScenarios() {
+        JdbcLayerStack postgres = jdbcLayerStack("jdbc:postgresql://db.example/app");
+        assert postgres.jdbcApi().equals("JDBC");
+        assert postgres.wireProtocol().equals("PostgreSQL frontend/backend v3");
+        assert !postgres.httpByDefault();
+
+        JdbcLayerStack mysql = jdbcLayerStack("jdbc:mysql://db.example/app");
+        assert mysql.wireProtocol().equals("MySQL classic protocol");
+        assert mysql.defaultTransport().equals("TCP");
+        assert !mysql.httpByDefault();
+    }
+
+    private static void postgresHandshakeVariantScenarios() {
+        PgHandshakePlan traditional = pgHandshakePlan(
+                PgTransport.TCP,
+                PgEncryption.SSL_REQUEST_TLS,
+                PgAuthentication.SCRAM_SHA_256,
+                false);
+        assert traditional.sendsSslRequest();
+        assert traditional.performsTlsHandshake();
+        assert traditional.performsScramExchange();
+        assert traditional.phases().get(1).equals("SSLRequest and one-byte response");
+
+        PgHandshakePlan direct = pgHandshakePlan(
+                PgTransport.TCP,
+                PgEncryption.DIRECT_TLS,
+                PgAuthentication.CLIENT_CERTIFICATE,
+                true);
+        assert !direct.sendsSslRequest();
+        assert direct.performsTlsHandshake();
+        assert !direct.performsScramExchange();
+
+        PgHandshakePlan socket = pgHandshakePlan(
+                PgTransport.UNIX_DOMAIN_SOCKET,
+                PgEncryption.PLAINTEXT,
+                PgAuthentication.SCRAM_SHA_256,
+                false);
+        assert socket.phases().get(0).equals("Unix socket connect");
+        assert !socket.performsTlsHandshake();
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -2569,7 +2712,11 @@ public final class ConsistencyContracts {
         timeoutStackScenarios();
         workloadPoolSizingScenarios();
         poolTelemetryScenarios();
-        System.out.println("PASS 56 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry");
+        jdbcDriverSelectionScenarios();
+        dataSourceAcquisitionScenarios();
+        jdbcLayerStackScenarios();
+        postgresHandshakeVariantScenarios();
+        System.out.println("PASS 60 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants");
     }
 }
 

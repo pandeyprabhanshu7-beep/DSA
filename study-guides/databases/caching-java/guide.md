@@ -2927,6 +2927,224 @@ Accessed 2026-10-18.
 83. [PostgreSQL 18 client connection defaults](https://www.postgresql.org/docs/current/runtime-config-client.html): statement, transaction, lock and idle-in-transaction timeout semantics.
 
 
+# Section 15 — JDBC is an API, not a network protocol
+
+JDBC standardizes Java-facing interfaces such as `Driver`, `DataSource`, `Connection`, `Statement`, and `ResultSet`. It does **not** define the bytes sent on the network. `DriverManager.getConnection(url, properties)` asks registered drivers which one accepts the URL; the selected vendor driver then implements connection establishment and database protocol behavior. A PostgreSQL URL normally selects pgJDBC and PostgreSQL's frontend/backend protocol. A MySQL URL normally selects Connector/J and the MySQL protocol. Neither is HTTP by default.
+
+Keep these layers separate when debugging:
+
+```mermaid
+flowchart TD
+    A["application and ORM"] --> J["JDBC API"]
+    J --> D{"selected driver or DataSource"}
+    D -->|jdbc:postgresql| P["pgJDBC and PostgreSQL protocol"]
+    D -->|jdbc:mysql| M["Connector/J and MySQL protocol"]
+    P --> T["TCP, optional TLS or alternate local transport"]
+    M --> U["TCP and optional TLS"]
+```
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. distinguish the JDBC API, a JDBC URL, a driver implementation, a connection pool, a wire protocol, and a transport;
+2. explain how `DriverManager` chooses a driver that understands a URL without claiming that JDBC specifies the packet sequence;
+3. distinguish a basic vendor `DataSource` that creates a physical connection from a pooling `DataSource` that usually returns a logical lease;
+4. prove that a warm pool checkout normally performs no DNS, TCP, TLS, or database-authentication handshake;
+5. map pgJDBC and Connector/J to their vendor protocols rather than to HTTP;
+6. state the assumptions behind a PostgreSQL startup trace, including transport, encryption negotiation, TLS resumption, authentication, proxies, and pool state; and
+7. capture evidence at the correct layer: checkout, physical creation, driver/protocol messages, transport, or server session.
+
+## Example 57 — the JDBC URL selects an implementation, not a packet format
+
+`DriverManager` iterates accessible registered drivers and asks for one that understands a URL. The portable contract says the URL has the form `jdbc:subprotocol:subname`; the driver owns what that subprotocol means. Treat an unsupported scheme as configuration failure rather than silently rewriting it.
+
+| Call | Teaching selection | What is *not* implied |
+|---|---|---|
+| `jdbc:postgresql://db.example/app` | pgJDBC | one universal JDBC handshake |
+| `jdbc:mysql://db.example/app` | Connector/J | HTTP to port 3306 |
+| `jdbc:mysql:replication://...` | Connector/J multi-host mode | transparent correctness for every read |
+| `https://db.example/app` | no JDBC driver in this model | a JDBC connection merely because it is a URL |
+
+```java
+assert jdbcDriverForUrl("jdbc:postgresql://db.example/app")
+        == JdbcDriverKind.POSTGRESQL;
+assert jdbcDriverForUrl("jdbc:mysql://db.example/app")
+        == JdbcDriverKind.MYSQL;
+assert jdbcDriverForUrl("jdbc:mysql:replication://primary,replica/app")
+        == JdbcDriverKind.MYSQL;
+assert jdbcDriverForUrl("https://db.example/app")
+        == JdbcDriverKind.UNSUPPORTED;
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Application
+    participant M as DriverManager
+    participant P as pgJDBC
+    participant Y as Connector/J
+    A->>M: getConnection(jdbc:postgresql:...)
+    M->>P: acceptsURL?
+    P-->>M: yes
+    M-->>A: PostgreSQL Connection
+    Note over Y: not selected for this URL
+```
+
+The teaching selector is `O(1)` because it recognizes two prefixes. A real `DriverManager` search is `O(d)` for `d` accessible registered drivers. Driver discovery can depend on service providers and class-loader visibility, so “the dependency exists somewhere” is weaker than “the intended driver is visible and accepts this URL.” Record the actual driver name/version and sanitized endpoint at startup; never log credentials embedded in URLs or properties.
+
+## Example 58 — `DataSource.getConnection()` can mean create or borrow
+
+The Java `DataSource` contract deliberately supports basic, pooled, and distributed-transaction implementations. Therefore the method name alone cannot tell an operator whether a physical network session was created. With a basic vendor `DataSource`, a successful call establishes a physical connection. With Hikari, the same Java call normally borrows an existing idle physical session through a logical proxy; the pool opens a fresh session only for initial fill, growth, or replacement. At capacity with no idle session, the caller waits up to the checkout timeout.
+
+| Data source and state | Result | Fresh physical handshake? |
+|---|---|---|
+| basic vendor source | create physical connection | yes |
+| Hikari: 3 idle, 5 total, max 8 | borrow idle | no |
+| Hikari: 0 idle, 5 total, max 8 | grow pool | yes |
+| Hikari: 0 idle, 8 total, max 8 | wait or timeout | no new session until capacity changes |
+
+```java
+assert acquisitionPath(DataSourceKind.BASIC_VENDOR, 0, 0, 8)
+        == AcquisitionPath.FRESH_PHYSICAL;
+assert acquisitionPath(DataSourceKind.HIKARI_POOL, 3, 5, 8)
+        == AcquisitionPath.BORROW_IDLE;
+assert acquisitionPath(DataSourceKind.HIKARI_POOL, 0, 5, 8)
+        == AcquisitionPath.GROW_PHYSICAL;
+assert acquisitionPath(DataSourceKind.HIKARI_POOL, 0, 8, 8)
+        == AcquisitionPath.WAIT_OR_TIMEOUT;
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Checkout
+    Checkout --> LogicalLease: idle physical session exists
+    Checkout --> PhysicalCreate: pool may grow
+    PhysicalCreate --> LogicalLease: driver startup succeeds
+    Checkout --> Waiting: pool at maximum
+    Waiting --> LogicalLease: borrower returns session
+    Waiting --> Timeout: checkout budget expires
+```
+
+A checkout trace should therefore carry two identities: the logical lease/request ID and the underlying physical-session ID or pool lifecycle event. A latency spike in `getConnection()` can be a checkout queue, slow validation, or physical creation; packet capture alone misses warm borrows, while a checkout timer alone cannot explain TLS or authentication delay. The teaching decision is `O(1)`. Production correlation needs acquisition, creation, validation, active/idle/pending, and hold-time measurements.
+
+## Example 59 — name every layer before saying “the protocol”
+
+“JDBC protocol” is usually a category error. JDBC is the Java API. pgJDBC is a Type 4 driver speaking PostgreSQL frontend/backend protocol; Connector/J is a Type 4 driver implemented in Java for the MySQL protocol. Both commonly use TCP and can add TLS, but that does not turn either database protocol into HTTPS.
+
+```java
+JdbcLayerStack postgres = jdbcLayerStack("jdbc:postgresql://db.example/app");
+assert postgres.jdbcApi().equals("JDBC");
+assert postgres.wireProtocol().equals("PostgreSQL frontend/backend v3");
+assert postgres.defaultTransport().equals("TCP");
+assert !postgres.httpByDefault();
+
+JdbcLayerStack mysql = jdbcLayerStack("jdbc:mysql://db.example/app");
+assert mysql.wireProtocol().equals("MySQL classic protocol");
+assert !mysql.httpByDefault();
+```
+
+```mermaid
+flowchart LR
+    J["JDBC call"] --> R["vendor driver"]
+    R --> W["vendor wire messages"]
+    W --> E["optional encryption"]
+    E --> X["transport and network path"]
+```
+
+Use a five-column incident note:
+
+| Layer | Example evidence | Typical failure |
+|---|---|---|
+| API/caller | `getConnection`, `execute`, logical deadline | wrong ownership or timeout budget |
+| pool | pending, acquisition, validation, physical create | queue or stale session |
+| driver | accepted URL, mode, driver version | property or compatibility mismatch |
+| database protocol | Startup/Authentication/ReadyForQuery or MySQL handshake | authentication or state-machine failure |
+| transport/path | DNS, socket, TLS, proxy, NAT | resolution, refusal, certificate, reset |
+
+Do not infer protocol from a port alone: proxies can listen on nonstandard ports, and a TLS record does not identify the encrypted application protocol without configuration or negotiated metadata. Redact passwords, tokens, certificate private material, and sensitive SQL from traces.
+
+## Example 60 — a PostgreSQL startup trace is conditional evidence
+
+For the next section, use one explicit baseline: TCP, a fresh physical connection, traditional PostgreSQL `SSLRequest` negotiation, a full TLS handshake with server-certificate validation, and SCRAM-SHA-256 authentication. Under that baseline the high-level phases are:
+
+1. resolve/connect TCP;
+2. send `SSLRequest`, receive exactly the server's one-byte response;
+3. perform the TLS handshake;
+4. send `StartupMessage` inside TLS;
+5. complete SCRAM authentication; and
+6. receive startup state ending in `ReadyForQuery`.
+
+That is not the only valid trace. Direct TLS omits the `SSLRequest` exchange; TLS resumption changes the handshake; a Unix-domain socket omits TCP; GSSAPI adds a different negotiation; client-certificate authentication can remove the SCRAM exchange; and a proxy can terminate one connection while opening or reusing another. A warm Hikari checkout can omit the entire physical startup path.
+
+```java
+PgHandshakePlan traditional = pgHandshakePlan(
+        PgTransport.TCP,
+        PgEncryption.SSL_REQUEST_TLS,
+        PgAuthentication.SCRAM_SHA_256,
+        false);
+assert traditional.sendsSslRequest();
+assert traditional.performsTlsHandshake();
+assert traditional.performsScramExchange();
+
+PgHandshakePlan direct = pgHandshakePlan(
+        PgTransport.TCP,
+        PgEncryption.DIRECT_TLS,
+        PgAuthentication.CLIENT_CERTIFICATE,
+        true);
+assert !direct.sendsSslRequest();
+assert direct.performsTlsHandshake();
+assert !direct.performsScramExchange();
+```
+
+```mermaid
+flowchart TD
+    F{"fresh physical session?"} -->|no| B["borrow; no startup trace"]
+    F -->|yes| T{"transport"}
+    T -->|TCP| S{"encryption mode"}
+    T -->|Unix socket| A["StartupMessage and configured auth"]
+    S -->|postgres negotiation| Q["SSLRequest, TLS, StartupMessage"]
+    S -->|direct TLS| D["TLS, then StartupMessage"]
+    S -->|GSSAPI or plaintext| V["different startup path"]
+```
+
+The model is `O(p)` time and space for `p` recorded phases—seven or fewer here. It is intentionally qualitative: exact packets and round trips depend on DNS caching, address attempts, TCP/TLS versions, session resumption, certificate chain, channel binding, authentication method, protocol version, proxy behavior, driver version, and server policy. Capture the sanitized JDBC properties and pool event beside any packet trace so the assumptions are reproducible.
+
+## Operations, complexity, and review
+
+| Misdiagnosis | Why it fails | Better evidence |
+|---|---|---|
+| “`getConnection()` always opens a socket” | a pool normally returns a logical lease | separate acquisition from physical creation |
+| “JDBC uses HTTP” | JDBC is an API; the vendor driver chooses a database protocol | record driver and wire protocol |
+| “the JDBC URL is sent to the server” | it is client configuration parsed by driver/pool | inspect sanitized effective properties |
+| “TLS proves PostgreSQL” | TLS can carry many protocols | combine endpoint, driver, ALPN/config, and protocol messages |
+| “every PostgreSQL connection starts with `SSLRequest`” | direct TLS, GSSAPI, plaintext, local sockets, and proxies differ | state negotiation assumptions |
+| “one packet trace explains pool latency” | warm borrow and pool queues may have no new packets | join pool and network timelines |
+
+Review questions:
+
+- Which concrete `Driver` accepted the URL, and which version is running?
+- Is the application using `DriverManager`, a basic vendor `DataSource`, or a pooling `DataSource`?
+- Did this logical checkout reuse, create, validate, wait, or time out?
+- Which endpoint and protocol does the driver actually target?
+- Is TLS negotiated through PostgreSQL `SSLRequest`, direct TLS, or a proxy-specific path?
+- Is the connection fresh, resumed, local-socket, proxied, or already pooled?
+- Which authentication method and channel-binding policy are configured?
+- Do logs and traces redact secrets while retaining request, lease, and physical-session correlation?
+- Does the next packet-level diagram label its assumptions rather than presenting one universal JDBC trace?
+
+### Primary references for Section 15
+
+Accessed 2026-10-18.
+
+84. [Java SE 17 `DriverManager`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/DriverManager.html): driver discovery, URL acceptance, `getConnection`, and the `jdbc:subprotocol:subname` form.
+85. [Java SE 17 `DataSource`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/javax/sql/DataSource.html): basic, pooling, and distributed-transaction implementations and connection-factory semantics.
+86. [HikariCP README and configuration](https://github.com/brettwooldridge/HikariCP): DriverManager- versus DataSource-backed configuration, logical connection cycles, physical pool growth, and checkout waiting.
+87. [pgJDBC connection documentation](https://jdbc.postgresql.org/documentation/use/): PostgreSQL JDBC URLs, V3 frontend/backend protocol support, SSL negotiation, and query modes.
+88. [MySQL Connector/J overview and URL syntax](https://dev.mysql.com/doc/connector-j/en/connector-j-overview.html): Type 4 MySQL-protocol implementation; `jdbc:mysql`, load-balancing, replication, and X DevAPI scheme distinctions.
+89. [PostgreSQL 18 frontend/backend protocol — message flow](https://www.postgresql.org/docs/current/protocol-flow.html): startup completion, `SSLRequest`, direct TLS, GSSAPI alternatives, and `ReadyForQuery`.
+90. [PostgreSQL 18 connection control — `sslnegotiation`](https://www.postgresql.org/docs/current/libpq-connect.html): traditional PostgreSQL negotiation versus direct TLS and their constraints.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -2934,8 +3152,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; and lines **719–768**, “HikariCP controls and pool metrics”
-- Deliberate continuation: Section 15, “JDBC is an API, not a network protocol,” begins at source line **769** and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; and lines **769–774**, “JDBC is an API, not a network protocol”
+- Deliberate continuation: Section 16, “Full chronological PostgreSQL trace,” begins at source line **775** and remains unprocessed.
 
 Validation commands:
 
