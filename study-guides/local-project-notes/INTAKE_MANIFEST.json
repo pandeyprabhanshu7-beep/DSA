@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "4fc0f9aacacfe48728f63b2dec32a5640f877889",
+  "last_successful_commit": "478a510fcc53d7667cc5cc12715fbc94fe2b1a60",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -866,19 +866,19 @@
     "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
     "source_version_id": "1",
     "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-    "section": "Section 22 only: If you cache mutable rows instead, source lines 1341-1364, bounded by the Phase 6 / Section 23 heading",
+    "section": "Section 23 only: Fault-injection and integration test matrix, source lines 1365-1409, bounded by the Section 24 heading",
     "status": "QUEUED",
-    "estimated_tokens": 6500,
-    "estimate_method": "Heuristic only: reserve ~800 tokens to review the bounded mutable-row source range, ~1400 for primary references, ~2800 for deep consolidation/examples/Java/HTML, and ~1500 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 7800,
+    "estimate_method": "Heuristic only: reserve ~1200 tokens to review the bounded fault-injection source range, ~1600 for primary references, ~3300 for deep consolidation/examples/Java/HTML, and ~1700 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
     "javascript": "Node v24.19.0 executed examples.mjs; all 70 scenario groups passed, including four new final-revision diagnosis and speaking-frame assertions.",
     "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 206630-character embedded payload equality, 77 unique anchors, 151 balanced fences, 54 Mermaid diagrams, inline JavaScript, fragment targets, relative links, JSON syntax, and the live 170-marker Java-placeholder invariant passed. All six content-commit remote blob hashes matched; no commit statuses or check runs were configured. Browser and assistive-technology integration plus Mermaid visual QA were not executed.",
-    "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Sections 1-21 reader now has 91 validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
-    "database": "Database Sections 1-21 use confirmed source version 1 through line 1340. Section 21 was bounded by the Section 22 heading and consolidated with current Spring Data Redis 4.1.1 scripting/template, Java 17 Semaphore, Micrometer and Reactor documentation. Java 17 source launch and independent compilation through jdk.compiler passed 84 total scenario groups; deterministic reader generation passed exact 306770-character payload equality, source hash 3fa2fce63ed550c2d53c1393cdabea2e376f3b15fcd25d13c9c8f2b40c71a67d, 919 unique HTML IDs, 186 search entries, fragments, allowed relative links, 163 balanced fences and 91 Mermaid sources; live canonical DSA marker audit remains 170. The four-file content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
-    "last_processed_at": "2026-10-18T16:37:43-04:00"
+    "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Sections 1-22 reader now has 94 validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
+    "database": "Database Sections 1-22 use confirmed source version 1 through line 1364. Section 22 was bounded by the Phase 6 / Section 23 heading and consolidated with current Debezium stable outbox-router, PostgreSQL 18 UPDATE/locking/SKIP LOCKED and Redis Lua documentation. Java 17 source launch and independent compilation through jdk.compiler passed 88 total scenario groups; deterministic reader generation passed exact 319823-character payload equality, source hash 64460d9b892d01de4eabda40911b04d6b13abcbf27ab3917fe5d1e64cca59a30, 1043 unique HTML IDs, 194 search entries, fragments, allowed relative links, 174 balanced fences and 94 Mermaid sources; live canonical DSA marker audit remains 170. The four-file content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
+    "last_processed_at": "2026-10-18T17:12:20-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-14T16:16:21-04:00",
@@ -905,18 +905,18 @@
     "estimate_method": "Heuristic for bounded database-source verification, targeted primary-source refresh, deep consolidation/HTML and validation/checkpoint reserves; not actual quota percentage"
   },
   "database_caching_java_intake_checkpoint": {
-    "last_processed_at": "2026-10-18T16:37:43-04:00",
+    "last_processed_at": "2026-10-18T17:12:20-04:00",
     "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
     "source_library_file_id": "libfile_969515775294819195d90fe08e46b7be",
     "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
     "source_version_id": "1",
-    "processed": "Sections 1-21, ACID/BASE, B+ trees, LSM trees, row/column storage, isolation, cache topology, four read/write strategies, eviction internals, cache stampede coordination, cache penetration/Bloom filters, cache-avalanche protection, pool/network-proxy architecture, physical connection costs, Hikari controls/metrics, JDBC API/protocol boundaries, PostgreSQL connection chronology/stage-by-stage mechanics, MySQL authentication order, prepared-query mechanics, explicit production contract and the complete Java cache-aside component, source lines 62-1340; latest bounded section is lines 1091-1340",
+    "processed": "Sections 1-22, ACID/BASE, B+ trees, LSM trees, row/column storage, isolation, cache topology, four read/write strategies, eviction internals, cache stampede coordination, cache penetration/Bloom filters, cache-avalanche protection, pool/network-proxy architecture, physical connection costs, Hikari controls/metrics, JDBC API/protocol boundaries, PostgreSQL connection chronology/stage-by-stage mechanics, MySQL authentication order, prepared-query mechanics, explicit production contract, complete Java cache-aside component and mutable-row outbox/fencing, source lines 62-1364; latest bounded section is lines 1341-1364",
     "status": "IN_PROGRESS",
-    "validation": "Section 21 was bounded by the Section 22 heading and consolidated with current Spring Data Redis 4.1.1 scripting/template, Java 17 Semaphore, Micrometer and Reactor documentation. Java 17 source launch and independent compilation through jdk.compiler passed 84 total scenario groups; deterministic reader generation and exact 306770-character payload equality passed with source hash 3fa2fce63ed550c2d53c1393cdabea2e376f3b15fcd25d13c9c8f2b40c71a67d, 919 unique IDs, 186 search entries, fragments, allowed relative links, 163 balanced fences and 91 Mermaid sources. Live canonical DSA marker audit remains 170; the four-file content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser/assistive-technology/Mermaid visual QA were not executed.",
-    "content_commit": "4fc0f9aacacfe48728f63b2dec32a5640f877889",
-    "next_section": "Section 22, If you cache mutable rows instead, source lines 1341-1364, bounded by the Phase 6 / Section 23 heading",
-    "estimated_next_tokens": 6500,
-    "estimate_method": "Heuristic for bounded mutable-row outbox/version source review, targeted primary-source refresh, deep consolidation/Java/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "validation": "Section 22 was bounded by the Phase 6 / Section 23 heading and consolidated with current Debezium stable outbox-router, PostgreSQL 18 UPDATE/locking/SKIP LOCKED and Redis Lua documentation. Java 17 source launch and independent compilation through jdk.compiler passed 88 total scenario groups; deterministic reader generation and exact 319823-character payload equality passed with source hash 64460d9b892d01de4eabda40911b04d6b13abcbf27ab3917fe5d1e64cca59a30, 1043 unique IDs, 194 search entries, fragments, allowed relative links, 174 balanced fences and 94 Mermaid sources. Live canonical DSA marker audit remains 170; the four-file content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser/assistive-technology/Mermaid visual QA were not executed.",
+    "content_commit": "478a510fcc53d7667cc5cc12715fbc94fe2b1a60",
+    "next_section": "Section 23, Fault-injection and integration test matrix, source lines 1365-1409, bounded by the Section 24 heading",
+    "estimated_next_tokens": 7800,
+    "estimate_method": "Heuristic for bounded fault-injection matrix source review, targeted primary-source refresh, deep consolidation/Java/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
 
