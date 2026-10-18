@@ -4,12 +4,13 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Executable teaching models for guide Sections 1-7. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-8. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -853,6 +854,195 @@ public final class ConsistencyContracts {
         int queued() { return durableQueue.size(); }
     }
 
+    static final class ExactLruCache {
+        private final int capacity;
+        private final LinkedHashMap<String, Integer> values =
+                new LinkedHashMap<>(16, 0.75f, true);
+
+        ExactLruCache(int capacity) {
+            if (capacity <= 0) throw new IllegalArgumentException("positive capacity required");
+            this.capacity = capacity;
+        }
+
+        String put(String key, int value) {
+            if (values.containsKey(key)) {
+                values.put(key, value); // an update is an access in access-order mode
+                return null;
+            }
+            String evicted = null;
+            if (values.size() == capacity) {
+                evicted = values.keySet().iterator().next();
+                values.remove(evicted);
+            }
+            values.put(key, value);
+            return evicted;
+        }
+
+        Integer get(String key) { return values.get(key); }
+        boolean contains(String key) { return values.containsKey(key); }
+        List<String> orderLeastToMostRecent() { return List.copyOf(values.keySet()); }
+    }
+
+    static final class FifoCache {
+        private final int capacity;
+        private final LinkedHashMap<String, Integer> values = new LinkedHashMap<>();
+
+        FifoCache(int capacity) {
+            if (capacity <= 0) throw new IllegalArgumentException("positive capacity required");
+            this.capacity = capacity;
+        }
+
+        String put(String key, int value) {
+            if (values.containsKey(key)) {
+                values.put(key, value); // insertion order is unchanged
+                return null;
+            }
+            String evicted = null;
+            if (values.size() == capacity) {
+                evicted = values.keySet().iterator().next();
+                values.remove(evicted);
+            }
+            values.put(key, value);
+            return evicted;
+        }
+
+        Integer get(String key) { return values.get(key); }
+        boolean contains(String key) { return values.containsKey(key); }
+        List<String> orderOldestToNewest() { return List.copyOf(values.keySet()); }
+    }
+
+    static final class ExactLfuModel {
+        private static final class Entry {
+            int value;
+            int frequency = 1;
+            long lastTouch;
+
+            Entry(int value, long lastTouch) {
+                this.value = value;
+                this.lastTouch = lastTouch;
+            }
+        }
+
+        private final int capacity;
+        private final Map<String, Entry> values = new HashMap<>();
+        private long clock;
+
+        ExactLfuModel(int capacity) {
+            if (capacity <= 0) throw new IllegalArgumentException("positive capacity required");
+            this.capacity = capacity;
+        }
+
+        String put(String key, int value) {
+            Entry existing = values.get(key);
+            if (existing != null) {
+                existing.value = value;
+                touch(existing);
+                return null;
+            }
+            String evicted = null;
+            if (values.size() == capacity) {
+                evicted = victim();
+                values.remove(evicted);
+            }
+            values.put(key, new Entry(value, ++clock));
+            return evicted;
+        }
+
+        Integer get(String key) {
+            Entry entry = values.get(key);
+            if (entry == null) return null;
+            touch(entry);
+            return entry.value;
+        }
+
+        void decay() {
+            values.values().forEach(entry -> entry.frequency = Math.max(1,
+                    (entry.frequency + 1) / 2));
+        }
+
+        int frequency(String key) { return values.get(key).frequency; }
+        boolean contains(String key) { return values.containsKey(key); }
+
+        private void touch(Entry entry) {
+            entry.frequency = Math.incrementExact(entry.frequency);
+            entry.lastTouch = ++clock;
+        }
+
+        private String victim() {
+            String victim = null;
+            Entry victimEntry = null;
+            for (Map.Entry<String, Entry> candidate : values.entrySet()) {
+                Entry entry = candidate.getValue();
+                if (victimEntry == null || entry.frequency < victimEntry.frequency
+                        || (entry.frequency == victimEntry.frequency
+                                && entry.lastTouch < victimEntry.lastTouch)) {
+                    victim = candidate.getKey();
+                    victimEntry = entry;
+                }
+            }
+            return victim;
+        }
+    }
+
+    enum TwoQHit { NEW, A1IN_HIT, GHOST_HIT, AM_HIT }
+    record TwoQResult(TwoQHit hit, String evictedResident, String droppedGhost) {}
+
+    static final class FullTwoQueueModel {
+        private final int a1inCapacity;
+        private final int amCapacity;
+        private final int ghostCapacity;
+        private final LinkedHashMap<String, Boolean> a1in = new LinkedHashMap<>();
+        private final LinkedHashMap<String, Boolean> a1out = new LinkedHashMap<>();
+        private final LinkedHashMap<String, Boolean> am =
+                new LinkedHashMap<>(16, 0.75f, true);
+
+        FullTwoQueueModel(int a1inCapacity, int amCapacity, int ghostCapacity) {
+            if (a1inCapacity <= 0 || amCapacity <= 0 || ghostCapacity <= 0) {
+                throw new IllegalArgumentException("positive queue capacities required");
+            }
+            this.a1inCapacity = a1inCapacity;
+            this.amCapacity = amCapacity;
+            this.ghostCapacity = ghostCapacity;
+        }
+
+        TwoQResult request(String key) {
+            if (key.isBlank()) throw new IllegalArgumentException("key required");
+            if (am.get(key) != null) return new TwoQResult(TwoQHit.AM_HIT, null, null);
+            if (a1in.containsKey(key)) {
+                return new TwoQResult(TwoQHit.A1IN_HIT, null, null); // FIFO position unchanged
+            }
+            if (a1out.remove(key) != null) {
+                String evicted = null;
+                if (am.size() == amCapacity) {
+                    evicted = removeEldest(am);
+                }
+                am.put(key, Boolean.TRUE);
+                return new TwoQResult(TwoQHit.GHOST_HIT, evicted, null);
+            }
+
+            String evicted = null;
+            String droppedGhost = null;
+            if (a1in.size() == a1inCapacity) {
+                evicted = removeEldest(a1in);
+                if (a1out.size() == ghostCapacity) droppedGhost = removeEldest(a1out);
+                a1out.put(evicted, Boolean.TRUE);
+            }
+            a1in.put(key, Boolean.TRUE);
+            return new TwoQResult(TwoQHit.NEW, evicted, droppedGhost);
+        }
+
+        boolean resident(String key) { return a1in.containsKey(key) || am.containsKey(key); }
+        List<String> a1inOrder() { return List.copyOf(a1in.keySet()); }
+        List<String> ghostOrder() { return List.copyOf(a1out.keySet()); }
+        List<String> amLeastToMostRecent() { return List.copyOf(am.keySet()); }
+
+        private static String removeEldest(LinkedHashMap<String, Boolean> map) {
+            String eldest = map.keySet().iterator().next();
+            map.remove(eldest);
+            return eldest;
+        }
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -1264,6 +1454,77 @@ public final class ConsistencyContracts {
         assert store.authoritative("profile:7").version() == 2;
     }
 
+    private static void exactLruScenarios() {
+        ExactLruCache cache = new ExactLruCache(3);
+        cache.put("A", 1);
+        cache.put("B", 2);
+        cache.put("C", 3);
+        assert cache.get("A") == 1;
+        assert cache.orderLeastToMostRecent().equals(List.of("B", "C", "A"));
+        assert cache.put("D", 4).equals("B");
+        assert cache.orderLeastToMostRecent().equals(List.of("C", "A", "D"));
+        assert cache.contains("A") && !cache.contains("B");
+    }
+
+    private static void exactLfuScenarios() {
+        ExactLfuModel cache = new ExactLfuModel(3);
+        cache.put("A", 1);
+        cache.put("B", 2);
+        cache.put("C", 3);
+        cache.get("A");
+        cache.get("A");
+        cache.get("B");
+        assert cache.put("D", 4).equals("C");
+        assert cache.frequency("A") == 3;
+        assert cache.frequency("B") == 2;
+
+        cache.decay();
+        assert cache.frequency("A") == 2;
+        assert cache.frequency("B") == 1;
+        cache.get("D");
+        assert cache.put("E", 5).equals("B");
+        assert cache.contains("A") && cache.contains("D") && cache.contains("E");
+    }
+
+    private static void fifoScenarios() {
+        FifoCache cache = new FifoCache(3);
+        cache.put("A", 1);
+        cache.put("B", 2);
+        cache.put("C", 3);
+        assert cache.get("A") == 1;
+        assert cache.orderOldestToNewest().equals(List.of("A", "B", "C"));
+        assert cache.put("D", 4).equals("A");
+        assert cache.orderOldestToNewest().equals(List.of("B", "C", "D"));
+        assert !cache.contains("A");
+    }
+
+    private static void fullTwoQueueScenarios() {
+        FullTwoQueueModel residentHit = new FullTwoQueueModel(2, 2, 3);
+        residentHit.request("A");
+        residentHit.request("B");
+        assert residentHit.request("B").hit() == TwoQHit.A1IN_HIT;
+        residentHit.request("C");
+        assert residentHit.a1inOrder().equals(List.of("B", "C"));
+        assert residentHit.ghostOrder().equals(List.of("A"));
+
+        FullTwoQueueModel cache = new FullTwoQueueModel(2, 2, 3);
+        assert cache.request("A").hit() == TwoQHit.NEW;
+        cache.request("B");
+        assert cache.request("C").evictedResident().equals("A");
+        assert cache.request("A").hit() == TwoQHit.GHOST_HIT;
+        for (String key : List.of("D", "E", "F", "G")) cache.request(key);
+        assert cache.resident("A");
+        assert cache.amLeastToMostRecent().equals(List.of("A"));
+        assert cache.a1inOrder().equals(List.of("F", "G"));
+        assert cache.ghostOrder().equals(List.of("C", "D", "E"));
+
+        ExactLruCache lru = new ExactLruCache(4);
+        for (String key : List.of("A", "B", "C")) lru.put(key, 1);
+        lru.get("A");
+        for (String key : List.of("D", "E", "F", "G")) lru.put(key, 1);
+        assert !lru.contains("A"); // the same one-pass scan displaced A under exact LRU
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -1296,7 +1557,11 @@ public final class ConsistencyContracts {
         readThroughScenarios();
         writeThroughRepairScenarios();
         writeBehindScenarios();
-        System.out.println("PASS 28 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay");
+        exactLruScenarios();
+        exactLfuScenarios();
+        fifoScenarios();
+        fullTwoQueueScenarios();
+        System.out.println("PASS 32 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q");
     }
 }
 

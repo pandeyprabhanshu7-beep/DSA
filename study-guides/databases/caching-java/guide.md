@@ -1378,6 +1378,195 @@ Accessed 2026-10-17.
 42. [Debezium outbox event router](https://debezium.io/documentation/reference/transformations/outbox-event-router.html): durable outbox capture, event IDs for deduplication, aggregate keys, and ordering relevance.
 43. [Apache Kafka 4.0 producer configuration](https://kafka.apache.org/40/configuration/producer-configs/): idempotent producer requirements, retry duplication risk, and ordering constraints for in-flight requests.
 
+# Section 8 — Eviction internals: LRU, LFU, FIFO, and full 2Q
+
+Expiration, eviction, and admission answer different questions. **Expiration** decides whether an entry is still eligible to serve. **Eviction** chooses a resident victim when the cache must free capacity. **Admission** decides whether a candidate deserves that space at all. A cache may expire entries without memory pressure, evict unexpired entries under pressure, and reject a candidate without ever making it resident.
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. derive the exact victim and metadata mutation for LRU, LFU, FIFO, and full 2Q traces;
+2. explain why an exact access-order LRU makes every hit a write to recency metadata;
+3. apply an LFU tie-break and aging rule so old popularity does not become permanent;
+4. distinguish FIFO's low hit-path churn from recency-aware eviction;
+5. identify `A1in`, `A1out`, and `Am` in full 2Q and explain why the ghost queue holds keys but no values; and
+6. compare a textbook model with Redis and Memcached implementations without promising an exact production eviction order.
+
+Write the capacity contract before choosing a policy:
+
+| Requirement | Example | Consequence |
+|---|---|---|
+| capacity unit | 100,000 entries or 512 MiB weighted | an entry-count model can exceed a byte budget when values vary |
+| candidate set | all keys or only expiring keys | Redis `allkeys-*` and `volatile-*` policies protect different populations |
+| hit metadata | synchronous move, counter increment, or no change | affects locks, CPU, and contention on a hot cache |
+| tie-break | oldest access among equal frequencies | makes LFU victim selection deterministic |
+| history aging | halve counters every epoch | lets a formerly hot key eventually leave |
+| scan resistance | retain reused pages through a one-pass scan | may justify admission filtering or 2Q history |
+| observability | evictions by reason/policy/size class | a hit ratio alone cannot reveal policy failure |
+
+The Java models below are deterministic teaching implementations. They prove trace semantics, not production scalability: their LFU model scans residents to select a victim, while a production exact `O(1)` LFU can maintain a key map, frequency buckets with recency lists, and a minimum-frequency pointer.
+
+## Example 29 — exact LRU: a hit mutates recency
+
+Canonical exact LRU combines a key-to-node hash map with a doubly linked list ordered from least to most recently used. A hit locates the node in expected `O(1)`, unlinks it, and moves it to the most-recent end. Insertion into a full cache removes the least-recent end.
+
+Capacity 3, trace `A, B, C, A, D`:
+
+| Request | LRU → MRU after request | Event |
+|---|---|---|
+| `A` | `A` | insert |
+| `B` | `A, B` | insert |
+| `C` | `A, B, C` | insert; cache full |
+| `A` | `B, C, A` | hit moves A to MRU |
+| `D` | `C, A, D` | evict B, then insert D |
+
+```mermaid
+flowchart TD
+    G["GET A"] --> H["hash map finds A"]
+    H --> U["unlink A from recency list"]
+    U --> M["append A at MRU end"]
+    D["insert D at capacity"] --> E["remove LRU node B"]
+    E --> N["append D at MRU end"]
+```
+
+The executable `ExactLruCache` uses Java 17 `LinkedHashMap` in access-order mode:
+
+```java
+ExactLruCache cache = new ExactLruCache(3);
+cache.put("A", 1); cache.put("B", 2); cache.put("C", 3);
+cache.get("A");
+assert cache.put("D", 4).equals("B");
+assert cache.orderLeastToMostRecent().equals(List.of("C", "A", "D"));
+```
+
+Java documents that access-order `LinkedHashMap` iteration runs from least- to most-recent access and that `get` changes access order. That convenience is not a concurrency guarantee: the class is unsynchronized, and in access-order mode even a `get` is a structural modification. A synchronized wrapper can protect correctness but may serialize hot hits; production libraries therefore use buffering, striping, sampling, or approximate policies to reduce metadata contention.
+
+Pure LRU also confuses “recent once” with “likely reusable.” A scan longer than capacity can evict a stable working set because every scanned key becomes the newest resident. Section 6's admission discussion and Example 32's ghost history address that different problem; expiry alone does not.
+
+## Example 30 — LFU needs a deterministic tie-break and aging
+
+LFU retains keys with the highest observed frequency. One exact `O(1)` design keeps a map from key to node, one recency list per frequency, and a pointer to the minimum non-empty frequency. A hit moves a node from bucket `f` to `f + 1`; eviction chooses the oldest node in the minimum-frequency bucket.
+
+Capacity 3, starting with `A`, `B`, and `C` at frequency 1:
+
+| Action | Frequencies after action | Result |
+|---|---|---|
+| hit A twice | A=3, B=1, C=1 | A becomes established hot data |
+| hit B once | A=3, B=2, C=1 | C is the unique minimum |
+| insert D | A=3, B=2, D=1 | evict C |
+| decay with `max(1, ceil(f/2))` | A=2, B=1, D=1 | historic counts lose dominance |
+| hit D; insert E | A=2, D=2, E=1 | evict B, the remaining minimum |
+
+```mermaid
+flowchart TD
+    K["hit key in bucket f"] --> R["remove from bucket f"]
+    R --> A["append to bucket f + 1"]
+    E["eviction required"] --> F["choose minimum-frequency bucket"]
+    F --> T["evict oldest tied entry"]
+    X["aging epoch"] --> D["decay or halve counters"]
+```
+
+The executable `ExactLfuModel` checks that trace, including the recency tie-break and explicit counter decay. Its victim scan is intentionally simple and `O(n)` so the invariant is visible. The bucketed production form avoids that scan but pays for more linked metadata and a mutation on every hit.
+
+Without decay or saturation, yesterday's viral key can remain resident long after demand disappears. The aging interval is therefore part of the policy: too fast approximates recency; too slow preserves stale popularity. Counters also need overflow handling. Measure frequency distribution, victim frequency, counter-decay work, and hit rate after workload phase changes rather than selecting LFU from its name.
+
+Redis does not maintain this textbook structure. Its documentation describes approximate LRU based on sampled candidates and compact LFU accounting with decay. The exact key removed is probabilistic, and increasing the sample count exchanges more CPU for closer approximation. Test the configured product with representative traces and memory pressure.
+
+## Example 31 — FIFO: hits avoid recency churn but cannot protect reuse
+
+FIFO keeps insertion order in a queue plus a lookup map. A hit returns the value without changing queue position. The same capacity-3 trace therefore differs from LRU:
+
+| Request | oldest → newest | Event |
+|---|---|---|
+| `A` | `A` | insert |
+| `B` | `A, B` | insert |
+| `C` | `A, B, C` | insert; cache full |
+| `A` | `A, B, C` | hit; position unchanged |
+| `D` | `B, C, D` | evict A despite its recent hit |
+
+```mermaid
+flowchart TD
+    N["new key"] --> Q["append queue tail"]
+    Q --> C{"over capacity?"}
+    C -->|yes| H["evict queue head"]
+    C -->|no| V["retain residents"]
+    G["hit existing key"] --> R["return value; no queue mutation"]
+```
+
+The Java `FifoCache` asserts that A remains the oldest after its hit and is the victim when D arrives. FIFO's advantage is predictable, low hit-path metadata churn. Its disadvantage is equally direct: a frequently reused old entry receives no protection. FIFO can still be valuable as a probationary queue—full 2Q uses this property for first-touch entries—even when it is a poor whole-cache policy.
+
+Insertion-order does not mean “oldest value” or “closest to expiry.” Updating an existing mapping in this model preserves its original position. If the business meaning of an update should reset residency, that is a separate documented rule. Likewise, expired-entry reclamation should run before or alongside pressure eviction; otherwise the cache may evict a live FIFO head while unreachable expired objects consume memory elsewhere.
+
+## Example 32 — full 2Q uses a ghost history to resist scans
+
+Full 2Q separates first touches from demonstrated reuse with three bounded structures:
+
+| Structure | Resident value? | Order | Purpose |
+|---|---:|---|---|
+| `A1in` | yes | FIFO | probation for first-touch pages |
+| `A1out` | **no**—identifier only | FIFO ghost history | recognize a second request after probationary eviction |
+| `Am` | yes | LRU | protect established reusable pages |
+
+The executable `FullTwoQueueModel` uses `A1in=2`, `Am=2`, and `A1out=3`. Its trace is `A, B, C, A, D, E, F, G`:
+
+| Request | `A1in` | `A1out` ghosts | `Am` | Explanation |
+|---|---|---|---|---|
+| A, B | A, B | — | — | first touches enter probation |
+| C | B, C | A | — | A's value leaves; identifier remains |
+| A | B, C | — | A | ghost hit reloads A into established LRU |
+| D, E, F, G | F, G | C, D, E | A | one-pass scan churns probation, not A |
+
+```mermaid
+flowchart TD
+    R["request key"] --> W{"where is it?"}
+    W -->|Am| M["return and move to MRU"]
+    W -->|A1in| I["return; keep FIFO position"]
+    W -->|A1out ghost| P["reload and promote to Am"]
+    W -->|new| N["load into A1in"]
+    N --> E["probation eviction keeps bounded ghost ID"]
+```
+
+For comparison, exact LRU with total capacity 4 loses A under the same one-pass suffix `D, E, F, G`; 2Q retains A because A demonstrated reuse through a ghost hit. This is the mechanism behind scan resistance, not a magical second chance on every resident hit. A hit while a value is still in `A1in` preserves FIFO position in the full policy used here. Simplified “two-queue” variants that promote on a second resident hit are useful but should not be labeled as the exact full-2Q transition.
+
+Ghost entries save value bytes, not all memory: keys, hashes, links, and allocator overhead remain. `A1in`, `A1out`, and `Am` therefore each need bounds. Fixed partitions can also underperform when the workload mix changes, so replay representative traces and measure resident hit rate, ghost-hit rate, promotion rate, probation churn, ghost metadata bytes, and established-queue evictions.
+
+The original 2Q paper describes constant per-access overhead and evaluates scan-resistant behavior against LRU/2-style history. A production cache may instead use segmented LRU, TinyLFU admission, CLOCK variants, or sampling. Memcached, for example, documents HOT/WARM/COLD segments, asynchronous bumps, a maintainer thread, and tail reclamation by slab class—not a single textbook global LRU. Redis similarly samples candidates for approximate LRU. Product names must not substitute for deployed-policy documentation.
+
+## Production selection, complexity, and review
+
+| Policy | Lookup | Hit metadata | Victim choice | Characteristic failure |
+|---|---:|---|---|---|
+| exact LRU | expected `O(1)` | move list node | LRU tail in `O(1)` | sequential scan pollutes recency |
+| exact bucketed LFU | expected `O(1)` | move frequency bucket | oldest in min-frequency bucket | stale popularity without aging |
+| FIFO | expected `O(1)` | none | queue head in `O(1)` | evicts old but actively reused entries |
+| full 2Q | expected `O(1)` | queue-specific move or none | bounded probation/established tails | partition and ghost-metadata sensitivity |
+
+This table assumes entry-count capacity and hash/list operations. Byte-weighted values require weight accounting and may need several victims for one large candidate. Serialization size, object overhead, allocator fragmentation, per-shard/slab limits, and pinned entries can make “capacity 1,000” misleading. The policy also cannot repair an unsafe cache key or stale-publication race from earlier sections.
+
+Review questions:
+
+- Is the capacity by entries, bytes, weight, tenant, shard, or slab class?
+- Are expired entries reclaimed before live entries are evicted?
+- Does a hit synchronously mutate shared metadata?
+- What deterministic tie-break applies when LFU frequencies match?
+- How and when are frequency counters aged, saturated, or reset?
+- Can a one-pass scan displace the working set?
+- Does the implementation use exact order, sampling, segments, or admission filtering?
+- In 2Q, are `A1out` entries ghosts only, and are all three queues bounded?
+- Does a resident `A1in` hit preserve FIFO order, or is this a documented variant?
+- Which trace suite and metrics demonstrate that the chosen policy beats a simpler baseline?
+
+### Primary references for Section 8
+
+Accessed 2026-10-17.
+
+44. [Redis key eviction](https://redis.io/docs/latest/develop/reference/eviction/): memory-limit enforcement, policy populations, sampled approximate LRU, tunable sample count, and LFU policy behavior.
+45. [Java SE 17 `LinkedHashMap`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/LinkedHashMap.html): access-order semantics, `removeEldestEntry`, expected basic-operation cost, structural access mutations, and synchronization requirements.
+46. [Johnson and Shasha, “2Q: A Low Overhead High Performance Buffer Management Replacement Algorithm”](https://www.vldb.org/conf/1994/P439.PDF), VLDB 1994: original full-2Q motivation, queue/history design, constant-overhead goal, and trace evaluation.
+47. [Memcached modern LRU](https://memcached.org/blog/modern-lru/): HOT/WARM/COLD/TEMP segments, asynchronous bumps, maintainer behavior, overload trade-offs, and live tuning.
+48. [Memcached performance and memory guide](https://docs.memcached.org/serverguide/performance/): slab-class allocation, expiration reclamation, memory overhead, and tail eviction under pressure.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -1385,8 +1574,8 @@ Accessed 2026-10-17.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; and lines **397–493**, “Four read/write strategies”
-- Deliberate continuation: Section 8, “Eviction internals: LRU, LFU, FIFO and 2Q,” is source lines **494–556**, bounded by the Section 9 heading, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; and lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”
+- Deliberate continuation: Section 9, “Cache stampede: coordinate fills, bound fallback,” is source lines **557–588**, bounded by the Section 10 heading, and remains unprocessed.
 
 Validation commands:
 
