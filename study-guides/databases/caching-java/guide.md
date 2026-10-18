@@ -4889,6 +4889,270 @@ Accessed 2026-10-18.
 131. [Redis Lua scripting](https://redis.io/docs/latest/develop/programmability/eval-intro/): explicit `KEYS`/`ARGV`, script-cache volatility and atomic server-side commands.
 
 
+# Section 23 — Fault-injection and integration test matrix
+
+A unit test can prove a decision function. It cannot prove that Redis executes a Lua script atomically, that Redis Cluster accepts a multi-key script, that PostgreSQL aborts a dangerous serializable schedule, that pgJDBC rejects a wrong-host certificate, or that a JDBC lease returns to a real pool after cancellation. Those claims need the real protocol and server state machines.
+
+Use three complementary layers:
+
+1. **deterministic model tests** enumerate states, boundaries and forbidden outcomes quickly;
+2. **real isolated dependencies** verify Redis, PostgreSQL, TLS, pool and driver semantics; and
+3. **a controllable TCP proxy** injects latency, half-path cuts, connection loss and response ambiguity without replacing the dependency.
+
+```mermaid
+flowchart TD
+    U["deterministic model"] --> C["real Redis and PostgreSQL containers"]
+    C --> P["Toxiproxy-controlled network path"]
+    P --> O["observable application contract"]
+    O --> A{"required state and forbidden state asserted?"}
+    A -->|yes| R["release evidence"]
+    A -->|no| F["test is incomplete"]
+```
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. turn each failure claim into an injected fault, a required observation and a forbidden observation;
+2. choose the minimum honest test layer instead of claiming distributed behavior from mocks;
+3. barrier-start concurrency tests so the dangerous schedule is reproduced rather than merely hoped for;
+4. inject failure between every externally visible step of a cache lease and keep owner checks as the oracle;
+5. reproduce PostgreSQL write skew under Repeatable Read and verify whole-transaction retry under Serializable;
+6. distinguish a failed command from an unknown outcome when the response path disappears;
+7. assert bounded fallback, pool-resource return, certificate identity, cluster-slot and schema-rollout behavior; and
+8. record a replayable seed, versions, timings and terminal state without treating timing alone as correctness.
+
+The four executable examples below raise `ConsistencyContracts.java` from 88 to 92 scenario groups. They model the application oracles; release tests must still exercise real isolated services.
+
+## Core integration matrix
+
+| Contract | Injection and synchronization | Required observation | Forbidden observation |
+|---|---|---|---|
+| cold then warm immutable read | empty Redis; exact row exists | first path reads SQL; later path returns identical body without SQL | different content or repeated authoritative reads in the healthy steady state |
+| positive empty body | store `v1:` | present empty string | collapse to miss or negative |
+| authoritative absence | SQL returns zero rows | bounded `n1`; repeated calls suppress SQL until expiry | permanent absence or SQL error converted to `n1` |
+| concurrent cold key | barrier many callers on one key | one healthy owner path; all callers get the same answer | correctness depends on exactly one SQL read |
+| Redis unavailable | cut traffic through proxy | SQL fallback never exceeds eight permits per JVM; excess is rejected | unbounded fallback, hung request or negative poisoning |
+| lease expires mid-load | pause A beyond lease, let B acquire | A cannot publish; B remains owner | stale A overwrites B |
+| successor cleanup race | expire A; acquire B; run A cleanup | B's token remains | unconditional `DEL` removes B's lease |
+| real Redis Cluster | matched hash tag, then deliberate mismatch | matched script succeeds; mismatch fails visibly | client decomposes one atomic operation across slots |
+| negative creation race | read absent; insert exact revision | documented short stale absence; strict path bypasses it | claim of immediate visibility without a fence |
+| authorization revocation | warm body; revoke permission | deny before cache read | cached bytes bypass current authorization |
+| wrong-host certificate | trusted chain for another host | `verify-full` fails | insecure fallback |
+| JDBC lifecycle | success, exception and cancellation paths | active count and transaction state return to baseline | leaked lease or dirty pooled session |
+| serialization conflict | two barriered transactions read both on-call rows and update different rows | Repeatable Read reproduces skew; Serializable aborts one | testing only sequential transactions |
+| lost `COMMIT` response | cut response path after server processes commit | same operation ID resolves or safely replays | new operation ID duplicates the business effect |
+| schema rollout | mix `v1`, `n1` and unknown prefixes | unknown version is miss/separate namespace | future bytes decoded as current schema |
+
+Never assert “the request failed” when the actual contract is “the result is unknown.” Also avoid exact sleep-based expectations. Synchronize entry with barriers or database locks, inject at a named boundary, and assert durable state plus bounded timing.
+
+## Example 89 — specify the oracle before choosing the tool
+
+Every failure test needs four fields: real layer, injected fault, required observation and forbidden observation. The executable `faultOracle` table makes omissions visible during review.
+
+```java
+FaultOracle lease = faultOracle(FaultProbe.LUA_OWNER_CHECK);
+assert lease.layer() == RequiredTestLayer.REAL_REDIS;
+assert lease.requiredObservation().contains("B remains owner");
+
+FaultOracle cluster = faultOracle(FaultProbe.REDIS_CLUSTER_SLOT);
+assert cluster.layer() == RequiredTestLayer.REAL_REDIS_CLUSTER;
+
+FaultOracle serialization = faultOracle(FaultProbe.POSTGRES_SERIALIZATION);
+assert serialization.forbiddenObservation().contains("final UPDATE");
+```
+
+Testcontainers can start isolated PostgreSQL instances; its PostgreSQL module does not add a JDBC driver automatically, so the tested driver remains an explicit dependency. Route the application through Toxiproxy when the fault is on the network path. Toxiproxy can add latency/jitter, slice TCP data, delay close, time out a direction, limit bytes or cut traffic. That lets one test distinguish a server error from a missing response.
+
+```java
+@Testcontainers
+final class FaultMatrixIT {
+    @Container
+    static final PostgreSQLContainer<?> postgres =
+            new PostgreSQLContainer<>("postgres:18");
+
+    @Container
+    static final GenericContainer<?> redis =
+            new GenericContainer<>("redis:8").withExposedPorts(6379);
+
+    @Container
+    static final ToxiproxyContainer toxiproxy =
+            new ToxiproxyContainer("ghcr.io/shopify/toxiproxy:2.12.0");
+
+    // In real test setup, put dependencies on one Network, create proxies,
+    // and configure the application exclusively with the proxied endpoints.
+}
+```
+
+Pin image versions in the real build rather than copying example tags blindly. Record PostgreSQL, Redis, pgJDBC, pool, client and Testcontainers versions in failure output. A green test against an unspecified moving environment is weak release evidence.
+
+```mermaid
+flowchart LR
+    T["test thread"] --> A["application"]
+    A --> X["fault proxy"]
+    X --> D{"real dependency"}
+    D -->|PostgreSQL| P["durable SQL state"]
+    D -->|Redis| R["keys, TTL and owner token"]
+    A --> M["metrics and pool state"]
+```
+
+The model lookup is `O(1)`. The integration suite cost is dominated by container startup and real I/O; reuse may improve speed but must not leak state across tests. Give each test unique keys/schema, reset durable state explicitly and never make ordering between tests part of correctness.
+
+## Example 90 — inject between every lease transition
+
+The lease safety claim is a state machine, not one happy-path assertion. Pause A after its database load until its lease expires; let B acquire; then separately run A's publish and cleanup. Both stale operations must fail, B's token must remain, and only B may publish.
+
+```java
+LeaseFaultTrace trace = leaseExpiryFaultTrace();
+assert trace.stalePublishRejected();
+assert trace.staleCleanupRejected();
+assert trace.successorOwnerBeforePublish().equals("owner-b");
+assert trace.finalValue().equals("fresh");
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Missing
+    Missing --> OwnedA: A SET NX PX
+    OwnedA --> Missing: lease expires
+    Missing --> OwnedB: B SET NX PX
+    OwnedB --> OwnedB: A publish rejected
+    OwnedB --> OwnedB: A cleanup rejected
+    OwnedB --> Cached: B publishes
+    Cached --> Missing: TTL or invalidation
+```
+
+| Injection point | Retried action | Oracle |
+|---|---|---|
+| before lease acquisition response | reacquire/observe | at most one current token owns publication |
+| after A reads SQL | hold A past TTL | B may become owner; A loses rights |
+| after script executes but before response | reread value/token | timeout does not prove non-execution |
+| after publish but before caller response | decode cache value | valid value may already be present |
+| during stale A cleanup | owner-checked release | B's token survives |
+| Redis restart/failover | reload script or function | missing script cache is operational, not data absence |
+
+Redis guarantees that a script executes atomically on the server, but the client can still lose the reply after execution. Therefore assert **state**, not “the call returned success.” Run the same tests against the deployment topology: standalone tests do not prove Cluster rules. In Redis Cluster, every key named by the multi-key script must land in one slot; use the production hash tag and add a deliberately mismatched case that must fail.
+
+The state-space enumeration is `O(s × f)` for `s` meaningful lease states and `f` injection boundaries; both are small here. Prefer explicit transitions over random sleeps. Property-based schedules can supplement, but not replace, the named crash windows required by the design.
+
+## Example 91 — reproduce write skew, then retry the entire decision
+
+Create two rows, both on call. Barrier two transactions after each reads both rows. Under PostgreSQL Repeatable Read, Alice updates Alice and Bob updates Bob; both can commit, leaving nobody on call. Under Serializable, the same dependency cycle causes one transaction to fail with `serialization_failure` (`SQLSTATE 40001`).
+
+```sql
+CREATE TABLE on_call (
+    engineer TEXT PRIMARY KEY,
+    on_call BOOLEAN NOT NULL
+);
+INSERT INTO on_call VALUES ('alice', true), ('bob', true);
+
+-- In both sessions, after BEGIN ISOLATION LEVEL REPEATABLE READ:
+SELECT count(*) FROM on_call WHERE on_call; -- both observe 2
+-- session A: UPDATE on_call SET on_call = false WHERE engineer = 'alice';
+-- session B: UPDATE on_call SET on_call = false WHERE engineer = 'bob';
+-- release a test barrier, then COMMIT both.
+```
+
+```java
+OnCallSchedule repeatable = onCallSchedule(IsolationHarness.REPEATABLE_READ, false);
+assert repeatable.committedTransactions() == 2;
+assert !repeatable.invariantPreserved();
+
+OnCallSchedule retried = onCallSchedule(IsolationHarness.SERIALIZABLE, true);
+assert retried.serializationFailures() == 1;
+assert retried.decisionEvaluations() == 3;
+assert retried.invariantPreserved();
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Alice transaction
+    participant B as Bob transaction
+    participant DB as PostgreSQL
+    A->>DB: read two on-call rows
+    B->>DB: read same two-row snapshot
+    A->>DB: set Alice off call
+    B->>DB: set Bob off call
+    A->>DB: COMMIT succeeds
+    B->>DB: COMMIT gets 40001
+    B->>DB: begin new transaction and reread
+    DB-->>B: only Bob remains on call
+    B->>DB: keep Bob on call; COMMIT
+```
+
+PostgreSQL explicitly permits serialization anomalies at Repeatable Read and prevents them at Serializable. Its retry guidance requires retrying the **complete transaction**, including the logic that decides which SQL and values to use. Retrying only Bob's old `UPDATE ... false` would recreate the invalid decision under a new snapshot.
+
+Bound retries by the caller deadline, roll back before reacquiring a pooled connection, add jitter where contention warrants it, and expose attempts plus terminal SQLSTATE. Do not assert which named transaction must lose: the invariant is that a dangerous pair does not both commit at Serializable.
+
+## Example 92 — resolve an unknown commit by operation identity
+
+A cut after PostgreSQL receives `COMMIT` but before the application receives the response produces an unknown outcome. Blindly issuing a new command can duplicate the effect. Give the business operation a unique ID, commit the effect and stored outcome together, then resolve by that same ID.
+
+```java
+AtomicLedger ledger = new AtomicLedger(500, 200);
+IdempotentTransferService service = new IdempotentTransferService(ledger);
+try {
+    service.transfer("op-fault-23", 100, true); // commit, then lose response
+} catch (ResponseLost expected) {
+    assert unknownCommitAction(service.status("op-fault-23") != null, true)
+            == UnknownCommitAction.RETURN_STORED_OUTCOME;
+}
+Receipt first = service.status("op-fault-23");
+Receipt retry = service.transfer("op-fault-23", 100, false);
+assert first.equals(retry);
+assert ledger.balance("A") == 400 && ledger.balance("B") == 300;
+```
+
+```sql
+CREATE TABLE operation_result (
+    operation_id UUID PRIMARY KEY,
+    status TEXT NOT NULL CHECK (status IN ('committed', 'rejected')),
+    response JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+);
+-- The domain mutation and this result row commit in one transaction.
+```
+
+```mermaid
+flowchart TD
+    X["COMMIT response missing"] --> Q["query result by operation ID"]
+    Q -->|committed| R["return stored response"]
+    Q -->|rejected| E["return stored rejection"]
+    Q -->|absent and deadline remains| S["retry same operation ID"]
+    Q -->|absent and deadline exhausted| U["return unknown or retryable"]
+    S --> Q
+```
+
+The operation ID protects only if uniqueness, mutation and outcome are one atomic database contract. “No row found” can also be uncertain during failover or replica lag, so query the authoritative endpoint defined by the API. The application must not translate an unknown outcome into a negative cache entry.
+
+Use the same compatibility discipline for cache rollout: `v1:` is a body, `n1` is absence, and an unknown prefix is a miss or a separately versioned namespace—never a guessed current value. Run mixed-version clients against real Redis during rolling-deployment tests.
+
+## Harness discipline, observability, and release gate
+
+- Use a start barrier and a completion timeout; log the seed, injection boundary and sanitized terminal states.
+- Assert both the required and forbidden states. “An exception occurred” is not enough.
+- Count authoritative SQL reads, cache hits/misses, database permits, lost leases, serialization retries and unknown outcomes.
+- Snapshot pool active/idle/pending counts before and after success, SQL failure, interruption and cancellation; also verify transaction cleanup.
+- Exercise `sslmode=verify-full` with a trusted wrong-host certificate and assert connection failure. `sslmode=require` encrypts but does not provide the same hostname guarantee.
+- Make Redis outage tests fail fast within the caller budget. Restore the proxy and prove recovery rather than leaving the suite in a degraded state.
+- Keep fixtures tenant-scoped and use unique operation/key IDs, but do not put those high-cardinality IDs into metrics.
+- Never run destructive fault tests against shared production infrastructure.
+
+A release claim should name what was actually executed. The four framework-independent Java groups prove the application-level oracles. They do **not** replace the real PostgreSQL/Redis/Cluster/TLS/pool suite described above.
+
+### Primary references for Section 23
+
+Accessed 2026-10-18.
+
+132. [Testcontainers for Java — PostgreSQL module](https://java.testcontainers.org/modules/databases/postgres/): isolated PostgreSQL containers, JDBC URL support and the explicit requirement to supply a compatible driver.
+133. [Testcontainers for Java — Toxiproxy module](https://java.testcontainers.org/modules/toxiproxy/): proxied endpoints plus latency, jitter, slicing, delayed-close, timeout, byte-limit and connection-cut fault controls.
+134. [PostgreSQL 18 transaction isolation](https://www.postgresql.org/docs/current/transaction-iso.html): Repeatable Read serialization anomalies, Serializable dependency detection, abort behavior and validity only after commit.
+135. [PostgreSQL 18 serialization failure handling](https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html): unconditional handling of `serialization_failure`, complete-transaction retry and the possibility of multiple attempts.
+136. [Redis Lua scripting](https://redis.io/docs/latest/develop/programmability/eval-intro/): atomic server-side script execution, blocking semantics, explicit script loading and reload after restart/failover.
+137. [Redis Cluster specification](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/): hash slots/tags, single-slot multi-key operations, redirections, asynchronous replication and failover write-loss windows.
+138. [pgJDBC SSL documentation](https://jdbc.postgresql.org/documentation/ssl/): certificate-chain and hostname verification, `verify-full`, and the weaker identity guarantees of `require`.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -4896,8 +5160,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; and lines **1341–1364**, “If you cache mutable rows instead”
-- Deliberate continuation: Section 23, “Fault-injection and integration test matrix,” spans source lines **1365–1409**, bounded by the Section 24 heading, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; and lines **1365–1409**, “Fault-injection and integration test matrix”
+- Deliberate continuation: Section 24, “Recovery runbooks,” spans source lines **1410–1427**, bounded by the Section 25 heading, and remains unprocessed.
 
 Validation commands:
 

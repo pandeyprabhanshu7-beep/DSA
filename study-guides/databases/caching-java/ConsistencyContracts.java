@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-22. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-23. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -2691,6 +2691,147 @@ public final class ConsistencyContracts {
                 : MutableReadPath.BYPASS_CACHE;
     }
 
+    enum FaultProbe {
+        LUA_OWNER_CHECK,
+        REDIS_OUTAGE_BULKHEAD,
+        REDIS_CLUSTER_SLOT,
+        POSTGRES_SERIALIZATION,
+        LOST_COMMIT_RESPONSE,
+        TLS_WRONG_HOST,
+        POOL_RESOURCE_RETURN,
+        CACHE_SCHEMA_ROLLOUT
+    }
+
+    enum RequiredTestLayer {
+        REAL_REDIS,
+        REAL_REDIS_CLUSTER,
+        REAL_POSTGRESQL,
+        REAL_TLS_ENDPOINT,
+        REAL_POOL_AND_DATABASE
+    }
+
+    record FaultOracle(
+            RequiredTestLayer layer,
+            String injectedFault,
+            String requiredObservation,
+            String forbiddenObservation) {}
+
+    static FaultOracle faultOracle(FaultProbe probe) {
+        Objects.requireNonNull(probe, "probe");
+        return switch (probe) {
+            case LUA_OWNER_CHECK -> new FaultOracle(
+                    RequiredTestLayer.REAL_REDIS,
+                    "expire owner A, then let B acquire",
+                    "A publish and cleanup are rejected while B remains owner",
+                    "stale owner deletes or overwrites B");
+            case REDIS_OUTAGE_BULKHEAD -> new FaultOracle(
+                    RequiredTestLayer.REAL_REDIS,
+                    "cut or pause Redis traffic",
+                    "database fallback never exceeds the configured permits",
+                    "unbounded fallback or false negative cache entries");
+            case REDIS_CLUSTER_SLOT -> new FaultOracle(
+                    RequiredTestLayer.REAL_REDIS_CLUSTER,
+                    "run the script with matched and mismatched hash tags",
+                    "matched keys execute; mismatched keys fail visibly",
+                    "client silently splits an atomic multi-key script");
+            case POSTGRES_SERIALIZATION -> new FaultOracle(
+                    RequiredTestLayer.REAL_POSTGRESQL,
+                    "barrier two conflicting serializable transactions",
+                    "one aborts and the complete decision logic is retried",
+                    "retry only the final UPDATE");
+            case LOST_COMMIT_RESPONSE -> new FaultOracle(
+                    RequiredTestLayer.REAL_POSTGRESQL,
+                    "cut the connection after COMMIT reaches the server",
+                    "the same operation ID resolves or safely retries",
+                    "a new operation ID duplicates the business effect");
+            case TLS_WRONG_HOST -> new FaultOracle(
+                    RequiredTestLayer.REAL_TLS_ENDPOINT,
+                    "serve a trusted certificate for another hostname",
+                    "verify-full connection fails",
+                    "fallback to an identity-unverified connection");
+            case POOL_RESOURCE_RETURN -> new FaultOracle(
+                    RequiredTestLayer.REAL_POOL_AND_DATABASE,
+                    "exercise success, SQL failure and cancellation paths",
+                    "active leases return to the baseline",
+                    "connections or transactions remain borrowed");
+            case CACHE_SCHEMA_ROLLOUT -> new FaultOracle(
+                    RequiredTestLayer.REAL_REDIS,
+                    "mix supported and unknown envelope versions",
+                    "unknown format is a miss or separate namespace",
+                    "unknown bytes are decoded as a current value");
+        };
+    }
+
+    record LeaseFaultTrace(
+            boolean stalePublishRejected,
+            boolean staleCleanupRejected,
+            String successorOwnerBeforePublish,
+            String finalValue) {}
+
+    static LeaseFaultTrace leaseExpiryFaultTrace() {
+        OwnerCheckedCache cache = new OwnerCheckedCache();
+        if (!cache.acquire("owner-a")) throw new AssertionError("A must acquire");
+        cache.expireLease();
+        if (!cache.acquire("owner-b")) throw new AssertionError("B must acquire");
+        boolean stalePublishRejected = !cache.publish("owner-a", encodeBodyEnvelope("stale"));
+        boolean staleCleanupRejected = !cache.release("owner-a");
+        String successorOwnerBeforePublish = cache.leaseOwner();
+        if (!cache.publish("owner-b", encodeBodyEnvelope("fresh"))) {
+            throw new AssertionError("current owner must publish");
+        }
+        return new LeaseFaultTrace(
+                stalePublishRejected,
+                staleCleanupRejected,
+                successorOwnerBeforePublish,
+                decodeEnvelope(cache.value()).body());
+    }
+
+    enum IsolationHarness { REPEATABLE_READ, SERIALIZABLE }
+
+    record OnCallSchedule(
+            boolean aliceOnCall,
+            boolean bobOnCall,
+            int committedTransactions,
+            int serializationFailures,
+            int decisionEvaluations,
+            boolean invariantPreserved) {}
+
+    static OnCallSchedule onCallSchedule(IsolationHarness isolation, boolean retryWholeTransaction) {
+        Objects.requireNonNull(isolation, "isolation");
+        boolean alice = true;
+        boolean bob = true;
+        int decisions = 2; // both transactions read the initial two-person snapshot
+        if (isolation == IsolationHarness.REPEATABLE_READ) {
+            alice = false;
+            bob = false;
+            return new OnCallSchedule(alice, bob, 2, 0, decisions, alice || bob);
+        }
+
+        // Deterministic teaching schedule: Alice commits; Bob receives SQLSTATE 40001.
+        alice = false;
+        int commits = 1;
+        int failures = 1;
+        if (retryWholeTransaction) {
+            decisions++; // Bob reruns the read and the decision, not only the UPDATE.
+            if (alice) bob = false;
+            commits++;
+        }
+        return new OnCallSchedule(alice, bob, commits, failures, decisions, alice || bob);
+    }
+
+    enum UnknownCommitAction {
+        RETURN_STORED_OUTCOME,
+        RETRY_SAME_OPERATION_ID,
+        STOP_AT_DEADLINE
+    }
+
+    static UnknownCommitAction unknownCommitAction(
+            boolean storedOutcomeFound, boolean deadlineRemaining) {
+        if (storedOutcomeFound) return UnknownCommitAction.RETURN_STORED_OUTCOME;
+        if (deadlineRemaining) return UnknownCommitAction.RETRY_SAME_OPERATION_ID;
+        return UnknownCommitAction.STOP_AT_DEADLINE;
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -4006,6 +4147,75 @@ public final class ConsistencyContracts {
         assert mutableReadPath(true) == MutableReadPath.VERSION_VALIDATED_CACHE;
     }
 
+    private static void faultOracleScenarios() {
+        FaultOracle lease = faultOracle(FaultProbe.LUA_OWNER_CHECK);
+        assert lease.layer() == RequiredTestLayer.REAL_REDIS;
+        assert lease.requiredObservation().contains("B remains owner");
+        assert lease.forbiddenObservation().contains("stale owner");
+
+        FaultOracle cluster = faultOracle(FaultProbe.REDIS_CLUSTER_SLOT);
+        assert cluster.layer() == RequiredTestLayer.REAL_REDIS_CLUSTER;
+        assert cluster.injectedFault().contains("mismatched hash tags");
+
+        FaultOracle serialization = faultOracle(FaultProbe.POSTGRES_SERIALIZATION);
+        assert serialization.layer() == RequiredTestLayer.REAL_POSTGRESQL;
+        assert serialization.forbiddenObservation().contains("final UPDATE");
+
+        assert faultOracle(FaultProbe.TLS_WRONG_HOST).layer()
+                == RequiredTestLayer.REAL_TLS_ENDPOINT;
+        assert faultOracle(FaultProbe.POOL_RESOURCE_RETURN).layer()
+                == RequiredTestLayer.REAL_POOL_AND_DATABASE;
+    }
+
+    private static void leaseFaultInjectionScenarios() {
+        LeaseFaultTrace trace = leaseExpiryFaultTrace();
+        assert trace.stalePublishRejected();
+        assert trace.staleCleanupRejected();
+        assert trace.successorOwnerBeforePublish().equals("owner-b");
+        assert trace.finalValue().equals("fresh");
+    }
+
+    private static void writeSkewHarnessScenarios() {
+        OnCallSchedule repeatable = onCallSchedule(IsolationHarness.REPEATABLE_READ, false);
+        assert repeatable.committedTransactions() == 2;
+        assert !repeatable.invariantPreserved();
+        assert !repeatable.aliceOnCall() && !repeatable.bobOnCall();
+
+        OnCallSchedule serializable = onCallSchedule(IsolationHarness.SERIALIZABLE, false);
+        assert serializable.committedTransactions() == 1;
+        assert serializable.serializationFailures() == 1;
+        assert serializable.invariantPreserved();
+
+        OnCallSchedule retried = onCallSchedule(IsolationHarness.SERIALIZABLE, true);
+        assert retried.committedTransactions() == 2;
+        assert retried.serializationFailures() == 1;
+        assert retried.decisionEvaluations() == 3;
+        assert retried.invariantPreserved();
+        assert !retried.aliceOnCall() && retried.bobOnCall();
+    }
+
+    private static void unknownCommitRecoveryScenarios() {
+        AtomicLedger ledger = new AtomicLedger(500, 200);
+        IdempotentTransferService service = new IdempotentTransferService(ledger);
+        try {
+            service.transfer("op-fault-23", 100, true);
+            throw new AssertionError("response loss was not injected");
+        } catch (ResponseLost expected) {
+            assert unknownCommitAction(service.status("op-fault-23") != null, true)
+                    == UnknownCommitAction.RETURN_STORED_OUTCOME;
+        }
+        Receipt resolved = service.status("op-fault-23");
+        Receipt retried = service.transfer("op-fault-23", 100, false);
+        assert Objects.equals(resolved, retried);
+        assert ledger.balance("A") == 400 && ledger.balance("B") == 300;
+        assert unknownCommitAction(false, true) == UnknownCommitAction.RETRY_SAME_OPERATION_ID;
+        assert unknownCommitAction(false, false) == UnknownCommitAction.STOP_AT_DEADLINE;
+
+        assert decodeEnvelope("v2:future-format").kind() == EnvelopeKind.UNKNOWN;
+        assert faultOracle(FaultProbe.CACHE_SCHEMA_ROLLOUT)
+                .requiredObservation().contains("unknown format");
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -4098,7 +4308,11 @@ public final class ConsistencyContracts {
         durableOutboxRelayScenarios();
         monotonicCacheEventScenarios();
         staleReaderFenceScenarios();
-        System.out.println("PASS 88 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing");
+        faultOracleScenarios();
+        leaseFaultInjectionScenarios();
+        writeSkewHarnessScenarios();
+        unknownCommitRecoveryScenarios();
+        System.out.println("PASS 92 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery");
     }
 }
 
