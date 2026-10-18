@@ -4369,6 +4369,271 @@ Accessed 2026-10-18.
 120. [Redis `EVAL`](https://redis.io/docs/latest/commands/eval/): explicit key arguments and clustered-script key restrictions.
 
 
+# Section 21 — Complete Java cache-aside component
+
+Section 20 fixed the production contract; this section maps it onto a blocking Spring service. The component targets a servlet worker or a Java virtual thread. `StringRedisTemplate` and `JdbcTemplate` are blocking APIs, so calling this code on a Reactor event-loop thread would stall unrelated work. A reactive application needs reactive Redis/database clients or an explicitly bounded scheduler boundary.
+
+```mermaid
+flowchart TD
+    G["get immutable revision"] --> L1{"envelope hit?"}
+    L1 -->|yes| R["return body or absence"]
+    L1 -->|no| A{"lease acquired?"}
+    A -->|yes| L2["second envelope lookup"]
+    L2 -->|miss| DB["DB bulkhead + exact SQL"]
+    DB --> PUB["owner-checked Lua publish"]
+    A -->|no| P["at most three jittered polls"]
+    P -->|still miss| F["DB read without publish"]
+```
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. distinguish a missing key, a cached empty body, a definite-absence envelope and an unknown schema version;
+2. acquire a short owner lease with `SET ... NX PX`, then publish or unlock only when the stored token still matches;
+3. repeat the cache lookup after acquiring the lease so a winner that filled between the first lookup and lease acquisition is not overwritten;
+4. bound waiters to three jittered polls and allow their final database read without granting publication rights;
+5. acquire the database semaphore on **every** SQL miss path, including the waiter fallback;
+6. use a short monotonic Redis cooldown to stop each instance repeatedly paying a known-broken cache timeout;
+7. catch only cache-client failures at the cache boundary while allowing SQL failures and interrupts to retain their meaning; and
+8. label metrics by stable outcome classes rather than tenant, article, revision, token, body or exception message.
+
+The four examples below are executable in `ConsistencyContracts.java` and raise the suite from 80 to 84 scenario groups.
+
+## Example 81 — decode typed envelopes without collapsing states
+
+A cache entry is a small versioned protocol. `v1:` carries a body, including the valid empty string; `n1` represents a definite database absence. Missing and unknown bytes are both treated as cache misses by the integration, but remain distinct in instrumentation so a partial schema rollout is visible.
+
+```java
+assert decodeEnvelope(null).kind() == EnvelopeKind.MISS;
+assert decodeEnvelope("n1").kind() == EnvelopeKind.ABSENT;
+
+DecodedEnvelope empty = decodeEnvelope(encodeBodyEnvelope(""));
+assert empty.kind() == EnvelopeKind.BODY;
+assert empty.body().isEmpty();
+
+assert decodeEnvelope("v2:future-format").kind() == EnvelopeKind.UNKNOWN;
+```
+
+| Raw value | Decode | Read action | Metric |
+|---|---|---|---|
+| key absent | `MISS` | coordinate a fill | `cache.miss` |
+| `v1:` | body `""` | return empty body | `cache.hit{kind=body}` |
+| `v1:hello` | body `"hello"` | return body | `cache.hit{kind=body}` |
+| `n1` | definite absence | return empty result | `cache.hit{kind=negative}` |
+| any other prefix | `UNKNOWN` | treat as miss; do not guess | `cache.unknown_format` |
+
+The format check is `O(k)` in the envelope length because the body is sliced into a Java `String`. Put a body-size limit at the write boundary. Java object deserialization is unnecessary here; Spring Data Redis explicitly supports configurable serializers, and string serialization makes the wire format reviewable.
+
+## Example 82 — publication and release require token ownership
+
+Lease expiry does not cancel the old fill. If owner A stalls, its lease can expire and owner B can acquire a new lease. A plain `SET value` followed by `DEL lease`, or a plain `DEL lease` in `finally`, lets A overwrite B or delete B's lease. One Redis script must compare the token, publish the envelope with its TTL and delete the lease atomically. A second script performs owner-checked cleanup when no publication occurs.
+
+```lua
+-- KEYS[1] = lease, KEYS[2] = value; ARGV = token, envelope, ttlMillis
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  redis.call('SET', KEYS[2], ARGV[2], 'PX', ARGV[3])
+  redis.call('DEL', KEYS[1])
+  return 1
+end
+return 0
+```
+
+```lua
+-- KEYS[1] = lease; ARGV[1] = token
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+end
+return 0
+```
+
+```java
+OwnerCheckedCache cache = new OwnerCheckedCache();
+assert cache.acquire("owner-a");
+cache.expireLease();
+assert cache.acquire("owner-b");
+assert !cache.publish("owner-a", encodeBodyEnvelope("stale"));
+assert !cache.release("owner-a");
+assert cache.publish("owner-b", encodeBodyEnvelope("fresh"));
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Filler A
+    participant R as Redis
+    participant B as Filler B
+    A->>R: SET lease A NX PX
+    R-->>A: acquired
+    Note over R: lease A expires
+    B->>R: SET lease B NX PX
+    R-->>B: acquired
+    A->>R: publish script with token A
+    R-->>A: 0, ownership lost
+    B->>R: publish script with token B
+    R-->>B: 1, value stored and lease deleted
+```
+
+Create each `DefaultRedisScript` once and reuse it; Spring Data Redis uses the script SHA where possible and falls back to evaluation when needed. Both script keys must share the revision hash tag introduced in Section 20. A `0` result is a lost lease, not a Redis failure and not permission to retry publication.
+
+## Example 83 — one coordinator, two miss paths, bounded waiting
+
+The winner performs a second lookup after lease acquisition, then reads the database through the bulkhead only if that lookup still misses. A loser polls at most three times with jitter. If no envelope appears, it also reads through the bulkhead but does **not** publish: it never owned the lease.
+
+```java
+CacheAsideDecision owner = cacheAsideDecision(
+        false, true, false, List.of(), true);
+assert owner.outcome() == CacheAsideOutcome.OWNER_DATABASE_BODY;
+assert owner.databaseRead() && owner.publishAttempted();
+
+CacheAsideDecision waiter = cacheAsideDecision(
+        false, false, false, List.of(false, false, false), true);
+assert waiter.outcome() == CacheAsideOutcome.WAITER_DATABASE_BODY_NO_PUBLISH;
+assert waiter.databaseRead() && !waiter.publishAttempted();
+```
+
+| Trace | First lookup | Lease | Second/polls | DB | Publish |
+|---:|---|---|---|---|---|
+| A | body hit | unused | unused | no | no |
+| B | miss | acquired | second lookup hit | no | no; release own lease |
+| C | miss | acquired | second miss | yes, permit required | owner-checking script |
+| D | miss | lost | poll 2 hits | no | no |
+| E | miss | lost | three misses | yes, permit required | never |
+
+The production-shaped blocking adapter can keep framework concerns narrow:
+
+```java
+@Service
+final class ArticleRevisionCache {
+  private static final int MAX_POLLS = 3;
+  private static final Duration LEASE_TTL = Duration.ofSeconds(2);
+  private static final Duration REDIS_COOLDOWN = Duration.ofSeconds(2);
+
+  private final JdbcTemplate jdbc;
+  private final StringRedisTemplate redis;
+  private final Semaphore databaseLoads = new Semaphore(8);
+  private final AtomicLong redisRetryAtNanos = new AtomicLong();
+  private final DefaultRedisScript<Long> publishScript;
+  private final DefaultRedisScript<Long> unlockScript;
+
+  Optional<String> get(String tenant, String article, long revision) {
+    RevisionKeys keys = validatedKeys(tenant, article, revision);
+    Lookup first = safeLookup(keys.value());
+    if (first.terminal()) return first.body();
+
+    String token = UUID.randomUUID().toString();
+    if (safeAcquire(keys.lease(), token, LEASE_TTL)) {
+      boolean published = false;
+      try {
+        Lookup second = safeLookup(keys.value());
+        if (second.terminal()) return second.body();
+        Optional<String> body = loadThroughBulkhead(tenant, article, revision);
+        String envelope = body.map(v -> "v1:" + v).orElse("n1");
+        Duration ttl = body.isPresent() ? positiveTtlWithJitter() : negativeTtlWithJitter();
+        published = safePublish(keys, token, envelope, ttl); // Lua compare + SET + DEL
+        return body; // lost ownership changes caching, not the authoritative DB result
+      } finally {
+        if (!published) safeUnlock(keys.lease(), token); // Lua compare + DEL
+      }
+    }
+
+    for (int attempt = 0; attempt < MAX_POLLS; attempt++) {
+      sleepInterruptibly(waiterJitter(attempt));
+      Lookup observed = safeLookup(keys.value());
+      if (observed.terminal()) return observed.body();
+    }
+    return loadThroughBulkhead(tenant, article, revision); // no publication rights
+  }
+
+  private Optional<String> loadThroughBulkhead(
+      String tenant, String article, long revision) {
+    if (!databaseLoads.tryAcquire()) throw new BusyException("database load limit reached");
+    try {
+      List<String> rows = jdbc.query(
+          "SELECT body FROM cms_article_revision " +
+          "WHERE tenant_id = ? AND article_id = ? AND revision = ?",
+          (rs, n) -> rs.getString(1), tenant, article, revision);
+      if (rows.size() > 1) throw new IllegalStateException("identity is not unique");
+      return rows.stream().findFirst();
+    } finally {
+      databaseLoads.release();
+    }
+  }
+}
+```
+
+The omitted helpers are policy boundaries, not hidden correctness: key validation uses the Section 20 identity rules; `safeLookup`, `safeAcquire`, `safePublish` and `safeUnlock` catch `DataAccessException` from Redis, increment the appropriate bounded counter and open the cooldown; `loadThroughBulkhead` deliberately does not turn SQL exceptions into absence. `sleepInterruptibly` restores the interrupt flag and aborts the request rather than swallowing cancellation. Map `BusyException` to HTTP 503 and optionally `Retry-After`; clients use bounded exponential backoff with jitter.
+
+## Example 84 — a local cooldown protects the database bulkhead
+
+After a Redis connection/command failure, an instance records `System.nanoTime() + 2s`. Calls inside that interval skip Redis. Monotonic time measures elapsed duration and is immune to wall-clock corrections. Skipping Redis does not skip the database gate: every SQL fallback must still acquire a permit.
+
+```java
+long retryAt = redisCooldownUntil(10_000, 2_000);
+
+CacheAdmission cooling = cacheAdmission(11_500, retryAt, true, true);
+assert cooling.outcome() == DegradedAdmission.DATABASE_FALLBACK;
+assert !cooling.redisAttempted() && cooling.databasePermitAcquired();
+
+CacheAdmission saturated = cacheAdmission(12_000, retryAt, false, false);
+assert saturated.outcome() == DegradedAdmission.REJECTED;
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Closed
+    Closed --> Cooling: Redis DataAccessException
+    Cooling --> Cooling: request skips Redis
+    Cooling --> Probe: monotonic deadline reached
+    Probe --> Closed: Redis command succeeds
+    Probe --> Cooling: Redis command fails
+```
+
+This is deliberately a small per-instance cooldown, not a distributed circuit breaker. A single probe may still fan out across instances, and a two-second window is a starting assumption to load-test. Use compare/update logic on the `AtomicLong` so a later failure cannot shorten an existing window. Cache errors are counted; database failures escape unchanged; bulkhead rejection is counted separately.
+
+## Integration contract and failure boundaries
+
+Wire the two scripts as singleton beans with `Long.class` result types and execute them through `StringRedisTemplate`. Use string serializers for keys and arguments. The positive TTL should be jittered across 240–300 seconds; the negative TTL across 2–3 seconds. Randomize expiry, not correctness: the SQL result remains authoritative, and a lost publish merely reduces cache efficiency.
+
+| Boundary | Catch locally? | Result |
+|---|---|---|
+| Redis `GET`, lease `SET`, or script raises `DataAccessException` | yes | count Redis error, open cooldown, continue to gated SQL |
+| script returns `0` | yes, as a normal state | count lost lease; never publish/unlock without ownership |
+| semaphore unavailable | no retry loop | throw `BusyException`, map to retryable 503 |
+| JDBC/SQL exception | no conversion to absence | propagate through application error policy |
+| SQL returns no row | yes | authoritative absence; owner may publish `n1` briefly |
+| waiter interrupted | restore interrupt and abort | preserve cancellation/deadline semantics |
+| unknown envelope version | treat as miss | count schema mismatch; do not misdecode |
+
+Counters should cover body hits, negative hits, misses, unknown formats, Redis errors, rejected database loads and lost leases. Time the cache lookup, waiter interval and database read separately. Do not place tenant/article/revision IDs in metric tags. `Counter` records monotonically increasing event totals; use a `Timer` for latency distributions rather than attempting to encode duration into a counter.
+
+## Release verification and limitations
+
+The executable file verifies the framework-independent state transitions. Before release, add integration tests with the chosen Spring Boot/Spring Data Redis versions and real isolated Redis/PostgreSQL instances:
+
+- expire owner A's lease, let B acquire it, then prove A can neither publish nor unlock B;
+- race the first miss with another winner and prove the second lookup avoids duplicate SQL;
+- force all three waiter polls to miss and prove the final SQL path acquires the same semaphore and never publishes;
+- cache an empty body, a negative, an unknown prefix and an absent key and prove all four states remain distinct;
+- inject Redis connect/read/script failures and prove the cooldown reduces Redis attempts while DB concurrency remains at most eight;
+- inject JDBC exceptions and prove they are not converted into `n1`;
+- run against Redis Cluster and verify the value and lease keys share one slot;
+- verify positive and negative TTL bounds statistically without asserting one exact randomized value; and
+- test cancellation during wait, pool checkout and SQL so the caller deadline is not silently exceeded.
+
+The lease is load coordination, not a correctness mutex across Redis failover. This component does not make mutable balances, inventory or permissions safe to cache, does not create an overall request deadline, and does not make a mutable “current revision” pointer linearizable. Negative caching still creates a short visibility window unless the strict publication path from Section 20 bypasses it.
+
+### Primary references for Section 21
+
+Accessed 2026-10-18.
+
+121. [Spring Data Redis 4.1.1 scripting](https://docs.spring.io/spring-data/redis/reference/redis/scripting.html): `RedisScript`, script-cache execution, result typing, singleton `DefaultRedisScript` reuse and atomic check-and-set patterns.
+122. [Spring Data Redis 4.1.1 template and serializers](https://docs.spring.io/spring-data/redis/reference/redis/template.html): thread-safe templates, configurable key/value serializers and `StringRedisTemplate` string serialization.
+123. [Java 17 `Semaphore`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/Semaphore.html): permit acquisition/release and the concurrency-gate contract.
+124. [Micrometer counters](https://docs.micrometer.io/micrometer/reference/concepts/counters.html): monotonically increasing event counts and the recommendation to observe rates.
+125. [Micrometer timers](https://docs.micrometer.io/micrometer/reference/concepts/timers.html): latency/count measurement and time-unit handling.
+126. [Reactor threading and schedulers](https://projectreactor.io/docs/core/release/reference/coreFeatures/schedulers.html): execution context, bounded elastic work and the non-blocking scheduler boundary.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -4376,8 +4641,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; and lines **975–1090**, “Explicit production contract”
-- Deliberate continuation: Section 21, “Complete Java cache-aside component,” spans source lines **1091–1340** and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; and lines **1091–1340**, “Complete Java cache-aside component”
+- Deliberate continuation: Section 22, “If you cache mutable rows instead,” spans source lines **1341–1364**, bounded by the Phase 6 / Section 23 heading, and remains unprocessed.
 
 Validation commands:
 

@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-20. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-21. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -2382,6 +2382,165 @@ public final class ConsistencyContracts {
                 callerMillis >= cold);
     }
 
+    enum EnvelopeKind { MISS, BODY, ABSENT, UNKNOWN }
+
+    record DecodedEnvelope(EnvelopeKind kind, String body) {
+        DecodedEnvelope {
+            Objects.requireNonNull(kind, "kind");
+            if ((kind == EnvelopeKind.BODY) != (body != null)) {
+                throw new IllegalArgumentException("only a body envelope carries a body");
+            }
+        }
+    }
+
+    static String encodeBodyEnvelope(String body) {
+        return "v1:" + Objects.requireNonNull(body, "body");
+    }
+
+    static DecodedEnvelope decodeEnvelope(String raw) {
+        if (raw == null) return new DecodedEnvelope(EnvelopeKind.MISS, null);
+        if (raw.equals("n1")) return new DecodedEnvelope(EnvelopeKind.ABSENT, null);
+        if (raw.startsWith("v1:")) {
+            return new DecodedEnvelope(EnvelopeKind.BODY, raw.substring(3));
+        }
+        return new DecodedEnvelope(EnvelopeKind.UNKNOWN, null);
+    }
+
+    /** In-memory state-machine model of the two owner-checking Lua scripts. */
+    static final class OwnerCheckedCache {
+        private String leaseOwner;
+        private String value;
+
+        boolean acquire(String token) {
+            Objects.requireNonNull(token, "token");
+            if (token.isBlank()) throw new IllegalArgumentException("blank token");
+            if (leaseOwner != null) return false;
+            leaseOwner = token;
+            return true;
+        }
+
+        void expireLease() { leaseOwner = null; }
+
+        boolean publish(String token, String envelope) {
+            Objects.requireNonNull(token, "token");
+            Objects.requireNonNull(envelope, "envelope");
+            if (!token.equals(leaseOwner)) return false;
+            value = envelope;
+            leaseOwner = null;
+            return true;
+        }
+
+        boolean release(String token) {
+            Objects.requireNonNull(token, "token");
+            if (!token.equals(leaseOwner)) return false;
+            leaseOwner = null;
+            return true;
+        }
+
+        String leaseOwner() { return leaseOwner; }
+        String value() { return value; }
+    }
+
+    enum CacheAsideOutcome {
+        FIRST_LOOKUP_HIT,
+        SECOND_LOOKUP_HIT,
+        OWNER_DATABASE_BODY,
+        OWNER_DATABASE_ABSENT,
+        WAITER_CACHE_HIT,
+        WAITER_DATABASE_BODY_NO_PUBLISH,
+        WAITER_DATABASE_ABSENT_NO_PUBLISH
+    }
+
+    record CacheAsideDecision(
+            CacheAsideOutcome outcome,
+            int polls,
+            boolean databaseRead,
+            boolean publishAttempted,
+            List<String> events) {}
+
+    static CacheAsideDecision cacheAsideDecision(
+            boolean firstLookupHit,
+            boolean leaseAcquired,
+            boolean secondLookupHit,
+            List<Boolean> waiterPollHits,
+            boolean databaseFound) {
+        Objects.requireNonNull(waiterPollHits, "waiterPollHits");
+        if (waiterPollHits.size() > 3) {
+            throw new IllegalArgumentException("at most three bounded polls");
+        }
+        List<String> events = new ArrayList<>(List.of("first cache lookup"));
+        if (firstLookupHit) {
+            return new CacheAsideDecision(
+                    CacheAsideOutcome.FIRST_LOOKUP_HIT, 0, false, false,
+                    List.copyOf(events));
+        }
+        events.add("try owner lease");
+        if (leaseAcquired) {
+            events.add("second cache lookup after lease acquisition");
+            if (secondLookupHit) {
+                return new CacheAsideDecision(
+                        CacheAsideOutcome.SECOND_LOOKUP_HIT, 0, false, false,
+                        List.copyOf(events));
+            }
+            events.add("read database through bulkhead");
+            events.add("owner-checking publish");
+            return new CacheAsideDecision(
+                    databaseFound
+                            ? CacheAsideOutcome.OWNER_DATABASE_BODY
+                            : CacheAsideOutcome.OWNER_DATABASE_ABSENT,
+                    0, true, true, List.copyOf(events));
+        }
+        int polls = 0;
+        for (boolean hit : waiterPollHits) {
+            polls++;
+            events.add("bounded waiter poll " + polls);
+            if (hit) {
+                return new CacheAsideDecision(
+                        CacheAsideOutcome.WAITER_CACHE_HIT, polls, false, false,
+                        List.copyOf(events));
+            }
+        }
+        events.add("read database without publication rights");
+        return new CacheAsideDecision(
+                databaseFound
+                        ? CacheAsideOutcome.WAITER_DATABASE_BODY_NO_PUBLISH
+                        : CacheAsideOutcome.WAITER_DATABASE_ABSENT_NO_PUBLISH,
+                polls, true, false, List.copyOf(events));
+    }
+
+    enum DegradedAdmission { CACHE_LOOKUP, DATABASE_FALLBACK, REJECTED }
+
+    record CacheAdmission(
+            DegradedAdmission outcome,
+            boolean redisAttempted,
+            boolean databasePermitAcquired) {}
+
+    static long redisCooldownUntil(long failureNowNanos, long cooldownNanos) {
+        if (failureNowNanos < 0 || cooldownNanos <= 0) {
+            throw new IllegalArgumentException("monotonic time and positive cooldown required");
+        }
+        return Math.addExact(failureNowNanos, cooldownNanos);
+    }
+
+    static CacheAdmission cacheAdmission(
+            long nowNanos,
+            long cooldownUntilNanos,
+            boolean redisLookupSucceeded,
+            boolean databasePermitAvailable) {
+        if (nowNanos < 0 || cooldownUntilNanos < 0) {
+            throw new IllegalArgumentException("monotonic timestamps must not be negative");
+        }
+        boolean redisAttempted = nowNanos >= cooldownUntilNanos;
+        if (redisAttempted && redisLookupSucceeded) {
+            return new CacheAdmission(DegradedAdmission.CACHE_LOOKUP, true, false);
+        }
+        if (databasePermitAvailable) {
+            return new CacheAdmission(
+                    DegradedAdmission.DATABASE_FALLBACK, redisAttempted, true);
+        }
+        return new CacheAdmission(DegradedAdmission.REJECTED, redisAttempted, false);
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -3570,6 +3729,69 @@ public final class ConsistencyContracts {
         assert !unsafe.callerCoversColdFallback();
     }
 
+    private static void cacheEnvelopeScenarios() {
+        assert decodeEnvelope(null).kind() == EnvelopeKind.MISS;
+        assert decodeEnvelope("n1").kind() == EnvelopeKind.ABSENT;
+        DecodedEnvelope emptyBody = decodeEnvelope(encodeBodyEnvelope(""));
+        assert emptyBody.kind() == EnvelopeKind.BODY;
+        assert emptyBody.body().isEmpty();
+        DecodedEnvelope article = decodeEnvelope(encodeBodyEnvelope("revision body"));
+        assert article.body().equals("revision body");
+        assert decodeEnvelope("v2:future-format").kind() == EnvelopeKind.UNKNOWN;
+    }
+
+    private static void ownerCheckedPublicationScenarios() {
+        OwnerCheckedCache cache = new OwnerCheckedCache();
+        assert cache.acquire("owner-a");
+        cache.expireLease();
+        assert cache.acquire("owner-b");
+        assert !cache.publish("owner-a", encodeBodyEnvelope("stale"));
+        assert !cache.release("owner-a");
+        assert cache.leaseOwner().equals("owner-b");
+        assert cache.value() == null;
+        assert cache.publish("owner-b", encodeBodyEnvelope("fresh"));
+        assert cache.leaseOwner() == null;
+        assert decodeEnvelope(cache.value()).body().equals("fresh");
+    }
+
+    private static void cacheAsideCoordinatorScenarios() {
+        CacheAsideDecision owner = cacheAsideDecision(
+                false, true, false, List.of(), true);
+        assert owner.outcome() == CacheAsideOutcome.OWNER_DATABASE_BODY;
+        assert owner.databaseRead() && owner.publishAttempted();
+
+        CacheAsideDecision secondHit = cacheAsideDecision(
+                false, true, true, List.of(), false);
+        assert secondHit.outcome() == CacheAsideOutcome.SECOND_LOOKUP_HIT;
+        assert !secondHit.databaseRead() && !secondHit.publishAttempted();
+
+        CacheAsideDecision waiterHit = cacheAsideDecision(
+                false, false, false, List.of(false, true), false);
+        assert waiterHit.outcome() == CacheAsideOutcome.WAITER_CACHE_HIT;
+        assert waiterHit.polls() == 2 && !waiterHit.databaseRead();
+
+        CacheAsideDecision boundedFallback = cacheAsideDecision(
+                false, false, false, List.of(false, false, false), true);
+        assert boundedFallback.outcome()
+                == CacheAsideOutcome.WAITER_DATABASE_BODY_NO_PUBLISH;
+        assert boundedFallback.databaseRead() && !boundedFallback.publishAttempted();
+    }
+
+    private static void cooldownAndBulkheadScenarios() {
+        long cooldownUntil = redisCooldownUntil(10_000, 2_000);
+        CacheAdmission cooling = cacheAdmission(11_500, cooldownUntil, true, true);
+        assert cooling.outcome() == DegradedAdmission.DATABASE_FALLBACK;
+        assert !cooling.redisAttempted() && cooling.databasePermitAcquired();
+
+        CacheAdmission recovered = cacheAdmission(12_000, cooldownUntil, true, false);
+        assert recovered.outcome() == DegradedAdmission.CACHE_LOOKUP;
+        assert recovered.redisAttempted() && !recovered.databasePermitAcquired();
+
+        CacheAdmission saturated = cacheAdmission(12_000, cooldownUntil, false, false);
+        assert saturated.outcome() == DegradedAdmission.REJECTED;
+        assert saturated.redisAttempted() && !saturated.databasePermitAcquired();
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -3654,7 +3876,11 @@ public final class ConsistencyContracts {
         revisionReadContractScenarios();
         publicationVisibilityScenarios();
         productionBudgetScenarios();
-        System.out.println("PASS 80 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget");
+        cacheEnvelopeScenarios();
+        ownerCheckedPublicationScenarios();
+        cacheAsideCoordinatorScenarios();
+        cooldownAndBulkheadScenarios();
+        System.out.println("PASS 84 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead");
     }
 }
 
