@@ -2236,6 +2236,236 @@ Accessed 2026-10-18.
 62. [Resilience4j CircuitBreaker](https://resilience4j.readme.io/docs/circuitbreaker): closed/open/half-open states, failure/slow-call thresholds, and the explicit warning that a circuit breaker does not limit concurrency.
 63. [Resilience4j Bulkhead](https://resilience4j.readme.io/docs/bulkhead): semaphore and fixed-thread-pool bulkheads, maximum concurrent calls, bounded queues, and maximum wait duration.
 
+# Section 12 — Architecture: pool objects are not network proxies
+
+“Connection pool” names two different boundaries in this architecture. HikariCP lives inside each Java process and lends the application a logical JDBC `Connection` backed by a reusable client session. PgBouncer is a separate PostgreSQL-speaking process: it accepts those client sessions and, depending on pooling mode, maps them onto a smaller set of PostgreSQL server sessions. They can be composed, but their capacities, queues, lifetimes, and correctness contracts do not collapse into one pool.
+
+```mermaid
+flowchart TD
+    U["CMS requests"] --> A["CMS node A"]
+    U --> B["CMS node B"]
+    A --> HA["Hikari primary + replica pools"]
+    B --> HB["Hikari primary + replica pools"]
+    HA --> P["PgBouncer client sessions"]
+    HB --> P
+    P --> W["bounded PostgreSQL server sessions"]
+```
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. identify whether a count refers to application logical checkouts, PgBouncer clients, or PostgreSQL server sessions;
+2. explain why closing a pooled JDBC proxy invalidates that handle but normally returns its physical session for reuse;
+3. budget every application node and PgBouncer instance rather than sizing one process in isolation;
+4. route writes and read-your-writes traffic explicitly instead of treating `setReadOnly(true)` as a replica router;
+5. select session, transaction, or statement pooling from the PostgreSQL features the application actually uses;
+6. distinguish protocol-level named prepared-statement tracking from SQL `PREPARE` and other session state; and
+7. preserve one end-to-end deadline across Hikari checkout, PgBouncer waiting, and query execution.
+
+Write down the boundaries before configuring either product:
+
+| Boundary | Capacity/timeout | Required observation | Common mistake |
+|---|---|---|---|
+| request → Hikari | pool size and `connectionTimeout` per JVM/data source | active, idle, pending, checkout latency/timeouts | multiplying a “small” pool by many nodes without noticing |
+| Hikari → PgBouncer | accepted client connections | connected/active/waiting clients by database and user | assuming every Hikari client owns a PostgreSQL backend |
+| PgBouncer → PostgreSQL | server pool per database/user and global DB reserve | `sv_active`, `sv_idle`, `cl_waiting`, wait time | forgetting that users, databases and PgBouncer instances multiply pools |
+| transaction → endpoint | explicit primary or replica data source | route reason and required/replayed position | assuming a read-only hint moves a live connection |
+| request deadline | one remaining-time budget | time in both queues plus query/cancel time | configuring three independent full-length timeouts |
+
+## Example 45 — budget logical clients separately from server sessions
+
+Suppose 12 CMS nodes each configure 16 primary and 24 replica Hikari slots. That is `12 × (16 + 24) = 480` possible application-to-PgBouncer client sessions. Two PgBouncer instances each allow 50 server sessions, for 100 possible PostgreSQL sessions. If PostgreSQL permits 140 connections and 20 are reserved for administration, migrations, replication, and emergency work, the application budget is 120; 100 fits.
+
+| Scenario | Application client slots | PgBouncer server slots | Usable PostgreSQL slots | Result |
+|---|---:|---:|---:|---|
+| 12 nodes, two PgBouncers | 480 | 100 | 120 | within budget |
+| add a third PgBouncer at 50 | 480 | 150 | 120 | unsafe |
+| deploy 20 app nodes, unchanged PgBouncer tier | 800 | 100 | 120 | DB budget still fits, but PgBouncer client/queue capacity must be checked |
+| no PgBouncer multiplexing | up to 480 | up to 480 | 120 | cannot fit |
+
+```java
+PoolBudget safe = poolBudget(12, 16, 24, 2, 50, 140, 20);
+assert safe.applicationClientSlots() == 480;
+assert safe.pgbouncerServerSlots() == 100;
+assert safe.usablePostgresSlots() == 120;
+assert safe.withinBudget();
+
+PoolBudget unsafe = poolBudget(12, 16, 24, 3, 50, 140, 20);
+assert unsafe.pgbouncerServerSlots() == 150;
+assert !unsafe.withinBudget();
+```
+
+This arithmetic is a ceiling, not a recommendation to fill every slot. HikariCP documents `maximumPoolSize` as the bound across idle and in-use connections and blocks `getConnection()` up to `connectionTimeout` when exhausted. PgBouncer's `default_pool_size` is per user/database pair, so calculate the actual number of pools and multiply by every PgBouncer instance. Also account for direct maintenance clients and any primary/replica PostgreSQL clusters separately.
+
+The function is `O(1)` time and space. Recompute it during autoscaling and topology changes. Alert on ratios and waits—not only counts—because 480 idle clients multiplexed through 100 quiet server sessions is different from 100 saturated backends with a rising PgBouncer queue.
+
+## Example 46 — a JDBC handle is a lease, not the network session
+
+A pooled `DataSource.getConnection()` typically returns a logical wrapper. Calling `close()` is still mandatory: the wrapper becomes unusable and the backing session is returned to the pool instead of being treated as application-owned forever. The next checkout can reuse the same physical session under a new logical generation.
+
+```java
+LogicalConnectionPool pool = new LogicalConnectionPool(1);
+LogicalLease first = pool.checkout();
+pool.execute(first);
+pool.close(first);
+
+LogicalLease second = pool.checkout();
+assert second.physicalSessionId() == first.physicalSessionId();
+assert second.generation() > first.generation();
+
+try {
+    pool.execute(first);
+    throw new AssertionError("closed logical connection remained usable");
+} catch (IllegalStateException expected) {}
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Request A
+    participant H as Hikari logical pool
+    participant S as Physical JDBC session
+    participant B as Request B
+    A->>H: checkout lease generation 1
+    H->>S: assign session 0
+    A->>H: close logical handle
+    H-->>H: invalidate generation 1
+    B->>H: checkout lease generation 2
+    H->>S: reuse session 0
+```
+
+Use try-with-resources around every logical checkout. Do not retain a `Connection`, `Statement`, or transaction-bound ORM session beyond its scope, share it between concurrent requests, or use it after close. Return paths must roll back incomplete work and restore tracked connection properties before reuse; validate the real pool/driver behavior for schema, catalog, isolation, read-only, warnings, client info, temporary objects, session variables, and advisory locks.
+
+PgBouncer adds a second reuse boundary. Under transaction pooling, even an open Hikari client session does not imply stable PostgreSQL backend identity across transactions. Session-specific assumptions that survive a Hikari logical close are already dangerous; assumptions that must survive multiple transactions are also incompatible with transaction pooling unless PgBouncer explicitly virtualizes that feature.
+
+Checkout and release are expected `O(1)` control operations; the wait is workload-dependent. Observe checkout time, active/idle/pending counts, leak detection, connection age, validation failures, and unexpected rollbacks. A low connection-creation count is evidence of reuse, not proof that handles are correctly scoped.
+
+## Example 47 — route primary versus replica before checkout
+
+Neither HikariCP nor ordinary PgBouncer reads arbitrary SQL and performs transparent, correctness-preserving read/write splitting. The routing layer selects a primary or replica `DataSource` before starting work. JDBC `setReadOnly(true)` is documented as a driver optimization hint; pgJDBC can translate it into read-only transaction/session behavior, but the target host comes from the chosen URL/data source and its `targetServerType` policy.
+
+After publishing revision 42 at replay position 700:
+
+| Operation | Consistency | Replica replay | Route | Reason |
+|---|---|---:|---|---|
+| publish write | any | 695 | primary | writes require primary |
+| public browse | eventual | 695 | replica | bounded lag is accepted |
+| immediate preview | read-your-writes | 695 | primary | replica has not reached 700 |
+| later preview | read-your-writes | 700 | replica | required position is visible |
+| read while replica unavailable | eventual | n/a | primary | explicit availability fallback |
+
+```java
+assert routeDatabase(DatabaseOperation.WRITE, ReadConsistency.EVENTUAL, 0, 0, true)
+        == DatabaseTarget.PRIMARY;
+assert routeDatabase(DatabaseOperation.READ, ReadConsistency.EVENTUAL, 700, 695, true)
+        == DatabaseTarget.REPLICA;
+assert routeDatabase(DatabaseOperation.READ, ReadConsistency.READ_YOUR_WRITES, 700, 695, true)
+        == DatabaseTarget.PRIMARY;
+assert routeDatabase(DatabaseOperation.READ, ReadConsistency.READ_YOUR_WRITES, 700, 700, true)
+        == DatabaseTarget.REPLICA;
+```
+
+```mermaid
+flowchart TD
+    O{"write operation?"} -->|yes| P["primary data source"]
+    O -->|no| C{"read-your-writes required?"}
+    C -->|no| R["available replica data source"]
+    C -->|yes| L{"replica replay >= required position?"}
+    L -->|yes| R
+    L -->|no| P
+```
+
+The simple model uses a monotonic replay position. Production implementations can carry a WAL LSN/version token, wait on an explicitly bounded replica catch-up mechanism, or pin the user's subsequent read to primary for a short window. Do not compare wall clocks across machines as if they were replay order. A fallback from replica to primary changes load and must use the primary's admission budget.
+
+Route selection is `O(1)`. Record endpoint, operation class, requested consistency, required position, observed replay position, fallback reason, and replica-lag distribution. Periodically prove that the “primary” pool refuses secondaries and that the “replica” pool follows the intended fallback policy; pgJDBC documents separate write and read data sources using `targetServerType=primary` and `preferSecondary`.
+
+## Example 48 — choose PgBouncer mode by features and spend one deadline
+
+Pooling mode defines when PgBouncer may reassign a server session:
+
+| Feature | Session | Transaction | Statement |
+|---|---|---|---|
+| one autocommit statement | yes | yes | yes |
+| explicit multi-statement transaction | yes | yes | no |
+| `LISTEN` or session advisory lock | yes | no | no |
+| protocol-level named prepared statement | yes | only with nonzero tracking configuration | configuration/version-dependent; validate |
+| SQL `PREPARE` / `DEALLOCATE` session behavior | yes | no | no |
+| stable backend identity across transactions | yes | no | no |
+
+```java
+assert poolingModeSupports(
+        PgBouncerMode.TRANSACTION, DatabaseFeature.MULTI_STATEMENT_TRANSACTION, 0);
+assert !poolingModeSupports(
+        PgBouncerMode.TRANSACTION, DatabaseFeature.SESSION_ADVISORY_LOCK, 200);
+assert !poolingModeSupports(
+        PgBouncerMode.TRANSACTION, DatabaseFeature.PROTOCOL_PREPARED_STATEMENT, 0);
+assert poolingModeSupports(
+        PgBouncerMode.TRANSACTION, DatabaseFeature.PROTOCOL_PREPARED_STATEMENT, 200);
+assert !poolingModeSupports(
+        PgBouncerMode.TRANSACTION, DatabaseFeature.SQL_PREPARE, 200);
+assert !poolingModeSupports(
+        PgBouncerMode.STATEMENT, DatabaseFeature.MULTI_STATEMENT_TRANSACTION, 200);
+```
+
+Current PgBouncer can track protocol-level named prepared statements when `max_prepared_statements` is nonzero and prepare them on whichever server session is assigned. Its documentation explicitly says this does not make SQL-level `PREPARE`, `EXECUTE`, and ordinary `DEALLOCATE` portable session state. Verify the deployed PgBouncer version, driver protocol mode, migration behavior, and feature matrix rather than copying old advice that all prepared statements are always broken—or new advice that all session semantics are repaired.
+
+Two pools also mean two queues. A 200 ms service budget might spend 30 ms waiting for Hikari and 70 ms waiting for a PgBouncer server session, leaving 100 ms for execution and response. A “fast” 10 ms Hikari checkout can hide a 160 ms PgBouncer wait and leave only 30 ms:
+
+```java
+DeadlineBudget normal = deadlineAfterQueues(200, 30, 70);
+assert !normal.exhausted() && normal.queryMillisRemaining() == 100;
+
+DeadlineBudget hiddenQueue = deadlineAfterQueues(200, 10, 160);
+assert !hiddenQueue.exhausted() && hiddenQueue.queryMillisRemaining() == 30;
+assert deadlineAfterQueues(200, 50, 150).exhausted();
+```
+
+```mermaid
+flowchart LR
+    D["200 ms request budget"] --> H["Hikari wait 30 ms"]
+    H --> P["PgBouncer wait 70 ms"]
+    P --> Q["100 ms remains for query + response"]
+```
+
+Pass an absolute deadline or remaining budget down the stack. Configure Hikari checkout, PgBouncer `query_wait_timeout`, JDBC network/query timeouts, transaction timeout, and cancellation so no lower layer can outlive the caller's useful work. PgBouncer exposes `cl_waiting` and wait time; monitor them alongside Hikari pending/checkout latency and PostgreSQL active/lock wait/query time.
+
+The compatibility decision is `O(1)`; the deadline calculation is `O(1)` with checked arithmetic. Failure tests should exhaust Hikari, saturate PgBouncer servers, pause a replica, run a migration that invalidates plans, and verify typed timeout/cancellation behavior without leaking transactions.
+
+## Operations, complexity, and review
+
+| Question | Hikari boundary | PgBouncer boundary | PostgreSQL boundary |
+|---|---|---|---|
+| what is leased? | logical JDBC handle/client session | server session for connection, transaction, or statement | backend process/session resources |
+| what queues? | `getConnection()` callers | clients waiting for server assignment | locks, CPU, I/O and executor work |
+| what controls lifetime? | idle/max lifetime and logical close | pool mode and server/client lifetime settings | server/process/session policies |
+| what must be measured? | active/idle/pending, checkout and timeout | clients/servers by state, wait time | active sessions, locks, query/transaction latency |
+| what chooses primary/replica? | application-selected data source/URL | configured destination | topology/role; not SQL inspection by these pools |
+
+Review questions:
+
+- Are connection counts labeled as Hikari logical/client sessions or PostgreSQL server sessions?
+- Does the budget multiply every app node, data source, database/user pair, and PgBouncer instance?
+- Are PostgreSQL slots reserved for administration, replication, migrations, and recovery?
+- Is every logical `Connection` closed with bounded scope, including exceptional paths?
+- Which connection/session properties are reset or forbidden before reuse?
+- Is primary/replica selection explicit and made before connection checkout?
+- How is read-your-writes represented: primary pin, replay token, or bounded replica wait?
+- Which session features require session pooling, and are they covered by integration tests?
+- Is prepared-statement guidance tied to protocol mode, PgBouncer version, and nonzero tracking configuration?
+- Can Hikari be healthy while `cl_waiting` grows in PgBouncer?
+- Does one caller deadline bound both queues, execution, cancellation, and retry?
+
+### Primary references for Section 12
+
+Accessed 2026-10-18.
+
+64. [HikariCP README and configuration](https://github.com/brettwooldridge/HikariCP): `maximumPoolSize`, `connectionTimeout`, connection lifecycle, metrics, leak detection, and sizing guidance.
+65. [Java SE 17 `Connection`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/Connection.html): JDBC connection/session semantics, close behavior, network timeout, and the read-only optimization hint.
+66. [PgBouncer feature matrix](https://www.pgbouncer.org/features.html): session, transaction, and statement assignment boundaries plus session-feature compatibility.
+67. [PgBouncer configuration](https://www.pgbouncer.org/config.html): per-user/database server pools, database/user limits, prepared-statement tracking, and wait/query timeouts.
+68. [PgBouncer administration and `SHOW` fields](https://www.pgbouncer.org/usage): active/waiting client and server states, wait time, prepared-statement counts, and lifecycle commands.
+69. [pgJDBC connection and failover properties](https://jdbc.postgresql.org/documentation/use/): read-only modes, `targetServerType`, host selection, and separate write/read pool examples.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -2243,8 +2473,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; and lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”
-- Deliberate continuation: Section 12, “Architecture: pool objects are not network proxies,” is source lines **638–687**, bounded by the Section 13 heading, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; and lines **638–687**, “Architecture: pool objects are not network proxies”
+- Deliberate continuation: Section 13, “What a physical connection costs,” is source lines **688–718**, bounded by the Section 14 heading, and remains unprocessed.
 
 Validation commands:
 

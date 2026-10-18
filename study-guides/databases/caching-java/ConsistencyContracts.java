@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-11. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-12. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -1335,6 +1335,142 @@ public final class ConsistencyContracts {
         return OutageDecision.REJECT_OVERLOAD;
     }
 
+    record PoolBudget(
+            long applicationClientSlots,
+            long pgbouncerServerSlots,
+            long usablePostgresSlots,
+            boolean withinBudget) {}
+
+    static PoolBudget poolBudget(
+            int applicationNodes,
+            int primaryPoolPerNode,
+            int replicaPoolPerNode,
+            int pgbouncerInstances,
+            int serverSlotsPerPgbouncer,
+            int postgresConnectionLimit,
+            int reservedPostgresSlots) {
+        if (applicationNodes <= 0 || primaryPoolPerNode < 0 || replicaPoolPerNode < 0
+                || pgbouncerInstances <= 0 || serverSlotsPerPgbouncer <= 0
+                || postgresConnectionLimit <= 0 || reservedPostgresSlots < 0
+                || reservedPostgresSlots >= postgresConnectionLimit) {
+            throw new IllegalArgumentException("invalid pool-budget dimension");
+        }
+        long perNode = Math.addExact(primaryPoolPerNode, replicaPoolPerNode);
+        long clientSlots = Math.multiplyExact(applicationNodes, perNode);
+        long serverSlots = Math.multiplyExact(pgbouncerInstances, serverSlotsPerPgbouncer);
+        long usable = Math.subtractExact(postgresConnectionLimit, reservedPostgresSlots);
+        return new PoolBudget(clientSlots, serverSlots, usable, serverSlots <= usable);
+    }
+
+    record LogicalLease(int physicalSessionId, long generation) {}
+
+    /** A logical close invalidates the lease and returns its physical session for reuse. */
+    static final class LogicalConnectionPool {
+        private final long[] generations;
+        private final boolean[] inUse;
+
+        LogicalConnectionPool(int physicalSessions) {
+            if (physicalSessions <= 0) throw new IllegalArgumentException("positive pool size required");
+            generations = new long[physicalSessions];
+            inUse = new boolean[physicalSessions];
+        }
+
+        LogicalLease checkout() {
+            for (int id = 0; id < inUse.length; id++) {
+                if (!inUse[id]) {
+                    inUse[id] = true;
+                    return new LogicalLease(id, ++generations[id]);
+                }
+            }
+            throw new IllegalStateException("logical checkout timed out");
+        }
+
+        void execute(LogicalLease lease) { requireActive(lease); }
+
+        void close(LogicalLease lease) {
+            requireActive(lease);
+            inUse[lease.physicalSessionId()] = false;
+        }
+
+        int physicalSessionCount() { return inUse.length; }
+
+        private void requireActive(LogicalLease lease) {
+            Objects.requireNonNull(lease, "lease");
+            int id = lease.physicalSessionId();
+            if (id < 0 || id >= inUse.length || !inUse[id]
+                    || generations[id] != lease.generation()) {
+                throw new IllegalStateException("logical lease is closed or superseded");
+            }
+        }
+    }
+
+    enum DatabaseTarget { PRIMARY, REPLICA }
+    enum DatabaseOperation { READ, WRITE }
+    enum ReadConsistency { EVENTUAL, READ_YOUR_WRITES }
+
+    static DatabaseTarget routeDatabase(
+            DatabaseOperation operation,
+            ReadConsistency consistency,
+            long requiredReplayPosition,
+            long replicaReplayPosition,
+            boolean replicaAvailable) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(consistency, "consistency");
+        if (requiredReplayPosition < 0 || replicaReplayPosition < 0) {
+            throw new IllegalArgumentException("replay positions must not be negative");
+        }
+        if (operation == DatabaseOperation.WRITE || !replicaAvailable) {
+            return DatabaseTarget.PRIMARY;
+        }
+        if (consistency == ReadConsistency.READ_YOUR_WRITES
+                && replicaReplayPosition < requiredReplayPosition) {
+            return DatabaseTarget.PRIMARY;
+        }
+        return DatabaseTarget.REPLICA;
+    }
+
+    enum PgBouncerMode { SESSION, TRANSACTION, STATEMENT }
+    enum DatabaseFeature {
+        SINGLE_STATEMENT,
+        MULTI_STATEMENT_TRANSACTION,
+        LISTEN,
+        SESSION_ADVISORY_LOCK,
+        PROTOCOL_PREPARED_STATEMENT,
+        SQL_PREPARE
+    }
+
+    static boolean poolingModeSupports(
+            PgBouncerMode mode, DatabaseFeature feature, int maxPreparedStatements) {
+        Objects.requireNonNull(mode, "mode");
+        Objects.requireNonNull(feature, "feature");
+        if (maxPreparedStatements < 0) {
+            throw new IllegalArgumentException("prepared statement limit must not be negative");
+        }
+        if (mode == PgBouncerMode.SESSION) return true;
+        if (mode == PgBouncerMode.STATEMENT) {
+            return feature == DatabaseFeature.SINGLE_STATEMENT
+                    || (feature == DatabaseFeature.PROTOCOL_PREPARED_STATEMENT
+                            && maxPreparedStatements > 0);
+        }
+        return switch (feature) {
+            case SINGLE_STATEMENT, MULTI_STATEMENT_TRANSACTION -> true;
+            case PROTOCOL_PREPARED_STATEMENT -> maxPreparedStatements > 0;
+            case LISTEN, SESSION_ADVISORY_LOCK, SQL_PREPARE -> false;
+        };
+    }
+
+    record DeadlineBudget(long totalMillis, long queryMillisRemaining, boolean exhausted) {}
+
+    static DeadlineBudget deadlineAfterQueues(
+            long totalMillis, long hikariWaitMillis, long pgbouncerWaitMillis) {
+        if (totalMillis <= 0 || hikariWaitMillis < 0 || pgbouncerWaitMillis < 0) {
+            throw new IllegalArgumentException("positive deadline and non-negative waits required");
+        }
+        long spent = Math.addExact(hikariWaitMillis, pgbouncerWaitMillis);
+        if (spent >= totalMillis) return new DeadlineBudget(totalMillis, 0, true);
+        return new DeadlineBudget(totalMillis, totalMillis - spent, false);
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -1963,6 +2099,72 @@ public final class ConsistencyContracts {
         assert outageDecision(false, true, true, false) == OutageDecision.REJECT_OVERLOAD;
     }
 
+    private static void poolBoundaryBudgetScenarios() {
+        PoolBudget safe = poolBudget(12, 16, 24, 2, 50, 140, 20);
+        assert safe.applicationClientSlots() == 480;
+        assert safe.pgbouncerServerSlots() == 100;
+        assert safe.usablePostgresSlots() == 120;
+        assert safe.withinBudget();
+
+        PoolBudget unsafe = poolBudget(12, 16, 24, 3, 50, 140, 20);
+        assert unsafe.applicationClientSlots() == 480;
+        assert unsafe.pgbouncerServerSlots() == 150;
+        assert !unsafe.withinBudget();
+    }
+
+    private static void logicalConnectionLeaseScenarios() {
+        LogicalConnectionPool pool = new LogicalConnectionPool(1);
+        LogicalLease first = pool.checkout();
+        pool.execute(first);
+        pool.close(first);
+        assert pool.physicalSessionCount() == 1;
+
+        LogicalLease second = pool.checkout();
+        assert second.physicalSessionId() == first.physicalSessionId();
+        assert second.generation() > first.generation();
+        try {
+            pool.execute(first);
+            throw new AssertionError("closed logical connection remained usable");
+        } catch (IllegalStateException expected) {}
+        pool.execute(second);
+        pool.close(second);
+    }
+
+    private static void explicitDatabaseRoutingScenarios() {
+        assert routeDatabase(DatabaseOperation.WRITE, ReadConsistency.EVENTUAL, 0, 0, true)
+                == DatabaseTarget.PRIMARY;
+        assert routeDatabase(DatabaseOperation.READ, ReadConsistency.EVENTUAL, 700, 695, true)
+                == DatabaseTarget.REPLICA;
+        assert routeDatabase(DatabaseOperation.READ, ReadConsistency.READ_YOUR_WRITES, 700, 695, true)
+                == DatabaseTarget.PRIMARY;
+        assert routeDatabase(DatabaseOperation.READ, ReadConsistency.READ_YOUR_WRITES, 700, 700, true)
+                == DatabaseTarget.REPLICA;
+        assert routeDatabase(DatabaseOperation.READ, ReadConsistency.EVENTUAL, 0, 0, false)
+                == DatabaseTarget.PRIMARY;
+    }
+
+    private static void poolingModeAndDeadlineScenarios() {
+        assert poolingModeSupports(PgBouncerMode.SESSION, DatabaseFeature.LISTEN, 0);
+        assert poolingModeSupports(
+                PgBouncerMode.TRANSACTION, DatabaseFeature.MULTI_STATEMENT_TRANSACTION, 0);
+        assert !poolingModeSupports(
+                PgBouncerMode.TRANSACTION, DatabaseFeature.SESSION_ADVISORY_LOCK, 200);
+        assert !poolingModeSupports(
+                PgBouncerMode.TRANSACTION, DatabaseFeature.PROTOCOL_PREPARED_STATEMENT, 0);
+        assert poolingModeSupports(
+                PgBouncerMode.TRANSACTION, DatabaseFeature.PROTOCOL_PREPARED_STATEMENT, 200);
+        assert !poolingModeSupports(
+                PgBouncerMode.TRANSACTION, DatabaseFeature.SQL_PREPARE, 200);
+        assert !poolingModeSupports(
+                PgBouncerMode.STATEMENT, DatabaseFeature.MULTI_STATEMENT_TRANSACTION, 200);
+
+        DeadlineBudget normal = deadlineAfterQueues(200, 30, 70);
+        assert !normal.exhausted() && normal.queryMillisRemaining() == 100;
+        DeadlineBudget hiddenQueue = deadlineAfterQueues(200, 10, 160);
+        assert !hiddenQueue.exhausted() && hiddenQueue.queryMillisRemaining() == 30;
+        assert deadlineAfterQueues(200, 50, 150).exhausted();
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -2011,7 +2213,11 @@ public final class ConsistencyContracts {
         coldStartWarmScenarios();
         softHardTtlScenarios();
         outageProtectionScenarios();
-        System.out.println("PASS 44 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection");
+        poolBoundaryBudgetScenarios();
+        logicalConnectionLeaseScenarios();
+        explicitDatabaseRoutingScenarios();
+        poolingModeAndDeadlineScenarios();
+        System.out.println("PASS 48 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline");
     }
 }
 
