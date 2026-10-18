@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-10. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-11. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -1247,6 +1247,94 @@ public final class ConsistencyContracts {
         return BloomGateDecision.CHECK_NEXT_LAYER;
     }
 
+    static long jitteredTtlMillis(
+            long baseTtlMillis, double jitterFraction, double unitSample, boolean strictMaximum) {
+        if (baseTtlMillis <= 0
+                || !(jitterFraction >= 0.0 && jitterFraction < 1.0)
+                || !(unitSample >= 0.0 && unitSample <= 1.0)) {
+            throw new IllegalArgumentException("positive TTL, jitter in [0,1), sample in [0,1] required");
+        }
+        double factor = strictMaximum
+                ? (1.0 - jitterFraction) + unitSample * jitterFraction
+                : (1.0 - jitterFraction) + unitSample * 2.0 * jitterFraction;
+        double exact = baseTtlMillis * factor;
+        if (exact > Long.MAX_VALUE) throw new IllegalArgumentException("jittered TTL too large");
+        return Math.round(exact);
+    }
+
+    record WarmPlan(long averagePerSecond, long safePerSecond, long minimumSeconds) {}
+
+    static WarmPlan coldStartWarmPlan(
+            long keys,
+            long requestedWindowSeconds,
+            long originCapacityPerSecond,
+            double reserveFraction) {
+        if (keys <= 0 || requestedWindowSeconds <= 0 || originCapacityPerSecond <= 0
+                || !(reserveFraction >= 0.0 && reserveFraction < 1.0)) {
+            throw new IllegalArgumentException("positive dimensions and reserve in [0,1) required");
+        }
+        long average = ceilDiv(keys, requestedWindowSeconds);
+        long safe = (long) Math.floor(originCapacityPerSecond * (1.0 - reserveFraction));
+        if (safe <= 0) throw new IllegalArgumentException("reserve leaves no warming capacity");
+        return new WarmPlan(average, safe, ceilDiv(keys, safe));
+    }
+
+    enum FreshnessDecision {
+        FRESH,
+        STALE_REFRESH_LEADER,
+        STALE_REFRESH_FOLLOWER,
+        EXPIRED
+    }
+
+    static FreshnessDecision freshnessDecision(
+            long ageMillis,
+            long softTtlMillis,
+            long hardTtlMillis,
+            boolean staleAllowed,
+            boolean refreshLeader) {
+        if (ageMillis < 0 || softTtlMillis <= 0 || hardTtlMillis < softTtlMillis) {
+            throw new IllegalArgumentException("require 0 <= age and 0 < soft TTL <= hard TTL");
+        }
+        if (ageMillis < softTtlMillis) return FreshnessDecision.FRESH;
+        if (ageMillis < hardTtlMillis && staleAllowed) {
+            return refreshLeader
+                    ? FreshnessDecision.STALE_REFRESH_LEADER
+                    : FreshnessDecision.STALE_REFRESH_FOLLOWER;
+        }
+        return FreshnessDecision.EXPIRED;
+    }
+
+    record RetryAmplification(long requests, long attemptsPerRequest, long downstreamAttempts) {}
+
+    static RetryAmplification retryAmplification(long requests, int... attemptsAtLayers) {
+        if (requests < 0 || attemptsAtLayers.length == 0) {
+            throw new IllegalArgumentException("non-negative requests and retry layers required");
+        }
+        long attemptsPerRequest = 1;
+        for (int attempts : attemptsAtLayers) {
+            if (attempts <= 0) throw new IllegalArgumentException("attempts must be positive");
+            attemptsPerRequest = Math.multiplyExact(attemptsPerRequest, attempts);
+        }
+        return new RetryAmplification(
+                requests,
+                attemptsPerRequest,
+                Math.multiplyExact(requests, attemptsPerRequest));
+    }
+
+    enum OutageDecision { SERVE_STALE, PROBE_ORIGIN, REJECT_OVERLOAD }
+
+    static OutageDecision outageDecision(
+            boolean staleAllowed,
+            boolean circuitAllowsProbe,
+            boolean retryTokenAvailable,
+            boolean originPermitAvailable) {
+        if (staleAllowed) return OutageDecision.SERVE_STALE;
+        if (circuitAllowsProbe && retryTokenAvailable && originPermitAvailable) {
+            return OutageDecision.PROBE_ORIGIN;
+        }
+        return OutageDecision.REJECT_OVERLOAD;
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -1832,6 +1920,49 @@ public final class ConsistencyContracts {
         assert !sharedBits.mightContain(4, 7); // B became a false negative
     }
 
+    private static void ttlJitterScenarios() {
+        assert jitteredTtlMillis(300_000, 0.20, 0.0, true) == 240_000;
+        assert jitteredTtlMillis(300_000, 0.20, 0.5, true) == 270_000;
+        assert jitteredTtlMillis(300_000, 0.20, 1.0, true) == 300_000;
+        assert jitteredTtlMillis(300_000, 0.20, 0.0, false) == 240_000;
+        assert jitteredTtlMillis(300_000, 0.20, 0.5, false) == 300_000;
+        assert jitteredTtlMillis(300_000, 0.20, 1.0, false) == 360_000;
+    }
+
+    private static void coldStartWarmScenarios() {
+        WarmPlan plan = coldStartWarmPlan(600_000, 60, 2_500, 0.20);
+        assert plan.averagePerSecond() == 10_000;
+        assert plan.safePerSecond() == 2_000;
+        assert plan.minimumSeconds() == 300;
+        assert coldStartWarmPlan(10, 3, 10, 0.0).averagePerSecond() == 4;
+    }
+
+    private static void softHardTtlScenarios() {
+        assert freshnessDecision(20_000, 30_000, 120_000, true, false)
+                == FreshnessDecision.FRESH;
+        assert freshnessDecision(40_000, 30_000, 120_000, true, true)
+                == FreshnessDecision.STALE_REFRESH_LEADER;
+        assert freshnessDecision(40_000, 30_000, 120_000, true, false)
+                == FreshnessDecision.STALE_REFRESH_FOLLOWER;
+        assert freshnessDecision(120_000, 30_000, 120_000, true, true)
+                == FreshnessDecision.EXPIRED;
+        assert freshnessDecision(40_000, 30_000, 120_000, false, true)
+                == FreshnessDecision.EXPIRED; // e.g. an entitlement revocation decision
+    }
+
+    private static void outageProtectionScenarios() {
+        RetryAmplification twoLayers = retryAmplification(10_000, 3, 3);
+        assert twoLayers.attemptsPerRequest() == 9;
+        assert twoLayers.downstreamAttempts() == 90_000;
+        assert retryAmplification(10_000, 3, 3, 3, 3, 3).downstreamAttempts() == 2_430_000;
+
+        assert outageDecision(true, false, false, false) == OutageDecision.SERVE_STALE;
+        assert outageDecision(false, true, true, true) == OutageDecision.PROBE_ORIGIN;
+        assert outageDecision(false, false, true, true) == OutageDecision.REJECT_OVERLOAD;
+        assert outageDecision(false, true, false, true) == OutageDecision.REJECT_OVERLOAD;
+        assert outageDecision(false, true, true, false) == OutageDecision.REJECT_OVERLOAD;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -1876,7 +2007,11 @@ public final class ConsistencyContracts {
         bloomBitScenarios();
         bloomSizingScenarios();
         bloomLifecycleScenarios();
-        System.out.println("PASS 40 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety");
+        ttlJitterScenarios();
+        coldStartWarmScenarios();
+        softHardTtlScenarios();
+        outageProtectionScenarios();
+        System.out.println("PASS 44 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection");
     }
 }
 

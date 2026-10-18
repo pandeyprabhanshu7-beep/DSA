@@ -2001,6 +2001,241 @@ Accessed 2026-10-18.
 57. [Redis `BF.RESERVE`](https://redis.io/docs/latest/commands/bf.reserve/): explicit error-rate/capacity reservation, 1% sizing values, scaling cost, and `NONSCALING` behavior.
 58. [Java SE 17 `BitSet`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/BitSet.html): the growable bit-vector operations used by the transparent executable model.
 
+# Section 11 — Cache avalanche: TTL jitter, cold starts, and outage protection
+
+A **cache avalanche** is a many-key or whole-tier loss of protection. Thousands of independently hot keys can expire together after a bulk load, a deployment can start with an empty local cache, or a shared cache can become unreachable. This differs from the Section 9 stampede on one hot key: per-key single-flight may reduce 100 callers for each key to one loader, yet 600,000 distinct keys can still create 600,000 concurrent origin loads.
+
+TTL jitter reduces correlated expiry. It does not repair an unavailable Redis cluster, create origin capacity, or make stale data safe. Avalanche protection therefore needs three layers:
+
+1. **shape normal operation** with independent expiry jitter and progressive warming;
+2. **bound degradation** with soft/hard freshness rules, per-key coalescing, and bounded refresh workers; and
+3. **protect the authority** with one global admission budget, retry limits, circuit state, and an explicit reject path.
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. distinguish a many-key avalanche from a single-key stampede and from penetration by absent IDs;
+2. choose symmetric or one-sided jitter without violating a maximum freshness age;
+3. calculate average expiry or warm-up rate and compare it with reserved origin capacity;
+4. define soft and hard TTLs per data class, including a no-stale policy for security decisions;
+5. combine per-key coalescing with a global bulkhead rather than confusing the two controls;
+6. quantify retry multiplication across layers; and
+7. degrade to bounded stale data or a typed overload response instead of creating an unbounded origin bypass.
+
+Write the operating contract before selecting cache settings:
+
+| Requirement | Example contract | Failure if omitted |
+|---|---|---|
+| expiry distribution | stable, independent per-key sample in `[240 s, 300 s]` | a bulk load expires as one burst |
+| freshness ceiling | hard TTL 300 s; no symmetric extension above it | jitter silently weakens the data contract |
+| warm-up budget | at most 2,000 origin reads/s after 20% reserve | prewarming becomes the outage |
+| stale eligibility | public article: bounded stale; entitlement: never stale | revoked access can be served |
+| per-key control | one in-flight refresh per key | duplicate callers amplify each hot key |
+| global control | one shared origin semaphore/rate budget | distinct keys bypass per-key protection |
+| retry owner | one layer retries with token budget and deadline | nested retries multiply load |
+| unavailable outcome | stale if eligible, otherwise `503`/typed overload | every request falls through to the database |
+
+```mermaid
+flowchart TD
+    R["cache read"] --> H{"fresh hit?"}
+    H -->|yes| V["serve value"]
+    H -->|no| S{"bounded stale allowed?"}
+    S -->|yes| C["serve stale; coalesce refresh"]
+    S -->|no| A{"global origin permit?"}
+    A -->|yes| L["one bounded load"]
+    A -->|no| X["reject overload"]
+```
+
+## Example 41 — jitter expiry without extending a strict freshness ceiling
+
+Let the base TTL be `T = 300 s` and the jitter fraction be `j = 0.20`. Symmetric jitter uses
+
+\[
+TTL = T \times (1-j+2ju), \quad u \in [0,1],
+\]
+
+which spreads expiry across `240–360 s`. That is valid only when 300 seconds is a target, not a strict maximum. If 300 seconds is the maximum allowed age, use one-sided jitter:
+
+\[
+TTL = T \times (1-j+ju),
+\]
+
+which spreads expiry across `240–300 s`.
+
+| Unit sample `u` | One-sided strict maximum | Symmetric target |
+|---:|---:|---:|
+| 0.0 | 240 s | 240 s |
+| 0.5 | 270 s | 300 s |
+| 1.0 | 300 s | 360 s |
+
+```java
+assert jitteredTtlMillis(300_000, 0.20, 0.0, true) == 240_000;
+assert jitteredTtlMillis(300_000, 0.20, 0.5, true) == 270_000;
+assert jitteredTtlMillis(300_000, 0.20, 1.0, true) == 300_000;
+
+assert jitteredTtlMillis(300_000, 0.20, 0.0, false) == 240_000;
+assert jitteredTtlMillis(300_000, 0.20, 0.5, false) == 300_000;
+assert jitteredTtlMillis(300_000, 0.20, 1.0, false) == 360_000;
+```
+
+```mermaid
+flowchart LR
+    K["base TTL 300 s"] --> M{"300 s is a hard maximum?"}
+    M -->|yes| O["one-sided 240–300 s"]
+    M -->|no| Y["symmetric 240–360 s"]
+```
+
+The sample must be independent enough to spread keys. Seeding every JVM identically and consuming random values in the same bulk-load order recreates the correlation. A stable hash of a versioned, tenant-scoped key is often operationally useful: it distributes keys while producing the same TTL after a restart, which makes patterns reproducible. Rotate the hash salt/version deliberately if the distribution must change.
+
+Jitter applies to write-based freshness. Caffeine's `expireAfterAccess` is an inactivity policy: a frequently read mutable entry can remain resident indefinitely unless another mechanism enforces freshness. Prefer `expireAfterWrite` or a custom variable expiry when the contract is “refresh within N seconds of publication.”
+
+Computation is `O(1)` time and space per insertion. Observe the expiry histogram rather than merely checking that jitter is configured: record assigned TTL, scheduled expirations per second, actual evictions, and refresh starts by key cohort.
+
+## Example 42 — plan a cold start against origin capacity
+
+Warming 600,000 keys uniformly over 60 seconds averages 10,000 loads/s. Suppose the authority can sustain 2,500 reads/s but 20% must remain available for live misses and unrelated work. The warm-up budget is only `2,500 × 0.80 = 2,000/s`; the minimum safe duration is therefore `ceil(600,000 / 2,000) = 300 s`.
+
+| Scenario | Calculation | Result | Decision |
+|---|---:|---:|---|
+| requested bulk warm | `600,000 / 60` | 10,000/s | unsafe |
+| origin budget after reserve | `2,500 × 0.80` | 2,000/s | hard warm limiter |
+| minimum duration | `ceil(600,000 / 2,000)` | 300 s | stretch warm-up to at least 5 min |
+| 10 keys over 3 s | `ceil(10 / 3)` | 4/s | ceiling avoids under-planning |
+
+```java
+WarmPlan plan = coldStartWarmPlan(600_000, 60, 2_500, 0.20);
+assert plan.averagePerSecond() == 10_000;
+assert plan.safePerSecond() == 2_000;
+assert plan.minimumSeconds() == 300;
+```
+
+```mermaid
+flowchart TD
+    Q["600,000 candidate keys"] --> P["prioritize measured hot set"]
+    P --> R["rate limit to 2,000 loads/s"]
+    R --> J["assign independent TTL jitter"]
+    J --> A["global origin admission"]
+    A --> C["cache publish"]
+```
+
+Do not assume every key deserves prewarming. Rank by recent demand, warm the hottest cohort first, and let cold keys load on demand behind the same global admission control. Start workers gradually; pause or reduce the warm rate when origin latency, error rate, queue time, or connection-pool saturation crosses its guardrail. A deployment with many replicas should divide one shared warm budget rather than grant the full budget to every process.
+
+The planner is `O(1)`; executing a warm of `n` keys is `O(n)` origin/cache operations. Its average is not a burst guarantee. Use a token bucket or paced queue to bound short windows, and make warm tasks idempotent and cancellable so rollout aborts do not leave uncontrolled work behind.
+
+## Example 43 — soft TTL enables refresh; hard TTL forbids service
+
+A soft TTL marks an entry eligible for asynchronous refresh. A hard TTL marks it unacceptable to serve. For a public article, choose soft `30 s` and hard `120 s`:
+
+| Age | Data policy | Leader state | Decision |
+|---:|---|---|---|
+| 20 s | stale allowed | irrelevant | `FRESH` |
+| 40 s | stale allowed | refresh leader | serve stale and start one refresh |
+| 40 s | stale allowed | follower | serve stale; join/skip the in-flight refresh |
+| 120 s | stale allowed | leader | `EXPIRED`; hard boundary is exclusive |
+| 40 s | entitlement, stale forbidden | leader | `EXPIRED`; do not serve revoked state |
+
+```java
+assert freshnessDecision(20_000, 30_000, 120_000, true, false)
+        == FreshnessDecision.FRESH;
+assert freshnessDecision(40_000, 30_000, 120_000, true, true)
+        == FreshnessDecision.STALE_REFRESH_LEADER;
+assert freshnessDecision(40_000, 30_000, 120_000, true, false)
+        == FreshnessDecision.STALE_REFRESH_FOLLOWER;
+assert freshnessDecision(120_000, 30_000, 120_000, true, true)
+        == FreshnessDecision.EXPIRED;
+assert freshnessDecision(40_000, 30_000, 120_000, false, true)
+        == FreshnessDecision.EXPIRED;
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Fresh: age < soft TTL
+    Fresh --> SoftStale: age >= soft TTL
+    SoftStale --> Fresh: bounded refresh succeeds
+    SoftStale --> Expired: age >= hard TTL
+    Expired --> Fresh: admitted synchronous load succeeds
+```
+
+RFC 5861 separates `stale-while-revalidate` from `stale-if-error` and puts finite bounds on both. Apply the same discipline outside HTTP: store creation/version time separately from cache retention, check age against the data-class contract, and never reset age merely because a stale value was reread or copied between tiers.
+
+The decision function is `O(1)`. The refresh path still needs Section 9's same-key coalescing, a finite worker queue, deadlines, and the global origin permit. “Async” without a worker bound can create the same avalanche on another executor. Observe fresh, soft-stale, hard-expired, refresh-leader, refresh-follower, refresh-failure, and stale-served counts by data class.
+
+## Example 44 — contain a cache outage and retry amplification
+
+When the cache tier is unavailable, bypassing it converts every request into origin traffic. Retries can make that worse. If an application layer makes three attempts and an SDK independently makes three attempts, 10,000 incoming requests can produce `10,000 × 3 × 3 = 90,000` downstream attempts. Five layers with three attempts each produce 243 attempts per request, or 2,430,000 downstream attempts for the same input.
+
+```java
+RetryAmplification twoLayers = retryAmplification(10_000, 3, 3);
+assert twoLayers.attemptsPerRequest() == 9;
+assert twoLayers.downstreamAttempts() == 90_000;
+assert retryAmplification(10_000, 3, 3, 3, 3, 3).downstreamAttempts() == 2_430_000;
+
+assert outageDecision(true, false, false, false) == OutageDecision.SERVE_STALE;
+assert outageDecision(false, true, true, true) == OutageDecision.PROBE_ORIGIN;
+assert outageDecision(false, false, true, true) == OutageDecision.REJECT_OVERLOAD;
+assert outageDecision(false, true, false, true) == OutageDecision.REJECT_OVERLOAD;
+assert outageDecision(false, true, true, false) == OutageDecision.REJECT_OVERLOAD;
+```
+
+```mermaid
+flowchart TD
+    M["cache miss or outage"] --> S{"bounded stale eligible?"}
+    S -->|yes| V["serve stale"]
+    S -->|no| C{"circuit permits probe?"}
+    C -->|no| X["reject overload"]
+    C -->|yes| T{"retry token and origin permit?"}
+    T -->|yes| P["one deadline-bounded probe"]
+    T -->|no| X
+```
+
+A circuit breaker decides whether calls should be attempted based on recent outcomes. It does **not** cap concurrent calls. Resilience4j explicitly separates that responsibility into a bulkhead, which may be semaphore-based or use a bounded thread-pool/queue. Use both concepts deliberately:
+
+- one retrying layer owns the finite attempt budget and end-to-end deadline;
+- exponential backoff includes jitter so attempts do not align;
+- a token bucket limits retry volume even before the breaker opens;
+- a bulkhead/global semaphore limits concurrent origin work across distinct keys;
+- half-open probes are few and controlled; and
+- callers that cannot obtain protection receive bounded stale data or a typed overload response.
+
+The arithmetic function is `O(L)` for `L` retrying layers and uses checked multiplication. The decision is `O(1)`. Production metrics should expose cache connectivity, fallback rate, stale age, breaker state, half-open probe count, bulkhead occupancy/queue time, retry tokens consumed, attempts per request, rejections, origin latency, and origin saturation. Alert on the joint condition—cache degradation plus rising origin admission pressure—before the database exhausts its pools.
+
+## Operations, complexity, and review
+
+| Control | Scope | Cost | What it cannot replace |
+|---|---|---:|---|
+| TTL jitter | many expiry timestamps | `O(1)` per write | hard freshness policy or origin admission |
+| progressive warm-up | selected key population | `O(n)` loads | live-miss capacity reserve |
+| per-key single-flight | duplicate callers for one key | expected `O(1)` coordination | a cross-key/global bulkhead |
+| soft/hard TTL | one cached value | `O(1)` decision | data-class stale eligibility |
+| circuit breaker | outcome-based call permission | `O(1)` | concurrency limiting |
+| bulkhead/token budget | all origin work in a scope | `O(1)` admission | retry deadline and idempotency |
+
+Review questions:
+
+- Is the observed event one key, many keys, many invalid IDs, or a whole unavailable tier?
+- Does jitter ever extend an entry beyond its maximum legal freshness age?
+- Are samples independent across keys and processes, and is the resulting expiry histogram measured?
+- What is the origin's safe fallback rate after reserving capacity for critical work?
+- Do all warmers, refreshers, misses, and retries share that budget?
+- Which data classes may be stale, for how long, and under which errors?
+- Can a hot entry live forever under access-based expiry?
+- Does per-key coalescing feed a bounded global executor and bulkhead?
+- Which one layer owns retries, and what is the maximum downstream amplification?
+- What explicit result is returned when stale is forbidden and no origin permit is available?
+- Does the circuit breaker have a separate concurrency control and a bounded half-open policy?
+- Can a cache outage be tested without risking the production authority?
+
+### Primary references for Section 11
+
+Accessed 2026-10-18.
+
+59. [Amazon Builders' Library — Timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/): retry multiplication, token-bucket limiting, exponential backoff, and jitter for correlated work.
+60. [Caffeine wiki — Eviction](https://github.com/ben-manes/caffeine/wiki/Eviction): access-, write-, and variable-expiry semantics plus maintenance scheduling.
+61. [RFC 5861 — HTTP Cache-Control Extensions for Stale Content](https://www.rfc-editor.org/rfc/rfc5861): finite `stale-while-revalidate` and `stale-if-error` windows.
+62. [Resilience4j CircuitBreaker](https://resilience4j.readme.io/docs/circuitbreaker): closed/open/half-open states, failure/slow-call thresholds, and the explicit warning that a circuit breaker does not limit concurrency.
+63. [Resilience4j Bulkhead](https://resilience4j.readme.io/docs/bulkhead): semaphore and fixed-thread-pool bulkheads, maximum concurrent calls, bounded queues, and maximum wait duration.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -2008,8 +2243,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; and lines **589–615**, “Cache penetration: absent keys and Bloom filters”
-- Deliberate continuation: Section 11, “Cache avalanche: TTL jitter, cold starts and outage protection,” is source lines **616–637**, bounded by the Section 12 heading, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; and lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”
+- Deliberate continuation: Section 12, “Architecture: pool objects are not network proxies,” is source lines **638–687**, bounded by the Section 13 heading, and remains unprocessed.
 
 Validation commands:
 
