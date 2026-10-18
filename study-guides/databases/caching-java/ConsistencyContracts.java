@@ -1,6 +1,7 @@
 import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -13,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-9. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-10. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -1138,6 +1139,114 @@ public final class ConsistencyContracts {
         return FallbackDecision.REJECT_OVERLOAD;
     }
 
+    /** Tenant-scoped negative cache with a deterministic clock and typed authority outcomes. */
+    static final class NegativeCache {
+        private final long negativeTtlMillis;
+        private final Map<String, Long> absentUntil = new HashMap<>();
+        private int authorityCalls;
+
+        NegativeCache(long negativeTtlMillis) {
+            if (negativeTtlMillis <= 0) {
+                throw new IllegalArgumentException("positive negative TTL required");
+            }
+            this.negativeTtlMillis = negativeTtlMillis;
+        }
+
+        LoadKind lookup(
+                String tenant, String objectId, long nowMillis, LoadKind authorityOutcome) {
+            String key = scopedKey(tenant, objectId);
+            Long expiresAt = absentUntil.get(key);
+            if (expiresAt != null && nowMillis < expiresAt) return LoadKind.ABSENT;
+            absentUntil.remove(key);
+
+            authorityCalls++;
+            if (authorityOutcome == LoadKind.ABSENT) {
+                absentUntil.put(key, Math.addExact(nowMillis, negativeTtlMillis));
+            } else {
+                // A value or failure must not preserve an older absence decision.
+                absentUntil.remove(key);
+            }
+            return authorityOutcome;
+        }
+
+        void invalidate(String tenant, String objectId) {
+            absentUntil.remove(scopedKey(tenant, objectId));
+        }
+
+        int authorityCalls() { return authorityCalls; }
+
+        private static String scopedKey(String tenant, String objectId) {
+            if (tenant.isBlank() || objectId.isBlank()) {
+                throw new IllegalArgumentException("tenant and object ID required");
+            }
+            return tenant.length() + ":" + tenant + ":" + objectId;
+        }
+    }
+
+    /** Transparent Bloom-filter bit mechanics; callers supply already-derived positions. */
+    static final class BloomBitModel {
+        private final int bitCount;
+        private final BitSet bits;
+
+        BloomBitModel(int bitCount) {
+            if (bitCount <= 0) throw new IllegalArgumentException("positive bit count required");
+            this.bitCount = bitCount;
+            this.bits = new BitSet(bitCount);
+        }
+
+        void put(int... positions) {
+            requirePositions(positions);
+            for (int position : positions) bits.set(position);
+        }
+
+        boolean mightContain(int... positions) {
+            requirePositions(positions);
+            for (int position : positions) {
+                if (!bits.get(position)) return false;
+            }
+            return true;
+        }
+
+        void unsafeClearForDemonstration(int... positions) {
+            requirePositions(positions);
+            for (int position : positions) bits.clear(position);
+        }
+
+        private void requirePositions(int[] positions) {
+            if (positions.length == 0) throw new IllegalArgumentException("hash positions required");
+            for (int position : positions) {
+                if (position < 0 || position >= bitCount) {
+                    throw new IllegalArgumentException("position outside filter");
+                }
+            }
+        }
+    }
+
+    record BloomPlan(long bits, long bytes, int hashFunctions, double bitsPerItem) {}
+
+    static BloomPlan bloomPlan(long expectedInsertions, double falsePositiveProbability) {
+        if (expectedInsertions <= 0
+                || !(falsePositiveProbability > 0.0 && falsePositiveProbability < 1.0)) {
+            throw new IllegalArgumentException("positive capacity and probability in (0,1) required");
+        }
+        double ln2 = Math.log(2.0);
+        double exactBits = -expectedInsertions * Math.log(falsePositiveProbability) / (ln2 * ln2);
+        if (exactBits > Long.MAX_VALUE) throw new IllegalArgumentException("filter too large");
+        long bits = (long) Math.ceil(exactBits);
+        int hashes = Math.max(1, (int) Math.round((double) bits / expectedInsertions * ln2));
+        return new BloomPlan(bits, ceilDiv(bits, 8), hashes, (double) bits / expectedInsertions);
+    }
+
+    enum BloomGateDecision { RETURN_ABSENT, CHECK_NEXT_LAYER }
+
+    static BloomGateDecision bloomGate(
+            boolean mightContain, boolean completenessTrusted, boolean rebuilding) {
+        if (!mightContain && completenessTrusted && !rebuilding) {
+            return BloomGateDecision.RETURN_ABSENT;
+        }
+        return BloomGateDecision.CHECK_NEXT_LAYER;
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -1673,6 +1782,56 @@ public final class ConsistencyContracts {
         assert afterBoundedWait(false, false, false) == FallbackDecision.REJECT_OVERLOAD;
     }
 
+    private static void negativeCacheScenarios() {
+        NegativeCache cache = new NegativeCache(1_000);
+        assert cache.lookup("tenant-a", "404", 0, LoadKind.ABSENT) == LoadKind.ABSENT;
+        assert cache.lookup("tenant-a", "404", 999, LoadKind.FAILURE) == LoadKind.ABSENT;
+        assert cache.authorityCalls() == 1; // repeated identical miss was absorbed
+
+        assert cache.lookup("tenant-b", "404", 999, LoadKind.VALUE) == LoadKind.VALUE;
+        assert cache.authorityCalls() == 2; // tenant scope prevents cross-tenant absence
+        assert cache.lookup("tenant-a", "404", 1_000, LoadKind.VALUE) == LoadKind.VALUE;
+        assert cache.authorityCalls() == 3; // short negative TTL expired
+
+        assert cache.lookup("tenant-a", "timeout", 1_001, LoadKind.FAILURE) == LoadKind.FAILURE;
+        assert cache.lookup("tenant-a", "timeout", 1_002, LoadKind.ABSENT) == LoadKind.ABSENT;
+        assert cache.authorityCalls() == 5; // failure was never converted into absence
+        cache.invalidate("tenant-a", "timeout");
+        assert cache.lookup("tenant-a", "timeout", 1_003, LoadKind.VALUE) == LoadKind.VALUE;
+    }
+
+    private static void bloomBitScenarios() {
+        BloomBitModel filter = new BloomBitModel(16);
+        filter.put(1, 4, 11); // inserted object A
+        assert filter.mightContain(1, 4, 11);
+        assert !filter.mightContain(1, 4, 12); // zero bit proves this hash tuple absent
+        assert filter.mightContain(1, 4, 11);  // another object can collide: only “maybe”
+    }
+
+    private static void bloomSizingScenarios() {
+        BloomPlan plan = bloomPlan(10_000_000, 0.01);
+        assert plan.bits() == 95_850_584L;
+        assert plan.bytes() == 11_981_323L;
+        assert plan.hashFunctions() == 7;
+        assert Math.abs(plan.bitsPerItem() - 9.5850584) < 0.0000001;
+        long expectedPasses = (long) Math.ceil(100_000 * 0.01);
+        assert expectedPasses == 1_000;
+    }
+
+    private static void bloomLifecycleScenarios() {
+        assert bloomGate(false, true, false) == BloomGateDecision.RETURN_ABSENT;
+        assert bloomGate(false, false, false) == BloomGateDecision.CHECK_NEXT_LAYER;
+        assert bloomGate(false, true, true) == BloomGateDecision.CHECK_NEXT_LAYER;
+        assert bloomGate(true, true, false) == BloomGateDecision.CHECK_NEXT_LAYER;
+
+        BloomBitModel sharedBits = new BloomBitModel(8);
+        sharedBits.put(1, 4); // object A
+        sharedBits.put(4, 7); // object B shares bit 4
+        assert sharedBits.mightContain(4, 7);
+        sharedBits.unsafeClearForDemonstration(1, 4); // deleting A by clearing its bits
+        assert !sharedBits.mightContain(4, 7); // B became a false negative
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -1713,7 +1872,11 @@ public final class ConsistencyContracts {
         localSingleFlightScenarios();
         fillLeaseScenarios();
         boundedFallbackScenarios();
-        System.out.println("PASS 36 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback");
+        negativeCacheScenarios();
+        bloomBitScenarios();
+        bloomSizingScenarios();
+        bloomLifecycleScenarios();
+        System.out.println("PASS 40 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety");
     }
 }
 

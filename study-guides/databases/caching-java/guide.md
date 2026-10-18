@@ -1776,6 +1776,231 @@ Accessed 2026-10-17.
 53. [Java SE 17 `Semaphore`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/Semaphore.html): bounded permits and timed `tryAcquire` behavior.
 54. [RFC 5861 — HTTP Cache-Control Extensions for Stale Content](https://www.rfc-editor.org/rfc/rfc5861): bounded `stale-while-revalidate` and `stale-if-error` semantics.
 
+# Section 10 — Cache penetration: absent keys and Bloom filters
+
+Cache penetration is repeated work for keys that do not exist: the cache misses, the authority proves absence, and the next request repeats the same proof. It differs from a stampede. A stampede is many callers racing on one temporarily empty hot key; penetration may be a steady stream of invalid IDs, including millions of distinct guesses that local single-flight cannot combine.
+
+Two controls solve different shapes of the problem:
+
+- a **negative cache** remembers an authoritative absence for one exact, scoped key; and
+- a **Bloom filter** cheaply rejects IDs that are definitely absent from a trusted inserted set, while allowing “maybe present” requests to continue.
+
+Neither control authorizes a caller. Validate syntax, tenant, rate limit, and authenticate before using a probabilistic membership result. “Not authorized” and “does not exist” are different outcomes even if an external API intentionally renders both as `404`.
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. distinguish penetration, stampede, and an ordinary cold miss from their request traces;
+2. cache only typed, authoritative absence with tenant scope and a short expiry;
+3. explain why a Bloom `false` means definitely absent only relative to an intact, complete inserted set;
+4. derive bit count and hash count from expected insertions and a target false-positive probability;
+5. quantify how false positives translate into remaining authority traffic;
+6. explain why clearing ordinary Bloom bits can create false negatives; and
+7. fail open during rebuild, change-stream lag, or uncertain completeness.
+
+Write the contract before choosing a library or service:
+
+| Requirement | Example contract | Failure if omitted |
+|---|---|---|
+| key scope | tenant + object type + normalized ID | one tenant's absence hides another tenant's object |
+| typed outcome | cache `ABSENT`; never cache timeout, auth failure, or replica uncertainty as absence | an outage becomes a convincing `404` |
+| negative TTL | 1–10 s, plus create-time invalidation where practical | a newly created object remains invisible |
+| Bloom population | all committed IDs through watermark `W` | an uninserted valid ID is rejected |
+| capacity and target FPP | 10 million insertions, 1% target | saturation silently increases database traffic |
+| rebuild behavior | bypass negative Bloom answers until completeness is trusted | a partially loaded filter creates false negatives |
+| deletion behavior | rebuild/epoch swap or a deletion-capable structure | clearing shared bits hides surviving keys |
+| overload bound | Bloom “maybe” requests still use database admission controls | false positives can bypass protection during attack |
+
+```mermaid
+flowchart TD
+    R["authenticated, tenant-scoped ID"] --> B{"trusted Bloom says definitely absent?"}
+    B -->|yes| N["return typed absence"]
+    B -->|no or rebuilding| C{"positive or negative cache hit?"}
+    C -->|yes| H["return typed cached result"]
+    C -->|no| D["rate-limited authority lookup"]
+    D --> S["store value or short authoritative absence"]
+```
+
+## Example 37 — negative-cache only authoritative, tenant-scoped absence
+
+Suppose `tenant-a/article/404` is missing. The first request queries the authority and stores `ABSENT` until 1,000 ms. A second request at 999 ms returns the negative entry without querying. `tenant-b/article/404` is a different key, and the tenant-A entry expires at 1,000 ms.
+
+| Time | Scoped key | Authority outcome supplied by trace | Result | Cumulative authority calls |
+|---:|---|---|---|---:|
+| 0 ms | `tenant-a/404` | `ABSENT` | store short negative entry | 1 |
+| 999 ms | `tenant-a/404` | not consulted | negative-cache hit | 1 |
+| 999 ms | `tenant-b/404` | `VALUE` | return value | 2 |
+| 1,000 ms | `tenant-a/404` | `VALUE` | expired negative; return value | 3 |
+| 1,001 ms | `tenant-a/timeout` | `FAILURE` | propagate failure; store nothing | 4 |
+| 1,002 ms | `tenant-a/timeout` | `ABSENT` | retry authority; now store absence | 5 |
+
+```java
+NegativeCache cache = new NegativeCache(1_000);
+assert cache.lookup("tenant-a", "404", 0, LoadKind.ABSENT) == LoadKind.ABSENT;
+assert cache.lookup("tenant-a", "404", 999, LoadKind.FAILURE) == LoadKind.ABSENT;
+assert cache.authorityCalls() == 1;
+
+assert cache.lookup("tenant-b", "404", 999, LoadKind.VALUE) == LoadKind.VALUE;
+assert cache.lookup("tenant-a", "404", 1_000, LoadKind.VALUE) == LoadKind.VALUE;
+
+assert cache.lookup("tenant-a", "timeout", 1_001, LoadKind.FAILURE) == LoadKind.FAILURE;
+assert cache.lookup("tenant-a", "timeout", 1_002, LoadKind.ABSENT) == LoadKind.ABSENT;
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Tenant A caller
+    participant C as Negative cache
+    participant DB as Authority
+    A->>C: get tenant-a / 404
+    C->>DB: miss; load
+    DB-->>C: authoritative ABSENT
+    C-->>A: ABSENT until 1000 ms
+    A->>C: same key at 999 ms
+    C-->>A: cached ABSENT; no DB call
+    A->>C: same key at 1000 ms
+    C->>DB: expired; load again
+```
+
+The executable model removes a negative entry on `VALUE` or `FAILURE`, and exposes explicit invalidation for a successful create. A production loader must classify “authoritative not found” separately from permission denial, timeout, cancellation, replica lag, and malformed input. Jitter a very popular negative entry's expiry if synchronized retries matter, and keep the Section 9 single-flight/origin permits because a negative entry can also stampede when it expires.
+
+Expected lookup and insertion cost is `O(1)` for the backing hash map; space is `O(a)` for `a` live negative entries. The TTL bounds staleness, not memory by itself—expired entries still need lazy or scheduled removal in a real cache.
+
+## Example 38 — a zero bit proves absence; all-one bits prove only “maybe”
+
+Let a teaching filter have 16 bits and three derived positions per ID. Inserting object A sets positions `{1, 4, 11}`. A query mapped to `{1, 4, 12}` is definitely absent because bit 12 is zero. A different, never-inserted object that happens to map to `{1, 4, 11}` is a false positive and must continue to the cache or authority.
+
+| Query | Bits read | Result | Safe action |
+|---|---|---|---|
+| inserted A | `1=1, 4=1, 11=1` | maybe present | check next layer |
+| invalid B | `1=1, 4=1, 12=0` | definitely absent from inserted set | reject only if completeness is trusted |
+| colliding C | `1=1, 4=1, 11=1` | false positive / maybe present | check next layer |
+
+```java
+BloomBitModel filter = new BloomBitModel(16);
+filter.put(1, 4, 11);
+assert filter.mightContain(1, 4, 11);
+assert !filter.mightContain(1, 4, 12);
+```
+
+```mermaid
+flowchart LR
+    Q["query hash positions 1, 4, 12"] --> P1["bit 1 = 1"]
+    P1 --> P4["bit 4 = 1"]
+    P4 --> P12["bit 12 = 0"]
+    P12 --> A["definitely absent from inserted set"]
+```
+
+For `k` positions, membership is `O(k)` time and `O(m)` bits for the filter. The executable model accepts positions directly so the bit invariant is visible. Production code should use a maintained implementation with a stable funnel/encoding; changing serialization, normalization, hash strategy, bit count, or hash count between writer and reader changes the set being tested.
+
+Guava describes this as one-sided error: `mightContain` may return true for an object not inserted, while false means it definitely was not inserted into that filter. It also guarantees that after `put(x)`, subsequent `mightContain(x)` calls on that intact filter return true. That guarantee says nothing about objects a deployment forgot to add.
+
+## Example 39 — size the filter and translate FPP into remaining load
+
+For expected insertions `n`, bit count `m`, hash count `k`, and target false-positive probability `p`:
+
+\[
+p \approx \left(1-e^{-kn/m}\right)^k,\qquad
+m = \left\lceil-\frac{n\ln p}{(\ln 2)^2}\right\rceil,\qquad
+k \approx \operatorname{round}\left(\frac{m}{n}\ln 2\right)
+\]
+
+For `n = 10,000,000` and `p = 0.01`:
+
+| Derived quantity | Result |
+|---|---:|
+| bits per expected item | 9.5850584 |
+| total bits | 95,850,584 |
+| packed bytes | 11,981,323 bytes |
+| packed size | 11.981 MB decimal / 11.426 MiB |
+| hash positions | 7 |
+| ideal false positives from 100,000 distinct absent probes/s | about 1,000/s |
+
+```java
+BloomPlan plan = bloomPlan(10_000_000, 0.01);
+assert plan.bits() == 95_850_584L;
+assert plan.bytes() == 11_981_323L;
+assert plan.hashFunctions() == 7;
+assert Math.ceil(100_000 * 0.01) == 1_000;
+```
+
+The last row is an expectation under ideal hashing and the planned load, not a per-second ceiling. Burstiness and adversarial inputs still require rate limits. FPP measures Bloom mistakes among absent queries; it is not the overall cache-miss ratio. If only 20,000 of 100,000 probes are absent, the expected false-positive contribution is approximately `20,000 × 0.01 = 200`, not 1,000.
+
+Redis documents 9.585 bits/item and seven hash functions for a 1% target. It also requires an expected capacity: undersizing either degrades the error rate for a fixed filter or introduces stacked subfilters in a scaling implementation, increasing membership-check work. Track inserted count, estimated/current FPP, bit occupancy, subfilter count, reject rate, and the observed fraction of Bloom “maybe” requests that the authority later reports absent.
+
+## Example 40 — completeness and deletion are lifecycle invariants
+
+A mathematically intact filter has no false negatives for inserted keys. An application can still create an operational false negative:
+
+1. SQL commits object `X`.
+2. The change event or filter update lags.
+3. A request for `X` maps to at least one zero bit.
+4. If the application treats that zero as authoritative, it incorrectly returns absent.
+
+The gate therefore needs a completeness state, not only a membership bit:
+
+```java
+assert bloomGate(false, true, false) == BloomGateDecision.RETURN_ABSENT;
+assert bloomGate(false, false, false) == BloomGateDecision.CHECK_NEXT_LAYER;
+assert bloomGate(false, true, true) == BloomGateDecision.CHECK_NEXT_LAYER;
+assert bloomGate(true, true, false) == BloomGateDecision.CHECK_NEXT_LAYER;
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Rebuilding
+    Rebuilding --> CatchingUp: snapshot loaded
+    CatchingUp --> Trusted: applied through watermark W
+    Trusted --> CatchingUp: consumer lag or gap
+    CatchingUp --> Rebuilding: incompatible format or corruption
+```
+
+Only `Trusted` may turn a negative Bloom answer into a final absence. `Rebuilding` and `CatchingUp` fail open to the next layer. One safe publication order for new objects is insert membership first and expose the object second: premature membership causes only a false positive. If that order is impossible, expose a durable completeness watermark and bypass negative answers above it or while the change stream is unhealthy. Version the filter alongside the hash/funnel definition, expected capacity, snapshot watermark, and checksum; swap a complete new epoch atomically rather than mutating readers through a partial rebuild.
+
+Ordinary deletion by clearing bits is unsafe because bits are shared. If A uses `{1,4}` and B uses `{4,7}`, clearing A's positions also clears bit 4 and makes B test negative:
+
+```java
+BloomBitModel shared = new BloomBitModel(8);
+shared.put(1, 4); // A
+shared.put(4, 7); // B shares bit 4
+assert shared.mightContain(4, 7);
+shared.unsafeClearForDemonstration(1, 4);
+assert !shared.mightContain(4, 7); // false negative for surviving B
+```
+
+Use periodic rebuild/epoch swap when deleted IDs may remain “maybe” until the next rebuild, or choose a deletion-capable structure such as a counting Bloom or Cuckoo filter and account for its different memory/concurrency rules. Never expose the demonstration clear operation in a production ordinary Bloom API.
+
+## Operations, complexity, and review
+
+| Mechanism | Lookup | Insert | Space | Critical boundary |
+|---|---:|---:|---:|---|
+| negative hash cache | expected `O(1)` | expected `O(1)` | `O(a)` live absences | typed outcome, tenant scope, short TTL |
+| Bloom filter | `O(k)` | `O(k)` | `m` bits | completeness, capacity, immutable hash contract |
+| rebuild/epoch swap | `O(k)` after publish | `O(nk)` rebuild | old + new filters during swap | watermark and atomic publication |
+
+Review questions:
+
+- Is this traffic repeated identical misses, many distinct invalid IDs, or one expired hot key?
+- Which exact authority outcome creates a negative entry, and which outcomes must never do so?
+- Does the negative key include tenant and every visibility dimension that changes existence?
+- What invalidates a negative entry when an object is created?
+- What `n` and `p` were used to size the Bloom filter, and what happens beyond capacity?
+- Does a negative answer apply only when the current filter's completeness is trusted?
+- How are snapshot watermark, event-stream lag, hash version, and rebuild state observed?
+- Can any code clear ordinary Bloom bits for deletion?
+- Are Bloom “maybe” requests still protected by origin admission and rate limits?
+- Is authorization checked independently from membership?
+
+### Primary references for Section 10
+
+Accessed 2026-10-18.
+
+55. [Guava 33.4.8 `BloomFilter`](https://guava.dev/releases/33.4.8-jre/api/docs/com/google/common/hash/BloomFilter.html): one-sided membership error, expected FPP, post-`put` behavior, compatibility, saturation warnings, and stable funnel requirements.
+56. [Redis Bloom filter guide](https://redis.io/docs/latest/develop/data-types/probabilistic/bloom-filter/): `BF.ADD`/`BF.EXISTS` semantics, false positives, capacity, scaling subfilters, and sizing formulas.
+57. [Redis `BF.RESERVE`](https://redis.io/docs/latest/commands/bf.reserve/): explicit error-rate/capacity reservation, 1% sizing values, scaling cost, and `NONSCALING` behavior.
+58. [Java SE 17 `BitSet`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/BitSet.html): the growable bit-vector operations used by the transparent executable model.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -1783,8 +2008,8 @@ Accessed 2026-10-17.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; and lines **557–588**, “Cache stampede: coordinate fills, bound fallback”
-- Deliberate continuation: Section 10, “Cache penetration: absent keys and Bloom filters,” is source lines **589–615**, bounded by the Section 11 heading, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; and lines **589–615**, “Cache penetration: absent keys and Bloom filters”
+- Deliberate continuation: Section 11, “Cache avalanche: TTL jitter, cold starts and outage protection,” is source lines **616–637**, bounded by the Section 12 heading, and remains unprocessed.
 
 Validation commands:
 
