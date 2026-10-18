@@ -3642,6 +3642,243 @@ Accessed 2026-10-18.
 104. [PgBouncer configuration](https://www.pgbouncer.org/config.html): session reset behavior, transaction-pooling restrictions, server checks and connection/login timeouts.
 
 
+# Section 18 — MySQL has a different authentication order
+
+The MySQL classic protocol is server-first. After TCP connects, the server sends `HandshakeV10` with its version, connection ID, capability flags, status, character-set identifier, authentication-plugin name and challenge data. Only then can the client intersect capabilities, send an `SSLRequest`, complete TLS, and send the full `HandshakeResponse`. Reusing PostgreSQL's client-first `SSLRequest` chronology would put evidence in the wrong order.
+
+```mermaid
+sequenceDiagram
+    participant H as HikariCP
+    participant J as Connector/J
+    participant M as MySQL server
+    H->>J: create physical connection
+    J->>M: TCP connect
+    M-->>J: HandshakeV10 greeting
+    J->>J: intersect capabilities and choose TLS policy
+    J->>M: SSLRequest with CLIENT_SSL
+    J->>M: TLS ClientHello
+    M-->>J: TLS handshake
+    J->>J: verify chain and server identity
+    J->>M: encrypted HandshakeResponse
+    M-->>J: AuthMoreData, AuthSwitchRequest, OK or ERR
+    J->>M: required session initialization
+    J-->>H: validated physical session
+```
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. narrate MySQL's server-first greeting, capability negotiation, optional TLS and authentication order without importing PostgreSQL assumptions;
+2. prove that `CLIENT_SSL` was mutually supported before treating a connection as encrypted;
+3. distinguish the greeting's optimistic authentication plugin from the account's required plugin and handle `AuthSwitchRequest`;
+4. separate `caching_sha2_password` fast authentication from full authentication;
+5. explain why full authentication needs verified TLS or a deliberately trusted RSA-key path;
+6. identify password-change, user-rename, `FLUSH PRIVILEGES` and restart events that can turn a formerly fast path into a full path;
+7. keep the authentication plugin's server cache conceptually separate from an application Redis/cache tier; and
+8. verify character set, collation, SQL mode, time zone and isolation before admitting a physical session to the pool.
+
+## Example 69 — negotiate capabilities before sending credentials
+
+The server greeting is evidence, not a command to accept every advertised feature. The client response must announce only capabilities supported by both sides. For TLS, the client sends a short `SSLRequest` carrying `CLIENT_SSL`; TLS is established before the full `HandshakeResponse`, which contains the username and authentication response.
+
+```java
+Set<MySqlCapability> modern = Set.of(
+        MySqlCapability.PROTOCOL_41,
+        MySqlCapability.SECURE_CONNECTION,
+        MySqlCapability.PLUGIN_AUTH,
+        MySqlCapability.SSL);
+
+MySqlHandshakePlan secure = mysqlHandshakePlan(modern, modern, true, true);
+assert secure.tls() && secure.identityVerified();
+assert secure.events().indexOf("server HandshakeV10 greeting")
+        < secure.events().indexOf("client SSLRequest with CLIENT_SSL");
+assert secure.events().indexOf("TLS established")
+        < secure.events().indexOf("client HandshakeResponse");
+```
+
+Trace:
+
+| Step | Direction | Durable evidence | Still unproved |
+|---:|---|---|---|
+| 1 | server → client | protocol 10 greeting, capabilities, plugin guess, scramble | TLS and account identity |
+| 2 | client → server | `SSLRequest` with intersected `CLIENT_SSL` | TLS completion and certificate validity |
+| 3 | both | TLS handshake completes and identity is verified | database user authentication |
+| 4 | client → server | protected `HandshakeResponse` | server acceptance |
+| 5 | server → client | terminal `OK` | application session contract |
+
+```mermaid
+stateDiagram-v2
+    [*] --> TCPConnected
+    TCPConnected --> GreetingReceived: HandshakeV10
+    GreetingReceived --> SSLRequested: CLIENT_SSL intersected
+    SSLRequested --> TLSVerified: TLS plus identity checks
+    TLSVerified --> ResponseSent: HandshakeResponse
+    GreetingReceived --> ResponseSent: plaintext policy permits
+    ResponseSent --> Authenticated: OK
+    ResponseSent --> Failed: ERR
+```
+
+The executable planner rejects a required-TLS connection when the mutual capability set lacks `SSL`. That prevents the dangerous interpretation “the client requested TLS, therefore TLS happened.” Connector/J currently documents `PREFERRED` as its default `sslMode`, which can fall back to plaintext; production contracts that require endpoint identity should select `VERIFY_IDENTITY` explicitly and configure trust material.
+
+The set intersection is `O(c)` time and space for `c` requested capabilities. Real protocol libraries also validate packet sequence numbers, lengths and capability-dependent fields. Applications should not construct these packets themselves.
+
+## Example 70 — treat the greeting plugin as an optimistic guess
+
+The greeting supplies authentication data for the server's default plugin before the server knows the requested user. The full `HandshakeResponse` identifies the account. If that account requires a different compatible method, the server can issue `AuthSwitchRequest`, and the client answers with plugin-specific data.
+
+```java
+MySqlAuthNegotiation guessed = mysqlAuthNegotiation(
+        "caching_sha2_password", "caching_sha2_password");
+assert guessed.path() == MySqlAuthPath.OPTIMISTIC_PLUGIN;
+assert !guessed.messages().contains("AuthSwitchRequest");
+
+MySqlAuthNegotiation switched = mysqlAuthNegotiation(
+        "caching_sha2_password", "authentication_ldap_sasl");
+assert switched.path() == MySqlAuthPath.AUTH_SWITCH;
+assert switched.messages().equals(List.of(
+        "HandshakeResponse", "AuthSwitchRequest", "AuthSwitchResponse",
+        "AuthMoreData or OK"));
+```
+
+```mermaid
+flowchart TD
+    G["greeting plugin and challenge"] --> R["HandshakeResponse with user and client plugin"]
+    R --> Q{"account plugin compatible?"}
+    Q -->|yes| C["continue optimistic exchange"]
+    Q -->|no| S["AuthSwitchRequest"]
+    S --> A["plugin-specific response"]
+    C --> T{"terminal packet"}
+    A --> T
+    T -->|OK| O["authenticated"]
+    T -->|ERR| F["reject"]
+```
+
+Do not label every post-response packet as an error. `AuthMoreData` can carry a legitimate plugin-specific continuation, while `OK` and `ERR` are terminal. Log the greeting plugin, selected/account plugin, whether a switch occurred and the terminal packet family; never log scramble bytes, password material or plugin responses.
+
+## Example 71 — separate `caching_sha2_password` fast and full paths
+
+The server-side plugin keeps an in-memory account/password-hash cache. A matching entry enables a challenge-response fast path. A miss requires credential verification against account data and, after success, warms the cache. Password changes, account renames and `FLUSH PRIVILEGES` clear affected entries; restart empties the non-persistent cache. Latency can therefore change without an application deployment.
+
+```java
+assert cachingSha2Outcome(true, Sha2FullAuthChannel.NONE, false)
+        == CachingSha2Outcome.FAST_CHALLENGE_RESPONSE;
+assert cachingSha2Outcome(false, Sha2FullAuthChannel.VERIFIED_TLS, false)
+        == CachingSha2Outcome.FULL_OVER_TLS;
+assert cachingSha2Outcome(false, Sha2FullAuthChannel.PINNED_RSA_PUBLIC_KEY, false)
+        == CachingSha2Outcome.FULL_WITH_PINNED_RSA;
+assert cachingSha2Outcome(
+        false, Sha2FullAuthChannel.RETRIEVED_RSA_PUBLIC_KEY, false)
+        == CachingSha2Outcome.REJECT;
+```
+
+| Cache state | Transport/key evidence | Outcome |
+|---|---|---|
+| hit | challenge-response fields | fast authentication; no full password exchange |
+| miss | verified TLS | full authentication inside protected channel |
+| miss | trusted local server RSA public key | RSA-protected password exchange without TLS |
+| miss | server key retrieval disabled | reject rather than improvise |
+| miss | server key retrieval explicitly allowed | extra key-retrieval round trip; weaker identity story than verified TLS or a pinned key |
+
+```mermaid
+flowchart TD
+    H{"server auth-cache hit?"} -->|yes| F["fast challenge-response"]
+    H -->|no| T{"verified TLS?"}
+    T -->|yes| P["full authentication over TLS"]
+    T -->|no| K{"trusted local RSA key?"}
+    K -->|yes| R["RSA-protected password exchange"]
+    K -->|no| G{"public-key retrieval explicitly allowed?"}
+    G -->|yes| E["retrieve key then RSA exchange"]
+    G -->|no| X["reject"]
+    F --> O["OK or ERR"]
+    P --> O
+    R --> O
+    E --> O
+```
+
+On a secure connection the password can be sent in clear form **inside TLS**; it is not clear on the network. On an unencrypted TCP connection the plugin uses RSA for password exchange, not for encrypting the rest of the database session. Connector/J leaves `allowPublicKeyRetrieval` false by default. Prefer `VERIFY_IDENTITY`; if TLS is genuinely unavailable, prefer a securely distributed/pinned server public key over reflexively retrieving one during the handshake.
+
+This authentication cache belongs to MySQL server authentication. It does not contain application query values, does not replace Redis, and should not be included in application cache hit-rate metrics.
+
+## Example 72 — validate the session contract after authentication
+
+An `OK` packet proves connection acceptance, not that application semantics match. The greeting's one-byte character-set field describes a protocol collation identifier; Connector/J and initialization can still negotiate or issue session statements. Before a new physical connection enters the pool, validate the properties whose drift can alter parsing, comparisons, temporal values or transaction behavior.
+
+```java
+MySqlSessionContract expected = new MySqlSessionContract(
+        "utf8mb4", "utf8mb4_0900_ai_ci", "STRICT_TRANS_TABLES",
+        "UTC", "READ_COMMITTED");
+MySqlSessionContract actual = new MySqlSessionContract(
+        "utf8mb4", "utf8mb4_general_ci", "STRICT_TRANS_TABLES",
+        "America/New_York", "REPEATABLE_READ");
+
+assert mysqlSessionMismatches(expected, actual).equals(
+        List.of("collation", "timeZone", "isolation"));
+```
+
+| Contract field | Failure if it drifts | Example admission check |
+|---|---|---|
+| character set | encoding error or lossy conversion | expected client/session character set |
+| collation | different equality/sort behavior | expected connection collation |
+| SQL mode | silent coercion versus rejection | required strict-mode set |
+| time zone | shifted temporal interpretation | explicit application zone/UTC |
+| isolation | different visibility/locking | JDBC isolation after initialization |
+
+```mermaid
+sequenceDiagram
+    participant J as Connector/J
+    participant M as MySQL session
+    participant H as HikariCP
+    M-->>J: authentication OK
+    J->>M: apply required connection properties
+    J->>M: read observable session variables
+    M-->>J: charset, collation, SQL mode, zone, isolation
+    J->>J: compare with application contract
+    alt exact match
+        J-->>H: register physical connection
+    else mismatch or initialization error
+        J-->>H: reject and close physical connection
+    end
+```
+
+The comparison is `O(1)` for this fixed contract and returns every mismatch so diagnosis is not limited to the first difference. Do not run expensive validation SQL on every warm checkout unless the risk model requires it; initialize and validate new physical sessions, reset tracked state on return, and use bounded health checks for reuse.
+
+## Operations, complexity, and review
+
+| Symptom | Likely stage | Evidence to capture |
+|---|---|---|
+| immediate server packet before client startup | greeting | packet type, protocol version, server capabilities |
+| TLS required but handshake never starts | capability negotiation | server/client `CLIENT_SSL` intersection and `sslMode` |
+| authentication adds a round trip | plugin mismatch | greeting plugin, account plugin, `AuthSwitchRequest` |
+| first connection after restart is slower | SHA-2 cache cold/full auth | server restart/cache event and chosen secure channel |
+| public-key retrieval error | full auth without TLS | pinned-key configuration and retrieval policy |
+| `OK` followed by semantic failures | session initialization | charset, collation, SQL mode, zone, isolation |
+| `getConnection()` slow only during pool growth | physical creation | joined checkout/handshake/auth/init spans |
+
+Review questions:
+
+- Does the trace show the server greeting before any client `SSLRequest`?
+- Are negotiated capabilities the intersection rather than a copy of one side's flags?
+- Is the `HandshakeResponse` protected when the policy requires TLS?
+- Does `sslMode` require certificate and hostname checks, rather than encryption alone?
+- Is an authentication-plugin switch treated as a valid branch?
+- Can telemetry distinguish fast SHA-2 authentication, full TLS authentication and RSA fallback?
+- Which cache-clearing event explains a sudden full-authentication path?
+- Is public-key retrieval disabled unless explicitly justified?
+- Are authentication cache metrics kept separate from application-cache metrics?
+- Does the pool reject a new session when character set, collation, SQL mode, time zone or isolation violates the contract?
+
+### Primary references for Section 18
+
+Accessed 2026-10-18.
+
+105. [MySQL classic protocol connection phase](https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase.html): server-first greeting, capability negotiation, optional `SSLRequest`, TLS-before-`HandshakeResponse`, plugin selection/switching and terminal `OK`/`ERR` packets.
+106. [MySQL `HandshakeV10` packet](https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_handshake_v10.html): protocol/server version, connection ID, scramble, capability/status/character-set fields and authentication-plugin name.
+107. [MySQL `SSLRequest` packet](https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_ssl_request.html): `CLIENT_SSL`, maximum packet size, character set and the truncated pre-username request structure.
+108. [MySQL 8.4 `caching_sha2_password`](https://dev.mysql.com/doc/refman/8.4/en/caching-sha2-pluggable-authentication.html): secure/RSA full authentication, server-side cache behavior, invalidation events and non-persistence across restart.
+109. [Connector/J security properties](https://dev.mysql.com/doc/connector-j/en/connector-j-connp-props-security.html): `sslMode`, certificate/hostname verification, trust stores, `serverRSAPublicKeyFile`, and default-disabled `allowPublicKeyRetrieval`.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -3649,8 +3886,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; and lines **820–906**, “Stage-by-stage mechanics”
-- Deliberate continuation: Section 18, “MySQL has a different authentication order,” spans source lines **907–941** and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; and lines **907–941**, “MySQL has a different authentication order”
+- Deliberate continuation: Section 19, “From connection to prepared query,” spans source lines **942–974** and remains unprocessed.
 
 Validation commands:
 

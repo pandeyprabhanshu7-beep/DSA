@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-17. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-18. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -2039,6 +2039,129 @@ public final class ConsistencyContracts {
         return BaselinePlacement.PHYSICAL_INIT_SQL;
     }
 
+    enum MySqlCapability { PROTOCOL_41, SECURE_CONNECTION, PLUGIN_AUTH, SSL }
+
+    record MySqlHandshakePlan(
+            Set<MySqlCapability> negotiatedCapabilities,
+            boolean tls,
+            boolean identityVerified,
+            List<String> events) {}
+
+    static MySqlHandshakePlan mysqlHandshakePlan(
+            Set<MySqlCapability> serverCapabilities,
+            Set<MySqlCapability> requestedCapabilities,
+            boolean requireTls,
+            boolean verifyIdentity) {
+        Objects.requireNonNull(serverCapabilities, "serverCapabilities");
+        Objects.requireNonNull(requestedCapabilities, "requestedCapabilities");
+        Set<MySqlCapability> negotiated = new HashSet<>(requestedCapabilities);
+        negotiated.retainAll(serverCapabilities);
+        boolean tls = negotiated.contains(MySqlCapability.SSL);
+        if ((requireTls || verifyIdentity) && !tls) {
+            throw new IllegalStateException("required TLS capability was not negotiated");
+        }
+        List<String> events = new ArrayList<>();
+        events.add("TCP connected");
+        events.add("server HandshakeV10 greeting");
+        if (tls) {
+            events.add("client SSLRequest with CLIENT_SSL");
+            events.add("TLS established");
+        }
+        events.add("client HandshakeResponse");
+        events.add("authentication exchange");
+        events.add("OK or ERR");
+        return new MySqlHandshakePlan(
+                Set.copyOf(negotiated), tls, tls && verifyIdentity, List.copyOf(events));
+    }
+
+    enum MySqlAuthPath { OPTIMISTIC_PLUGIN, AUTH_SWITCH }
+
+    record MySqlAuthNegotiation(
+            String greetingPlugin,
+            String accountPlugin,
+            MySqlAuthPath path,
+            List<String> messages) {}
+
+    static MySqlAuthNegotiation mysqlAuthNegotiation(
+            String greetingPlugin, String accountPlugin) {
+        if (greetingPlugin == null || greetingPlugin.isBlank()
+                || accountPlugin == null || accountPlugin.isBlank()) {
+            throw new IllegalArgumentException("authentication plugin names are required");
+        }
+        boolean compatible = greetingPlugin.equals(accountPlugin);
+        return new MySqlAuthNegotiation(
+                greetingPlugin,
+                accountPlugin,
+                compatible ? MySqlAuthPath.OPTIMISTIC_PLUGIN : MySqlAuthPath.AUTH_SWITCH,
+                compatible
+                        ? List.of("HandshakeResponse", "AuthMoreData or OK")
+                        : List.of("HandshakeResponse", "AuthSwitchRequest", "AuthSwitchResponse",
+                                "AuthMoreData or OK"));
+    }
+
+    enum Sha2FullAuthChannel {
+        VERIFIED_TLS,
+        PINNED_RSA_PUBLIC_KEY,
+        RETRIEVED_RSA_PUBLIC_KEY,
+        NONE
+    }
+    enum CachingSha2Outcome {
+        FAST_CHALLENGE_RESPONSE,
+        FULL_OVER_TLS,
+        FULL_WITH_PINNED_RSA,
+        FULL_WITH_RETRIEVED_RSA,
+        REJECT
+    }
+
+    static CachingSha2Outcome cachingSha2Outcome(
+            boolean cacheHit,
+            Sha2FullAuthChannel channel,
+            boolean allowPublicKeyRetrieval) {
+        Objects.requireNonNull(channel, "channel");
+        if (cacheHit) return CachingSha2Outcome.FAST_CHALLENGE_RESPONSE;
+        return switch (channel) {
+            case VERIFIED_TLS -> CachingSha2Outcome.FULL_OVER_TLS;
+            case PINNED_RSA_PUBLIC_KEY -> CachingSha2Outcome.FULL_WITH_PINNED_RSA;
+            case RETRIEVED_RSA_PUBLIC_KEY -> allowPublicKeyRetrieval
+                    ? CachingSha2Outcome.FULL_WITH_RETRIEVED_RSA
+                    : CachingSha2Outcome.REJECT;
+            case NONE -> CachingSha2Outcome.REJECT;
+        };
+    }
+
+    enum Sha2CacheEvent { ORDINARY_RECONNECT, PASSWORD_CHANGE, RENAME_USER, FLUSH_PRIVILEGES, RESTART }
+
+    static boolean sha2CacheMayRemainWarm(Sha2CacheEvent event) {
+        return Objects.requireNonNull(event, "event") == Sha2CacheEvent.ORDINARY_RECONNECT;
+    }
+
+    record MySqlSessionContract(
+            String characterSet,
+            String collation,
+            String sqlMode,
+            String timeZone,
+            String isolation) {
+        MySqlSessionContract {
+            if (List.of(characterSet, collation, sqlMode, timeZone, isolation).stream()
+                    .anyMatch(value -> value == null || value.isBlank())) {
+                throw new IllegalArgumentException("all session expectations are required");
+            }
+        }
+    }
+
+    static List<String> mysqlSessionMismatches(
+            MySqlSessionContract expected, MySqlSessionContract actual) {
+        Objects.requireNonNull(expected, "expected");
+        Objects.requireNonNull(actual, "actual");
+        List<String> mismatches = new ArrayList<>();
+        if (!expected.characterSet().equals(actual.characterSet())) mismatches.add("characterSet");
+        if (!expected.collation().equals(actual.collation())) mismatches.add("collation");
+        if (!expected.sqlMode().equals(actual.sqlMode())) mismatches.add("sqlMode");
+        if (!expected.timeZone().equals(actual.timeZone())) mismatches.add("timeZone");
+        if (!expected.isolation().equals(actual.isolation())) mismatches.add("isolation");
+        return List.copyOf(mismatches);
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -3034,6 +3157,86 @@ public final class ConsistencyContracts {
                 == BaselinePlacement.ROLE_OR_DATABASE_DEFAULT;
     }
 
+    private static void mysqlHandshakeOrderScenarios() {
+        Set<MySqlCapability> modern = Set.of(
+                MySqlCapability.PROTOCOL_41,
+                MySqlCapability.SECURE_CONNECTION,
+                MySqlCapability.PLUGIN_AUTH,
+                MySqlCapability.SSL);
+        MySqlHandshakePlan secure = mysqlHandshakePlan(modern, modern, true, true);
+        assert secure.tls() && secure.identityVerified();
+        assert secure.events().indexOf("server HandshakeV10 greeting")
+                < secure.events().indexOf("client SSLRequest with CLIENT_SSL");
+        assert secure.events().indexOf("TLS established")
+                < secure.events().indexOf("client HandshakeResponse");
+
+        MySqlHandshakePlan plaintext = mysqlHandshakePlan(
+                Set.of(MySqlCapability.PROTOCOL_41, MySqlCapability.PLUGIN_AUTH),
+                modern,
+                false,
+                false);
+        assert !plaintext.tls();
+        try {
+            mysqlHandshakePlan(plaintext.negotiatedCapabilities(), modern, true, false);
+            throw new AssertionError("required TLS silently downgraded");
+        } catch (IllegalStateException expected) {}
+    }
+
+    private static void mysqlPluginNegotiationScenarios() {
+        MySqlAuthNegotiation guessed = mysqlAuthNegotiation(
+                "caching_sha2_password", "caching_sha2_password");
+        assert guessed.path() == MySqlAuthPath.OPTIMISTIC_PLUGIN;
+        assert !guessed.messages().contains("AuthSwitchRequest");
+
+        MySqlAuthNegotiation switched = mysqlAuthNegotiation(
+                "caching_sha2_password", "authentication_ldap_sasl");
+        assert switched.path() == MySqlAuthPath.AUTH_SWITCH;
+        assert switched.messages().equals(List.of(
+                "HandshakeResponse", "AuthSwitchRequest", "AuthSwitchResponse",
+                "AuthMoreData or OK"));
+    }
+
+    private static void cachingSha2Scenarios() {
+        assert cachingSha2Outcome(false, Sha2FullAuthChannel.VERIFIED_TLS, false)
+                == CachingSha2Outcome.FULL_OVER_TLS;
+        assert cachingSha2Outcome(false, Sha2FullAuthChannel.PINNED_RSA_PUBLIC_KEY, false)
+                == CachingSha2Outcome.FULL_WITH_PINNED_RSA;
+        assert cachingSha2Outcome(false, Sha2FullAuthChannel.RETRIEVED_RSA_PUBLIC_KEY, false)
+                == CachingSha2Outcome.REJECT;
+        assert cachingSha2Outcome(false, Sha2FullAuthChannel.RETRIEVED_RSA_PUBLIC_KEY, true)
+                == CachingSha2Outcome.FULL_WITH_RETRIEVED_RSA;
+        assert cachingSha2Outcome(true, Sha2FullAuthChannel.NONE, false)
+                == CachingSha2Outcome.FAST_CHALLENGE_RESPONSE;
+
+        assert sha2CacheMayRemainWarm(Sha2CacheEvent.ORDINARY_RECONNECT);
+        assert !sha2CacheMayRemainWarm(Sha2CacheEvent.PASSWORD_CHANGE);
+        assert !sha2CacheMayRemainWarm(Sha2CacheEvent.FLUSH_PRIVILEGES);
+        assert !sha2CacheMayRemainWarm(Sha2CacheEvent.RESTART);
+    }
+
+    private static void mysqlSessionContractScenarios() {
+        MySqlSessionContract expected = new MySqlSessionContract(
+                "utf8mb4", "utf8mb4_0900_ai_ci", "STRICT_TRANS_TABLES",
+                "UTC", "READ_COMMITTED");
+        MySqlSessionContract same = new MySqlSessionContract(
+                "utf8mb4", "utf8mb4_0900_ai_ci", "STRICT_TRANS_TABLES",
+                "UTC", "READ_COMMITTED");
+        assert mysqlSessionMismatches(expected, same).isEmpty();
+
+        // Blank expectations are configuration errors, not implicit defaults.
+        try {
+            new MySqlSessionContract(
+                    "latin1", "latin1_swedish_ci", "", "SYSTEM", "REPEATABLE_READ");
+            throw new AssertionError("blank session contract accepted");
+        } catch (IllegalArgumentException expectedFailure) {}
+
+        MySqlSessionContract observableDrift = new MySqlSessionContract(
+                "utf8mb4", "utf8mb4_general_ci", "STRICT_TRANS_TABLES",
+                "America/New_York", "REPEATABLE_READ");
+        assert mysqlSessionMismatches(expected, observableDrift).equals(
+                List.of("collation", "timeZone", "isolation"));
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -3106,7 +3309,11 @@ public final class ConsistencyContracts {
         tlsPolicyScenarios();
         scramNegotiationScenarios();
         sessionBaselineScenarios();
-        System.out.println("PASS 68 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement");
+        mysqlHandshakeOrderScenarios();
+        mysqlPluginNegotiationScenarios();
+        cachingSha2Scenarios();
+        mysqlSessionContractScenarios();
+        System.out.println("PASS 72 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract");
     }
 }
 
