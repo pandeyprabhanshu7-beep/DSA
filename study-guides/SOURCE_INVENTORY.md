@@ -41,7 +41,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | spring_ai_python_api_interview_guide.html | 2026-09-17T05:55:54.480720Z | DISCOVERED |
 | ai_platform_engineering_complete_bundle.zip | 2026-09-16T16:22:16.910779Z | DISCOVERED |
 | ai_platform_engineering_illustrated.html | 2026-09-16T16:22:16.059506Z | DISCOVERED |
-| database_internals_caching_java_master_guide.md | 2026-09-16T05:20:18.877277Z | IN PROGRESS — Sections 1–20 lines 62–1090 promoted; Section 21 is lines 1091–1340 |
+| database_internals_caching_java_master_guide.md | 2026-09-16T05:20:18.877277Z | IN PROGRESS — Sections 1–21 lines 62–1340 promoted; Section 22 is lines 1341–1364 |
 | top_5_system_design_interview_blueprints.md | 2026-09-11T21:27:10.870584Z | DISCOVERED |
 | system_design_fundamentals_deep_research.md | 2026-09-11T21:27:08.096531Z | PROMOTED — canonical fundamentals base |
 | system_design_fundamentals.md | 2026-09-11T04:57:16.259594Z | READY — compared; distinct case studies reserved for blueprints |
@@ -96,6 +96,6 @@ See [pipeline rules](ENHANCEMENT_PIPELINE.md) and [machine-readable queue](ENRIC
 
 Angular Q1–Q74 plus rapid-fire items 1–39 are tracked at [frontend/angular](frontend/angular/). The fourth rapid-fire module was reconciled from both workbooks on 2026-10-14; the Final Revision Sheet remains unprocessed.
 
-JavaScript/HTML/CSS Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The final trigger-map/speaking-template module was reconciled from both workbooks on 2026-10-16, completing this paired-source intake. Database/caching Sections 1–20 are tracked at [databases/caching-java](databases/caching-java/); its next bounded section is “Complete Java cache-aside component,” source lines 1091–1340, bounded by the Section 22 heading. The wider collection and Java-placeholder backlog remain incomplete.
+JavaScript/HTML/CSS Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The final trigger-map/speaking-template module was reconciled from both workbooks on 2026-10-16, completing this paired-source intake. Database/caching Sections 1–21 are tracked at [databases/caching-java](databases/caching-java/); its next bounded section is “If you cache mutable rows instead,” source lines 1341–1364, bounded by the Phase 6 / Section 23 heading. The wider collection and Java-placeholder backlog remain incomplete.
 
 
