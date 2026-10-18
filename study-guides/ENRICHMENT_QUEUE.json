@@ -102,7 +102,7 @@
       "status": "IN_PROGRESS",
       "last_read_at": "2026-10-18",
       "sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-      "selection": "Sections 1-19, source lines 62-974, read and promoted into the incremental canonical database guide; later sections remain queued."
+      "selection": "Sections 1-20, source lines 62-1090, read and promoted into the incremental canonical database guide; later sections remain queued."
     },
     {
       "name": "top_5_system_design_interview_blueprints.md",
@@ -593,7 +593,7 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-18T13:29:56-04:00",
+      "last_processed_at": "2026-10-18T14:21:02-04:00",
       "processed_sections": [
         "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
         "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios",
@@ -613,7 +613,8 @@
         "Section 16: full chronological PostgreSQL trace — monotonic startup states, byte-stream framing, TLS/SCRAM assurance boundaries and logical-versus-physical trace correlation",
         "Section 17: stage-by-stage PostgreSQL mechanics — address/timeout ownership, TLS admission evidence, SCRAM channel-binding/completion policy and pooling-safe session baselines",
         "Section 18: MySQL authentication order — server-first capability/TLS negotiation, plugin switching, caching_sha2_password fast/full paths and verified session contracts",
-        "Section 19: from connection to prepared query — pgJDBC query modes, extended-protocol recovery, safe value/identifier boundaries and cursor-backed retrieval ownership"
+        "Section 19: from connection to prepared query — pgJDBC query modes, extended-protocol recovery, safe value/identifier boundaries and cursor-backed retrieval ownership",
+        "Section 20: explicit production contract — immutable revision keys, authorization-first reads, bounded Redis-to-primary fallback, post-publish negative-cache visibility and joined timeout budgets"
       ],
       "source_revision": {
         "baseline_commit": "e8961ba3f7208a18faa548925ae1b3fa6d21f3c8",
@@ -621,12 +622,12 @@
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-974",
-        "canonical_sha256_after": "fbde14d5ee91d7387b330a6e5cfdec49f30675fc3bec83343f089ecbd1087110"
+        "processed_lines": "62-1090",
+        "canonical_sha256_after": "4766d9c2f29a1192ae6deb725f0485f44aa2b4412381850e793e631acd67698a"
       },
-      "content_commit": "25f90f80d989624b7fa909467c8db7cbb31bc70d",
-      "validation": "Exact source lines 942-974 were bounded by the Section 20 heading and consolidated against current PostgreSQL 18 frontend/backend protocol, pgJDBC server-prepare/query and Java 17 PreparedStatement/ResultSet documentation. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 76 total scenario groups, including four new pgJDBC query-mode, extended-cycle, parameter/identifier-boundary and fetch/lifecycle groups. Deterministic reader generation passed exact 276844-character Markdown payload equality, source SHA-256 metadata, 709 unique HTML IDs, 169 search entries, fragments, allowed relative links, 144 balanced fences and 85 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. The content tree was published atomically with an expected-head guard.",
-      "next_action": "Process exactly Section 20, Explicit production contract, source lines 975-1090, bounded by the Section 21 heading.",
+      "content_commit": "e10a4ff45152d8be2791259af3918fcdc4277cad",
+      "validation": "Exact source lines 975-1090 were bounded by the Section 21 heading and consolidated against current Spring Boot 3.5.16 SQL/application-property, HikariCP, pgJDBC and Redis SET/EVAL documentation. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 80 total scenario groups, including four new immutable-revision-key, authorization-first-read, publication-visibility and production-budget groups. Deterministic reader generation passed exact 291034-character Markdown payload equality, source SHA-256 metadata, 802 unique HTML IDs, 177 search entries, fragments, allowed relative links, 153 balanced fences and 88 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. The content tree was published atomically with an expected-head guard.",
+      "next_action": "Process exactly Section 21, Complete Java cache-aside component, source lines 1091-1340, bounded by the Section 22 heading.",
       "priority": 12
     },
     {
@@ -900,7 +901,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 20 only, 'Explicit production contract,' source lines 975-1090, bounded by the Section 21 heading.",
+    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 21 only, 'Complete Java cache-aside component,' source lines 1091-1340, bounded by the Section 22 heading.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -978,15 +979,16 @@
       "Database/caching Section 16: PostgreSQL startup chronology, stream framing, assurance boundaries and pool-trace correlation",
       "Database/caching Section 17: PostgreSQL address/timeout ownership, TLS admission evidence, SCRAM channel-binding/completion policy and pooling-safe session baselines",
       "Database/caching Section 18: MySQL server-first negotiation, TLS capability evidence, authentication-plugin switching, SHA-2 fast/full paths and session-contract admission",
-      "Database/caching Section 19: pgJDBC query-mode thresholds, extended-protocol message/recovery boundaries, safe dynamic SQL and cursor-backed fetch ownership"
+      "Database/caching Section 19: pgJDBC query-mode thresholds, extended-protocol message/recovery boundaries, safe dynamic SQL and cursor-backed fetch ownership",
+      "Database/caching Section 20: immutable revision identity, authorization-first reads, bounded fallback, strict publication visibility and joined production budgets"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 942-974 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 19, From connection to prepared query",
-    "validation": "Section 19 was bounded by the Section 20 heading and consolidated with current PostgreSQL 18 frontend/backend protocol, pgJDBC server-prepare/query and Java 17 PreparedStatement/ResultSet documentation. Java 17 source launch and compilation through jdk.compiler passed 76 total scenario groups; deterministic reader generation passed exact 276844-character payload equality, 709 unique IDs, 169 search entries, fragments, allowed relative links, 144 balanced fences and 85 Mermaid sources; live canonical DSA marker audit remains 170. The content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
-    "estimated_next_tokens": 9000,
-    "estimate_method": "Heuristic only for bounded production-contract source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "25f90f80d989624b7fa909467c8db7cbb31bc70d",
-    "last_processed_at": "2026-10-18T13:29:56-04:00",
-    "next_batch_decision": "Section 19 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 20; resume at source lines 975-1090, bounded by the Section 21 heading."
+    "processed_section": "database_internals_caching_java_master_guide.md lines 975-1090 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 20, Explicit production contract",
+    "validation": "Section 20 was bounded by the Section 21 heading and consolidated with current Spring Boot 3.5.16 SQL/application-property, HikariCP, pgJDBC and Redis SET/EVAL documentation. Java 17 source launch and compilation through jdk.compiler passed 80 total scenario groups; deterministic reader generation passed exact 291034-character payload equality, 802 unique IDs, 177 search entries, fragments, allowed relative links, 153 balanced fences and 88 Mermaid sources; live canonical DSA marker audit remains 170. The content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
+    "estimated_next_tokens": 11000,
+    "estimate_method": "Heuristic only for bounded complete-cache-aside-component source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "e10a4ff45152d8be2791259af3918fcdc4277cad",
+    "last_processed_at": "2026-10-18T14:21:02-04:00",
+    "next_batch_decision": "Section 20 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 21; resume at source lines 1091-1340, bounded by the Section 22 heading."
   }
 }
 
