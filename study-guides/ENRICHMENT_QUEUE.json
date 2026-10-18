@@ -593,7 +593,7 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-18T04:47:38-04:00",
+      "last_processed_at": "2026-10-18T05:26:49-04:00",
       "processed_sections": [
         "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
         "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios",
@@ -607,7 +607,8 @@
         "Section 10: cache penetration — typed tenant-scoped negative entries, transparent Bloom membership, capacity/FPP sizing, completeness-aware fail-open behavior and safe rebuild/deletion boundaries",
         "Section 11: cache avalanche — strict-maximum and symmetric TTL jitter, capacity-gated cold-start planning, soft/hard freshness decisions, retry-amplification arithmetic and explicit outage fallback",
         "Section 12: pooling architecture — multi-boundary capacity budgeting, logical JDBC lease reuse, explicit primary/replica routing, PgBouncer feature compatibility and end-to-end deadline accounting",
-        "Section 13: physical connection costs — startup-phase accounting, TCP close-state churn, load-tested concurrency admission and clean return/eviction ownership"
+        "Section 13: physical connection costs — startup-phase accounting, TCP close-state churn, load-tested concurrency admission and clean return/eviction ownership",
+        "Section 14: HikariCP controls and pool metrics — idle-retirement eligibility, joined timeout budgets, workload/global-capacity sizing and correlated telemetry diagnosis"
       ],
       "source_revision": {
         "baseline_commit": "e8961ba3f7208a18faa548925ae1b3fa6d21f3c8",
@@ -615,12 +616,12 @@
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-718",
-        "canonical_sha256_after": "ab2becb27eec5a95f768791b85599fd58fd28ff11ab83a3f5275cb4e2599b985"
+        "processed_lines": "62-768",
+        "canonical_sha256_after": "a7abfe97240c0fc87df466dfa8181afd029fb05254eb57beade578066d1bc867"
       },
-      "content_commit": "f9053837dd11e4eeceb0528c828d5e087702a31e",
-      "validation": "Exact source lines 688-718 were bounded by the Section 14 heading and consolidated against current PostgreSQL 18 startup/TLS/connection documentation, HikariCP configuration and pool-sizing guidance, Java 17 Socket semantics, pgJDBC thread-safety guidance and RFC 9293 TCP close-state requirements. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 52 total scenario groups, including four new physical-startup, close-state churn, concurrency-gate and connection-ownership groups. Deterministic reader generation passed exact 186104-character Markdown payload equality, source SHA-256 metadata, 386 unique HTML IDs, 121 search entries, fragments, allowed relative links, 88 balanced fences and 55 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. The content tree was published atomically with an expected-head guard.",
-      "next_action": "Process exactly Section 14, HikariCP controls and pool metrics, source lines 719-768, bounded by the Section 15 heading.",
+      "content_commit": "da280fad0732c8766fe8357aa621e0c1800b5fa5",
+      "validation": "Exact source lines 719-768 were bounded by the Section 15 heading and consolidated against current HikariCP configuration, pool-sizing and JMX guidance, pgJDBC connection parameters, Java 17 Statement/DriverManager contracts and PostgreSQL 18 timeout documentation. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 56 total scenario groups, including four new idle-retirement, timeout-stack, workload-sizing and telemetry-diagnosis groups. Deterministic reader generation passed exact 202421-character Markdown payload equality, source SHA-256 metadata, 434 unique HTML IDs, 129 search entries, fragments, allowed relative links, 97 balanced fences and 60 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. The content tree was published atomically with an expected-head guard.",
+      "next_action": "Process exactly Section 15, JDBC is an API, not a network protocol, source lines 769-774, bounded by the Section 16 heading.",
       "priority": 12
     },
     {
@@ -894,7 +895,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 14 only, 'HikariCP controls and pool metrics,' source lines 719-768, bounded by the Section 15 heading.",
+    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 15 only, 'JDBC is an API, not a network protocol,' source lines 769-774, bounded by the Section 16 heading.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -966,15 +967,16 @@
       "Database/caching Section 10: typed tenant-scoped negative caching, Bloom membership and sizing, completeness-aware fail-open behavior, and safe rebuild/deletion boundaries",
       "Database/caching Section 11: TTL jitter, cold-start capacity planning, soft/hard freshness, retry amplification and cache-outage admission control",
       "Database/caching Section 12: pool-boundary budgeting, logical JDBC leases, explicit primary/replica routing, PgBouncer feature compatibility and joined deadline accounting",
-      "Database/caching Section 13: physical startup accounting, close-state churn, concurrency admission and clean return/eviction ownership"
+      "Database/caching Section 13: physical startup accounting, close-state churn, concurrency admission and clean return/eviction ownership",
+      "Database/caching Section 14: Hikari controls versus metrics, idle-retirement eligibility, joined timeout budgets, global sizing and correlated telemetry diagnosis"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 688-718 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 13, What a physical connection costs",
-    "validation": "Section 13 was bounded by the Section 14 heading and consolidated with current PostgreSQL 18, HikariCP, Java 17 Socket, pgJDBC and RFC 9293 primary documentation. Java 17 source launch and compilation through jdk.compiler passed 52 total scenario groups; deterministic reader generation passed exact 186104-character payload equality, 386 unique IDs, 121 search entries, fragments, allowed relative links, 88 balanced fences and 55 Mermaid sources; live canonical DSA marker audit remains 170. The content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
-    "estimated_next_tokens": 6400,
-    "estimate_method": "Heuristic only for bounded HikariCP-controls source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "f9053837dd11e4eeceb0528c828d5e087702a31e",
-    "last_processed_at": "2026-10-18T04:47:38-04:00",
-    "next_batch_decision": "Section 13 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 14; resume at source lines 719-768, bounded by the Section 15 heading."
+    "processed_section": "database_internals_caching_java_master_guide.md lines 719-768 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 14, HikariCP controls and pool metrics",
+    "validation": "Section 14 was bounded by the Section 15 heading and consolidated with current HikariCP, pgJDBC, Java 17 JDBC and PostgreSQL 18 primary documentation. Java 17 source launch and compilation through jdk.compiler passed 56 total scenario groups; deterministic reader generation passed exact 202421-character payload equality, 434 unique IDs, 129 search entries, fragments, allowed relative links, 97 balanced fences and 60 Mermaid sources; live canonical DSA marker audit remains 170. The content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
+    "estimated_next_tokens": 5000,
+    "estimate_method": "Heuristic only for bounded JDBC-API-versus-protocol source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "da280fad0732c8766fe8357aa621e0c1800b5fa5",
+    "last_processed_at": "2026-10-18T05:26:49-04:00",
+    "next_batch_decision": "Section 14 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 15; resume at source lines 769-774, bounded by the Section 16 heading."
   }
 }
 
