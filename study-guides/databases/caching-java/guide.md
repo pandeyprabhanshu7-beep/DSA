@@ -1784,7 +1784,7 @@ Accessed 2026-10-17.
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
 - Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; and lines **557–588**, “Cache stampede: coordinate fills, bound fallback”
-- Deliberate continuation: Section 10, “Cache penetration: absent keys and Bloom filters,” begins at source line **589**; its exact end remains to be resolved before the next bounded pass.
+- Deliberate continuation: Section 10, “Cache penetration: absent keys and Bloom filters,” is source lines **589–615**, bounded by the Section 11 heading, and remains unprocessed.
 
 Validation commands:
 
