@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-15. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-16. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -1792,6 +1792,125 @@ public final class ConsistencyContracts {
         return new PgHandshakePlan(List.copyOf(phases), sslRequest, tls, scram);
     }
 
+    enum PgStartupState {
+        SOCKET_CREATED,
+        TCP_CONNECTED,
+        TLS_NEGOTIATED,
+        STARTUP_SENT,
+        AUTHENTICATED,
+        READY_FOR_QUERY,
+        POOL_USABLE
+    }
+
+    static PgStartupState advancePgStartup(PgStartupState current, PgStartupState next) {
+        Objects.requireNonNull(current, "current");
+        Objects.requireNonNull(next, "next");
+        PgStartupState expected = switch (current) {
+            case SOCKET_CREATED -> PgStartupState.TCP_CONNECTED;
+            case TCP_CONNECTED -> PgStartupState.TLS_NEGOTIATED;
+            case TLS_NEGOTIATED -> PgStartupState.STARTUP_SENT;
+            case STARTUP_SENT -> PgStartupState.AUTHENTICATED;
+            case AUTHENTICATED -> PgStartupState.READY_FOR_QUERY;
+            case READY_FOR_QUERY -> PgStartupState.POOL_USABLE;
+            case POOL_USABLE -> throw new IllegalStateException("startup is already complete");
+        };
+        if (next != expected) {
+            throw new IllegalStateException("expected " + expected + " after " + current);
+        }
+        return next;
+    }
+
+    record PgFrame(char type, int lengthField, int totalBytes) {}
+
+    static byte[] typedPgMessage(char type, byte... payload) {
+        if (type > 0x7f) throw new IllegalArgumentException("ASCII message type required");
+        int lengthField = Math.addExact(4, payload.length);
+        byte[] encoded = new byte[Math.addExact(1, lengthField)];
+        encoded[0] = (byte) type;
+        encoded[1] = (byte) (lengthField >>> 24);
+        encoded[2] = (byte) (lengthField >>> 16);
+        encoded[3] = (byte) (lengthField >>> 8);
+        encoded[4] = (byte) lengthField;
+        System.arraycopy(payload, 0, encoded, 5, payload.length);
+        return encoded;
+    }
+
+    static List<PgFrame> decodeTypedPgMessages(List<byte[]> socketReads) {
+        Objects.requireNonNull(socketReads, "socketReads");
+        int total = 0;
+        for (byte[] read : socketReads) {
+            total = Math.addExact(total, Objects.requireNonNull(read, "socket read").length);
+        }
+        byte[] stream = new byte[total];
+        int copied = 0;
+        for (byte[] read : socketReads) {
+            System.arraycopy(read, 0, stream, copied, read.length);
+            copied += read.length;
+        }
+
+        List<PgFrame> frames = new ArrayList<>();
+        for (int offset = 0; offset < stream.length;) {
+            if (stream.length - offset < 5) throw new IllegalArgumentException("partial header");
+            int length = ((stream[offset + 1] & 0xff) << 24)
+                    | ((stream[offset + 2] & 0xff) << 16)
+                    | ((stream[offset + 3] & 0xff) << 8)
+                    | (stream[offset + 4] & 0xff);
+            if (length < 4) throw new IllegalArgumentException("invalid length field");
+            int messageBytes = Math.addExact(1, length);
+            if (stream.length - offset < messageBytes) {
+                throw new IllegalArgumentException("partial message");
+            }
+            frames.add(new PgFrame((char) stream[offset], length, messageBytes));
+            offset += messageBytes;
+        }
+        return List.copyOf(frames);
+    }
+
+    record StartupAssurance(
+            boolean encrypted,
+            boolean serverIdentityVerified,
+            boolean databaseUserAuthenticated,
+            boolean commandReady) {}
+
+    static StartupAssurance startupAssurance(
+            boolean tls,
+            boolean chainTrusted,
+            boolean hostnameMatched,
+            boolean scramServerSignatureVerified,
+            boolean authenticationOk,
+            boolean readyForQuery) {
+        boolean identity = tls && chainTrusted && hostnameMatched;
+        boolean databaseUser = scramServerSignatureVerified && authenticationOk;
+        if (readyForQuery && !databaseUser) {
+            throw new IllegalArgumentException("ReadyForQuery requires completed authentication");
+        }
+        return new StartupAssurance(tls, identity, databaseUser, readyForQuery);
+    }
+
+    record ConnectionTracePlan(
+            AcquisitionPath acquisitionPath,
+            boolean physicalHandshake,
+            List<String> correlationEvents) {}
+
+    static ConnectionTracePlan connectionTracePlan(
+            int idleConnections, int totalConnections, int maximumPoolSize) {
+        AcquisitionPath path = acquisitionPath(
+                DataSourceKind.HIKARI_POOL,
+                idleConnections,
+                totalConnections,
+                maximumPoolSize);
+        List<String> events = switch (path) {
+            case BORROW_IDLE -> List.of("checkout", "lease returned");
+            case GROW_PHYSICAL -> List.of(
+                    "checkout", "physical create", "TCP/TLS/startup", "ReadyForQuery",
+                    "pool register", "lease returned");
+            case WAIT_OR_TIMEOUT -> List.of("checkout", "wait", "lease or timeout");
+            case FRESH_PHYSICAL -> throw new IllegalStateException("pool path expected");
+        };
+        return new ConnectionTracePlan(
+                path, path == AcquisitionPath.GROW_PHYSICAL, events);
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -2652,6 +2771,73 @@ public final class ConsistencyContracts {
         assert !socket.performsTlsHandshake();
     }
 
+    private static void postgresChronologyScenarios() {
+        PgStartupState state = PgStartupState.SOCKET_CREATED;
+        state = advancePgStartup(state, PgStartupState.TCP_CONNECTED);
+        state = advancePgStartup(state, PgStartupState.TLS_NEGOTIATED);
+        state = advancePgStartup(state, PgStartupState.STARTUP_SENT);
+        state = advancePgStartup(state, PgStartupState.AUTHENTICATED);
+        state = advancePgStartup(state, PgStartupState.READY_FOR_QUERY);
+        state = advancePgStartup(state, PgStartupState.POOL_USABLE);
+        assert state == PgStartupState.POOL_USABLE;
+        try {
+            advancePgStartup(PgStartupState.TLS_NEGOTIATED, PgStartupState.AUTHENTICATED);
+            throw new AssertionError("startup skipped StartupMessage");
+        } catch (IllegalStateException expected) {}
+    }
+
+    private static void postgresFramingScenarios() {
+        byte[] authenticationOk = typedPgMessage('R', new byte[] {0, 0, 0, 0});
+        byte[] ready = typedPgMessage('Z', (byte) 'I');
+        byte[] both = new byte[authenticationOk.length + ready.length];
+        System.arraycopy(authenticationOk, 0, both, 0, authenticationOk.length);
+        System.arraycopy(ready, 0, both, authenticationOk.length, ready.length);
+
+        List<PgFrame> oneRead = decodeTypedPgMessages(List.of(both));
+        List<PgFrame> threeReads = decodeTypedPgMessages(List.of(
+                Arrays.copyOfRange(both, 0, 3),
+                Arrays.copyOfRange(both, 3, 11),
+                Arrays.copyOfRange(both, 11, both.length)));
+        assert oneRead.equals(threeReads);
+        assert oneRead.equals(List.of(new PgFrame('R', 8, 9), new PgFrame('Z', 5, 6)));
+        try {
+            decodeTypedPgMessages(List.of(Arrays.copyOf(both, both.length - 1)));
+            throw new AssertionError("partial protocol message accepted");
+        } catch (IllegalArgumentException expected) {}
+    }
+
+    private static void postgresIdentityScenarios() {
+        StartupAssurance encryptedOnly = startupAssurance(
+                true, false, false, false, false, false);
+        assert encryptedOnly.encrypted() && !encryptedOnly.serverIdentityVerified();
+
+        StartupAssurance verified = startupAssurance(
+                true, true, true, true, true, true);
+        assert verified.serverIdentityVerified();
+        assert verified.databaseUserAuthenticated();
+        assert verified.commandReady();
+        try {
+            startupAssurance(true, true, true, false, false, true);
+            throw new AssertionError("ReadyForQuery preceded authentication");
+        } catch (IllegalArgumentException expected) {}
+    }
+
+    private static void poolTraceCorrelationScenarios() {
+        ConnectionTracePlan warm = connectionTracePlan(3, 5, 8);
+        assert warm.acquisitionPath() == AcquisitionPath.BORROW_IDLE;
+        assert !warm.physicalHandshake();
+        assert warm.correlationEvents().equals(List.of("checkout", "lease returned"));
+
+        ConnectionTracePlan growth = connectionTracePlan(0, 5, 8);
+        assert growth.acquisitionPath() == AcquisitionPath.GROW_PHYSICAL;
+        assert growth.physicalHandshake();
+        assert growth.correlationEvents().contains("ReadyForQuery");
+
+        ConnectionTracePlan full = connectionTracePlan(0, 8, 8);
+        assert full.acquisitionPath() == AcquisitionPath.WAIT_OR_TIMEOUT;
+        assert !full.physicalHandshake();
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -2716,7 +2902,11 @@ public final class ConsistencyContracts {
         dataSourceAcquisitionScenarios();
         jdbcLayerStackScenarios();
         postgresHandshakeVariantScenarios();
-        System.out.println("PASS 60 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants");
+        postgresChronologyScenarios();
+        postgresFramingScenarios();
+        postgresIdentityScenarios();
+        poolTraceCorrelationScenarios();
+        System.out.println("PASS 64 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation");
     }
 }
 

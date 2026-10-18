@@ -3145,6 +3145,262 @@ Accessed 2026-10-18.
 90. [PostgreSQL 18 connection control — `sslnegotiation`](https://www.postgresql.org/docs/current/libpq-connect.html): traditional PostgreSQL negotiation versus direct TLS and their constraints.
 
 
+# Section 16 — Full chronological PostgreSQL trace
+
+This section follows one deliberately explicit branch: a **fresh physical** pgJDBC connection over TCP, traditional PostgreSQL `SSLRequest` negotiation, a full TLS 1.3 server-authenticated handshake, SCRAM-SHA-256, startup completion, and pool registration. It is a protocol-state trace, not a promise that each arrow is one socket read, TLS record, TCP segment, packet, or round trip.
+
+```mermaid
+sequenceDiagram
+    participant A as Application
+    participant H as HikariCP
+    participant J as pgJDBC and JSSE
+    participant O as Client TCP stack
+    participant D as PostgreSQL endpoint
+    A->>H: DataSource.getConnection
+    H->>J: create physical connection because no idle lease exists
+    J->>J: resolve configured hostname
+    J->>O: connect selected address and port
+    O->>D: SYN
+    D-->>O: SYN-ACK
+    O->>D: ACK
+    O-->>J: connected byte stream
+    J->>D: SSLRequest: length 8, code 80877103
+    D-->>J: exactly one S byte
+    J->>D: TLS ClientHello
+    D-->>J: ServerHello, encrypted handshake, certificate, Finished
+    J->>J: verify chain, hostname, CertificateVerify and Finished
+    J->>D: client Finished
+    Note over J,D: PostgreSQL messages below are TLS-protected
+    J->>D: StartupMessage with user, database and parameters
+    D-->>J: AuthenticationSASL mechanism list
+    J->>D: SASLInitialResponse and client-first
+    D-->>J: AuthenticationSASLContinue and server-first
+    J->>D: SASLResponse and client-final proof
+    D-->>J: AuthenticationSASLFinal and AuthenticationOk
+    J->>J: verify SCRAM server signature
+    D-->>J: ParameterStatus and BackendKeyData
+    D-->>J: ReadyForQuery
+    J-->>H: physical JDBC connection established
+    H->>J: configured baseline and validation work
+    J-->>H: usable physical pool entry
+    H-->>A: logical Connection proxy
+```
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. narrate the chosen fresh-connection path from logical checkout through pool usability without collapsing API, pool, driver, TLS, PostgreSQL and TCP states;
+2. use protocol evidence—rather than elapsed time alone—to classify the last completed phase;
+3. explain why TCP reads, TLS records and PostgreSQL messages have independent boundaries;
+4. distinguish encrypted transport, verified server identity, authenticated database user, startup completion and pool readiness;
+5. treat `ReadyForQuery`, not `AuthenticationOk`, as the normal PostgreSQL startup-completion signal;
+6. distinguish a full TLS 1.3 handshake from a resumed one and SCRAM-SHA-256 from its channel-binding `-PLUS` variant;
+7. correlate one logical lease with an optional physical-creation trace; and
+8. reject packet-count claims that do not account for buffering, segmentation, retransmission, coalescing and optional protocol branches.
+
+## Example 61 — make each completion boundary monotonic
+
+Model startup as monotonic state, because an error after one boundary changes both diagnosis and cleanup. A completed TCP handshake proves only a connected byte stream. Successful TLS proves confidentiality and, with full verification, endpoint identity. `AuthenticationOk` completes the authentication exchange, but the client must still consume startup messages until `ReadyForQuery`. Only after driver construction plus configured pool baseline/validation work is the session ready for a logical borrower.
+
+| Last durable evidence | State reached | What is still unproved |
+|---|---|---|
+| connected socket | `TCP_CONNECTED` | TLS, server identity, database authentication |
+| verified TLS `Finished` | `TLS_NEGOTIATED` | PostgreSQL startup and database user |
+| complete `StartupMessage` sent | `STARTUP_SENT` | server acceptance and authentication |
+| `AuthenticationOk` | `AUTHENTICATED` | backend startup completion |
+| `ReadyForQuery` | `READY_FOR_QUERY` | pool-specific setup and validation |
+| pool registration succeeds | `POOL_USABLE` | future network health; failures remain possible |
+
+```java
+PgStartupState state = PgStartupState.SOCKET_CREATED;
+state = advancePgStartup(state, PgStartupState.TCP_CONNECTED);
+state = advancePgStartup(state, PgStartupState.TLS_NEGOTIATED);
+state = advancePgStartup(state, PgStartupState.STARTUP_SENT);
+state = advancePgStartup(state, PgStartupState.AUTHENTICATED);
+state = advancePgStartup(state, PgStartupState.READY_FOR_QUERY);
+state = advancePgStartup(state, PgStartupState.POOL_USABLE);
+assert state == PgStartupState.POOL_USABLE;
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> TCPConnected: TCP handshake
+    TCPConnected --> TLSNegotiated: verified Finished
+    TLSNegotiated --> StartupSent: StartupMessage
+    StartupSent --> Authenticated: AuthenticationOk
+    Authenticated --> Ready: ReadyForQuery
+    Ready --> PoolUsable: setup and validation
+    TCPConnected --> Failed: refusal, reset or TLS error
+    TLSNegotiated --> Failed: startup or auth error
+    StartupSent --> Failed: ErrorResponse or close
+    Authenticated --> Failed: startup ErrorResponse
+```
+
+This is deliberately stricter than a boolean `connected`. The executable transition function rejects skipped and reversed phases. Its time is `O(1)` per transition and its state is `O(1)`. In production, attach monotonic timestamps and a terminal reason, but do not log passwords, SASL material, private keys or unsanitized startup parameters.
+
+The traditional encryption prelude is exact: the frontend sends an eight-byte `SSLRequest` whose two 32-bit fields are length `8` and request code `80877103`. The server's successful reply is exactly one `S` byte before TLS begins. Reading ahead as though more PostgreSQL bytes belong to that reply is a protocol violation and can undermine the intended boundary. A required-encryption policy must reject `N`; it must not quietly continue in plaintext.
+
+## Example 62 — reassemble PostgreSQL messages from a byte stream
+
+TCP provides an ordered reliable **byte stream**. It does not preserve application writes as receive boundaries. TLS adds its own record layer, and PostgreSQL adds message framing inside it. One PostgreSQL message can span several socket reads; several messages can arrive in one read. Retransmission can change observed packets without changing the logical byte stream.
+
+Most post-startup PostgreSQL messages have a one-byte type followed by a 32-bit length that includes the length field itself but excludes the type byte. For example:
+
+| Logical message | Type | Length field | Total encoded bytes |
+|---|---:|---:|---:|
+| `AuthenticationOk` | `R` | 8 | 9 |
+| `ReadyForQuery` with status `I` | `Z` | 5 | 6 |
+
+```java
+byte[] authenticationOk = typedPgMessage('R', new byte[] {0, 0, 0, 0});
+byte[] ready = typedPgMessage('Z', (byte) 'I');
+// The executable scenario decodes the same 15 logical bytes as one read
+// and as three reads split in the middle of headers/messages.
+List<PgFrame> frames = decodeTypedPgMessages(List.of(authenticationOk, ready));
+assert frames.equals(List.of(new PgFrame('R', 8, 9), new PgFrame('Z', 5, 6)));
+```
+
+```mermaid
+flowchart TD
+    B["ordered TCP bytes"] --> R["arbitrary socket reads"]
+    R --> T["TLS record decryption"]
+    T --> A["application byte stream"]
+    A --> H{"complete PostgreSQL header?"}
+    H -->|no| W["buffer and read more"]
+    H -->|yes| L["parse type and length"]
+    L --> P{"complete payload?"}
+    P -->|no| W
+    P -->|yes| E["emit one protocol message"]
+    E --> H
+```
+
+The teaching decoder is `O(n)` time and `O(n)` space for `n` received bytes because it first joins the supplied reads. A real incremental decoder keeps a bounded receive buffer, validates lengths before allocation, imposes configured maximums, and retains partial headers/payloads across reads. Never derive message count from packet count, and never assume a grouped sequence-diagram arrow means one TCP segment.
+
+`StartupMessage` is special because there is no leading type byte: its 32-bit length is followed by the protocol version and zero-terminated name/value pairs. The standard version-3 startup message requires `user`; other parameters such as `database` and `application_name` are optional. This is why a decoder needs a connection-state machine as well as a generic typed-message parser.
+
+## Example 63 — prove transport, endpoint, user and readiness separately
+
+TLS and SCRAM answer different questions:
+
+- TLS encryption protects bytes in transit, but encryption alone does not prove which server received them.
+- pgJDBC `sslmode=verify-full` validates the certificate chain and verifies the requested hostname, establishing server identity under the configured trust anchors.
+- TLS `CertificateVerify` proves possession of the certificate's signing key; `Finished` authenticates the handshake transcript.
+- SCRAM authenticates the database user without sending the password as plaintext. The client must verify the server-final signature.
+- `SCRAM-SHA-256-PLUS` additionally binds the SCRAM exchange to the TLS channel. Plain `SCRAM-SHA-256` over TLS is encrypted but does not mean channel binding was selected.
+- `AuthenticationOk` is not command readiness. Startup can still fail before `ReadyForQuery`.
+
+```java
+StartupAssurance encryptedOnly = startupAssurance(
+        true, false, false, false, false, false);
+assert encryptedOnly.encrypted();
+assert !encryptedOnly.serverIdentityVerified();
+
+StartupAssurance verified = startupAssurance(
+        true, true, true, true, true, true);
+assert verified.serverIdentityVerified();
+assert verified.databaseUserAuthenticated();
+assert verified.commandReady();
+```
+
+```mermaid
+flowchart TD
+    T{"TLS active?"} -->|no| U["transport unencrypted"]
+    T -->|yes| V{"trusted chain and hostname?"}
+    V -->|no| E["encrypted, identity unverified"]
+    V -->|yes| I["server identity verified"]
+    I --> S{"SCRAM proof and AuthenticationOk?"}
+    S -->|no| F["database user not authenticated"]
+    S -->|yes| A["database user authenticated"]
+    A --> R{"ReadyForQuery?"}
+    R -->|yes| C["command cycle may begin"]
+    R -->|no| W["continue startup or fail"]
+```
+
+A full TLS 1.3 handshake commonly carries the server certificate and `CertificateVerify`; a resumed PSK handshake can omit them because prior key material authenticates the resumption. Therefore “I did not see a certificate in this connection” is not by itself proof that TLS validation was disabled. Capture whether the handshake was full or resumed and record the negotiated TLS version, cipher suite, peer identity result, SCRAM mechanism, channel-binding policy and PostgreSQL terminal message.
+
+## Example 64 — join logical checkout and physical startup traces
+
+Only a physical-creation path has this chronological network trace. A warm Hikari checkout maps a new logical lease to an already established physical session. A saturated pool may wait or time out without opening a new socket. Correlation therefore needs at least a request/checkout ID, a logical lease ID, a pool name, an endpoint class, and—when creation occurs—a physical-session/creation ID.
+
+```java
+ConnectionTracePlan warm = connectionTracePlan(3, 5, 8);
+assert warm.acquisitionPath() == AcquisitionPath.BORROW_IDLE;
+assert !warm.physicalHandshake();
+
+ConnectionTracePlan growth = connectionTracePlan(0, 5, 8);
+assert growth.acquisitionPath() == AcquisitionPath.GROW_PHYSICAL;
+assert growth.physicalHandshake();
+assert growth.correlationEvents().contains("ReadyForQuery");
+
+ConnectionTracePlan full = connectionTracePlan(0, 8, 8);
+assert full.acquisitionPath() == AcquisitionPath.WAIT_OR_TIMEOUT;
+assert !full.physicalHandshake();
+```
+
+```mermaid
+sequenceDiagram
+    participant R as Request and lease trace
+    participant H as Hikari pool
+    participant P as Physical creation trace
+    participant D as PostgreSQL
+    R->>H: checkout lease L-42
+    alt idle session P-7 exists
+        H-->>R: map L-42 to P-7
+    else pool may grow
+        H->>P: create P-8
+        P->>D: TCP, TLS, Startup, SCRAM
+        D-->>P: ReadyForQuery
+        P-->>H: register P-8
+        H-->>R: map L-42 to P-8
+    else pool at maximum
+        H-->>R: wait, then lease or timeout
+    end
+```
+
+For a fresh path, time these spans independently: address resolution, TCP connect, encryption negotiation, TLS handshake, `StartupMessage` to `AuthenticationOk`, backend startup to `ReadyForQuery`, driver construction, pool initialization/validation, and checkout return. The sum explains creation latency; the checkout span can additionally include queue time. A packet trace can explain only the network-visible subset.
+
+Do not put tenant IDs, credentials, SQL text or certificate secrets into high-cardinality tracing labels. Use bounded attributes such as driver version, transport/encryption/authentication mode, pool, endpoint class, creation-versus-borrow, terminal phase and failure family. Keep unique request/lease/physical IDs in trace context rather than metric labels.
+
+## Operations, complexity, and review
+
+| Incorrect conclusion | Why it fails | Required evidence |
+|---|---|---|
+| “SYN-ACK means the database connection succeeded” | TCP does not authenticate PostgreSQL or complete startup | TLS, auth and `ReadyForQuery` phases |
+| “TLS means the server identity was verified” | encryption modes can accept unverified certificates | trust-chain and hostname result |
+| “AuthenticationOk means SQL can start” | backend startup continues until `ReadyForQuery` | terminal startup message |
+| “one arrow equals one packet” | TCP/TLS/application boundaries are independent | byte offsets and decoded lengths |
+| “certificate absence means no authentication” | TLS 1.3 resumption can use PSK and omit certificate exchange | full-versus-resumed handshake metadata |
+| “slow getConnection means slow TLS” | checkout can queue or borrow without creating a session | joined pool and physical-creation spans |
+| “SCRAM over TLS implies channel binding” | only the selected `-PLUS` mechanism supplies that property | negotiated SASL mechanism |
+| “ReadyForQuery makes the socket permanently healthy” | failure can occur immediately afterward | normal execution error handling and eviction policy |
+
+Review questions:
+
+- Is this trace definitely for a fresh physical connection rather than a warm logical checkout?
+- Does it state TCP, traditional `SSLRequest`, full TLS 1.3, server verification and SCRAM-SHA-256 as assumptions?
+- Was exactly one `S` byte consumed before the TLS library took over?
+- Are TLS records, TCP segments and PostgreSQL message frames kept conceptually separate?
+- Does the decoder validate the 32-bit length before allocation and retain partial data safely?
+- Were certificate chain, hostname, `CertificateVerify` and `Finished` results recorded without secrets?
+- Which SASL mechanism was selected, and was channel binding required or merely available?
+- Did the client verify the SCRAM server-final signature?
+- Was `AuthenticationOk` followed by `ParameterStatus`, `BackendKeyData` and `ReadyForQuery`?
+- Did pool setup/validation finish before the logical connection was returned?
+- Can one timeline join request, logical lease and physical creation without high-cardinality metrics?
+
+### Primary references for Section 16
+
+Accessed 2026-10-18.
+
+91. [PostgreSQL 18 frontend/backend protocol — message flow](https://www.postgresql.org/docs/current/protocol-flow.html): startup/authentication sequencing, `AuthenticationOk`, startup state, `ReadyForQuery`, traditional `SSLRequest` and direct TLS.
+92. [PostgreSQL 18 frontend/backend protocol — message formats](https://www.postgresql.org/docs/current/protocol-message-formats.html): exact `SSLRequest`, `StartupMessage`, SASL and `ReadyForQuery` fields and length semantics.
+93. [PostgreSQL 18 SASL authentication](https://www.postgresql.org/docs/current/sasl-authentication.html): SASL exchange, SCRAM-SHA-256, `SCRAM-SHA-256-PLUS`, channel binding and server-final verification.
+94. [RFC 8446 — TLS 1.3](https://www.rfc-editor.org/rfc/rfc8446): full and resumed handshake message flows, certificate possession proof and `Finished` transcript authentication.
+95. [RFC 9293 — TCP](https://www.rfc-editor.org/rfc/rfc9293.html): reliable in-order byte-stream semantics, segmentation, sequence numbers and retransmission.
+96. [pgJDBC SSL configuration](https://jdbc.postgresql.org/documentation/ssl/): `ssl=true`, `verify-full`, trust/hostname validation and direct versus PostgreSQL encryption negotiation.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -3152,8 +3408,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; and lines **769–774**, “JDBC is an API, not a network protocol”
-- Deliberate continuation: Section 16, “Full chronological PostgreSQL trace,” begins at source line **775** and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; and lines **775–819**, “Full chronological PostgreSQL trace”
+- Deliberate continuation: Section 17, “Stage-by-stage mechanics,” begins at source line **820** and remains unprocessed.
 
 Validation commands:
 
