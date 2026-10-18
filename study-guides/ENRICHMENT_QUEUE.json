@@ -102,7 +102,7 @@
       "status": "IN_PROGRESS",
       "last_read_at": "2026-10-18",
       "sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-      "selection": "Sections 1-11, source lines 62-637, read and promoted into the incremental canonical database guide; later sections remain queued."
+      "selection": "Sections 1-12, source lines 62-687, read and promoted into the incremental canonical database guide; later sections remain queued."
     },
     {
       "name": "top_5_system_design_interview_blueprints.md",
@@ -593,7 +593,7 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-18T00:41:31-04:00",
+      "last_processed_at": "2026-10-18T01:49:04-04:00",
       "processed_sections": [
         "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
         "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios",
@@ -605,7 +605,8 @@
         "Section 8: eviction internals — exact LRU, LFU with deterministic ties and aging, FIFO, and full 2Q with bounded ghost history and scan-resistance traces",
         "Section 9: cache stampede — burst arithmetic, per-key local single-flight, owner-checked Redis fill leases, finite waiter outcomes, bounded stale and database fallback",
         "Section 10: cache penetration — typed tenant-scoped negative entries, transparent Bloom membership, capacity/FPP sizing, completeness-aware fail-open behavior and safe rebuild/deletion boundaries",
-        "Section 11: cache avalanche — strict-maximum and symmetric TTL jitter, capacity-gated cold-start planning, soft/hard freshness decisions, retry-amplification arithmetic and explicit outage fallback"
+        "Section 11: cache avalanche — strict-maximum and symmetric TTL jitter, capacity-gated cold-start planning, soft/hard freshness decisions, retry-amplification arithmetic and explicit outage fallback",
+        "Section 12: pooling architecture — multi-boundary capacity budgeting, logical JDBC lease reuse, explicit primary/replica routing, PgBouncer feature compatibility and end-to-end deadline accounting"
       ],
       "source_revision": {
         "baseline_commit": "e8961ba3f7208a18faa548925ae1b3fa6d21f3c8",
@@ -613,12 +614,12 @@
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-637",
-        "canonical_sha256_after": "addde8708576d9bd3db5114bac220eb4f6592881a7143382be1d3084183e60c9"
+        "processed_lines": "62-687",
+        "canonical_sha256_after": "4911c22b3f2e7360dcfc86299433893469b8c5c20450058b710b442860990cf6"
       },
-      "content_commit": "bce82d490b7cf1a4d3d92058e83a338b2aec4893",
-      "validation": "Exact source lines 616-637 were bounded by the Phase 3/Section 12 heading and consolidated against the Amazon Builders' Library retry/jitter guidance, Caffeine eviction semantics, RFC 5861 stale controls, and Resilience4j circuit-breaker/bulkhead documentation. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 44 total scenario groups, including four new TTL-jitter, cold-start warming, soft/hard TTL and outage-protection groups. Deterministic reader generation passed exact 154464-character Markdown payload equality, source SHA-256 metadata, 281 unique HTML IDs, 105 search entries, fragments, allowed relative links, 70 balanced fences and 46 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. The content tree was published atomically with an expected-head guard.",
-      "next_action": "Process exactly Section 12, Architecture: pool objects are not network proxies, source lines 638-687, bounded by the Section 13 heading.",
+      "content_commit": "756e5205e90f9dea9802af4cbf26c9a6d4164c7e",
+      "validation": "Exact source lines 638-687 were bounded by the Section 13 heading and consolidated against current HikariCP, Java 17 JDBC Connection, PgBouncer feature/configuration/usage, and pgJDBC routing documentation. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 48 total scenario groups, including four new pool-boundary budget, logical-lease, explicit-routing and pooling-mode/deadline groups. Deterministic reader generation passed exact 170806-character Markdown payload equality, source SHA-256 metadata, 342 unique HTML IDs, 113 search entries, fragments, allowed relative links, 79 balanced fences and 50 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. The content tree was published atomically with an expected-head guard.",
+      "next_action": "Process exactly Section 13, What a physical connection costs, source lines 688-718, bounded by the Section 14 heading.",
       "priority": 12
     },
     {
@@ -892,7 +893,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and the full JavaScript/HTML/CSS paired source are processed; Angular's Final Revision Sheet remains queued. Continue the confirmed database source with Section 12 only, 'Architecture: pool objects are not network proxies,' source lines 638-687.",
+    "next_action": "Core advanced-tree sections 1-10 and the full JavaScript/HTML/CSS paired source are processed; Angular's Final Revision Sheet remains queued. Continue the confirmed database source with Section 13 only, 'What a physical connection costs,' source lines 688-718.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -962,15 +963,16 @@
       "Database/caching Section 8: exact LRU, LFU with deterministic ties and aging, FIFO, and full 2Q with bounded ghost history and scan-resistance traces",
       "Database/caching Section 9: stampede arithmetic, per-key local single-flight, owner-checked Redis fill leases, finite waiter outcomes and bounded stale/database fallback",
       "Database/caching Section 10: typed tenant-scoped negative caching, Bloom membership and sizing, completeness-aware fail-open behavior, and safe rebuild/deletion boundaries",
-      "Database/caching Section 11: TTL jitter, cold-start capacity planning, soft/hard freshness, retry amplification and cache-outage admission control"
+      "Database/caching Section 11: TTL jitter, cold-start capacity planning, soft/hard freshness, retry amplification and cache-outage admission control",
+      "Database/caching Section 12: pool-boundary budgeting, logical JDBC leases, explicit primary/replica routing, PgBouncer feature compatibility and joined deadline accounting"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 616-637 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 11, Cache avalanche: TTL jitter, cold starts and outage protection",
-    "validation": "Section 11 was bounded by the Phase 3/Section 12 heading and consolidated with primary Amazon retry/jitter, Caffeine eviction, RFC 5861 and Resilience4j circuit-breaker/bulkhead references. Java 17 source launch and compilation through jdk.compiler passed 44 total scenario groups; deterministic reader generation passed exact 154464-character payload equality, 281 unique IDs, 105 search entries, fragments, allowed relative links, 70 balanced fences and 46 Mermaid sources; live canonical DSA marker audit remains 170. The content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
-    "estimated_next_tokens": 7200,
-    "estimate_method": "Heuristic only for bounded pool-architecture source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "bce82d490b7cf1a4d3d92058e83a338b2aec4893",
-    "last_processed_at": "2026-10-18T00:41:31-04:00",
-    "next_batch_decision": "Section 11 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 12; resume at source lines 638-687, bounded by the Section 13 heading."
+    "processed_section": "database_internals_caching_java_master_guide.md lines 638-687 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 12, Architecture: pool objects are not network proxies",
+    "validation": "Section 12 was bounded by the Section 13 heading and consolidated with current HikariCP, Java 17 JDBC, PgBouncer and pgJDBC primary documentation. Java 17 source launch and compilation through jdk.compiler passed 48 total scenario groups; deterministic reader generation passed exact 170806-character payload equality, 342 unique IDs, 113 search entries, fragments, allowed relative links, 79 balanced fences and 50 Mermaid sources; live canonical DSA marker audit remains 170. The content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
+    "estimated_next_tokens": 6200,
+    "estimate_method": "Heuristic only for bounded physical-connection-cost source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "756e5205e90f9dea9802af4cbf26c9a6d4164c7e",
+    "last_processed_at": "2026-10-18T01:49:04-04:00",
+    "next_batch_decision": "Section 12 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 13; resume at source lines 688-718, bounded by the Section 14 heading."
   }
 }
 
