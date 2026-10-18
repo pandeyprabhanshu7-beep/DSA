@@ -2676,6 +2676,257 @@ Accessed 2026-10-18.
 75. [pgJDBC multithreaded environment guidance](https://jdbc.postgresql.org/documentation/thread/): driver thread-safety and serialization expectations for one backend connection.
 76. [RFC 9293 — Transmission Control Protocol](https://www.rfc-editor.org/rfc/rfc9293.html): TCP establishment/close state and TIME-WAIT requirements.
 
++
+# Section 14 — HikariCP controls and pool metrics
+
+`minimumIdle`, `maximumPoolSize`, `connectionTimeout`, and `idleTimeout` are **configuration controls**. They describe desired bounds and waiting behavior; they do not prove that a pool is healthy. Evidence comes from active, idle, total and pending-connection gauges plus acquisition, usage/hold, creation and timeout measurements over time.
+
+HikariCP uses milliseconds for its time-valued properties. `connectionTimeout` bounds how long a caller waits for a logical checkout, not TCP establishment or SQL execution. `maximumPoolSize` caps idle plus in-use physical connections. `idleTimeout` applies only to surplus idle connections when `minimumIdle < maximumPoolSize`, and retirement is deliberately not an exact wall-clock event.
+
+```mermaid
+flowchart TD
+    C["configuration controls"] --> B["pool behavior"]
+    B --> M["active, idle, pending and total"]
+    B --> H["acquisition, hold and creation histograms"]
+    M --> D{"evidence over a time window"}
+    H --> D
+    D --> A["keep, shrink, investigate or load-test"]
+```
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. distinguish a configured bound from an observed gauge, counter or latency distribution;
+2. explain the interaction among `minimumIdle`, `maximumPoolSize`, `connectionTimeout`, `idleTimeout`, `maxLifetime`, `keepaliveTime` and leak detection;
+3. propagate one caller deadline across pool checkout, physical connection, authentication and query work;
+4. use Little's Law only as an average-occupancy baseline, then load-test burst and tail behavior;
+5. budget the sum of every instance and destination rather than copying an HTTP thread count;
+6. diagnose a queue, slow physical creation, a long holder and database saturation from correlated metrics; and
+7. avoid using ephemeral JMX snapshots as an automatic scale controller.
+
+## Example 53 — controls define eligibility, not an exact retirement instant
+
+Consider an elastic pool with `minimumIdle=4`, `maximumPoolSize=16`, `connectionTimeout=750 ms`, and `idleTimeout=120,000 ms`.
+
+| Observation | Decision | Why |
+|---|---|---|
+| eight idle, one surplus session idle for 60 s | keep for now | it has not reached idle-timeout eligibility |
+| eight idle, one surplus session idle for 120 s | eligible for retirement | idle exceeds the minimum and reached the configured threshold |
+| four idle, session idle for 300 s | keep minimum | retiring it would go below the idle target |
+| borrowed session older than 120 s idle timeout | keep borrowed | `idleTimeout` does not retire in-use connections |
+| `minimumIdle=maximumPoolSize=16` | fixed-size behavior | no surplus exists for idle-timeout shrinkage |
+
+```java
+assert idleRetirementDecision(false, 8, 4, 16, 60_000, 120_000)
+        == IdleRetirementDecision.KEEP_YOUNG_IDLE;
+assert idleRetirementDecision(false, 8, 4, 16, 120_000, 120_000)
+        == IdleRetirementDecision.ELIGIBLE_SURPLUS_IDLE;
+assert idleRetirementDecision(true, 8, 4, 16, 300_000, 120_000)
+        == IdleRetirementDecision.KEEP_BORROWED;
+assert idleRetirementDecision(false, 4, 4, 16, 300_000, 120_000)
+        == IdleRetirementDecision.KEEP_MINIMUM_IDLE;
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Borrowed: checkout
+    Borrowed --> Idle: logical close
+    Idle --> Idle: age below threshold
+    Idle --> Idle: at minimumIdle
+    Idle --> RetireEligible: surplus and old enough
+    Borrowed --> RetireOnReturn: maxLifetime reached
+```
+
+“Eligible” is intentional: Hikari documents positive scheduling variation for idle retirement. Do not write an assertion that a connection disappears at exactly 120,000 ms. `maxLifetime` is different: it limits physical age, but an in-use connection is removed only after return, with per-connection negative attenuation to avoid mass retirement. `keepaliveTime` operates only on idle connections and must be below `maxLifetime`; it is not OS TCP keepalive. With a JDBC4 driver, prefer `Connection.isValid()` rather than inventing a `connectionTestQuery`.
+
+Leak detection is also observational. It logs when a borrow exceeds the configured threshold; it neither proves the handle is permanently leaked nor forcibly reclaims it. Set the threshold above legitimate p99 hold time, and investigate the trace and transaction boundary behind every warning.
+
+The teaching decision is `O(1)` time and space. Production retirement remains asynchronous pool behavior and must be verified with total/idle gauges and physical create/close rates.
+
+## Example 54 — make the timeout stack spend one request budget
+
+Suppose the application has a 2,000 ms end-to-end database budget. A successful trace spends 180 ms waiting for the pool, 90 ms connecting, 130 ms authenticating/setup, and 900 ms executing. It uses 1,300 ms and leaves 700 ms. Each later timeout must be capped by the **remaining** deadline, not reset to its full configuration value.
+
+| Boundary | This trace | Remaining after boundary | Control/evidence |
+|---|---:|---:|---|
+| request budget | 0 ms | 2,000 ms | gateway/application deadline |
+| pool checkout | 180 ms | 1,820 ms | Hikari acquisition timer and pending callers |
+| TCP connect | 90 ms | 1,730 ms | pgJDBC `connectTimeout` |
+| login/setup | 130 ms | 1,600 ms | pgJDBC/JDBC login timeout and creation timer |
+| query/transaction | 900 ms | 700 ms | JDBC/server statement and lock timeouts |
+| socket reads/cancel | not spent here | 700 ms | pgJDBC `socketTimeout` and cancel timeout |
+
+```java
+TimeoutTrace ok = timeoutTrace(2_000, 180, 90, 130, 900);
+assert ok.exhaustedAt() == TimeoutBoundary.NONE;
+assert ok.spentMillis() == 1_300;
+assert ok.remainingMillis() == 700;
+
+assert timeoutTrace(750, 750, 0, 0, 0).exhaustedAt()
+        == TimeoutBoundary.POOL_ACQUISITION;
+assert timeoutTrace(750, 300, 450, 0, 0).exhaustedAt()
+        == TimeoutBoundary.CONNECT;
+assert timeoutTrace(750, 100, 50, 50, 600).exhaustedAt()
+        == TimeoutBoundary.QUERY;
+```
+
+```mermaid
+sequenceDiagram
+    participant R as Request deadline
+    participant P as Hikari checkout
+    participant C as Driver connect/login
+    participant Q as SQL and transaction
+    R->>P: remaining 2000 ms
+    P-->>C: remaining 1820 ms
+    C-->>Q: remaining 1600 ms
+    Q-->>R: complete with 700 ms left
+```
+
+The boundaries have different meanings:
+
+- Hikari `connectionTimeout` waits for a pool lease. It is not a driver socket-connect timeout.
+- pgJDBC `connectTimeout` bounds socket connection, while `loginTimeout` bounds establishment of the database connection.
+- pgJDBC `socketTimeout` bounds socket reads and closes the connection on an overrun; it is a coarse transport guard, not a transaction policy.
+- JDBC `Statement.setQueryTimeout` requires the driver to attempt cancellation and raise `SQLTimeoutException`; it does not prove every server-side effect was rolled back.
+- PostgreSQL `statement_timeout` measures server command execution, while `lock_timeout` applies separately to each lock wait. A shorter statement timeout can make a same-or-longer lock timeout ineffective.
+
+DNS, thread scheduling, result consumption, transaction cleanup, cancel delivery and retries can fall outside a single layer's timer. Therefore classify the terminal outcome and roll back or evict as required. The model is `O(b)` for `b` timeout boundaries—four here—and uses checked addition.
+
+## Example 55 — size from connection hold time, then enforce the global budget
+
+Little's Law gives average in-use connections as:
+
+\[
+L = \lambda W
+\]
+
+At 1,000 database transactions/s and 12 ms mean checkout-to-return time, average global occupancy is \(1000 \times 0.012 = 12\) sessions. This is a baseline, **not** a recommendation for `maximumPoolSize=12`: p99 hold time, bursts, locks, failover, background jobs and database capacity still matter.
+
+Now assume 20 application instances:
+
+| Per-instance maximum | Global client potential | Usable DB slots | Result |
+|---:|---:|---:|---|
+| 16 | 320 | 280 | exceeds destination budget by 40 |
+| 12 | 240 | 280 | leaves 40 slots for explicitly budgeted non-app work |
+| 8 primary + 8 replica | 160 per destination if pools target different endpoints | endpoint-specific | add by actual destination, not as one interchangeable pool |
+
+```java
+WorkloadPoolPlan oversized = workloadPoolPlan(1_000, 12, 20, 16, 280);
+assert oversized.averageGlobalInUseCeiling() == 12;
+assert Math.abs(oversized.averagePerInstanceInUse() - 0.6) < 0.0000001;
+assert oversized.configuredGlobalMaximum() == 320;
+assert !oversized.configuredMaximumWithinBudget();
+
+WorkloadPoolPlan bounded = workloadPoolPlan(1_000, 12, 20, 12, 280);
+assert bounded.configuredGlobalMaximum() == 240;
+assert bounded.configuredMaximumWithinBudget();
+```
+
+```mermaid
+flowchart TD
+    W["1000 tx/s x 12 ms"] --> A["12 average sessions globally"]
+    I["20 instances x max 16"] --> G["320 possible client sessions"]
+    A --> L["load-test burst and p99 behavior"]
+    G --> B{"usable destination budget 280"}
+    B -->|exceeds by 40| R["reduce, shard by endpoint or gate work"]
+    L --> R
+```
+
+Do not derive a pool from Tomcat threads, simultaneous users, or `max_connections`. Hikari's sizing guidance explicitly favors a small pool near the database's useful concurrency and warns that excess connections can reduce throughput. Sweep pool size under a representative workload and plot throughput with p50/p95/p99 checkout, hold and SQL time plus database CPU, I/O and locks. Stop increasing when throughput flattens or tail latency worsens.
+
+Measure checkout-to-return separately from SQL execution. A 20 ms query inside a 900 ms transaction holds the scarce connection for 900 ms. Never hold it while waiting on Redis fill leases, HTTP calls, user input or a remote payment API.
+
+The plan is `O(1)` time and space. It uses a ceiling only for average occupancy reporting; the global maximum remains a hard potential-demand budget.
+
+## Example 56 — diagnose from correlated metrics, not one red gauge
+
+A high `ActiveConnections` value is ambiguous. It may be healthy utilization, a slow database, long application-held transactions, or a traffic burst. Correlate a time window and traces:
+
+| Evidence over the same window | Teaching diagnosis | First action |
+|---|---|---|
+| active 16/16, pending 20, acquisition p99 700 ms, DB healthy | acquisition queue | inspect burst/hold time; load-test before enlarging |
+| active 16/16, pending 20, DB CPU/I/O/locks saturated | database saturated | reduce concurrency or fix DB work; do not enlarge |
+| active 4/16, pending 20, creation p99 1,200 ms | slow creation/validation | inspect DNS, TLS, auth, DB capacity and creation failures |
+| pending 0, usage p99 500 ms, SQL p99 80 ms | holder outside SQL | trace transaction scope and external waits |
+| pending 0, usage p99 80 ms, SQL p99 60 ms | no indicated pool bottleneck | keep watching tails and errors |
+
+```java
+assert poolSignal(16, 16, 20, 700, 40, 30, 25, false)
+        == PoolSignal.ACQUISITION_QUEUE;
+assert poolSignal(16, 16, 20, 700, 250, 220, 25, true)
+        == PoolSignal.DATABASE_SATURATED;
+assert poolSignal(4, 16, 20, 900, 50, 40, 1_200, false)
+        == PoolSignal.SLOW_CONNECTION_CREATION;
+assert poolSignal(6, 16, 0, 4, 500, 80, 30, false)
+        == PoolSignal.LONG_HOLD_OUTSIDE_SQL;
+```
+
+```mermaid
+flowchart TD
+    P{"pending borrowers?"} -->|no| H{"hold p99 much larger than SQL p99?"}
+    H -->|yes| O["find work outside SQL"]
+    H -->|no| N["no indicated pool bottleneck"]
+    P -->|yes| D{"database saturated?"}
+    D -->|yes| S["reduce pressure or fix DB"]
+    D -->|no| C{"active below max and creation slow?"}
+    C -->|yes| F["investigate physical creation"]
+    C -->|no| Q["acquisition queue; test capacity"]
+```
+
+Hikari's JMX pool bean exposes idle, active, total and waiting-thread counts, but its documentation warns that these independently collected values are ephemeral and might not add up at an instant. Use them for monitoring, not a programmatic auto-scaling decision. Export histograms/counters through a supported metrics tracker, tag only by bounded dimensions such as pool and endpoint class, and keep tenant IDs and raw SQL out of metric labels.
+
+Required operational views:
+
+- **checkout:** acquisition duration p50/p95/p99, pending borrowers, timeouts;
+- **ownership:** usage/hold duration, transactions, leak warnings, rollback-on-return;
+- **physical lifecycle:** creation duration/failures, validations, evictions, idle/max-lifetime retirements;
+- **database:** active work, CPU, I/O, locks, statement and transaction latency;
+- **proxy:** PgBouncer waiting clients, active backends and pinned/long transactions when present.
+
+The teaching classifier is `O(1)`. It intentionally returns one first-investigation signal; a real incident can have several simultaneous causes.
+
+## Operations, complexity, and review
+
+| Mistake | Why it fails | Better contract |
+|---|---|---|
+| treating `maximumPoolSize` as a metric target | a full pool can be healthy or overloaded | correlate queue, hold, SQL and DB saturation |
+| setting `minimumIdle` from peak users | reserves physical sessions without proving value | measure creation latency and burst response |
+| expecting exact `idleTimeout` retirement | housekeeping is asynchronous and minimum idle is protected | reason in eligibility and observe lifecycle rates |
+| setting every timeout to 30 s | independent timers can multiply beyond caller deadline | cap each phase by remaining request budget |
+| increasing pool when pending rises | can push an already-saturated DB harder | load-test and inspect DB CPU/I/O/locks first |
+| equating leak warning with proven leak | a legitimate long borrow also crosses the threshold | trace checkout-to-return and transaction ownership |
+| autoscaling from one JMX snapshot | gauges are independently sampled and ephemeral | use windows, histograms, counters and traces |
+
+Review questions:
+
+- Which values are controls, and which are measured outcomes?
+- Is `minimumIdle` intentionally elastic or implicitly fixed at `maximumPoolSize`?
+- Does `idleTimeout` apply in the chosen configuration?
+- Are `maxLifetime` and `keepaliveTime` staggered below known infrastructure limits?
+- Does pool checkout consume the same caller deadline as connect, login and query execution?
+- Are pgJDBC `connectTimeout`, `loginTimeout`, `socketTimeout` and cancel timeout assigned distinct roles?
+- Is statement cancellation followed by transaction cleanup and an outcome decision?
+- Was average occupancy calculated from checkout-to-return hold time?
+- Does the global budget multiply every service instance and pool by its actual endpoint?
+- Are acquisition, usage and creation distributions available, not only averages?
+- Can the dashboard distinguish a full healthy pool from a saturated database?
+- Are metric tags bounded and safe?
+
+### Primary references for Section 14
+
+Accessed 2026-10-18.
+
+77. [HikariCP README and configuration](https://github.com/brettwooldridge/HikariCP): millisecond units, checkout/idle/lifetime/keepalive controls, maximum/minimum sizing, metrics, JMX and leak detection.
+78. [HikariCP wiki — About Pool Sizing](https://github.com/brettwooldridge/HikariCP/wiki/About-Pool-Sizing): resource-limited concurrency, small-pool guidance, representative load tests and mixed-duration workloads.
+79. [HikariCP wiki — JMX monitoring and management](https://github.com/brettwooldridge/HikariCP/wiki/MBean-%28JMX%29-Monitoring-and-Management): active, idle, total and awaiting-thread gauges plus the warning that they are ephemeral monitoring snapshots.
+80. [pgJDBC connection parameters](https://jdbc.postgresql.org/documentation/use/): distinct login, connect, socket-read, query and cancel timeouts.
+81. [Java SE 17 `Statement`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/Statement.html): query timeout behavior and attempted cancellation.
+82. [Java SE 17 `DriverManager`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/DriverManager.html): login-timeout scope during connection establishment.
+83. [PostgreSQL 18 client connection defaults](https://www.postgresql.org/docs/current/runtime-config-client.html): statement, transaction, lock and idle-in-transaction timeout semantics.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -2683,8 +2934,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; and lines **688–718**, “What a physical connection costs”
-- Deliberate continuation: Section 14, “HikariCP controls and pool metrics,” begins at source line **719** and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; and lines **719–768**, “HikariCP controls and pool metrics”
+- Deliberate continuation: Section 15, “JDBC is an API, not a network protocol,” begins at source line **769** and remains unprocessed.
 
 Validation commands:
 

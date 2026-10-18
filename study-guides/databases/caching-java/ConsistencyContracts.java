@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-13. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-14. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -1576,6 +1576,140 @@ public final class ConsistencyContracts {
         }
     }
 
+    enum IdleRetirementDecision {
+        KEEP_BORROWED,
+        KEEP_MINIMUM_IDLE,
+        KEEP_YOUNG_IDLE,
+        ELIGIBLE_SURPLUS_IDLE
+    }
+
+    static IdleRetirementDecision idleRetirementDecision(
+            boolean borrowed,
+            int idleConnections,
+            int minimumIdle,
+            int maximumPoolSize,
+            long idleAgeMillis,
+            long idleTimeoutMillis) {
+        if (idleConnections < 0 || minimumIdle < 0 || maximumPoolSize <= 0
+                || minimumIdle > maximumPoolSize || idleAgeMillis < 0 || idleTimeoutMillis < 0) {
+            throw new IllegalArgumentException("invalid idle-retirement input");
+        }
+        if (borrowed) return IdleRetirementDecision.KEEP_BORROWED;
+        if (minimumIdle >= maximumPoolSize || idleConnections <= minimumIdle) {
+            return IdleRetirementDecision.KEEP_MINIMUM_IDLE;
+        }
+        if (idleTimeoutMillis == 0 || idleAgeMillis < idleTimeoutMillis) {
+            return IdleRetirementDecision.KEEP_YOUNG_IDLE;
+        }
+        return IdleRetirementDecision.ELIGIBLE_SURPLUS_IDLE;
+    }
+
+    enum TimeoutBoundary { NONE, POOL_ACQUISITION, CONNECT, LOGIN, QUERY }
+
+    record TimeoutTrace(
+            long requestBudgetMillis,
+            long spentMillis,
+            long remainingMillis,
+            TimeoutBoundary exhaustedAt) {}
+
+    static TimeoutTrace timeoutTrace(
+            long requestBudgetMillis,
+            long poolMillis,
+            long connectMillis,
+            long loginMillis,
+            long queryMillis) {
+        if (requestBudgetMillis <= 0 || poolMillis < 0 || connectMillis < 0
+                || loginMillis < 0 || queryMillis < 0) {
+            throw new IllegalArgumentException("invalid timeout trace");
+        }
+        long spent = 0;
+        long[] stages = {poolMillis, connectMillis, loginMillis, queryMillis};
+        TimeoutBoundary[] boundaries = {
+            TimeoutBoundary.POOL_ACQUISITION,
+            TimeoutBoundary.CONNECT,
+            TimeoutBoundary.LOGIN,
+            TimeoutBoundary.QUERY
+        };
+        for (int i = 0; i < stages.length; i++) {
+            spent = Math.addExact(spent, stages[i]);
+            if (spent >= requestBudgetMillis) {
+                return new TimeoutTrace(requestBudgetMillis, spent, 0, boundaries[i]);
+            }
+        }
+        return new TimeoutTrace(
+                requestBudgetMillis, spent, requestBudgetMillis - spent, TimeoutBoundary.NONE);
+    }
+
+    record WorkloadPoolPlan(
+            long throughputPerSecond,
+            long meanHoldMillis,
+            long averageGlobalInUseCeiling,
+            double averagePerInstanceInUse,
+            long configuredGlobalMaximum,
+            long usableDatabaseSlots,
+            boolean configuredMaximumWithinBudget) {}
+
+    static WorkloadPoolPlan workloadPoolPlan(
+            long throughputPerSecond,
+            long meanHoldMillis,
+            int instances,
+            int maximumPoolSizePerInstance,
+            long usableDatabaseSlots) {
+        if (throughputPerSecond < 0 || meanHoldMillis < 0 || instances <= 0
+                || maximumPoolSizePerInstance <= 0 || usableDatabaseSlots <= 0) {
+            throw new IllegalArgumentException("invalid workload pool input");
+        }
+        long occupancyMillis = Math.multiplyExact(throughputPerSecond, meanHoldMillis);
+        long averageGlobalCeiling = Math.addExact(occupancyMillis, 999) / 1_000;
+        long configuredGlobalMaximum = Math.multiplyExact(
+                (long) instances, maximumPoolSizePerInstance);
+        return new WorkloadPoolPlan(
+                throughputPerSecond,
+                meanHoldMillis,
+                averageGlobalCeiling,
+                occupancyMillis / 1_000.0 / instances,
+                configuredGlobalMaximum,
+                usableDatabaseSlots,
+                configuredGlobalMaximum <= usableDatabaseSlots);
+    }
+
+    enum PoolSignal {
+        HEALTHY,
+        DATABASE_SATURATED,
+        ACQUISITION_QUEUE,
+        SLOW_CONNECTION_CREATION,
+        LONG_HOLD_OUTSIDE_SQL
+    }
+
+    static PoolSignal poolSignal(
+            int active,
+            int maximumPoolSize,
+            int pending,
+            long acquisitionP99Millis,
+            long usageP99Millis,
+            long sqlP99Millis,
+            long creationP99Millis,
+            boolean databaseSaturated) {
+        if (active < 0 || maximumPoolSize <= 0 || active > maximumPoolSize || pending < 0
+                || acquisitionP99Millis < 0 || usageP99Millis < 0 || sqlP99Millis < 0
+                || creationP99Millis < 0) {
+            throw new IllegalArgumentException("invalid pool observation");
+        }
+        if (databaseSaturated && (active == maximumPoolSize || pending > 0)) {
+            return PoolSignal.DATABASE_SATURATED;
+        }
+        if (pending > 0 && active < maximumPoolSize && creationP99Millis >= acquisitionP99Millis) {
+            return PoolSignal.SLOW_CONNECTION_CREATION;
+        }
+        if (pending > 0 || (active == maximumPoolSize && acquisitionP99Millis > 0)) {
+            return PoolSignal.ACQUISITION_QUEUE;
+        }
+        if (usageP99Millis > Math.multiplyExact(Math.max(1, sqlP99Millis), 2)) {
+            return PoolSignal.LONG_HOLD_OUTSIDE_SQL;
+        }
+        return PoolSignal.HEALTHY;
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -2322,6 +2456,59 @@ public final class ConsistencyContracts {
         assert connectionReturnAction(false, false) == ConnectionReturnAction.EVICT;
     }
 
+    private static void hikariControlScenarios() {
+        assert idleRetirementDecision(true, 8, 4, 16, 300_000, 120_000)
+                == IdleRetirementDecision.KEEP_BORROWED;
+        assert idleRetirementDecision(false, 4, 4, 16, 300_000, 120_000)
+                == IdleRetirementDecision.KEEP_MINIMUM_IDLE;
+        assert idleRetirementDecision(false, 8, 4, 16, 60_000, 120_000)
+                == IdleRetirementDecision.KEEP_YOUNG_IDLE;
+        assert idleRetirementDecision(false, 8, 4, 16, 120_000, 120_000)
+                == IdleRetirementDecision.ELIGIBLE_SURPLUS_IDLE;
+        assert idleRetirementDecision(false, 16, 16, 16, 300_000, 120_000)
+                == IdleRetirementDecision.KEEP_MINIMUM_IDLE;
+    }
+
+    private static void timeoutStackScenarios() {
+        TimeoutTrace successful = timeoutTrace(2_000, 180, 90, 130, 900);
+        assert successful.exhaustedAt() == TimeoutBoundary.NONE;
+        assert successful.spentMillis() == 1_300;
+        assert successful.remainingMillis() == 700;
+
+        TimeoutTrace poolExhausted = timeoutTrace(750, 750, 0, 0, 0);
+        assert poolExhausted.exhaustedAt() == TimeoutBoundary.POOL_ACQUISITION;
+        TimeoutTrace connectExhausted = timeoutTrace(750, 300, 450, 0, 0);
+        assert connectExhausted.exhaustedAt() == TimeoutBoundary.CONNECT;
+        TimeoutTrace queryExhausted = timeoutTrace(750, 100, 50, 50, 600);
+        assert queryExhausted.exhaustedAt() == TimeoutBoundary.QUERY;
+    }
+
+    private static void workloadPoolSizingScenarios() {
+        WorkloadPoolPlan oversized = workloadPoolPlan(1_000, 12, 20, 16, 280);
+        assert oversized.averageGlobalInUseCeiling() == 12;
+        assert Math.abs(oversized.averagePerInstanceInUse() - 0.6) < 0.0000001;
+        assert oversized.configuredGlobalMaximum() == 320;
+        assert !oversized.configuredMaximumWithinBudget();
+
+        WorkloadPoolPlan bounded = workloadPoolPlan(1_000, 12, 20, 12, 280);
+        assert bounded.configuredGlobalMaximum() == 240;
+        assert bounded.configuredMaximumWithinBudget();
+        assert workloadPoolPlan(1, 1, 3, 2, 10).averageGlobalInUseCeiling() == 1;
+    }
+
+    private static void poolTelemetryScenarios() {
+        assert poolSignal(16, 16, 20, 700, 40, 30, 25, false)
+                == PoolSignal.ACQUISITION_QUEUE;
+        assert poolSignal(16, 16, 20, 700, 250, 220, 25, true)
+                == PoolSignal.DATABASE_SATURATED;
+        assert poolSignal(4, 16, 20, 900, 50, 40, 1_200, false)
+                == PoolSignal.SLOW_CONNECTION_CREATION;
+        assert poolSignal(6, 16, 0, 4, 500, 80, 30, false)
+                == PoolSignal.LONG_HOLD_OUTSIDE_SQL;
+        assert poolSignal(6, 16, 0, 4, 80, 60, 30, false)
+                == PoolSignal.HEALTHY;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -2378,7 +2565,11 @@ public final class ConsistencyContracts {
         connectionChurnScenarios();
         poolConcurrencyGateScenarios();
         connectionOwnershipScenarios();
-        System.out.println("PASS 52 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership");
+        hikariControlScenarios();
+        timeoutStackScenarios();
+        workloadPoolSizingScenarios();
+        poolTelemetryScenarios();
+        System.out.println("PASS 56 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry");
     }
 }
 
