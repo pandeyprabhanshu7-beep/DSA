@@ -1567,6 +1567,215 @@ Accessed 2026-10-17.
 47. [Memcached modern LRU](https://memcached.org/blog/modern-lru/): HOT/WARM/COLD/TEMP segments, asynchronous bumps, maintainer behavior, overload trade-offs, and live tuning.
 48. [Memcached performance and memory guide](https://docs.memcached.org/serverguide/performance/): slab-class allocation, expiration reclamation, memory overhead, and tail eviction under pressure.
 
+# Section 9 — Cache stampede: coordinate fills, bound fallback
+
+A cache stampede is not simply “many misses.” It is a synchronized state transition in which many callers discover the same absent or expired key before any one refill becomes visible. If the origin service is already near its concurrency limit, adding a cache can make the expiry boundary more dangerous than running without one.
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. estimate the number of duplicate loads released by one hot-key expiry;
+2. implement per-key single-flight without running a slow loader inside `ConcurrentHashMap.computeIfAbsent`;
+3. explain what a Redis fill lease suppresses across processes—and what lease expiry or asynchronous failover can still violate;
+4. use an owner token and conditional publish/release so a paused former holder cannot overwrite or delete a successor's lease;
+5. bound waiter time and database concurrency, then choose an explicit stale, fallback, or rejection outcome; and
+6. distinguish duplicate-work suppression from business-operation mutual exclusion.
+
+Write these requirements before implementation:
+
+| Requirement | Example contract | Failure if omitted |
+|---|---|---|
+| coordination scope | same key inside one JVM, then optionally across the fleet | local coalescing is mistaken for global protection |
+| wait bound | wait at most 80 ms, then choose a typed fallback | request threads accumulate behind a stuck leader |
+| origin budget | at most 40 concurrent database fallbacks per instance | all timed-out waiters bypass the lease together |
+| stale policy | serve at most 30 s stale for catalog reads, never for balances | “serve stale” becomes unbounded correctness drift |
+| lease ownership | unique token, TTL, conditional publish and release | an expired holder deletes or overwrites a successor |
+| overload result | explicit `503`/retryable result when no safe fallback exists | hidden retries amplify the incident |
+
+TTL jitter and refresh-ahead reduce synchronized transitions, but neither proves that only one loader runs. Single-flight and leases reduce duplicate work; database permits and overload rejection protect the origin when coordination is unavailable.
+
+## Example 33 — quantify the expiry burst before choosing a lock
+
+Suppose one key receives 8,000 requests/s and its database load takes 150 ms. During a naive miss window, the expected concurrency released toward the database is approximately:
+
+\[
+8{,}000\;\text{requests/s} \times 0.150\;\text{s} = 1{,}200\;\text{loads}
+\]
+
+That is 180,000 ms of aggregate database work initiated inside one 150 ms wall-clock interval. The estimate is a concurrency bound, not a prediction of exact completed queries: connection pools, admission controls, network delay, and request cancellation change the observed count.
+
+| Input | Value |
+|---|---:|
+| hot-key rate | 8,000 requests/s |
+| origin latency | 150 ms |
+| naive overlapping loads | 1,200 |
+| desired fleet loaders | usually near 1 per key, plus explicitly bounded fallbacks |
+
+```java
+StampedeEstimate burst = naiveExpiryBurst(8_000, 150);
+assert burst.concurrentLoads() == 1_200;
+assert burst.aggregateDatabaseMillis() == 180_000;
+```
+
+```mermaid
+flowchart TD
+    E["hot key expires"] --> M["1,200 overlapping misses"]
+    M --> U{"coordination and admission?"}
+    U -->|none| D["origin saturation and rising latency"]
+    U -->|bounded| L["one leader plus finite waiters"]
+    L --> P["publish once; waiters reread"]
+```
+
+Measure hot-key request rate, origin latency distribution, loads started per cache miss, coalesced waiter count, and pool saturation. A cache-hit ratio can remain excellent while one synchronized key causes the outage.
+
+## Example 34 — local single-flight shares one outcome, including failure
+
+Inside one JVM, keep a map from key to an in-progress future. The first caller installs a placeholder and becomes leader; later callers receive the same future. The leader performs the database call outside the map mutation, completes the future, and conditionally removes exactly that future.
+
+```java
+LocalSingleFlight<String, String> flights = new LocalSingleFlight<>();
+Flight<String> leader = flights.begin("article:7");
+Flight<String> waiterA = flights.begin("article:7");
+Flight<String> waiterB = flights.begin("article:7");
+
+assert leader.leader();
+assert leader.future() == waiterA.future();
+assert waiterA.future() == waiterB.future();
+flights.succeed("article:7", leader, "value-v6");
+assert waiterA.future().join().equals("value-v6");
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Caller A
+    participant F as flight map
+    participant B as Caller B
+    participant DB as Database
+    A->>F: install future for key
+    F-->>A: leader
+    B->>F: request same key
+    F-->>B: existing future
+    A->>DB: one load outside map mutation
+    DB-->>A: value or failure
+    A->>F: complete and conditional remove
+    F-->>B: shared outcome
+```
+
+Java documents that `ConcurrentHashMap.computeIfAbsent` performs the invocation atomically but warns that its mapping function should be short and simple because competing updates may block. Installing an incomplete future is short; running a 150 ms database query inside that mapping function is not. `CompletableFuture` lets the leader complete normally or exceptionally, so every waiter observes the same failure rather than silently launching a second load.
+
+Cleanup must occur on success, failure, timeout, and cancellation. Conditional `remove(key, sameFuture)` matters: an unconditional removal by an old completion can erase a newer flight. A production API should also prevent one impatient waiter from cancelling the shared leader future; give waiters dependent/read-only stages or isolate their timeout from the shared computation.
+
+This mechanism is only per process. With 30 application instances, perfect local single-flight can still produce 30 origin loads for one key. That may be acceptable under an origin semaphore; otherwise add a cross-process fill lease.
+
+## Example 35 — a fill lease needs ownership checks and honest failure semantics
+
+Use one atomic acquisition such as `SET lockKey token NX PX ttl`. The token must be unique for this acquisition. A plain `DEL lockKey` is unsafe: loader A can pause beyond its TTL, loader B can acquire a successor lease, and then A can accidentally delete B's lease. Release—and any publish guarded by the lease—must compare the stored token atomically.
+
+The executable `FillLeaseRegistry` exposes the race:
+
+| Time | Event | Result |
+|---:|---|---|
+| 0 ms | A acquires token A with 5,000 ms TTL | A owns lease |
+| 4,000 ms | B tries token B | rejected |
+| 5,000 ms | B retries after A expires | B owns successor lease |
+| 5,001 ms | paused A resumes | A may not publish and may not release B |
+
+```java
+FillLeaseRegistry leases = new FillLeaseRegistry();
+assert leases.acquire("loader-A", 0, 5_000);
+assert !leases.acquire("loader-B", 4_000, 5_000);
+assert leases.acquire("loader-B", 5_000, 5_000);
+assert !leases.mayPublish("loader-A", 5_001);
+assert !leases.release("loader-A");
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Loader A
+    participant R as Redis
+    participant B as Loader B
+    A->>R: SET lock tokenA NX PX 5000
+    R-->>A: acquired
+    Note over A: process pause exceeds TTL
+    B->>R: SET lock tokenB NX PX 5000
+    R-->>B: acquired after expiry
+    A->>R: publish or delete if token == tokenA
+    R-->>A: rejected; tokenB owns lease
+```
+
+In Redis Cluster, a script that atomically checks the lock, writes the payload, and deletes the lease is a multi-key operation. Put both keys in the same hash slot, for example `cms:{tenant:id:revision}:lock` and `cms:{tenant:id:revision}:value`; Redis hash tags make the substring inside braces determine the slot.
+
+Lease validity is a time window, not a cross-system transaction. Redis documents that asynchronous replication can lose a lock write during failover, allowing two clients to believe they hold the resource. Process pauses and lease expiry create another overlap. An owner-token check prevents a known stale holder from publishing in the same live Redis state, but it does not prove linearizability between Redis and SQL. Use this pattern to suppress duplicate reads. Payments, inventory reservations, and exclusive state transitions need an authoritative database invariant or a fencing token that the protected authority rejects when stale.
+
+## Example 36 — waiters stop waiting, then use one bounded decision ladder
+
+A non-leader should retry the value with bounded jitter, but it must have a deadline. When the wait ends, use one explicit order:
+
+1. reread the cache because the leader may have published between polls;
+2. serve a stale value only when its age and data class permit it;
+3. otherwise acquire a bounded database permit for a direct load; or
+4. reject/degrade when no safe capacity remains.
+
+```java
+assert afterBoundedWait(true, true, true) == FallbackDecision.VALUE_APPEARED;
+assert afterBoundedWait(false, true, true) == FallbackDecision.SERVE_BOUNDED_STALE;
+assert afterBoundedWait(false, false, true) == FallbackDecision.LOAD_WITH_DATABASE_PERMIT;
+assert afterBoundedWait(false, false, false) == FallbackDecision.REJECT_OVERLOAD;
+```
+
+```mermaid
+flowchart TD
+    W["bounded jittered wait ends"] --> R{"value appeared?"}
+    R -->|yes| V["return refreshed value"]
+    R -->|no| S{"stale eligible by age and class?"}
+    S -->|yes| T["serve stale and trigger one refresh"]
+    S -->|no| P{"database permit available?"}
+    P -->|yes| D["one bounded direct load"]
+    P -->|no| O["reject or degrade explicitly"]
+```
+
+Java's `Semaphore.tryAcquire(timeout, unit)` models a finite origin-concurrency wait. The HTTP `stale-while-revalidate` standard similarly permits bounded stale serving while asynchronous validation runs; its time window is part of the correctness contract. Do not serve a stale authorization decision, balance, or inventory promise merely because stale catalog content is acceptable.
+
+The direct-load permit is still per instance unless the database pool or another authority supplies the fleet-wide bound. Size all layers together: application permits, connection-pool maximum, database worker capacity, and retry policy. A client retry storm can otherwise recreate the stampede after the service returns `503`.
+
+## Operations, failure boundaries, and review
+
+| Failure | Required behavior | Useful signal |
+|---|---|---|
+| leader fails | complete waiters exceptionally, remove the exact flight, allow bounded retry | flight age, failure count, leaked-flight gauge |
+| Redis unavailable | retain local single-flight; direct loads require origin permits | lease errors, permit exhaustion |
+| lease expires mid-load | stale owner cannot publish under that token | expired-owner publish rejections |
+| leader publishes before waiter poll | waiter reread returns value | cache reread hit after wait |
+| stale window exhausted | direct load with permit or explicit rejection | stale served age, stale denied count |
+| hot key never cools | refresh-ahead/jitter plus coordination; consider key sharding only if semantics allow | per-key request/load ratio |
+
+Review questions:
+
+- What is the uncoordinated duplicate-load estimate for the hottest key?
+- Is single-flight local to a JVM, a cache node, or the whole fleet?
+- Can loader work block inside a map-wide atomic callback?
+- Do success, exception, timeout, and cancellation all remove the exact in-flight future?
+- Is the lease acquired atomically with expiry and a unique owner token?
+- Can an expired holder publish or delete a successor's lease?
+- Do Redis Cluster keys used by one script share a hash slot?
+- Which failure modes permit overlapping loaders despite the lease?
+- How long can a waiter block, and what typed outcome follows the deadline?
+- Is stale eligibility bounded by both age and data class?
+- What caps database fallback when Redis and the leader both fail?
+- Are retries themselves rate-limited and jittered?
+
+### Primary references for Section 9
+
+Accessed 2026-10-17.
+
+49. [Redis distributed locks](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/): atomic `SET ... NX PX` acquisition, unique owner values, conditional release, lease validity, randomized retry, and asynchronous-replication safety limits.
+50. [Redis Cluster specification](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/): multi-key same-slot requirement, hash-tag calculation, resharding behavior, and acknowledged-write loss windows under asynchronous replication.
+51. [Java SE 17 `ConcurrentHashMap`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html): atomic `computeIfAbsent` semantics and the requirement that its mapping function remain short and simple.
+52. [Java SE 17 `CompletableFuture`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/CompletableFuture.html): shared normal/exceptional completion, `join`, and finite timeout support.
+53. [Java SE 17 `Semaphore`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/Semaphore.html): bounded permits and timed `tryAcquire` behavior.
+54. [RFC 5861 — HTTP Cache-Control Extensions for Stale Content](https://www.rfc-editor.org/rfc/rfc5861): bounded `stale-while-revalidate` and `stale-if-error` semantics.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -1574,8 +1783,8 @@ Accessed 2026-10-17.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; and lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”
-- Deliberate continuation: Section 9, “Cache stampede: coordinate fills, bound fallback,” is source lines **557–588**, bounded by the Section 10 heading, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; and lines **557–588**, “Cache stampede: coordinate fills, bound fallback”
+- Deliberate continuation: Section 10, “Cache penetration: absent keys and Bloom filters,” begins at source line **589**; its exact end remains to be resolved before the next bounded pass.
 
 Validation commands:
 

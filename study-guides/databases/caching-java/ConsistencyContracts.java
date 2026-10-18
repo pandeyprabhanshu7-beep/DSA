@@ -9,8 +9,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-8. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-9. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -1043,6 +1046,98 @@ public final class ConsistencyContracts {
         }
     }
 
+    record StampedeEstimate(long concurrentLoads, long aggregateDatabaseMillis) {}
+
+    static StampedeEstimate naiveExpiryBurst(long requestsPerSecond, long loadMillis) {
+        if (requestsPerSecond < 0 || loadMillis < 0) {
+            throw new IllegalArgumentException("rates and latency must not be negative");
+        }
+        long requestMillis = Math.multiplyExact(requestsPerSecond, loadMillis);
+        long concurrent = requestMillis == 0 ? 0 : ceilDiv(requestMillis, 1_000);
+        return new StampedeEstimate(concurrent, Math.multiplyExact(concurrent, loadMillis));
+    }
+
+    record Flight<V>(CompletableFuture<V> future, boolean leader) {}
+
+    /** Local duplicate suppression: the leader owns completion; waiters share its outcome. */
+    static final class LocalSingleFlight<K, V> {
+        private final ConcurrentHashMap<K, CompletableFuture<V>> flights =
+                new ConcurrentHashMap<>();
+
+        Flight<V> begin(K key) {
+            Objects.requireNonNull(key, "key");
+            CompletableFuture<V> candidate = new CompletableFuture<>();
+            CompletableFuture<V> existing = flights.putIfAbsent(key, candidate);
+            return existing == null
+                    ? new Flight<>(candidate, true)
+                    : new Flight<>(existing, false);
+        }
+
+        void succeed(K key, Flight<V> flight, V value) {
+            requireLeader(flight);
+            flight.future().complete(value);
+            flights.remove(key, flight.future()); // conditional removal cannot erase a successor
+        }
+
+        void fail(K key, Flight<V> flight, RuntimeException failure) {
+            requireLeader(flight);
+            flight.future().completeExceptionally(failure);
+            flights.remove(key, flight.future());
+        }
+
+        int inFlight() { return flights.size(); }
+
+        private static void requireLeader(Flight<?> flight) {
+            Objects.requireNonNull(flight, "flight");
+            if (!flight.leader()) throw new IllegalStateException("only the leader completes a flight");
+        }
+    }
+
+    record FillLease(String token, long expiresAtMillis) {}
+
+    /** Single-authority lease semantics used to expose expiry and ownership races. */
+    static final class FillLeaseRegistry {
+        private FillLease current;
+
+        boolean acquire(String token, long nowMillis, long ttlMillis) {
+            if (token.isBlank() || nowMillis < 0 || ttlMillis <= 0) {
+                throw new IllegalArgumentException("token, time, and positive TTL required");
+            }
+            if (current != null && current.expiresAtMillis() > nowMillis) return false;
+            current = new FillLease(token, Math.addExact(nowMillis, ttlMillis));
+            return true;
+        }
+
+        boolean mayPublish(String token, long nowMillis) {
+            return current != null
+                    && current.token().equals(token)
+                    && nowMillis < current.expiresAtMillis();
+        }
+
+        boolean release(String token) {
+            if (current == null || !current.token().equals(token)) return false;
+            current = null;
+            return true;
+        }
+
+        String owner() { return current == null ? null : current.token(); }
+    }
+
+    enum FallbackDecision {
+        VALUE_APPEARED,
+        SERVE_BOUNDED_STALE,
+        LOAD_WITH_DATABASE_PERMIT,
+        REJECT_OVERLOAD
+    }
+
+    static FallbackDecision afterBoundedWait(
+            boolean valueAppeared, boolean staleEligible, boolean databasePermitAvailable) {
+        if (valueAppeared) return FallbackDecision.VALUE_APPEARED;
+        if (staleEligible) return FallbackDecision.SERVE_BOUNDED_STALE;
+        if (databasePermitAvailable) return FallbackDecision.LOAD_WITH_DATABASE_PERMIT;
+        return FallbackDecision.REJECT_OVERLOAD;
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -1525,6 +1620,59 @@ public final class ConsistencyContracts {
         assert !lru.contains("A"); // the same one-pass scan displaced A under exact LRU
     }
 
+    private static void stampedeArithmeticScenarios() {
+        StampedeEstimate burst = naiveExpiryBurst(8_000, 150);
+        assert burst.concurrentLoads() == 1_200;
+        assert burst.aggregateDatabaseMillis() == 180_000;
+        assert naiveExpiryBurst(1, 1).concurrentLoads() == 1; // conservative ceiling
+        assert naiveExpiryBurst(0, 150).concurrentLoads() == 0;
+    }
+
+    private static void localSingleFlightScenarios() {
+        LocalSingleFlight<String, String> flights = new LocalSingleFlight<>();
+        Flight<String> leader = flights.begin("article:7");
+        Flight<String> waiterA = flights.begin("article:7");
+        Flight<String> waiterB = flights.begin("article:7");
+        assert leader.leader() && !waiterA.leader() && !waiterB.leader();
+        assert leader.future() == waiterA.future() && waiterA.future() == waiterB.future();
+        assert flights.inFlight() == 1;
+
+        flights.succeed("article:7", leader, "value-v6");
+        assert waiterA.future().join().equals("value-v6");
+        assert waiterB.future().join().equals("value-v6");
+        assert flights.inFlight() == 0;
+
+        Flight<String> failed = flights.begin("article:8");
+        flights.fail("article:8", failed, new IllegalStateException("database timeout"));
+        try {
+            failed.future().join();
+            throw new AssertionError("failed load looked successful");
+        } catch (CompletionException expected) {
+            assert expected.getCause().getMessage().equals("database timeout");
+        }
+        assert flights.begin("article:8").leader(); // failure cleanup permits a later retry
+    }
+
+    private static void fillLeaseScenarios() {
+        FillLeaseRegistry leases = new FillLeaseRegistry();
+        assert leases.acquire("loader-A", 0, 5_000);
+        assert !leases.acquire("loader-B", 4_000, 5_000);
+        assert leases.mayPublish("loader-A", 4_999);
+
+        assert leases.acquire("loader-B", 5_000, 5_000); // A's lease expired
+        assert leases.owner().equals("loader-B");
+        assert !leases.mayPublish("loader-A", 5_001); // paused former owner is fenced locally
+        assert !leases.release("loader-A");             // compare-and-delete protects B
+        assert leases.release("loader-B");
+    }
+
+    private static void boundedFallbackScenarios() {
+        assert afterBoundedWait(true, true, true) == FallbackDecision.VALUE_APPEARED;
+        assert afterBoundedWait(false, true, true) == FallbackDecision.SERVE_BOUNDED_STALE;
+        assert afterBoundedWait(false, false, true) == FallbackDecision.LOAD_WITH_DATABASE_PERMIT;
+        assert afterBoundedWait(false, false, false) == FallbackDecision.REJECT_OVERLOAD;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -1561,7 +1709,11 @@ public final class ConsistencyContracts {
         exactLfuScenarios();
         fifoScenarios();
         fullTwoQueueScenarios();
-        System.out.println("PASS 32 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q");
+        stampedeArithmeticScenarios();
+        localSingleFlightScenarios();
+        fillLeaseScenarios();
+        boundedFallbackScenarios();
+        System.out.println("PASS 36 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback");
     }
 }
 
