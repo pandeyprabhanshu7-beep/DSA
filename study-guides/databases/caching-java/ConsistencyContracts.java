@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-16. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-17. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -1911,6 +1911,134 @@ public final class ConsistencyContracts {
                 path, path == AcquisitionPath.GROW_PHYSICAL, events);
     }
 
+    enum PgIoOperation { CONNECT, READ, CANCEL }
+    enum AddressOutcome { CONNECTED, TIMEOUT, REFUSED }
+    enum ConnectTerminal { CONNECTED, DNS_EMPTY, ADDRESSES_EXHAUSTED }
+
+    record PgTimeouts(int connectSeconds, int socketReadSeconds, int cancelSeconds) {
+        PgTimeouts {
+            if (connectSeconds < 0 || socketReadSeconds < 0 || cancelSeconds < 0) {
+                throw new IllegalArgumentException("timeouts must be non-negative");
+            }
+        }
+
+        int forOperation(PgIoOperation operation) {
+            return switch (Objects.requireNonNull(operation, "operation")) {
+                case CONNECT -> connectSeconds;
+                case READ -> socketReadSeconds;
+                case CANCEL -> cancelSeconds;
+            };
+        }
+    }
+
+    record AddressAttemptTrace(
+            ConnectTerminal terminal,
+            String selectedAddress,
+            int attemptedAddresses,
+            List<String> events) {}
+
+    static AddressAttemptTrace attemptAddresses(
+            List<String> addresses, List<AddressOutcome> outcomes) {
+        Objects.requireNonNull(addresses, "addresses");
+        Objects.requireNonNull(outcomes, "outcomes");
+        if (addresses.size() != outcomes.size()) {
+            throw new IllegalArgumentException("one outcome is required per address");
+        }
+        if (addresses.isEmpty()) {
+            return new AddressAttemptTrace(
+                    ConnectTerminal.DNS_EMPTY, null, 0, List.of("DNS returned no address"));
+        }
+        List<String> events = new ArrayList<>();
+        for (int i = 0; i < addresses.size(); i++) {
+            String address = Objects.requireNonNull(addresses.get(i), "address");
+            AddressOutcome outcome = Objects.requireNonNull(outcomes.get(i), "outcome");
+            events.add(address + ":" + outcome);
+            if (outcome == AddressOutcome.CONNECTED) {
+                return new AddressAttemptTrace(
+                        ConnectTerminal.CONNECTED, address, i + 1, List.copyOf(events));
+            }
+        }
+        return new AddressAttemptTrace(
+                ConnectTerminal.ADDRESSES_EXHAUSTED, null, addresses.size(), List.copyOf(events));
+    }
+
+    enum PgSslMode { REQUIRE, VERIFY_CA, VERIFY_FULL }
+    enum TlsAdmission { REJECT, ENCRYPTED_UNVERIFIED, TRUSTED_CA, VERIFIED_ENDPOINT }
+
+    record TlsEvidence(
+            boolean tlsEstablished,
+            boolean chainTrusted,
+            boolean hostnameMatched,
+            boolean resumed,
+            boolean clientCertificatePresented) {}
+
+    static TlsAdmission tlsAdmission(PgSslMode mode, TlsEvidence evidence) {
+        Objects.requireNonNull(mode, "mode");
+        Objects.requireNonNull(evidence, "evidence");
+        if (!evidence.tlsEstablished()) return TlsAdmission.REJECT;
+        return switch (mode) {
+            case REQUIRE -> TlsAdmission.ENCRYPTED_UNVERIFIED;
+            case VERIFY_CA -> evidence.chainTrusted()
+                    ? TlsAdmission.TRUSTED_CA : TlsAdmission.REJECT;
+            case VERIFY_FULL -> evidence.chainTrusted() && evidence.hostnameMatched()
+                    ? TlsAdmission.VERIFIED_ENDPOINT : TlsAdmission.REJECT;
+        };
+    }
+
+    enum ChannelBindingPolicy { DISABLE, PREFER, REQUIRE }
+    enum ScramMechanism { SCRAM_SHA_256, SCRAM_SHA_256_PLUS, REJECT }
+
+    static ScramMechanism selectScramMechanism(
+            Set<String> advertised,
+            ChannelBindingPolicy policy,
+            boolean verifiedTlsChannel) {
+        Objects.requireNonNull(advertised, "advertised");
+        Objects.requireNonNull(policy, "policy");
+        boolean plain = advertised.contains("SCRAM-SHA-256");
+        boolean plus = advertised.contains("SCRAM-SHA-256-PLUS") && verifiedTlsChannel;
+        return switch (policy) {
+            case REQUIRE -> plus ? ScramMechanism.SCRAM_SHA_256_PLUS : ScramMechanism.REJECT;
+            case PREFER -> plus
+                    ? ScramMechanism.SCRAM_SHA_256_PLUS
+                    : plain ? ScramMechanism.SCRAM_SHA_256 : ScramMechanism.REJECT;
+            case DISABLE -> plain ? ScramMechanism.SCRAM_SHA_256 : ScramMechanism.REJECT;
+        };
+    }
+
+    record ScramCompletion(
+            boolean clientProofSent,
+            boolean serverSignatureVerified,
+            boolean authenticationOk,
+            boolean authenticated) {}
+
+    static ScramCompletion completeScram(
+            boolean clientProofSent,
+            boolean serverSignatureVerified,
+            boolean authenticationOk) {
+        if ((serverSignatureVerified || authenticationOk) && !clientProofSent) {
+            throw new IllegalArgumentException("completion cannot precede the client proof");
+        }
+        boolean authenticated = clientProofSent && serverSignatureVerified && authenticationOk;
+        return new ScramCompletion(
+                clientProofSent, serverSignatureVerified, authenticationOk, authenticated);
+    }
+
+    enum PoolingMode { SESSION, TRANSACTION }
+    enum SessionNeed { STABLE_DEFAULT, PER_TRANSACTION, TEMPORARY_OBJECT, CUSTOM_SESSION_STATE }
+    enum BaselinePlacement { ROLE_OR_DATABASE_DEFAULT, PHYSICAL_INIT_SQL, TRANSACTION_LOCAL, REJECT }
+
+    static BaselinePlacement baselinePlacement(
+            PoolingMode mode, SessionNeed need, boolean canUseRoleOrDatabaseDefault) {
+        Objects.requireNonNull(mode, "mode");
+        Objects.requireNonNull(need, "need");
+        if (need == SessionNeed.STABLE_DEFAULT && canUseRoleOrDatabaseDefault) {
+            return BaselinePlacement.ROLE_OR_DATABASE_DEFAULT;
+        }
+        if (need == SessionNeed.PER_TRANSACTION) return BaselinePlacement.TRANSACTION_LOCAL;
+        if (mode == PoolingMode.TRANSACTION) return BaselinePlacement.REJECT;
+        return BaselinePlacement.PHYSICAL_INIT_SQL;
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -2838,6 +2966,74 @@ public final class ConsistencyContracts {
         assert !full.physicalHandshake();
     }
 
+    private static void postgresSocketAttemptScenarios() {
+        PgTimeouts timeouts = new PgTimeouts(3, 30, 5);
+        assert timeouts.forOperation(PgIoOperation.CONNECT) == 3;
+        assert timeouts.forOperation(PgIoOperation.READ) == 30;
+        assert timeouts.forOperation(PgIoOperation.CANCEL) == 5;
+
+        AddressAttemptTrace fallback = attemptAddresses(
+                List.of("2001:db8::10", "192.0.2.10"),
+                List.of(AddressOutcome.TIMEOUT, AddressOutcome.CONNECTED));
+        assert fallback.terminal() == ConnectTerminal.CONNECTED;
+        assert fallback.selectedAddress().equals("192.0.2.10");
+        assert fallback.attemptedAddresses() == 2;
+
+        assert attemptAddresses(List.of(), List.of()).terminal() == ConnectTerminal.DNS_EMPTY;
+        assert attemptAddresses(
+                List.of("192.0.2.20"), List.of(AddressOutcome.REFUSED)).terminal()
+                == ConnectTerminal.ADDRESSES_EXHAUSTED;
+    }
+
+    private static void tlsPolicyScenarios() {
+        TlsEvidence encryptedOnly = new TlsEvidence(true, false, false, false, false);
+        assert tlsAdmission(PgSslMode.REQUIRE, encryptedOnly)
+                == TlsAdmission.ENCRYPTED_UNVERIFIED;
+        assert tlsAdmission(PgSslMode.VERIFY_CA, encryptedOnly) == TlsAdmission.REJECT;
+
+        TlsEvidence trustedWrongName = new TlsEvidence(true, true, false, false, false);
+        assert tlsAdmission(PgSslMode.VERIFY_CA, trustedWrongName) == TlsAdmission.TRUSTED_CA;
+        assert tlsAdmission(PgSslMode.VERIFY_FULL, trustedWrongName) == TlsAdmission.REJECT;
+
+        TlsEvidence resumedMutual = new TlsEvidence(true, true, true, true, true);
+        assert tlsAdmission(PgSslMode.VERIFY_FULL, resumedMutual)
+                == TlsAdmission.VERIFIED_ENDPOINT;
+        assert resumedMutual.resumed() && resumedMutual.clientCertificatePresented();
+    }
+
+    private static void scramNegotiationScenarios() {
+        Set<String> both = Set.of("SCRAM-SHA-256", "SCRAM-SHA-256-PLUS");
+        assert selectScramMechanism(both, ChannelBindingPolicy.REQUIRE, true)
+                == ScramMechanism.SCRAM_SHA_256_PLUS;
+        assert selectScramMechanism(both, ChannelBindingPolicy.PREFER, false)
+                == ScramMechanism.SCRAM_SHA_256;
+        assert selectScramMechanism(
+                Set.of("SCRAM-SHA-256"), ChannelBindingPolicy.REQUIRE, true)
+                == ScramMechanism.REJECT;
+
+        ScramCompletion complete = completeScram(true, true, true);
+        assert complete.authenticated();
+        assert !completeScram(true, false, true).authenticated();
+    }
+
+    private static void sessionBaselineScenarios() {
+        assert baselinePlacement(
+                PoolingMode.SESSION, SessionNeed.STABLE_DEFAULT, true)
+                == BaselinePlacement.ROLE_OR_DATABASE_DEFAULT;
+        assert baselinePlacement(
+                PoolingMode.SESSION, SessionNeed.CUSTOM_SESSION_STATE, false)
+                == BaselinePlacement.PHYSICAL_INIT_SQL;
+        assert baselinePlacement(
+                PoolingMode.TRANSACTION, SessionNeed.PER_TRANSACTION, false)
+                == BaselinePlacement.TRANSACTION_LOCAL;
+        assert baselinePlacement(
+                PoolingMode.TRANSACTION, SessionNeed.TEMPORARY_OBJECT, false)
+                == BaselinePlacement.REJECT;
+        assert baselinePlacement(
+                PoolingMode.TRANSACTION, SessionNeed.STABLE_DEFAULT, true)
+                == BaselinePlacement.ROLE_OR_DATABASE_DEFAULT;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -2906,7 +3102,11 @@ public final class ConsistencyContracts {
         postgresFramingScenarios();
         postgresIdentityScenarios();
         poolTraceCorrelationScenarios();
-        System.out.println("PASS 64 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation");
+        postgresSocketAttemptScenarios();
+        tlsPolicyScenarios();
+        scramNegotiationScenarios();
+        sessionBaselineScenarios();
+        System.out.println("PASS 68 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement");
     }
 }
 

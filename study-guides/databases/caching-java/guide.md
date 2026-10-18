@@ -3401,6 +3401,247 @@ Accessed 2026-10-18.
 96. [pgJDBC SSL configuration](https://jdbc.postgresql.org/documentation/ssl/): `ssl=true`, `verify-full`, trust/hostname validation and direct versus PostgreSQL encryption negotiation.
 
 
+# Section 17 — Stage-by-stage PostgreSQL connection mechanics
+
+Section 16 established the chronology. This section turns each stage into a decision surface: which timeout owns a wait, which identity evidence a TLS mode requires, when SCRAM is actually complete, and where session configuration remains valid under pooling. The examples model policy and observable state; production drivers, JSSE, PostgreSQL and poolers must continue to implement the cryptography and wire protocol.
+
+```mermaid
+flowchart TD
+    U["JDBC URL and properties"] --> D["driver discovery"]
+    D --> N["DNS and address attempts"]
+    N --> T["TCP byte stream"]
+    T --> L["TLS policy and identity"]
+    L --> P["StartupMessage"]
+    P --> S["SCRAM exchange"]
+    S --> R["ReadyForQuery"]
+    R --> B["pool baseline and validation"]
+    B --> C["logical Connection"]
+```
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. distinguish driver discovery, DNS resolution, each socket-connect attempt, socket reads and cancellation as separately timed work;
+2. explain why `connectTimeout`, `socketTimeout` and `cancelSignalTimeout` cannot substitute for one another;
+3. classify `require`, `verify-ca` and `verify-full` by the evidence each policy accepts;
+4. distinguish a full TLS handshake, resumption and mutual TLS without treating a certificate as a transported symmetric key;
+5. select `SCRAM-SHA-256-PLUS` only when the channel-binding policy and TLS evidence permit it;
+6. require both server-final signature verification and `AuthenticationOk` before declaring SCRAM complete;
+7. separate startup parameters, role/database defaults, physical-connection initialization and transaction-local state; and
+8. reject session-scoped features that cannot survive transaction pooling safely.
+
+## Example 65 — assign address attempts and timeouts to the right operation
+
+Modern name resolution can yield several addresses. A driver may attempt more than one before it either connects or reports exhaustion. Preserve the address and outcome of every attempt; otherwise a successful IPv4 fallback can hide a consistently timing-out IPv6 path.
+
+| Operation | pgJDBC control | What expiry means | What it does not prove |
+|---|---|---|---|
+| open one socket | `connectTimeout` | that socket connect exceeded its budget | authentication failure or query timeout |
+| read from established socket | `socketTimeout` | no readable server data arrived in budget; driver closes connection | server rejected credentials |
+| send out-of-band cancel | `cancelSignalTimeout` | cancel connection/read exceeded its own budget | original statement was rolled back |
+| wait for a pool lease | Hikari `connectionTimeout` | no logical connection became available | a TCP attempt necessarily occurred |
+
+```java
+PgTimeouts timeouts = new PgTimeouts(3, 30, 5);
+assert timeouts.forOperation(PgIoOperation.CONNECT) == 3;
+assert timeouts.forOperation(PgIoOperation.READ) == 30;
+assert timeouts.forOperation(PgIoOperation.CANCEL) == 5;
+
+AddressAttemptTrace trace = attemptAddresses(
+        List.of("2001:db8::10", "192.0.2.10"),
+        List.of(AddressOutcome.TIMEOUT, AddressOutcome.CONNECTED));
+assert trace.selectedAddress().equals("192.0.2.10");
+assert trace.attemptedAddresses() == 2;
+```
+
+Trace:
+
+| Step | Evidence | Classification |
+|---:|---|---|
+| 1 | URL accepted by pgJDBC | driver selected; network untouched |
+| 2 | DNS returns two addresses | resolution succeeded; database untouched |
+| 3 | `2001:db8::10` reaches its connect timeout | first address attempt failed |
+| 4 | `192.0.2.10` connects | TCP exists; TLS/authentication still unproved |
+| 5 | later read expires | established connection is closed; do not relabel it a connect timeout |
+
+```mermaid
+stateDiagram-v2
+    [*] --> Resolve
+    Resolve --> DnsFailed: no address
+    Resolve --> TryAddress: address list
+    TryAddress --> TryAddress: timeout or refusal and more remain
+    TryAddress --> Connected: TCP established
+    TryAddress --> Exhausted: no address remains
+    Connected --> ReadWait: wait for protocol bytes
+    ReadWait --> Closed: socket read timeout
+```
+
+The executable address walker is `O(a)` time and `O(a)` trace space for `a` candidate addresses. It deliberately does not promise parallel versus serial attempts; that is driver/runtime behavior. Record DNS duration, each target address family, connect duration, selected endpoint and terminal exception family, but keep credentials and full connection strings out of logs. `ApplicationName` is useful bounded server-side attribution, not a secret carrier.
+
+## Example 66 — make TLS admission evidence explicit
+
+TLS encryption and endpoint authentication are separate properties. pgJDBC documents `require` as encrypted but accepting server certificates, `verify-ca` as chain validation, and `verify-full` as chain plus hostname verification. For an Internet-style endpoint, `verify-full` is the normal secure default.
+
+| Mode | TLS required | Trusted chain required | Hostname required | Teaching result |
+|---|---:|---:|---:|---|
+| `require` | yes | no | no | encrypted, identity unverified |
+| `verify-ca` | yes | yes | no | CA-trusted peer; endpoint-name assurance depends on CA policy |
+| `verify-full` | yes | yes | yes | verified endpoint |
+
+```java
+TlsEvidence encryptedOnly = new TlsEvidence(true, false, false, false, false);
+assert tlsAdmission(PgSslMode.REQUIRE, encryptedOnly)
+        == TlsAdmission.ENCRYPTED_UNVERIFIED;
+assert tlsAdmission(PgSslMode.VERIFY_CA, encryptedOnly) == TlsAdmission.REJECT;
+
+TlsEvidence trustedWrongName = new TlsEvidence(true, true, false, false, false);
+assert tlsAdmission(PgSslMode.VERIFY_FULL, trustedWrongName) == TlsAdmission.REJECT;
+
+TlsEvidence resumedMutual = new TlsEvidence(true, true, true, true, true);
+assert tlsAdmission(PgSslMode.VERIFY_FULL, resumedMutual)
+        == TlsAdmission.VERIFIED_ENDPOINT;
+```
+
+```mermaid
+flowchart TD
+    A{"TLS established?"} -->|no| X["reject"]
+    A -->|yes| M{"sslmode"}
+    M -->|require| E["encrypted only"]
+    M -->|verify-ca| C{"trusted chain?"}
+    M -->|verify-full| H{"trusted chain and hostname?"}
+    C -->|yes| V["CA-trusted"]
+    C -->|no| X
+    H -->|yes| F["verified endpoint"]
+    H -->|no| X
+```
+
+A full TLS 1.3 handshake derives traffic secrets from key agreement and the transcript; the server certificate authenticates a signing key and `CertificateVerify` proves possession. Resumption can authenticate with a previously established PSK and omit the normal certificate flight. Mutual TLS adds a client-certificate path; it does not replace PostgreSQL authorization or automatically prove the database role unless server policy maps it that way.
+
+For a TLS-terminating proxy, run this admission test independently on the application-to-proxy and proxy-to-database legs. A verified first leg says nothing about the second. Store `resumed`, negotiated version/cipher, trust result, matched server name and client-certificate presence as bounded trace attributes; never log private keys or certificate passwords.
+
+## Example 67 — negotiate SCRAM policy, then verify completion
+
+The server advertises SASL mechanisms in preference order. The client chooses one it supports. `SCRAM-SHA-256-PLUS` is the channel-binding variant; PostgreSQL uses `tls-server-end-point`. A policy requiring channel binding must fail closed when `-PLUS` is unavailable or the TLS channel cannot supply acceptable binding evidence.
+
+```java
+Set<String> both = Set.of("SCRAM-SHA-256", "SCRAM-SHA-256-PLUS");
+assert selectScramMechanism(both, ChannelBindingPolicy.REQUIRE, true)
+        == ScramMechanism.SCRAM_SHA_256_PLUS;
+assert selectScramMechanism(both, ChannelBindingPolicy.PREFER, false)
+        == ScramMechanism.SCRAM_SHA_256;
+assert selectScramMechanism(
+        Set.of("SCRAM-SHA-256"), ChannelBindingPolicy.REQUIRE, true)
+        == ScramMechanism.REJECT;
+
+ScramCompletion completion = completeScram(true, true, true);
+assert completion.authenticated();
+assert !completeScram(true, false, true).authenticated();
+```
+
+The last assertion matters: receiving `AuthenticationOk` is not permission to ignore a failed or missing server-final verification. The model requires the client proof, a verified server signature and `AuthenticationOk`. PostgreSQL startup still continues until `ReadyForQuery`.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as PostgreSQL
+    S-->>C: AuthenticationSASL and mechanisms
+    C->>C: apply disable, prefer or require policy
+    alt acceptable mechanism exists
+        C->>S: SASLInitialResponse and client-first
+        S-->>C: salt, iterations and combined nonce
+        C->>S: client-final proof
+        S-->>C: server-final signature
+        C->>C: verify server signature
+        S-->>C: AuthenticationOk
+    else policy cannot be met
+        C->>C: reject before authentication
+    end
+```
+
+Do not implement PBKDF/HMAC/proof construction in application code; use the maintained driver. Operational evidence should include the offered and selected mechanism, channel-binding policy, terminal PostgreSQL message and a coarse failure family. Never log the password, salted password, client proof, server signature, nonce transcript or `BackendKeyData` secret.
+
+## Example 68 — place session baselines where their lifetime is valid
+
+There is no universal registration packet that safely carries every session preference. Startup parameters are limited protocol name/value pairs. PostgreSQL can publish initial values through `ParameterStatus`. Hikari `connectionInitSql` runs after each **new physical connection** before it enters the pool; it is not a per-checkout hook. PgBouncer transaction pooling can assign a different server session to the next transaction, so client session state is not stable there.
+
+```java
+assert baselinePlacement(PoolingMode.SESSION, SessionNeed.STABLE_DEFAULT, true)
+        == BaselinePlacement.ROLE_OR_DATABASE_DEFAULT;
+assert baselinePlacement(PoolingMode.SESSION, SessionNeed.CUSTOM_SESSION_STATE, false)
+        == BaselinePlacement.PHYSICAL_INIT_SQL;
+assert baselinePlacement(PoolingMode.TRANSACTION, SessionNeed.PER_TRANSACTION, false)
+        == BaselinePlacement.TRANSACTION_LOCAL;
+assert baselinePlacement(PoolingMode.TRANSACTION, SessionNeed.TEMPORARY_OBJECT, false)
+        == BaselinePlacement.REJECT;
+```
+
+| Requirement | Session pool | Transaction pool |
+|---|---|---|
+| stable timezone or statement policy | prefer role/database default | prefer role/database default |
+| transaction-specific timeout/isolation | transaction-local setting | transaction-local setting |
+| physical initialization known to pool | `connectionInitSql` can apply | insufficient for every backend assignment |
+| temporary table, custom session variable, mutable `search_path` | only with strict ownership/reset | reject or redesign |
+| JDBC-tracked state on logical close | pool can restore known fields | still cannot preserve arbitrary backend session state |
+
+```mermaid
+flowchart TD
+    N{"needed across sessions?"} -->|yes| R["role or database default"]
+    N -->|no| T{"needed for one transaction?"}
+    T -->|yes| L["SET LOCAL or transaction API"]
+    T -->|no| P{"session pooling with reset contract?"}
+    P -->|yes| I["physical init plus deliberate reset"]
+    P -->|no| X["reject or redesign"]
+```
+
+Trace two reuse cases separately:
+
+1. Hikari creates physical session `P-8`, runs initialization and validation, then returns logical lease `L-42`; closing `L-42` restores tracked JDBC state before reuse.
+2. PgBouncer transaction pooling binds client `C-3` to backend `B-9` for one transaction and may use `B-4` next time; an initialization statement once observed by `C-3` is not a durable backend guarantee.
+
+PgBouncer's default reset query applies when releasing session-pooled server connections, but transaction pooling deliberately does not use it by default because clients must avoid session-based features. Resetting only JDBC-tracked fields cannot discover arbitrary SQL state, temporary objects or every custom variable. When state cleanliness cannot be proved, close/evict the physical connection or redesign the requirement.
+
+## Operations, complexity, and review
+
+All four executable decision functions are `O(1)` time and space except the address walker, which is `O(a)` for `a` candidates. The models are deterministic policy checks; they do not open sockets, perform TLS, derive SCRAM secrets or execute SQL.
+
+| Failure symptom | First boundary to inspect | Required discriminator |
+|---|---|---|
+| no address attempted | driver URL and DNS | accepted URL, DNS result/error |
+| repeated SYN without completion | per-address connect | address family, target, connect duration |
+| TLS alert after TCP | TLS policy | chain, hostname, protocol and handshake mode |
+| SASL mechanism rejected | SCRAM policy | offered mechanisms and channel-binding requirement |
+| `AuthenticationOk` then disconnect | backend startup | later `ErrorResponse` versus `ReadyForQuery` |
+| configuration disappears next transaction | pool lifetime | session versus transaction pooling |
+| dirty state appears on reuse | reset/ownership | tracked JDBC state versus arbitrary session SQL |
+
+Review questions:
+
+- Can you identify whether the wait occurred in pool acquisition, DNS, socket connect, socket read, TLS, authentication or pool initialization?
+- Are timeout values recorded with their driver-specific units and zero/disabled semantics?
+- Does every failed address attempt remain visible even if a later address succeeds?
+- Does TLS policy require the chain and hostname evidence the deployment actually needs?
+- Is each TLS-terminating hop validated independently?
+- Does a channel-binding `REQUIRE` policy fail rather than silently downgrade?
+- Does authentication completion require server-final verification as well as `AuthenticationOk`?
+- Are startup completion and pool usability still gated on `ReadyForQuery` and initialization?
+- Is every session setting placed at a scope that survives the configured pool mode?
+- Are unsafe session features rejected under transaction pooling instead of patched with optimistic reset SQL?
+
+### Primary references for Section 17
+
+Accessed 2026-10-18.
+
+97. [pgJDBC connection properties](https://jdbc.postgresql.org/documentation/use/): service-provider driver loading, `connectTimeout`, `socketTimeout`, `cancelSignalTimeout`, `ApplicationName`, V3 protocol and related connection controls.
+98. [pgJDBC SSL configuration](https://jdbc.postgresql.org/documentation/ssl/): `require`, `verify-ca`, `verify-full`, trust/hostname validation, client certificates and direct TLS negotiation.
+99. [PostgreSQL 18 protocol message flow](https://www.postgresql.org/docs/current/protocol-flow.html): startup parameters, authentication exchanges, `ParameterStatus`, `BackendKeyData`, `ReadyForQuery`, SSL and GSS negotiation.
+100. [PostgreSQL 18 protocol message formats](https://www.postgresql.org/docs/current/protocol-message-formats.html): `SSLRequest`, `StartupMessage`, SASL and startup-message layouts.
+101. [PostgreSQL 18 SASL authentication](https://www.postgresql.org/docs/current/sasl-authentication.html): advertised mechanisms, SCRAM exchange order, `SCRAM-SHA-256-PLUS` and `tls-server-end-point` channel binding.
+102. [RFC 8446 — TLS 1.3](https://www.rfc-editor.org/rfc/rfc8446): key schedule, certificate authentication, `CertificateVerify`, `Finished`, resumption and client authentication.
+103. [HikariCP configuration](https://github.com/brettwooldridge/HikariCP): connection initialization, validation and JDBC default controls for new physical connections.
+104. [PgBouncer configuration](https://www.pgbouncer.org/config.html): session reset behavior, transaction-pooling restrictions, server checks and connection/login timeouts.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -3408,8 +3649,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; and lines **775–819**, “Full chronological PostgreSQL trace”
-- Deliberate continuation: Section 17, “Stage-by-stage mechanics,” begins at source line **820** and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; and lines **820–906**, “Stage-by-stage mechanics”
+- Deliberate continuation: Section 18, “MySQL has a different authentication order,” spans source lines **907–941** and remains unprocessed.
 
 Validation commands:
 
