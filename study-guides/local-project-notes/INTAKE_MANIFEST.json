@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "756e5205e90f9dea9802af4cbf26c9a6d4164c7e",
+  "last_successful_commit": "f9053837dd11e4eeceb0528c828d5e087702a31e",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -866,19 +866,19 @@
     "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
     "source_version_id": "1",
     "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-    "section": "Section 13 only: What a physical connection costs, source lines 688-718, bounded by the Section 14 heading",
+    "section": "Section 14 only: HikariCP controls and pool metrics, source lines 719-768, bounded by the Section 15 heading",
     "status": "QUEUED",
-    "estimated_tokens": 6200,
-    "estimate_method": "Heuristic only: reserve ~900 tokens to review the bounded physical-connection-cost source range, ~1200 for primary references, ~2600 for deep consolidation/examples/Java/HTML, and ~1500 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 6400,
+    "estimate_method": "Heuristic only: reserve ~1000 tokens to review the bounded HikariCP-controls source range, ~1200 for primary references, ~2700 for deep consolidation/examples/Java/HTML, and ~1500 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
     "javascript": "Node v24.19.0 executed examples.mjs; all 70 scenario groups passed, including four new final-revision diagnosis and speaking-frame assertions.",
     "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 206630-character embedded payload equality, 77 unique anchors, 151 balanced fences, 54 Mermaid diagrams, inline JavaScript, fragment targets, relative links, JSON syntax, and the live 170-marker Java-placeholder invariant passed. All six content-commit remote blob hashes matched; no commit statuses or check runs were configured. Browser and assistive-technology integration plus Mermaid visual QA were not executed.",
-    "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Sections 1-12 reader now has 50 validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
-    "database": "Database Sections 1-12 use confirmed source version 1 through line 687. Section 12 was bounded by the Section 13 heading and consolidated with primary HikariCP, PgBouncer, Java 17 JDBC and pgJDBC references. Java 17 source launch and independent compilation through jdk.compiler passed 48 total scenario groups; deterministic reader generation passed exact 170806-character payload equality, source hash 4911c22b3f2e7360dcfc86299433893469b8c5c20450058b710b442860990cf6, 342 unique HTML IDs, 113 search entries, fragments, allowed relative links, 79 balanced fences and 50 Mermaid sources; live canonical DSA marker audit remains 170. The content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
-    "last_processed_at": "2026-10-18T01:49:04-04:00"
+    "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Sections 1-13 reader now has 55 validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
+    "database": "Database Sections 1-13 use confirmed source version 1 through line 718. Section 13 was bounded by the Section 14 heading and consolidated with primary PostgreSQL 18, HikariCP, Java 17 Socket, pgJDBC and RFC 9293 references. Java 17 source launch and independent compilation through jdk.compiler passed 52 total scenario groups; deterministic reader generation passed exact 186104-character payload equality, source hash ab2becb27eec5a95f768791b85599fd58fd28ff11ab83a3f5275cb4e2599b985, 386 unique HTML IDs, 121 search entries, fragments, allowed relative links, 88 balanced fences and 55 Mermaid sources; live canonical DSA marker audit remains 170. The content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
+    "last_processed_at": "2026-10-18T04:47:38-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-14T16:16:21-04:00",
@@ -905,18 +905,18 @@
     "estimate_method": "Heuristic for bounded database-source verification, targeted primary-source refresh, deep consolidation/HTML and validation/checkpoint reserves; not actual quota percentage"
   },
   "database_caching_java_intake_checkpoint": {
-    "last_processed_at": "2026-10-18T01:49:04-04:00",
+    "last_processed_at": "2026-10-18T04:47:38-04:00",
     "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
     "source_library_file_id": "libfile_969515775294819195d90fe08e46b7be",
     "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
     "source_version_id": "1",
-    "processed": "Sections 1-12, ACID/BASE, B+ trees, LSM trees, row/column storage, isolation, cache topology, four read/write strategies, eviction internals, cache stampede coordination, cache penetration/Bloom filters, cache-avalanche protection and pool/network-proxy architecture, source lines 62-687; latest bounded section is lines 638-687",
+    "processed": "Sections 1-13, ACID/BASE, B+ trees, LSM trees, row/column storage, isolation, cache topology, four read/write strategies, eviction internals, cache stampede coordination, cache penetration/Bloom filters, cache-avalanche protection, pool/network-proxy architecture and physical connection costs, source lines 62-718; latest bounded section is lines 688-718",
     "status": "IN_PROGRESS",
-    "validation": "Section 12 was bounded by the Section 13 heading and consolidated with primary HikariCP, PgBouncer, Java 17 JDBC and pgJDBC references. Java 17 source launch and independent compilation through jdk.compiler passed 48 total scenario groups; deterministic reader generation and exact 170806-character payload equality passed with source hash 4911c22b3f2e7360dcfc86299433893469b8c5c20450058b710b442860990cf6, 342 unique IDs, 113 search entries, fragments, allowed relative links, 79 balanced fences and 50 Mermaid sources. Live canonical DSA marker audit remains 170; the content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser/assistive-technology/Mermaid visual QA were not executed.",
-    "content_commit": "756e5205e90f9dea9802af4cbf26c9a6d4164c7e",
-    "next_section": "Section 13, What a physical connection costs, source lines 688-718, bounded by the Section 14 heading",
-    "estimated_next_tokens": 6200,
-    "estimate_method": "Heuristic for bounded physical-connection-cost source review, targeted primary-source refresh, deep consolidation/Java/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "validation": "Section 13 was bounded by the Section 14 heading and consolidated with primary PostgreSQL 18, HikariCP, Java 17 Socket, pgJDBC and RFC 9293 references. Java 17 source launch and independent compilation through jdk.compiler passed 52 total scenario groups; deterministic reader generation and exact 186104-character payload equality passed with source hash ab2becb27eec5a95f768791b85599fd58fd28ff11ab83a3f5275cb4e2599b985, 386 unique IDs, 121 search entries, fragments, allowed relative links, 88 balanced fences and 55 Mermaid sources. Live canonical DSA marker audit remains 170; the content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser/assistive-technology/Mermaid visual QA were not executed.",
+    "content_commit": "f9053837dd11e4eeceb0528c828d5e087702a31e",
+    "next_section": "Section 14, HikariCP controls and pool metrics, source lines 719-768, bounded by the Section 15 heading",
+    "estimated_next_tokens": 6400,
+    "estimate_method": "Heuristic for bounded HikariCP-controls source review, targeted primary-source refresh, deep consolidation/Java/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
 
