@@ -593,7 +593,7 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-18T10:42:37-04:00",
+      "last_processed_at": "2026-10-18T12:09:57-04:00",
       "processed_sections": [
         "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
         "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios",
@@ -610,7 +610,8 @@
         "Section 13: physical connection costs — startup-phase accounting, TCP close-state churn, load-tested concurrency admission and clean return/eviction ownership",
         "Section 14: HikariCP controls and pool metrics — idle-retirement eligibility, joined timeout budgets, workload/global-capacity sizing and correlated telemetry diagnosis",
         "Section 15: JDBC API versus network protocol — driver selection, DataSource acquisition paths, vendor wire-protocol layering and configuration-dependent PostgreSQL startup variants",
-        "Section 16: full chronological PostgreSQL trace — monotonic startup states, byte-stream framing, TLS/SCRAM assurance boundaries and logical-versus-physical trace correlation"
+        "Section 16: full chronological PostgreSQL trace — monotonic startup states, byte-stream framing, TLS/SCRAM assurance boundaries and logical-versus-physical trace correlation",
+        "Section 17: stage-by-stage PostgreSQL mechanics — address/timeout ownership, TLS admission evidence, SCRAM channel-binding/completion policy and pooling-safe session baselines"
       ],
       "source_revision": {
         "baseline_commit": "e8961ba3f7208a18faa548925ae1b3fa6d21f3c8",
@@ -618,12 +619,12 @@
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-819",
-        "canonical_sha256_after": "356122e91cd86dfd93537eed1b482c0d00838282cd573e5347ba8e91d515706c"
+        "processed_lines": "62-906",
+        "canonical_sha256_after": "9b6b9de5e7405f10dfc561afbdf07e929dcba7ed961e9b0838f61c63b3a993af"
       },
-      "content_commit": "f7ee3bd9781e78c407462802b939237d89a68313",
-      "validation": "Exact source lines 775-819 were bounded by the Section 17 heading and consolidated against current PostgreSQL 18 protocol flow/message-format/SASL documentation, TLS 1.3, TCP and pgJDBC SSL guidance. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 64 total scenario groups, including four new PostgreSQL chronology, byte-stream framing, identity-assurance and pool-trace-correlation groups. Deterministic reader generation passed exact 232648-character Markdown payload equality, source SHA-256 metadata, 536 unique HTML IDs, 145 search entries, fragments, allowed relative links, 115 balanced fences and 70 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. The content tree was published atomically with an expected-head guard.",
-      "next_action": "Process exactly Section 17, Stage-by-stage mechanics, source lines 820-906, bounded by the Section 18 heading.",
+      "content_commit": "8acff19c75653a144e63cf60b972105597666b20",
+      "validation": "Exact source lines 820-906 were bounded by the Section 18 heading and consolidated against current pgJDBC connection/SSL guidance, PostgreSQL 18 protocol/SASL documentation, TLS 1.3, HikariCP and PgBouncer primary documentation. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 68 total scenario groups, including four new socket-attempt/timeout, TLS-policy, SCRAM-negotiation and session-baseline groups. Deterministic reader generation passed exact 248515-character Markdown payload equality, source SHA-256 metadata, 589 unique HTML IDs, 153 search entries, fragments, allowed relative links, 124 balanced fences and 75 Mermaid sources. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. The content tree was published atomically with an expected-head guard.",
+      "next_action": "Process exactly Section 18, MySQL has a different authentication order, source lines 907-941, bounded by the Section 19 heading.",
       "priority": 12
     },
     {
@@ -897,7 +898,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 17 only, 'Stage-by-stage mechanics,' source lines 820-906, bounded by the Section 18 heading.",
+    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 18 only, 'MySQL has a different authentication order,' source lines 907-941, bounded by the Section 19 heading.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -972,15 +973,16 @@
       "Database/caching Section 13: physical startup accounting, close-state churn, concurrency admission and clean return/eviction ownership",
       "Database/caching Section 14: Hikari controls versus metrics, idle-retirement eligibility, joined timeout budgets, global sizing and correlated telemetry diagnosis",
       "Database/caching Section 15: JDBC API/driver/pool/wire/transport boundaries and configuration-dependent PostgreSQL startup variants",
-      "Database/caching Section 16: PostgreSQL startup chronology, stream framing, assurance boundaries and pool-trace correlation"
+      "Database/caching Section 16: PostgreSQL startup chronology, stream framing, assurance boundaries and pool-trace correlation",
+      "Database/caching Section 17: PostgreSQL address/timeout ownership, TLS admission evidence, SCRAM channel-binding/completion policy and pooling-safe session baselines"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 775-819 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 16, Full chronological PostgreSQL trace",
-    "validation": "Section 16 was bounded by the Section 17 heading and consolidated with current PostgreSQL 18, TLS 1.3, TCP and pgJDBC primary documentation. Java 17 source launch and compilation through jdk.compiler passed 64 total scenario groups; deterministic reader generation passed exact 232648-character payload equality, 536 unique IDs, 145 search entries, fragments, allowed relative links, 115 balanced fences and 70 Mermaid sources; live canonical DSA marker audit remains 170. The content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
-    "estimated_next_tokens": 8200,
-    "estimate_method": "Heuristic only for bounded PostgreSQL stage-by-stage mechanics source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "f7ee3bd9781e78c407462802b939237d89a68313",
-    "last_processed_at": "2026-10-18T10:42:37-04:00",
-    "next_batch_decision": "Section 16 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 17; resume at source lines 820-906, bounded by the Section 18 heading."
+    "processed_section": "database_internals_caching_java_master_guide.md lines 820-906 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 17, Stage-by-stage mechanics",
+    "validation": "Section 17 was bounded by the Section 18 heading and consolidated with current pgJDBC, PostgreSQL 18, TLS 1.3, HikariCP and PgBouncer primary documentation. Java 17 source launch and compilation through jdk.compiler passed 68 total scenario groups; deterministic reader generation passed exact 248515-character payload equality, 589 unique IDs, 153 search entries, fragments, allowed relative links, 124 balanced fences and 75 Mermaid sources; live canonical DSA marker audit remains 170. The content tree was published atomically with an expected-head guard. The standalone javac command was unavailable; browser, assistive-technology and Mermaid visual QA were not executed.",
+    "estimated_next_tokens": 6200,
+    "estimate_method": "Heuristic only for bounded MySQL authentication-order source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "8acff19c75653a144e63cf60b972105597666b20",
+    "last_processed_at": "2026-10-18T12:09:57-04:00",
+    "next_batch_decision": "Section 17 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 18; resume at source lines 907-941, bounded by the Section 19 heading."
   }
 }
 
