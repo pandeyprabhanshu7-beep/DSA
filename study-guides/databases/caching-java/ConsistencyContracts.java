@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-19. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-20. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -2252,6 +2252,136 @@ public final class ConsistencyContracts {
         return new FetchPlan(mode, peakPayload, cycles, List.copyOf(cleanup));
     }
 
+    record RevisionIdentity(String tenantId, String articleId, long revision) {
+        RevisionIdentity {
+            if (tenantId == null || tenantId.isBlank()
+                    || articleId == null || articleId.isBlank()
+                    || tenantId.contains("{") || tenantId.contains("}") || tenantId.contains(":")
+                    || articleId.contains("{") || articleId.contains("}") || articleId.contains(":")) {
+                throw new IllegalArgumentException("key components must be nonblank and delimiter-safe");
+            }
+            if (revision <= 0) throw new IllegalArgumentException("revision must be positive");
+        }
+    }
+
+    record RevisionKeys(String body, String absent, String lease) {}
+
+    static RevisionKeys revisionKeys(RevisionIdentity id) {
+        Objects.requireNonNull(id, "id");
+        String slot = "{" + id.tenantId() + "|" + id.articleId() + "|" + id.revision() + "}";
+        String prefix = "cms:revision:" + slot;
+        return new RevisionKeys(prefix + ":body", prefix + ":absent", prefix + ":lease");
+    }
+
+    enum RevisionReadOutcome {
+        DENIED,
+        CACHE_BODY,
+        CACHED_ABSENT,
+        DATABASE_BODY,
+        DATABASE_ABSENT,
+        RETRYABLE_UNAVAILABLE
+    }
+
+    record RevisionReadDecision(RevisionReadOutcome outcome, List<String> events) {}
+
+    static RevisionReadDecision revisionReadDecision(
+            boolean authorized,
+            boolean cachedBody,
+            boolean cachedAbsent,
+            boolean strictPostPublishVisibility,
+            boolean redisAvailable,
+            boolean databasePermitAvailable,
+            boolean databaseFound) {
+        List<String> events = new ArrayList<>();
+        events.add("authorize and verify publication status");
+        if (!authorized) {
+            events.add("deny before cache access");
+            return new RevisionReadDecision(RevisionReadOutcome.DENIED, List.copyOf(events));
+        }
+        if (redisAvailable && cachedBody) {
+            events.add("serve immutable revision body from Redis");
+            return new RevisionReadDecision(RevisionReadOutcome.CACHE_BODY, List.copyOf(events));
+        }
+        if (redisAvailable && cachedAbsent && !strictPostPublishVisibility) {
+            events.add("serve bounded negative entry");
+            return new RevisionReadDecision(RevisionReadOutcome.CACHED_ABSENT, List.copyOf(events));
+        }
+        if (cachedAbsent && strictPostPublishVisibility) {
+            events.add("bypass negative entry for strict publication visibility");
+        } else if (!redisAvailable) {
+            events.add("Redis unavailable");
+        } else {
+            events.add("cache miss");
+        }
+        if (!databasePermitAvailable) {
+            events.add("reject because database bulkhead is full");
+            return new RevisionReadDecision(
+                    RevisionReadOutcome.RETRYABLE_UNAVAILABLE, List.copyOf(events));
+        }
+        events.add("query exact revision on primary");
+        if (databaseFound) {
+            if (redisAvailable) events.add("publish immutable body with bounded TTL");
+            return new RevisionReadDecision(RevisionReadOutcome.DATABASE_BODY, List.copyOf(events));
+        }
+        if (redisAvailable) events.add("publish short negative entry");
+        return new RevisionReadDecision(RevisionReadOutcome.DATABASE_ABSENT, List.copyOf(events));
+    }
+
+    record PublicationPlan(List<String> steps, boolean immediatelyVisible) {}
+
+    static PublicationPlan publicationPlan(
+            boolean priorNegativeMayExist, boolean strictImmediateVisibility) {
+        List<String> steps = new ArrayList<>(List.of(
+                "authorize writer",
+                "insert new immutable revision",
+                "commit database transaction"));
+        if (priorNegativeMayExist) steps.add("delete exact revision negative key");
+        if (strictImmediateVisibility) {
+            steps.add("resolve published-revision pointer on primary");
+            steps.add("serve exact revision while bypassing negative cache");
+        } else {
+            steps.add("allow bounded negative TTL to expire");
+        }
+        return new PublicationPlan(List.copyOf(steps), strictImmediateVisibility);
+    }
+
+    record ProductionBudget(
+            long steadyFallbackMillis,
+            long coldFallbackMillis,
+            boolean validationBelowCheckout,
+            boolean socketOutlivesStatement,
+            boolean callerCoversSteadyFallback,
+            boolean callerCoversColdFallback) {}
+
+    static ProductionBudget productionBudget(
+            long poolCheckoutMillis,
+            long validationMillis,
+            long redisConnectMillis,
+            long redisReadMillis,
+            long pgConnectMillis,
+            long pgSocketMillis,
+            long statementMillis,
+            long responseReserveMillis,
+            long callerMillis) {
+        if (List.of(poolCheckoutMillis, validationMillis, redisConnectMillis, redisReadMillis,
+                pgConnectMillis, pgSocketMillis, statementMillis, responseReserveMillis,
+                callerMillis).stream().anyMatch(value -> value <= 0)) {
+            throw new IllegalArgumentException("all timeout budgets must be positive");
+        }
+        long cacheFailure = Math.max(redisConnectMillis, redisReadMillis);
+        long steady = Math.addExact(cacheFailure,
+                Math.addExact(poolCheckoutMillis,
+                        Math.addExact(statementMillis, responseReserveMillis)));
+        long cold = Math.addExact(steady, pgConnectMillis);
+        return new ProductionBudget(
+                steady,
+                cold,
+                validationMillis < poolCheckoutMillis,
+                pgSocketMillis > statementMillis,
+                callerMillis >= steady,
+                callerMillis >= cold);
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -3379,6 +3509,67 @@ public final class ConsistencyContracts {
                 == RetrievalMode.BUFFER_ALL_CURSOR_INELIGIBLE;
     }
 
+    private static void revisionKeyScenarios() {
+        RevisionKeys keys = revisionKeys(new RevisionIdentity("tenant-a", "article-42", 7));
+        assert keys.body().equals("cms:revision:{tenant-a|article-42|7}:body");
+        assert keys.absent().contains("{tenant-a|article-42|7}");
+        assert keys.lease().contains("{tenant-a|article-42|7}");
+        assert !revisionKeys(new RevisionIdentity("tenant-b", "article-42", 7))
+                .body().equals(keys.body());
+        try {
+            new RevisionIdentity("tenant:{escape}", "article-42", 7);
+            throw new AssertionError("unsafe key component accepted");
+        } catch (IllegalArgumentException expected) {}
+    }
+
+    private static void revisionReadContractScenarios() {
+        RevisionReadDecision denied = revisionReadDecision(
+                false, true, false, false, true, true, true);
+        assert denied.outcome() == RevisionReadOutcome.DENIED;
+        assert denied.events().equals(List.of(
+                "authorize and verify publication status", "deny before cache access"));
+
+        RevisionReadDecision strict = revisionReadDecision(
+                true, false, true, true, true, true, true);
+        assert strict.outcome() == RevisionReadOutcome.DATABASE_BODY;
+        assert strict.events().contains("bypass negative entry for strict publication visibility");
+
+        RevisionReadDecision overloaded = revisionReadDecision(
+                true, false, false, false, false, false, true);
+        assert overloaded.outcome() == RevisionReadOutcome.RETRYABLE_UNAVAILABLE;
+        assert !overloaded.events().contains("query exact revision on primary");
+    }
+
+    private static void publicationVisibilityScenarios() {
+        PublicationPlan strict = publicationPlan(true, true);
+        assert strict.immediatelyVisible();
+        assert strict.steps().indexOf("commit database transaction")
+                < strict.steps().indexOf("delete exact revision negative key");
+        assert strict.steps().contains("serve exact revision while bypassing negative cache");
+
+        PublicationPlan bounded = publicationPlan(true, false);
+        assert !bounded.immediatelyVisible();
+        assert bounded.steps().get(bounded.steps().size() - 1)
+                .equals("allow bounded negative TTL to expire");
+    }
+
+    private static void productionBudgetScenarios() {
+        ProductionBudget configured = productionBudget(
+                750, 500, 300, 150, 3_000, 3_000, 1_000, 100, 5_500);
+        assert configured.steadyFallbackMillis() == 2_150;
+        assert configured.coldFallbackMillis() == 5_150;
+        assert configured.validationBelowCheckout();
+        assert configured.socketOutlivesStatement();
+        assert configured.callerCoversColdFallback();
+
+        ProductionBudget unsafe = productionBudget(
+                750, 900, 300, 150, 3_000, 900, 1_000, 100, 2_200);
+        assert !unsafe.validationBelowCheckout();
+        assert !unsafe.socketOutlivesStatement();
+        assert unsafe.callerCoversSteadyFallback();
+        assert !unsafe.callerCoversColdFallback();
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -3459,7 +3650,11 @@ public final class ConsistencyContracts {
         extendedQueryCycleScenarios();
         preparedBoundaryScenarios();
         fetchAndLifecycleScenarios();
-        System.out.println("PASS 76 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle");
+        revisionKeyScenarios();
+        revisionReadContractScenarios();
+        publicationVisibilityScenarios();
+        productionBudgetScenarios();
+        System.out.println("PASS 80 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget");
     }
 }
 

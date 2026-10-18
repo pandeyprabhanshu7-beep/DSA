@@ -4115,6 +4115,260 @@ Accessed 2026-10-18.
 114. [Java 17 `ResultSet`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/ResultSet.html): cursor movement, prompt close behavior, statement-owned automatic closure and holdability.
 
 
+# Section 20 — Explicit production contract
+
+This section turns earlier cache, pool and protocol mechanics into one deployable boundary for **immutable CMS article revisions**. It is not a claim that a particular deployment is production-ready. That claim requires integration, failure and load tests against the exact Spring Boot, driver, Redis, PostgreSQL, proxy and infrastructure versions selected for release.
+
+```mermaid
+flowchart TD
+    R["request for tenant/article/revision"] --> A{"authorized and published?"}
+    A -->|no| D["deny before cache access"]
+    A -->|yes| C{"immutable body cached?"}
+    C -->|yes| H["serve exact revision"]
+    C -->|no or Redis failure| B{"DB bulkhead permit?"}
+    B -->|no| U["retryable unavailable"]
+    B -->|yes| P["primary point read with deadline"]
+    P -->|found| W["publish bounded body TTL"]
+    P -->|absent| N["publish 2–3 s negative TTL"]
+```
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. define `(tenantId, articleId, revision)` as an immutable identity and keep authorization outside cache truth;
+2. produce tenant-scoped Redis body, negative and lease keys that share one intentional cluster hash slot;
+3. explain why a mutable “current revision” pointer must not be hidden inside the immutable-body cache;
+4. bypass or invalidate a prior negative entry when publication requires immediate visibility;
+5. fall back to PostgreSQL only through a finite bulkhead and return a retryable failure when it is full;
+6. enforce immutability with database privileges or controlled write APIs, not merely a primary key;
+7. distinguish pool checkout, connection establishment, command read, SQL statement and caller deadlines; and
+8. prove the contract with authorization, failure, concurrency, timeout and deletion/takedown tests.
+
+The four examples below are executable in `ConsistencyContracts.java` and raise the suite from 76 to 80 scenario groups.
+
+## Example 77 — make immutable identity visible in schema and cache keys
+
+The database key and every Redis key carry the same exact identity. The braces are a Redis Cluster hash tag: the body, negative marker and owner lease for one revision land in one slot, allowing a script to touch those keys together. Delimiter-safe validated components prevent two logical identities from aliasing the same encoded key.
+
+```java
+RevisionKeys keys = revisionKeys(new RevisionIdentity("tenant-a", "article-42", 7));
+assert keys.body().equals("cms:revision:{tenant-a|article-42|7}:body");
+assert keys.absent().equals("cms:revision:{tenant-a|article-42|7}:absent");
+assert keys.lease().equals("cms:revision:{tenant-a|article-42|7}:lease");
+```
+
+```sql
+CREATE TABLE cms_article_revision (
+    tenant_id UUID NOT NULL,
+    article_id UUID NOT NULL,
+    revision BIGINT NOT NULL CHECK (revision > 0),
+    body TEXT NOT NULL CHECK (octet_length(body) <= 524288),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, article_id, revision)
+);
+
+GRANT SELECT ON cms_article_revision TO cms_reader;
+-- Do not grant cms_reader INSERT, UPDATE, DELETE, or schema ownership.
+```
+
+The primary key prevents duplicate identities; it does **not** prevent `UPDATE body`. A separate writer role or controlled write API must permit inserts of new revisions while rejecting mutation of published revisions. Physical deletion, retention and emergency takedown remain separate policies. The authorization/publication authority must deny access even if old bytes are still cached; a regulatory or emergency purge additionally deletes cached bytes.
+
+| Identity decision | Safe result | Unsafe shortcut |
+|---|---|---|
+| tenant differs | different database row and Redis key | global `articleId:revision` key |
+| revision differs | new immutable row and key | overwrite cached body in place |
+| current publication changes | resolve pointer separately | cache mutable pointer as immutable content |
+| deletion/takedown | deny at authority; purge if required | trust cache presence as permission |
+
+Key creation is `O(1)` in the number of components and `O(k)` in encoded key length. More importantly, the invariant is reviewable: one key denotes one tenant, article and immutable revision.
+
+## Example 78 — authorize first, then degrade through a finite bulkhead
+
+Authorization and publication status are checked before Redis, including on a cache hit. Redis is disposable: a miss or failure may use PostgreSQL only while a database permit remains. A full bulkhead returns a retryable service-unavailable outcome instead of converting a cache outage into an unbounded database surge.
+
+```java
+RevisionReadDecision denied = revisionReadDecision(
+        false, true, false, false, true, true, true);
+assert denied.outcome() == RevisionReadOutcome.DENIED;
+assert denied.events().equals(List.of(
+        "authorize and verify publication status", "deny before cache access"));
+
+RevisionReadDecision overloaded = revisionReadDecision(
+        true, false, false, false, false, false, true);
+assert overloaded.outcome() == RevisionReadOutcome.RETRYABLE_UNAVAILABLE;
+assert !overloaded.events().contains("query exact revision on primary");
+```
+
+| Trace | Authorization | Redis | DB permit | Terminal outcome |
+|---:|---|---|---|---|
+| A | denied | body happens to exist | available | deny; Redis is never read |
+| B | allowed | immutable body hit | unused | serve cached body |
+| C | allowed | unavailable | available | query exact revision on primary |
+| D | allowed | unavailable | full | retryable unavailable; no query admitted |
+
+```mermaid
+sequenceDiagram
+    participant Q as Request
+    participant A as Authority
+    participant R as Redis
+    participant G as DB bulkhead
+    participant P as PostgreSQL primary
+    Q->>A: authorize tenant/article/revision
+    A-->>Q: allowed
+    Q->>R: GET immutable body
+    R--xQ: timeout
+    Q->>G: tryAcquire before deadline
+    alt permit acquired
+        G->>P: bounded point read
+        P-->>Q: body or definite absence
+    else bulkhead full
+        G-->>Q: retryable unavailable
+    end
+```
+
+Do not silently retry the whole fallback chain past the caller deadline. Record the terminal reason (`cache_hit`, `negative_hit`, `db_fallback`, `bulkhead_reject`, `auth_denied`) without logging secrets, bodies or Redis credentials.
+
+## Example 79 — negative caching is a bounded visibility trade-off
+
+A definite absence can be cached briefly, but an absent lookup racing a new publication can temporarily hide that revision. For eventual visibility, a 2–3 second negative TTL bounds the delay. For immediate post-publish visibility, commit the new revision, invalidate its exact negative key and bypass negative caching on the strict read path. In-flight negative fillers can still race the invalidation, so bypass—not invalidation alone—is the strict guarantee.
+
+```java
+PublicationPlan strict = publicationPlan(true, true);
+assert strict.steps().equals(List.of(
+        "authorize writer",
+        "insert new immutable revision",
+        "commit database transaction",
+        "delete exact revision negative key",
+        "resolve published-revision pointer on primary",
+        "serve exact revision while bypassing negative cache"));
+
+RevisionReadDecision strictRead = revisionReadDecision(
+        true, false, true, true, true, true, true);
+assert strictRead.outcome() == RevisionReadOutcome.DATABASE_BODY;
+```
+
+| Time | Filler/publisher event | Negative key | Strict reader rule |
+|---:|---|---|---|
+| `t0` | filler queries before insert; row absent | none | n/a |
+| `t1` | publisher inserts revision and commits | none | primary now has row |
+| `t2` | publisher deletes negative key | absent | invalidation succeeds |
+| `t3` | old filler publishes short negative | present again | bypass negative and query primary |
+| `t4` | negative TTL expires | absent | ordinary readers converge |
+
+```mermaid
+sequenceDiagram
+    participant F as Old miss filler
+    participant P as Publisher
+    participant D as PostgreSQL primary
+    participant R as Redis
+    participant S as Strict reader
+    F->>D: SELECT revision
+    D-->>F: absent
+    P->>D: INSERT revision; COMMIT
+    P->>R: DEL exact negative key
+    F->>R: SET negative PX 2500
+    S->>R: ignore negative on strict path
+    S->>D: SELECT exact revision
+    D-->>S: immutable body
+```
+
+For owner leases, acquire with `SET key token NX PX ttl` and release with an owner-checking script. Pass every script key explicitly; in clustered Redis all keys a script touches must be in the same slot. A plain `DEL lease` by a timed-out former owner can delete a successor's lease and is not safe.
+
+## Example 80 — join timeout layers; do not rename them “request timeout”
+
+Spring Boot 3.5 exposes Hikari settings under `spring.datasource.hikari.*`, Redis connection and read timeouts separately, and `JdbcTemplate` query timeout separately. pgJDBC properties use seconds for `connectTimeout` and `socketTimeout`, while Hikari values shown below are milliseconds. The units are part of the contract.
+
+```yaml
+spring:
+  datasource:
+    url: ${DB_JDBC_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      pool-name: cms-primary
+      maximum-pool-size: 16
+      minimum-idle: 4
+      connection-timeout: 750
+      validation-timeout: 500
+      idle-timeout: 120000
+      max-lifetime: 1500000
+      keepalive-time: 120000
+      data-source-properties:
+        sslmode: verify-full
+        sslrootcert: ${DB_CA_FILE}
+        connectTimeout: 3
+        socketTimeout: 3
+        cancelSignalTimeout: 1
+        ApplicationName: cms-reader
+        options: "-c timezone=UTC -c statement_timeout=1000 -c lock_timeout=250"
+  jdbc:
+    template:
+      query-timeout: 1s
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      username: ${REDIS_USERNAME}
+      password: ${REDIS_PASSWORD}
+      connect-timeout: 300ms
+      timeout: 150ms
+      ssl:
+        enabled: true
+```
+
+These are reviewable starting bounds for short point reads, not universal tuning advice. `validation-timeout` must be less than Hikari's `connection-timeout`. TLS enablement does not install a private CA or prove hostname validation by itself; provision trust material and test identity failure. A single Redis host does not provide Sentinel or Cluster discovery. The PostgreSQL `options` parameter must be validated against any session/transaction pooling proxy or replaced by supported role/database defaults.
+
+```java
+ProductionBudget budget = productionBudget(
+        750, 500, 300, 150, 3_000, 3_000, 1_000, 100, 5_500);
+assert budget.steadyFallbackMillis() == 2_150;
+assert budget.coldFallbackMillis() == 5_150;
+assert budget.validationBelowCheckout();
+assert budget.socketOutlivesStatement();
+assert budget.callerCoversColdFallback();
+```
+
+The teaching model pessimistically joins `max(redis connect, redis read) + pool checkout + statement + response reserve`; a cold path additionally includes physical PostgreSQL connect time. It is a feasibility bound, not a latency prediction. Hikari checkout timeout alone is never the overall request deadline.
+
+| Boundary | Example limit | Starts when | Failure action |
+|---|---:|---|---|
+| Redis connect | 300 ms | new Redis connection begins | abandon cache path |
+| Redis read | 150 ms | command waits for response | abandon cache path |
+| Hikari checkout | 750 ms | logical connection requested | reject/fallback terminal |
+| pgJDBC connect | 3 s | new physical DB connection begins | fail connection creation |
+| SQL statement | 1 s | statement executes | cancel statement/transaction |
+| pgJDBC socket read | 3 s | network read stalls | close physical connection |
+| HTTP caller | deployment-specific | request admitted | cancel downstream; never retry past remainder |
+
+## Release tests and observability contract
+
+Before release, test the real deployment rather than only these teaching models:
+
+- authorize-denied requests with a populated body key and prove Redis is untouched;
+- race an absent filler with publication and prove the strict path still reads the committed body;
+- kill or delay Redis and prove DB concurrency never exceeds the bulkhead;
+- exhaust Hikari and verify checkout rejection arrives inside the caller budget;
+- inject statement, socket, TLS-hostname and certificate failures and classify the boundary correctly;
+- restart or fail over Redis/PostgreSQL and verify discovery, stale connection eviction and recovery;
+- exercise owner lease expiry/reacquisition and prove an old owner cannot release the new token;
+- revoke/takedown content and prove authority denies it despite cached bytes; and
+- load test body-size limits, pool size, TTL/jitter and negative TTL using production-like distributions.
+
+Expose counters and histograms for authorization outcome, cache body/negative hit, Redis failure, bulkhead rejection, pool checkout, SQL latency and terminal response. Keep labels bounded: use route/outcome classes, not tenant IDs, article IDs, SQL text, tokens or exception messages containing endpoints and credentials.
+
+### Primary references for Section 20
+
+Accessed 2026-10-18.
+
+115. [Spring Boot 3.5.16 SQL databases](https://docs.spring.io/spring-boot/3.5/reference/data/sql.html): external `spring.datasource.*` configuration, pool-specific prefixes, Hikari selection and JDBC-starter dependency behavior.
+116. [Spring Boot 3.5.16 application properties](https://docs.spring.io/spring-boot/3.5/appendix/application-properties/index.html): Redis connection/read timeout, SSL, client and discovery property names.
+117. [HikariCP configuration](https://github.com/brettwooldridge/HikariCP): checkout, validation, idle, lifetime and keepalive semantics and constraints.
+118. [pgJDBC connection properties](https://jdbc.postgresql.org/documentation/use/): `sslmode`, connection, socket, cancel, application-name and startup-option properties and units.
+119. [Redis `SET`](https://redis.io/docs/latest/commands/set/): conditional `NX` acquisition and `EX`/`PX` expiry options.
+120. [Redis `EVAL`](https://redis.io/docs/latest/commands/eval/): explicit key arguments and clustered-script key restrictions.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -4122,8 +4376,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; and lines **942–974**, “From connection to prepared query”
-- Deliberate continuation: Section 20, “Explicit production contract,” spans source lines **975–1090** and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; and lines **975–1090**, “Explicit production contract”
+- Deliberate continuation: Section 21, “Complete Java cache-aside component,” spans source lines **1091–1340** and remains unprocessed.
 
 Validation commands:
 
