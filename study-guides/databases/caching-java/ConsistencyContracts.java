@@ -3027,6 +3027,124 @@ public final class ConsistencyContracts {
                 false, failurePercent, gates);
     }
 
+    enum SeniorReadPath { CACHE, REPLICA, PRIMARY }
+
+    enum FreshnessVerdict { FRESH_FOR_REQUIRED_VERSION, MAY_BE_STALE }
+
+    static FreshnessVerdict freshnessVerdict(
+            SeniorReadPath path,
+            long requiredVersion,
+            long cacheVersion,
+            long replicaReplayVersion,
+            long primaryVersion) {
+        Objects.requireNonNull(path, "path");
+        if (requiredVersion < 0 || cacheVersion < 0 || replicaReplayVersion < 0
+                || primaryVersion < 0) {
+            throw new IllegalArgumentException("versions");
+        }
+        long visibleVersion = switch (path) {
+            case CACHE -> cacheVersion;
+            case REPLICA -> replicaReplayVersion;
+            case PRIMARY -> primaryVersion;
+        };
+        return visibleVersion >= requiredVersion
+                ? FreshnessVerdict.FRESH_FOR_REQUIRED_VERSION
+                : FreshnessVerdict.MAY_BE_STALE;
+    }
+
+    static boolean lsmHasWriteHeadroom(
+            long logicalBytesPerSecond,
+            double measuredWriteAmplification,
+            long sustainableDiskBytesPerSecond) {
+        if (logicalBytesPerSecond < 0 || measuredWriteAmplification < 1.0
+                || sustainableDiskBytesPerSecond < 0) {
+            throw new IllegalArgumentException("LSM rates");
+        }
+        return logicalBytesPerSecond * measuredWriteAmplification
+                <= sustainableDiskBytesPerSecond;
+    }
+
+    enum RepeatableReadCase {
+        SQL_STANDARD_MINIMUM,
+        POSTGRESQL_SNAPSHOT_READ,
+        INNODB_LOCKING_RANGE_READ
+    }
+
+    static boolean phantomPrevented(RepeatableReadCase readCase) {
+        Objects.requireNonNull(readCase, "readCase");
+        return readCase != RepeatableReadCase.SQL_STANDARD_MINIMUM;
+    }
+
+    enum CacheMissRoute {
+        TRUST_FILTER_NEGATIVE,
+        QUERY_SQL_WITH_PERMIT,
+        REJECT_TO_PROTECT_DATABASE
+    }
+
+    static CacheMissRoute cacheMissRoute(
+            long rowCommitPosition,
+            long bloomAppliedPosition,
+            boolean staleReaderInFlight,
+            int availableDatabasePermits) {
+        if (rowCommitPosition < 0 || bloomAppliedPosition < 0 || availableDatabasePermits < 0) {
+            throw new IllegalArgumentException("cache evidence");
+        }
+        boolean filterCoversCommit = bloomAppliedPosition >= rowCommitPosition;
+        if (filterCoversCommit && !staleReaderInFlight) {
+            return CacheMissRoute.TRUST_FILTER_NEGATIVE;
+        }
+        return availableDatabasePermits > 0
+                ? CacheMissRoute.QUERY_SQL_WITH_PERMIT
+                : CacheMissRoute.REJECT_TO_PROTECT_DATABASE;
+    }
+
+    enum SeniorTimeoutBoundary {
+        POOL_CHECKOUT,
+        STATEMENT_EXECUTION,
+        SOCKET_READ,
+        END_TO_END_DEADLINE
+    }
+
+    static String timeoutOwner(SeniorTimeoutBoundary boundary) {
+        Objects.requireNonNull(boundary, "boundary");
+        return switch (boundary) {
+            case POOL_CHECKOUT -> "Hikari connectionTimeout";
+            case STATEMENT_EXECUTION -> "JDBC query timeout or database statement timeout";
+            case SOCKET_READ -> "driver socket timeout";
+            case END_TO_END_DEADLINE -> "caller deadline and cancellation";
+        };
+    }
+
+    enum ConnectionHealthVerdict { REJECT_NOW, VALID_AT_CHECK_ONLY }
+
+    static ConnectionHealthVerdict connectionHealthVerdict(boolean isValidNow) {
+        return isValidNow
+                ? ConnectionHealthVerdict.VALID_AT_CHECK_ONLY
+                : ConnectionHealthVerdict.REJECT_NOW;
+    }
+
+    enum WireProtocol { POSTGRESQL, MYSQL }
+
+    static List<String> tlsStartupOrder(WireProtocol protocol) {
+        Objects.requireNonNull(protocol, "protocol");
+        return switch (protocol) {
+            case POSTGRESQL -> List.of(
+                    "client SSLRequest", "server S", "TLS handshake", "StartupMessage", "authentication");
+            case MYSQL -> List.of(
+                    "server initial handshake", "client SSLRequest", "TLS handshake",
+                    "HandshakeResponse", "authentication");
+        };
+    }
+
+    enum IdentityLayer { TLS_SERVER_IDENTITY, DATABASE_PRINCIPAL }
+
+    static boolean layerAuthenticatesDatabasePrincipal(
+            IdentityLayer layer, boolean certificateAuthenticationConfigured) {
+        Objects.requireNonNull(layer, "layer");
+        return layer == IdentityLayer.DATABASE_PRINCIPAL
+                || certificateAuthenticationConfigured;
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -4478,6 +4596,52 @@ public final class ConsistencyContracts {
         assert noOverlap.action() == RotationAction.ABORT_AND_RESTORE_OLD_MATERIAL;
     }
 
+    private static void seniorVisibilityStorageReviewScenarios() {
+        assert freshnessVerdict(SeniorReadPath.CACHE, 12, 11, 12, 12)
+                == FreshnessVerdict.MAY_BE_STALE;
+        assert freshnessVerdict(SeniorReadPath.REPLICA, 12, 12, 11, 12)
+                == FreshnessVerdict.MAY_BE_STALE;
+        assert freshnessVerdict(SeniorReadPath.PRIMARY, 12, 10, 10, 12)
+                == FreshnessVerdict.FRESH_FOR_REQUIRED_VERSION;
+
+        assert !lsmHasWriteHeadroom(80, 4.0, 300);
+        assert lsmHasWriteHeadroom(60, 4.0, 300);
+
+        assert !phantomPrevented(RepeatableReadCase.SQL_STANDARD_MINIMUM);
+        assert phantomPrevented(RepeatableReadCase.POSTGRESQL_SNAPSHOT_READ);
+        assert phantomPrevented(RepeatableReadCase.INNODB_LOCKING_RANGE_READ);
+    }
+
+    private static void seniorCacheSafetyReviewScenarios() {
+        assert cacheMissRoute(120, 119, false, 3) == CacheMissRoute.QUERY_SQL_WITH_PERMIT;
+        assert cacheMissRoute(120, 120, false, 3) == CacheMissRoute.TRUST_FILTER_NEGATIVE;
+        assert cacheMissRoute(120, 120, true, 3) == CacheMissRoute.QUERY_SQL_WITH_PERMIT;
+        assert cacheMissRoute(120, 119, true, 0)
+                == CacheMissRoute.REJECT_TO_PROTECT_DATABASE;
+    }
+
+    private static void seniorPoolTimeoutHealthReviewScenarios() {
+        assert timeoutOwner(SeniorTimeoutBoundary.POOL_CHECKOUT).contains("connectionTimeout");
+        assert timeoutOwner(SeniorTimeoutBoundary.STATEMENT_EXECUTION).contains("query timeout");
+        assert timeoutOwner(SeniorTimeoutBoundary.SOCKET_READ).contains("socket timeout");
+        assert timeoutOwner(SeniorTimeoutBoundary.END_TO_END_DEADLINE).contains("caller");
+        assert connectionHealthVerdict(false) == ConnectionHealthVerdict.REJECT_NOW;
+        assert connectionHealthVerdict(true) == ConnectionHealthVerdict.VALID_AT_CHECK_ONLY;
+    }
+
+    private static void seniorProtocolOutcomeReviewScenarios() {
+        assert tlsStartupOrder(WireProtocol.POSTGRESQL).equals(List.of(
+                "client SSLRequest", "server S", "TLS handshake", "StartupMessage", "authentication"));
+        assert tlsStartupOrder(WireProtocol.MYSQL).equals(List.of(
+                "server initial handshake", "client SSLRequest", "TLS handshake",
+                "HandshakeResponse", "authentication"));
+        assert !layerAuthenticatesDatabasePrincipal(IdentityLayer.TLS_SERVER_IDENTITY, false);
+        assert layerAuthenticatesDatabasePrincipal(IdentityLayer.TLS_SERVER_IDENTITY, true);
+        assert layerAuthenticatesDatabasePrincipal(IdentityLayer.DATABASE_PRINCIPAL, false);
+        assert unknownCommitAction(true, false) == UnknownCommitAction.RETURN_STORED_OUTCOME;
+        assert unknownCommitAction(false, true) == UnknownCommitAction.RETRY_SAME_OPERATION_ID;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -4578,7 +4742,11 @@ public final class ConsistencyContracts {
         cacheRecoveryRunbookScenarios();
         poolExhaustionRunbookScenarios();
         certificateCredentialRotationScenarios();
-        System.out.println("PASS 96 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation");
+        seniorVisibilityStorageReviewScenarios();
+        seniorCacheSafetyReviewScenarios();
+        seniorPoolTimeoutHealthReviewScenarios();
+        seniorProtocolOutcomeReviewScenarios();
+        System.out.println("PASS 100 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review");
     }
 }
 

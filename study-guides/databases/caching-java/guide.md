@@ -5439,6 +5439,217 @@ Accessed 2026-10-18.
 147. [pgJDBC SSL documentation](https://jdbc.postgresql.org/documentation/ssl/): certificate-chain/hostname verification and failure of unverifiable `verify-full` connections.
 
 
+# Section 25 — Senior-engineer review drills
+
+A senior answer is not a product slogan. It names the guarantee, the boundary where that guarantee ends, the evidence needed to choose a branch, and the unsafe shortcut that has been ruled out. The twelve source questions become four decision drills here so that every answer can be tested against concrete evidence.
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. distinguish primary transaction visibility from cache and replica freshness;
+2. explain why sequential logical writes do not remove LSM compaction cost;
+3. qualify a Repeatable Read phantom claim by engine and read type;
+4. reject stale cache repopulation and CDC-lagged Bloom negatives;
+5. bound SQL fallback with database admission rather than assuming every miss can query;
+6. separate per-process JDBC reuse from cross-client backend multiplexing;
+7. assign checkout, statement, socket and end-to-end timeouts to their actual boundaries;
+8. treat a connection health check as point-in-time evidence;
+9. order PostgreSQL and MySQL TLS startup correctly;
+10. separate transport identity from database-principal authentication; and
+11. resolve an unknown commit result by durable operation identity.
+
+The four executable examples below raise `ConsistencyContracts.java` from 96 to 100 scenario groups.
+
+## Example 97 — visibility, LSM headroom and Repeatable Read
+
+### Three interview cases
+
+| Prompt | Evidence | Correct answer |
+|---|---|---|
+| “The update committed under ACID; why did the next request read article v11 instead of v12?” | primary has v12, cache has v11, replica replay is v11 | ACID governs the primary transaction. A cache entry and asynchronous replica are separate visibility systems; route to a path known to cover v12 or accept documented staleness. |
+| “Writes are sequential, so why did the LSM stall?” | logical write rate 80 MB/s, measured write amplification 4×, sustainable disk budget 300 MB/s | compaction needs about 320 MB/s before reads and flush overhead; sorted runs, tombstones and insufficient level/space headroom can make the disk the limiter. |
+| “Does Repeatable Read prevent phantoms?” | only the isolation name is known | the SQL minimum permits phantoms. PostgreSQL Repeatable Read uses one transaction snapshot for ordinary reads; InnoDB locking/current range reads use next-key locking. Name the engine and read type. |
+
+```java
+assert freshnessVerdict(SeniorReadPath.CACHE, 12, 11, 12, 12)
+        == FreshnessVerdict.MAY_BE_STALE;
+assert freshnessVerdict(SeniorReadPath.REPLICA, 12, 12, 11, 12)
+        == FreshnessVerdict.MAY_BE_STALE;
+assert freshnessVerdict(SeniorReadPath.PRIMARY, 12, 10, 10, 12)
+        == FreshnessVerdict.FRESH_FOR_REQUIRED_VERSION;
+
+assert !lsmHasWriteHeadroom(80, 4.0, 300); // 320 MB/s > 300 MB/s
+assert lsmHasWriteHeadroom(60, 4.0, 300);  // 240 MB/s <= 300 MB/s
+
+assert !phantomPrevented(RepeatableReadCase.SQL_STANDARD_MINIMUM);
+assert phantomPrevented(RepeatableReadCase.POSTGRESQL_SNAPSHOT_READ);
+assert phantomPrevented(RepeatableReadCase.INNODB_LOCKING_RANGE_READ);
+```
+
+### Visibility trace
+
+```mermaid
+sequenceDiagram
+    participant W as writer
+    participant P as primary
+    participant R as replica
+    participant C as cache
+    participant Q as next request
+    W->>P: commit article v12
+    P-->>W: success
+    Note over R,C: replica and cache still expose v11
+    Q->>C: read article
+    C-->>Q: v11
+    Q->>P: read requiring version 12
+    P-->>Q: v12
+```
+
+The required version can come from a successful mutation response, a session token, or a monotonic generation—not from wall-clock guessing. The teaching function is `O(1)`. Real replica routing must compare a database-native replay position, and a real LSM capacity model must include flush, compaction, read, metadata and free-space safety margins.
+
+## Example 98 — cache deletion, Bloom coverage and bounded fallback
+
+Deleting a Redis key after a commit is useful, but it is not a publication fence. A reader may have loaded v11 before the commit, pause, observe the deletion, and then publish v11 after it. Likewise, a Bloom filter has no false negatives only for the population it actually covers. A row committed at position 120 is outside a filter applied only through position 119.
+
+### Three concrete cases
+
+1. **CDC behind:** row commit position is 120, Bloom applied position is 119, and three database permits remain. The negative is not authoritative; query SQL with one permit.
+2. **Covered and no stale publisher:** both positions are 120 and no pre-delete reader can publish. The negative may be trusted for that versioned filter contract.
+3. **No database headroom:** CDC is behind, a stale reader may still publish, and zero permits remain. Reject or shed the request; do not turn filter uncertainty into an unbounded SQL surge.
+
+```java
+assert cacheMissRoute(120, 119, false, 3)
+        == CacheMissRoute.QUERY_SQL_WITH_PERMIT;
+assert cacheMissRoute(120, 120, false, 3)
+        == CacheMissRoute.TRUST_FILTER_NEGATIVE;
+assert cacheMissRoute(120, 120, true, 3)
+        == CacheMissRoute.QUERY_SQL_WITH_PERMIT;
+assert cacheMissRoute(120, 119, true, 0)
+        == CacheMissRoute.REJECT_TO_PROTECT_DATABASE;
+```
+
+```mermaid
+flowchart TD
+    M["cache miss or Bloom negative"] --> C{"filter covers row commit?"}
+    C -->|yes| F{"stale publisher fenced?"}
+    F -->|yes| N["accept versioned negative"]
+    C -->|no| P{"SQL permit available?"}
+    F -->|no| P
+    P -->|yes| D["query primary within deadline"]
+    P -->|no| R["reject or serve declared degraded result"]
+```
+
+The missing production ingredient is a publication protocol: owner-checked fill leases, generation/version compare-and-set, or an equivalent fence. A second deletion can reduce the race window but does not establish a proof by itself. SQL fallback must be charged against one fleet-wide database budget and the request deadline.
+
+## Example 99 — two pools, four timeout boundaries, one health instant
+
+HikariCP and PgBouncer solve different reuse problems. Hikari lends JDBC connections inside one application process and caps that process's physical connections. PgBouncer accepts many client connections and assigns PostgreSQL server connections according to database/user pools and pooling mode. Combining them can be useful, but it also creates two admission queues and transaction-pooling compatibility constraints.
+
+| Question | Correct boundary | Common wrong inference |
+|---|---|---|
+| Why both Hikari and PgBouncer? | local JDBC-object reuse plus cross-client backend-session multiplexing | “two pools double capacity” |
+| What does Hikari `connectionTimeout` bound? | waiting to borrow from Hikari | query execution time |
+| What bounds a statement? | JDBC/database statement timeout plus cancellation behavior | socket connect timeout |
+| What bounds a blocked network read? | driver socket/read timeout | pool checkout timeout |
+| What bounds the whole operation? | caller deadline propagated across checkout, query and response | any one lower-layer timeout by itself |
+| Is a returned connection healthy? | it passed a check at one instant | it cannot fail on the next packet |
+
+```java
+assert timeoutOwner(SeniorTimeoutBoundary.POOL_CHECKOUT)
+        .equals("Hikari connectionTimeout");
+assert timeoutOwner(SeniorTimeoutBoundary.STATEMENT_EXECUTION).contains("query timeout");
+assert timeoutOwner(SeniorTimeoutBoundary.SOCKET_READ).contains("socket timeout");
+assert timeoutOwner(SeniorTimeoutBoundary.END_TO_END_DEADLINE).contains("caller");
+
+assert connectionHealthVerdict(false) == ConnectionHealthVerdict.REJECT_NOW;
+assert connectionHealthVerdict(true) == ConnectionHealthVerdict.VALID_AT_CHECK_ONLY;
+```
+
+### Deadline trace
+
+| Elapsed | Stage | Remaining caller budget | Governing limit | Result |
+|---:|---|---:|---|---|
+| 0 ms | request enters | 800 ms | caller deadline | begin |
+| 70 ms | Hikari checkout succeeds | 730 ms | `connectionTimeout` was 100 ms | connection leased |
+| 120 ms | statement sent | 680 ms | statement timeout 600 ms | database work begins |
+| 700 ms | statement completes | 100 ms | query stayed inside its bound | result decode begins |
+| 800 ms | caller deadline | 0 ms | outer deadline | cancel/stop remaining work |
+
+The arithmetic is `O(1)`, but a production timeout stack must reserve cleanup time and avoid equal nested timeouts. A successful `Connection.isValid(...)` or validation query can reject a connection that is already bad; it cannot promise the network, server or credentials will remain valid after the check.
+
+## Example 100 — TLS chronology, identity layers and an unknown COMMIT
+
+PostgreSQL and MySQL both can negotiate TLS before database authentication, but their bytes are ordered differently:
+
+| Protocol | Three decisive startup facts |
+|---|---|
+| PostgreSQL | client sends `SSLRequest`; server answers `S` or `N`; after TLS the client sends `StartupMessage` and authentication follows |
+| MySQL | server first sends its initial handshake; the client can send an `SSLRequest`; after TLS the client sends the full handshake response and authentication continues |
+| Both | TLS protects the transport and verifies the configured peer identity; database authentication establishes the database principal unless client-certificate authentication is explicitly configured to do so |
+
+```java
+assert tlsStartupOrder(WireProtocol.POSTGRESQL).equals(List.of(
+        "client SSLRequest", "server S", "TLS handshake",
+        "StartupMessage", "authentication"));
+assert tlsStartupOrder(WireProtocol.MYSQL).equals(List.of(
+        "server initial handshake", "client SSLRequest", "TLS handshake",
+        "HandshakeResponse", "authentication"));
+
+assert !layerAuthenticatesDatabasePrincipal(
+        IdentityLayer.TLS_SERVER_IDENTITY, false);
+assert layerAuthenticatesDatabasePrincipal(
+        IdentityLayer.TLS_SERVER_IDENTITY, true);
+```
+
+Now add the failure that TLS cannot resolve: the server durably commits operation `op-47`, but the connection disappears before the client receives `COMMIT` success.
+
+| Observation after reconnect | Safe action |
+|---|---|
+| durable result for `op-47` exists | return that stored outcome |
+| no result exists and deadline remains | retry the **same** operation ID through the idempotent transaction |
+| no result exists and deadline expired | stop and surface unresolved status; do not invent success or a fresh ID |
+
+```java
+assert unknownCommitAction(true, false)
+        == UnknownCommitAction.RETURN_STORED_OUTCOME;
+assert unknownCommitAction(false, true)
+        == UnknownCommitAction.RETRY_SAME_OPERATION_ID;
+assert unknownCommitAction(false, false)
+        == UnknownCommitAction.STOP_AT_DEADLINE;
+```
+
+The decisive distinction is **unknown to the client** versus **rolled back by the database**. A missing response proves neither commit nor rollback. The operation table, business uniqueness constraint or equivalent durable idempotency record must be part of the same authoritative transaction as the effect.
+
+## Review rubric
+
+A strong answer to any of the twelve questions contains four parts:
+
+- **guarantee:** the exact property supplied by the transaction, filter, pool, timeout or protocol;
+- **boundary:** cache, replica, compaction, proxy, socket, identity or response-loss point outside that guarantee;
+- **evidence:** version/LSN, applied position, write-amplification measurement, queue metric, startup bytes or durable operation result;
+- **action:** route, fence, admit, reject, retry the same identity, or stop at the deadline.
+
+An answer that says only “ACID,” “Repeatable Read,” “Bloom filters have no false negatives,” “the pool validates it,” or “TLS authenticates it” is incomplete until those four parts are explicit.
+
+### Primary references for Section 25
+
+Accessed 2026-10-19.
+
+148. [PostgreSQL 18 transaction isolation](https://www.postgresql.org/docs/current/transaction-iso.html): SQL-level phenomena, PostgreSQL Repeatable Read snapshot behavior and serialization anomalies.
+149. [PostgreSQL 18 warm standby](https://www.postgresql.org/docs/current/warm-standby.html): asynchronous replication and the possibility that standby data lags the primary.
+150. [RocksDB write stalls](https://github.com/facebook/rocksdb/wiki/Write-Stalls): write throttling/stalls when flush or compaction cannot keep up and the relationship to space/read amplification.
+151. [RocksDB tuning guide](https://github.com/facebook/rocksdb/wiki/RocksDB-Tuning-Guide): measured write amplification, compaction tradeoffs, disk bandwidth and block-cache pressure.
+152. [Redis cache-aside](https://redis.io/docs/latest/develop/clients/patterns/cache-aside/): application-managed reads, invalidation and TTL-bounded staleness.
+153. [Redis data prefetching](https://redis.io/docs/latest/integrate/redis-data-integration/data-pipelines/transform-examples/redis-data-prefetching/): CDC synchronization lag and fallback to a primary database.
+154. [HikariCP configuration](https://github.com/brettwooldridge/HikariCP): `connectionTimeout`, `maximumPoolSize`, JDBC4 validation and pool metrics.
+155. [PgBouncer configuration](https://www.pgbouncer.org/config.html): client limits, per-database/user server pools and pooling-mode controls.
+156. [pgJDBC connection properties](https://jdbc.postgresql.org/documentation/use/): connect, socket and query-related driver settings.
+157. [PostgreSQL 18 protocol flow](https://www.postgresql.org/docs/current/protocol-flow.html): `SSLRequest`, server response, TLS negotiation, startup and authentication chronology.
+158. [MySQL 8.4 connection phase](https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase.html): server initial handshake, client `SSLRequest`, TLS and client handshake response order.
+159. [Java SE 17 `Connection`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/Connection.html): `isValid` and network-timeout connection semantics.
+160. [PostgreSQL 18 certificate authentication](https://www.postgresql.org/docs/current/auth-cert.html): explicit client-certificate mapping to database authentication.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -5446,8 +5657,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; and lines **1410–1427**, “Recovery runbooks”
-- Deliberate continuation: Section 25, “Senior-engineer review questions,” spans source lines **1428–1442**, bounded by the Section 26 heading at line **1443**, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; and lines **1428–1442**, “Senior-engineer review questions”
+- Deliberate continuation: Section 26, “Production-readiness checklist,” spans source lines **1443–1456**, bounded by the Phase 7 heading at line **1457**, and remains unprocessed.
 
 Validation commands:
 
