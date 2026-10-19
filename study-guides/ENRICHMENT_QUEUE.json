@@ -628,10 +628,10 @@
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
         "processed_lines": "62-1442",
-        "canonical_sha256_after": "c4a13c1c3aa6598684b0966d008810ee619eb57444fd7bb6c254b5d77f22cb59"
+        "canonical_sha256_after": "a1a89144caf29bd9bddc64c9ff34320ba733b6a5ddb41235514c09aa50390cdb"
       },
-      "content_commit": "c3bdeaefcc75691188b2a7691c5a91eca2dd7f84",
-      "validation": "Exact source lines 1428-1442 were bounded by the Section 26 heading and consolidated into four current primary-source-backed review drills. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 100 total scenario groups, including four new visibility/storage, cache-safety, pool/timeout/health and protocol/outcome review groups. Deterministic reader generation passed exact 369857-character Markdown payload equality, source SHA-256 c4a13c1c3aa6598684b0966d008810ee619eb57444fd7bb6c254b5d77f22cb59, 1254 unique HTML IDs, 229 search entries, fragments, allowed relative links, 202 balanced fences and 106 Mermaid sources. The standalone javac command was unavailable; real PostgreSQL/Redis/PgBouncer/Hikari/TLS services, browser, assistive-technology and Mermaid visual QA were not executed. Live canonical Markdown placeholder audit remains 170. The four-file content tree was published atomically with an expected-head guard.",
+      "content_commit": "453cdd0f4b492105c6409d9025eb28e9e414a05a",
+      "validation": "Exact source lines 1428-1442 were bounded by the Section 26 heading and consolidated into four current primary-source-backed review drills. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 100 total scenario groups, including four new visibility/storage, cache-safety, pool/timeout/health and protocol/outcome review groups. Deterministic reader generation passed exact 369797-character Markdown payload equality, source SHA-256 a1a89144caf29bd9bddc64c9ff34320ba733b6a5ddb41235514c09aa50390cdb, 1254 unique HTML IDs, 229 search entries, fragments, allowed relative links, 202 balanced fences and 106 Mermaid sources. The standalone javac command was unavailable; real PostgreSQL/Redis/PgBouncer/Hikari/TLS services, browser, assistive-technology and Mermaid visual QA were not executed. Live canonical Markdown placeholder audit remains 170. The content was published atomically with expected-head guards.",
       "next_action": "Process exactly Section 26, Production-readiness checklist, source lines 1443-1456, bounded by the Phase 7 heading at line 1457.",
       "priority": 12
     },
@@ -993,10 +993,10 @@
       "Database/caching Section 25: senior visibility/storage, cache/filter safety, pool/timeout/health and protocol/unknown-commit review drills"
     ],
     "processed_section": "database_internals_caching_java_master_guide.md lines 1428-1442 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 25, Senior-engineer review questions",
-    "validation": "Section 25 was bounded by the Section 26 heading and consolidated into four current primary-source-backed review drills. Java 17 source launch and compilation through jdk.compiler passed 100 total scenario groups; deterministic reader generation passed exact 369857-character payload equality, 1254 unique IDs, 229 search entries, fragments, allowed relative links, 202 balanced fences and 106 Mermaid sources; live canonical Markdown marker audit remains 170. The four-file content tree was published atomically with an expected-head guard. The standalone javac command, real PostgreSQL/Redis/PgBouncer/Hikari/TLS services, browser, assistive-technology and Mermaid visual QA were unavailable.",
+    "validation": "Section 25 was bounded by the Section 26 heading and consolidated into four current primary-source-backed review drills. Java 17 source launch and compilation through jdk.compiler passed 100 total scenario groups; deterministic reader generation passed exact 369797-character payload equality, 1254 unique IDs, 229 search entries, fragments, allowed relative links, 202 balanced fences and 106 Mermaid sources; live canonical Markdown marker audit remains 170. The content was published atomically with expected-head guards. The standalone javac command, real PostgreSQL/Redis/PgBouncer/Hikari/TLS services, browser, assistive-technology and Mermaid visual QA were unavailable.",
     "estimated_next_tokens": 6500,
     "estimate_method": "Heuristic only for the bounded production-readiness checklist, primary-reference reconciliation, examples, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "c3bdeaefcc75691188b2a7691c5a91eca2dd7f84",
+    "last_successful_commit": "453cdd0f4b492105c6409d9025eb28e9e414a05a",
     "last_processed_at": "2026-10-18T22:06:59-04:00",
     "next_batch_decision": "Section 25 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 26; resume at source lines 1443-1456, bounded by the Phase 7 heading at line 1457."
   }
