@@ -5847,6 +5847,225 @@ Accessed 2026-10-19.
 172. [PostgreSQL 18 — Continuous archiving and point-in-time recovery](https://www.postgresql.org/docs/current/continuous-archiving.html): base backups, WAL archiving, replay and recovery targets.
 
 
+# Section 27 — Follow one database read all the way to a row
+
+Consider one authenticated request:
+
+```http
+GET /tenants/7/articles/42/revisions/9
+```
+
+The authorization check for tenant 7 has passed and Redis has no entry, so the service binds three values and executes:
+
+```sql
+SELECT body
+FROM article_revision_demo
+WHERE tenant_id = ? AND article_id = ? AND revision = ?;
+```
+
+Assume the table has `PRIMARY KEY (tenant_id, article_id, revision)`. “The database uses the index and returns the row” hides the useful part. The read crosses logical SQL processing, a physical access method, memory and storage ownership, MVCC visibility, wire encoding and JDBC materialization. Any one of those stages can dominate.
+
+## Example 105 — Logical request-to-row pipeline
+
+The responsibilities are ordered, but they are not necessarily repeated from scratch for every execution:
+
+| Stage | Input | Responsibility | Evidence to inspect |
+|---|---|---|---|
+| parse | SQL text | recognize grammar and create a raw statement tree | parse or syntax error |
+| analyze/bind | tree plus catalogs | resolve tables, columns, types and permissions | resolved object/type and authorization error |
+| plan | bound query plus statistics and parameters | choose access paths and operator tree | `EXPLAIN`, estimates, generic/custom plan |
+| execute | plan and bound values | request tuples from operators | actual rows, loops and timing |
+| index access | composite search key | descend to matching leaf entry | index buffers and returned tuple identifier |
+| heap/buffer/visibility | tuple identifier plus snapshot | pin the page, locate the slot and accept a visible version | heap fetches, buffer hits/reads, visible row |
+| protocol | typed result | emit metadata, row values and completion | `RowDescription`, `DataRow`, `CommandComplete` |
+| JDBC | protocol values | expose and decode the current row | `ResultSet` access/materialization time |
+
+```mermaid
+flowchart TD
+    A["SQL + bound tenant/article/revision"] --> B["Parse and bind"]
+    B --> C["Plan or reuse plan"]
+    C --> D["Execute index operator"]
+    D --> E["Pin heap page + resolve slot"]
+    E --> F{"Visible to snapshot?"}
+    F -->|yes| G["Encode DataRow → JDBC"]
+    F -->|no| H["Follow or reject version"]
+```
+
+PostgreSQL documents the parser, planner and executor as distinct backend stages. The executor recursively processes the chosen plan to produce rows. The following Java model deliberately records responsibilities, not private timing assumptions:
+
+```java
+List<String> trace = logicalReadPipeline(
+        PlanWork.GENERIC_PLAN_CANDIDATE);
+
+assert trace.equals(List.of(
+        "bind names, types and permissions",
+        "compare or reuse generic plan",
+        "execute plan operators",
+        "locate index entry and heap tuple",
+        "pin page and test snapshot visibility",
+        "encode RowDescription and DataRow"));
+```
+
+### Three request traces
+
+1. **First parameterized execution:** bind types and permissions, build a parameter-aware custom plan, execute, visit index and heap, test visibility, encode the row.
+2. **Repeated prepared execution:** reuse prepared analysis and compare or use a generic plan when the engine's heuristic permits it; do not claim that parsing and planning consume the same work on every call.
+3. **Invalidated preparation:** a relevant DDL/statistics or `search_path` change causes re-analysis or replanning before execution.
+
+PostgreSQL's automatic prepared-plan rule starts with custom plans, then compares their average estimated cost with a generic plan. `EXPLAIN EXECUTE` reveals parameter symbols for a generic plan and substituted values for a custom one. That is an implementation policy to measure—not a reason to force a plan mode globally.
+
+## Example 106 — From a composite index leaf to a slotted heap page
+
+The composite key supplies an ordered search path. A matching B-tree leaf entry normally identifies a heap tuple; it does not by itself contain every selected value. PostgreSQL's usual heap page is 8 KiB and has five logical regions:
+
+```mermaid
+block-beta
+  columns 1
+  H["Page header: free-space and WAL/checksum metadata"]
+  S["Item identifiers: slot → byte offset + length"]
+  F["Free space"]
+  T["Tuple bytes grow backward from page end"]
+  X["Special space: empty for ordinary heap pages"]
+```
+
+An `ItemPointer`/`CTID` is `(page number, item-identifier index)`. The item identifier remains in its slot while within-page compaction can move the tuple bytes and update the slot's byte offset. Therefore the stable reference is not a raw byte offset.
+
+| Moment | Pointer | Slot 1 contents | Resolved tuple offset |
+|---|---|---|---:|
+| before compaction | `(18, 1)` | offset `7000`, length `400`, used | `7000` |
+| tuple relocated | `(18, 1)` | offset `7480`, length `400`, used | `7480` |
+| slot released | `(18, 1)` | unused | reject; there is no tuple to decode |
+
+```java
+List<PageSlot> page = List.of(
+        new PageSlot(7000, 400, true),
+        new PageSlot(7600, 120, true));
+TuplePointer tid = new TuplePointer(18, 1);
+
+assert resolveTupleOffset(page, tid) == 7000;
+page = relocateTupleWithinPage(page, 1, 7480);
+assert resolveTupleOffset(page, tid) == 7480; // same page and slot
+```
+
+The tuple header supplies visibility metadata such as inserting/deleting transaction IDs, while catalog metadata is needed to decode column layout. Variable-length `body` data may also be compressed or stored out of line by TOAST, so finding the heap tuple can begin another access path.
+
+## Example 107 — Buffer frame, pin, latch and transaction lock
+
+These words answer different ownership questions:
+
+| Mechanism | Protects | Typical lifetime | It does **not** mean |
+|---|---|---|---|
+| buffer frame | the memory container for one database page | while cached; frame may later hold another page | the row is visible to this snapshot |
+| pin | frame identity while a backend uses it | tuple/page operation | the application owns the row until commit |
+| content latch | short structural read/write of in-memory page data | critical section | business serialization across a transaction |
+| transaction row/range lock | logical concurrent operation | statement or transaction | the underlying frame cannot be evicted without a pin |
+
+```mermaid
+sequenceDiagram
+    participant E as Executor
+    participant B as Buffer manager
+    participant F as Frame 200
+    participant V as MVCC/lock layer
+    E->>B: request heap page 18
+    B->>F: map page; increment pin
+    E->>F: latch, resolve slot, copy tuple state
+    E->>F: release latch
+    E->>V: test snapshot / acquire logical lock if requested
+    E->>B: release pin after page use
+```
+
+Three cases from the executable model make the separation concrete:
+
+```java
+assert bufferAccess(true, true, false).source()
+        == PageSource.SHARED_BUFFER;
+assert bufferAccess(false, true, false).source()
+        == PageSource.OPERATING_SYSTEM_CACHE;
+assert bufferAccess(false, false, true).transactionLockHeld();
+```
+
+- A PostgreSQL shared-buffer hit needs no file read, but the reader still pins the frame while decoding.
+- A shared-buffer miss can be satisfied by the operating-system page cache; “database buffer miss” does not prove a physical device read.
+- A locking read can acquire a transaction lock after the page is found; that logical lifetime is distinct from the frame pin and latch.
+
+PostgreSQL explicitly relies on both `shared_buffers` and the operating-system cache. Diagnose the named layer rather than reporting one ambiguous “cache hit rate.”
+
+## Example 108 — Visibility, wire bytes and the slow `body`
+
+An index entry and slot can identify a physical row version that is not visible to the statement's snapshot. PostgreSQL MVCC lets each statement see a database snapshot; normal readers and writers do not simply serialize on the same row lock. The engine uses tuple/version state and transaction status to decide whether to return, follow or reject a version.
+
+This executable predicate is intentionally simplified—it demonstrates interval reasoning, not PostgreSQL's complete commit-status and active-XID algorithm:
+
+```java
+List<TupleVersion> newestFirst = List.of(
+        new TupleVersion("new body", 20, null),
+        new TupleVersion("old body", 10, 20L));
+
+assert newestVisible(newestFirst, 19).body().equals("old body");
+assert newestVisible(newestFirst, 20).body().equals("new body");
+```
+
+An index-only scan may avoid the heap only when the query is covered and the visibility map says the relevant page is all-visible. Otherwise the heap visit remains necessary even if the index contains the selected column.
+
+After visibility succeeds, PostgreSQL emits a `RowDescription` containing field metadata and a `DataRow` containing a length plus bytes for every value. A `NULL` uses length `-1`. For a `DataRow` alone, the model counts:
+
+\[
+7 + \sum_{i=1}^{n}(4 + \text{nonNullBytes}_i)
+\]
+
+where 7 bytes are the message type, message length and column count. Thus two non-null values of 4 and 10 bytes require 29 bytes before transport framing or `RowDescription`; one `NULL` requires 11.
+
+```java
+assert dataRowWireBytes(4, 10) == 29;
+assert dataRowWireBytes(-1) == 11;
+```
+
+If the B-tree lookup is fast but selecting `body` is slow, do not keep tuning tree height. Compare these three traces:
+
+| Trace | Index | Heap/TOAST | Protocol | JDBC | Diagnosis |
+|---|---:|---:|---:|---:|---|
+| A | 30 µs | 900 µs | 80 µs | 120 µs | heap fetch, visibility or TOAST dominates |
+| B | 30 µs | 100 µs | 800 µs | 120 µs | result encoding/network transfer dominates |
+| C | 30 µs | 100 µs | 80 µs | 900 µs | client decoding/materialization dominates |
+
+Use `EXPLAIN (ANALYZE, BUFFERS, SERIALIZE)` where safe: `BUFFERS` distinguishes buffer hits/reads per plan node, and `SERIALIZE` measures conversion of output to transportable form without sending the result to the client. Then combine it with payload size, JDBC timing and request tracing. Java's `ResultSet` also owns database/JDBC resources and should be closed promptly; streaming access may avoid eagerly materializing a very large value, depending on the driver and type.
+
+## The complete mental model
+
+The correct explanation is not “Redis miss → index hit → row.” It is:
+
+```text
+authorized request
+  → prepared statement / bind
+  → parse-analysis-plan work that is new, reused or invalidated
+  → executor and composite-index access
+  → heap tuple identifier
+  → buffer frame + pin + short structural latch
+  → slot resolution and possibly TOAST access
+  → MVCC visibility decision
+  → typed protocol metadata and value bytes
+  → JDBC ResultSet decoding/materialization
+  → bounded cache publication
+```
+
+This model tells you where to measure and which optimization is relevant. A Redis cache, a covering index, a larger buffer pool, a custom plan, smaller selected columns and streaming JDBC each remove different work; none is a universal “database read optimization.”
+
+### Primary references for Section 27
+
+Accessed 2026-10-19.
+
+173. [PostgreSQL 18 — Overview of PostgreSQL internals](https://www.postgresql.org/docs/18/overview.html): the query path through parser, planner/optimizer and executor.
+174. [PostgreSQL 18 — `PREPARE`](https://www.postgresql.org/docs/18/sql-prepare.html): generic versus custom plans, automatic selection and invalidation/replanning.
+175. [PostgreSQL 18 — `EXPLAIN`](https://www.postgresql.org/docs/18/sql-explain.html): plan operators plus `ANALYZE`, `BUFFERS`, `SERIALIZE` and generic-plan inspection.
+176. [PostgreSQL 18 — Database page layout](https://www.postgresql.org/docs/18/storage-page-layout.html): 8 KiB pages, headers, item identifiers, stable slot indexes, heap tuple headers and variable-length attributes.
+177. [PostgreSQL 18 — MVCC introduction](https://www.postgresql.org/docs/18/mvcc-intro.html): statement snapshots and the read/write concurrency model.
+178. [PostgreSQL 18 — Visibility map](https://www.postgresql.org/docs/18/storage-vm.html): all-visible/all-frozen bits and index-only-scan heap avoidance.
+179. [PostgreSQL 18 — Resource consumption](https://www.postgresql.org/docs/18/runtime-config-resource.html): shared buffers and the operating-system cache.
+180. [PostgreSQL 18 — Protocol message formats](https://www.postgresql.org/docs/18/protocol-message-formats.html): `RowDescription`, `DataRow`, lengths, nulls and format codes.
+181. [PostgreSQL 18 — TOAST](https://www.postgresql.org/docs/18/storage-toast.html): compression and out-of-line storage for oversized variable-length values.
+182. [Java SE 17 — `ResultSet`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/ResultSet.html): row access, metadata, stream getters and prompt resource release.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -5854,8 +6073,8 @@ Accessed 2026-10-19.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; and lines **1443–1456**, “Production-readiness checklist”
-- Deliberate continuation: Section 27, “Follow a single database read all the way to a row,” spans source lines **1457–1532**, bounded by the Section 28 heading at line **1533**, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; and lines **1457–1532**, “Follow a single database read all the way to a row”
+- Deliberate continuation: Section 28, “Follow one committed edit and three crash points,” spans source lines **1533–1595**, bounded by the Section 29 heading at line **1596**, and remains unprocessed.
 
 Validation commands:
 

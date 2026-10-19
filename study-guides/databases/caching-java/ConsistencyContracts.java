@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-24. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-27. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -3218,6 +3218,134 @@ public final class ConsistencyContracts {
         return new AcceptanceResult(blockers.isEmpty(), blockers);
     }
 
+    enum PlanWork { CUSTOM_FOR_VALUES, GENERIC_PLAN_CANDIDATE, REANALYZE_AND_REPLAN }
+
+    static PlanWork planWork(
+            boolean namedPreparedStatement,
+            int completedCustomExecutions,
+            boolean catalogStatisticsOrSearchPathChanged) {
+        if (completedCustomExecutions < 0) throw new IllegalArgumentException("execution count");
+        if (catalogStatisticsOrSearchPathChanged) return PlanWork.REANALYZE_AND_REPLAN;
+        if (namedPreparedStatement && completedCustomExecutions >= 5) {
+            return PlanWork.GENERIC_PLAN_CANDIDATE;
+        }
+        return PlanWork.CUSTOM_FOR_VALUES;
+    }
+
+    static List<String> logicalReadPipeline(PlanWork planWork) {
+        Objects.requireNonNull(planWork, "planWork");
+        List<String> stages = new ArrayList<>();
+        stages.add("bind names, types and permissions");
+        stages.add(switch (planWork) {
+            case CUSTOM_FOR_VALUES -> "plan with current parameter values";
+            case GENERIC_PLAN_CANDIDATE -> "compare or reuse generic plan";
+            case REANALYZE_AND_REPLAN -> "reanalyze catalog and rebuild plan";
+        });
+        stages.add("execute plan operators");
+        stages.add("locate index entry and heap tuple");
+        stages.add("pin page and test snapshot visibility");
+        stages.add("encode RowDescription and DataRow");
+        return List.copyOf(stages);
+    }
+
+    record TuplePointer(int pageNumber, int slotIndex) {
+        TuplePointer {
+            if (pageNumber < 0 || slotIndex <= 0) throw new IllegalArgumentException("tuple pointer");
+        }
+    }
+
+    record PageSlot(int byteOffset, int length, boolean used) {
+        PageSlot {
+            if (byteOffset < 0 || length < 0) throw new IllegalArgumentException("page slot");
+        }
+    }
+
+    static int resolveTupleOffset(List<PageSlot> slots, TuplePointer pointer) {
+        Objects.requireNonNull(slots, "slots");
+        Objects.requireNonNull(pointer, "pointer");
+        if (pointer.slotIndex() > slots.size()) throw new IllegalArgumentException("missing slot");
+        PageSlot slot = slots.get(pointer.slotIndex() - 1);
+        if (!slot.used()) throw new IllegalStateException("unused slot");
+        return slot.byteOffset();
+    }
+
+    static List<PageSlot> relocateTupleWithinPage(
+            List<PageSlot> slots, int slotIndex, int newByteOffset) {
+        if (slotIndex <= 0 || slotIndex > slots.size() || newByteOffset < 0) {
+            throw new IllegalArgumentException("relocation");
+        }
+        List<PageSlot> compacted = new ArrayList<>(slots);
+        PageSlot old = compacted.get(slotIndex - 1);
+        if (!old.used()) throw new IllegalStateException("unused slot");
+        compacted.set(slotIndex - 1, new PageSlot(newByteOffset, old.length(), true));
+        return List.copyOf(compacted);
+    }
+
+    enum PageSource { SHARED_BUFFER, OPERATING_SYSTEM_CACHE, PHYSICAL_STORAGE }
+
+    record BufferAccess(
+            PageSource source,
+            boolean framePinnedDuringDecode,
+            boolean contentLatchShortLived,
+            boolean transactionLockHeld) {}
+
+    static BufferAccess bufferAccess(
+            boolean sharedBufferHit, boolean operatingSystemCacheHit, boolean lockingRead) {
+        PageSource source = sharedBufferHit
+                ? PageSource.SHARED_BUFFER
+                : operatingSystemCacheHit
+                        ? PageSource.OPERATING_SYSTEM_CACHE
+                        : PageSource.PHYSICAL_STORAGE;
+        return new BufferAccess(source, true, true, lockingRead);
+    }
+
+    record TupleVersion(String body, long xmin, Long xmax) {
+        TupleVersion {
+            Objects.requireNonNull(body, "body");
+            if (xmin < 0 || (xmax != null && xmax < xmin)) {
+                throw new IllegalArgumentException("version XIDs");
+            }
+        }
+    }
+
+    // Deliberately simplified teaching predicate; PostgreSQL also tracks commit status and snapshot sets.
+    static boolean visibleAt(TupleVersion version, long snapshotXid) {
+        Objects.requireNonNull(version, "version");
+        if (snapshotXid < 0) throw new IllegalArgumentException("snapshot XID");
+        return version.xmin() <= snapshotXid
+                && (version.xmax() == null || version.xmax() > snapshotXid);
+    }
+
+    static TupleVersion newestVisible(List<TupleVersion> newestFirst, long snapshotXid) {
+        Objects.requireNonNull(newestFirst, "newestFirst");
+        return newestFirst.stream()
+                .filter(version -> visibleAt(version, snapshotXid))
+                .findFirst()
+                .orElse(null);
+    }
+
+    static int dataRowWireBytes(int... columnBytes) {
+        int bytes = 1 + Integer.BYTES + Short.BYTES; // type byte, message length, column count
+        for (int length : columnBytes) {
+            if (length < -1) throw new IllegalArgumentException("column length");
+            bytes = Math.addExact(bytes, Integer.BYTES); // per-column length field
+            if (length >= 0) bytes = Math.addExact(bytes, length);
+        }
+        return bytes;
+    }
+
+    enum ReadBottleneck { INDEX, HEAP_OR_TOAST, PROTOCOL_TRANSFER, JDBC_MATERIALIZATION }
+
+    static ReadBottleneck largestReadStage(
+            long indexMicros, long heapOrToastMicros,
+            long protocolMicros, long jdbcMaterializationMicros) {
+        long[] values = {indexMicros, heapOrToastMicros, protocolMicros, jdbcMaterializationMicros};
+        for (long value : values) if (value < 0) throw new IllegalArgumentException("negative time");
+        int largest = 0;
+        for (int i = 1; i < values.length; i++) if (values[i] > values[largest]) largest = i;
+        return ReadBottleneck.values()[largest];
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -4768,6 +4896,66 @@ public final class ConsistencyContracts {
         assert happyPathOnly.blockers().contains("unknown commit outcome unproved");
     }
 
+    private static void databaseReadPipelineScenarios() {
+        assert planWork(false, 0, false) == PlanWork.CUSTOM_FOR_VALUES;
+        assert planWork(true, 5, false) == PlanWork.GENERIC_PLAN_CANDIDATE;
+        assert planWork(true, 20, true) == PlanWork.REANALYZE_AND_REPLAN;
+
+        List<String> reused = logicalReadPipeline(PlanWork.GENERIC_PLAN_CANDIDATE);
+        assert reused.size() == 6;
+        assert reused.get(1).equals("compare or reuse generic plan");
+        assert reused.get(5).equals("encode RowDescription and DataRow");
+    }
+
+    private static void slottedPageScenarios() {
+        List<PageSlot> before = List.of(
+                new PageSlot(7000, 400, true),
+                new PageSlot(7600, 120, true));
+        TuplePointer pointer = new TuplePointer(18, 1);
+        assert resolveTupleOffset(before, pointer) == 7000;
+
+        List<PageSlot> compacted = relocateTupleWithinPage(before, 1, 7480);
+        assert resolveTupleOffset(compacted, pointer) == 7480;
+        assert pointer.pageNumber() == 18 && pointer.slotIndex() == 1;
+
+        try {
+            resolveTupleOffset(List.of(new PageSlot(0, 0, false)), new TuplePointer(18, 1));
+            throw new AssertionError("unused slot resolved");
+        } catch (IllegalStateException expected) {
+            assert expected.getMessage().contains("unused");
+        }
+    }
+
+    private static void bufferLayerScenarios() {
+        BufferAccess hot = bufferAccess(true, true, false);
+        assert hot.source() == PageSource.SHARED_BUFFER;
+        assert hot.framePinnedDuringDecode() && hot.contentLatchShortLived();
+        assert !hot.transactionLockHeld();
+
+        BufferAccess osHit = bufferAccess(false, true, false);
+        assert osHit.source() == PageSource.OPERATING_SYSTEM_CACHE;
+
+        BufferAccess diskLockingRead = bufferAccess(false, false, true);
+        assert diskLockingRead.source() == PageSource.PHYSICAL_STORAGE;
+        assert diskLockingRead.transactionLockHeld();
+    }
+
+    private static void mvccAndProtocolScenarios() {
+        List<TupleVersion> versions = List.of(
+                new TupleVersion("new body", 20, null),
+                new TupleVersion("old body", 10, 20L));
+        assert newestVisible(versions, 19).body().equals("old body");
+        assert newestVisible(versions, 20).body().equals("new body");
+        assert newestVisible(versions, 9) == null;
+
+        assert dataRowWireBytes(4, 10) == 29;
+        assert dataRowWireBytes(-1) == 11;
+
+        assert largestReadStage(30, 900, 80, 120) == ReadBottleneck.HEAP_OR_TOAST;
+        assert largestReadStage(30, 100, 800, 120) == ReadBottleneck.PROTOCOL_TRANSFER;
+        assert largestReadStage(30, 100, 80, 900) == ReadBottleneck.JDBC_MATERIALIZATION;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -4876,7 +5064,11 @@ public final class ConsistencyContracts {
         productionCacheAcceptanceScenarios();
         productionConnectivitySecurityAcceptanceScenarios();
         productionReleaseRecoveryAcceptanceScenarios();
-        System.out.println("PASS 104 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance");
+        databaseReadPipelineScenarios();
+        slottedPageScenarios();
+        bufferLayerScenarios();
+        mvccAndProtocolScenarios();
+        System.out.println("PASS 108 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization");
     }
 }
 
