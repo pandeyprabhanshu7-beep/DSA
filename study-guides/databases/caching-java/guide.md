@@ -6066,6 +6066,248 @@ Accessed 2026-10-19.
 182. [Java SE 17 — `ResultSet`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/ResultSet.html): row access, metadata, stream getters and prompt resource release.
 
 
+# Section 28 — Follow one committed edit and three crash points
+
+Start with one concrete state:
+
+```text
+article(tenant_id=7, id=42, title="Old title", version=9)
+operation_id = "edit-7-42-10-a8f1"
+```
+
+The editor submits `"New title"` with expected version 9. The durable business contract is larger than one `UPDATE`: the new article version, its outbox event and the result used to resolve an ambiguous client retry must agree. Redis invalidation is deliberately **after** this transaction; it is not made atomic by wishful thinking.
+
+## Example 109 — One optimistic update, outbox event and operation result
+
+### Requirements and four outcomes
+
+| Case | `UPDATE` count | Transaction action | Durable result |
+|---|---:|---|---|
+| current version is 9 | 1 | insert outbox and operation result, then commit | article v10 plus one v10 event/result |
+| current version is already 10 | 0 | roll back or return a conflict; insert nothing | existing state remains authoritative |
+| failure after update but before commit | 1 so far | transaction aborts | no partial article, event or result |
+| same operation ID is replayed | do not create a second edit | return the recorded result | exactly one business effect |
+
+PostgreSQL's command tag reports the number of rows actually updated, and `RETURNING` can expose the new values. JDBC's update methods expose a DML row count. The application must therefore treat `count != 1` as a failed optimistic transition before inserting dependent records.
+
+```sql
+BEGIN;
+
+UPDATE article
+SET title = :new_title,
+    version = version + 1
+WHERE tenant_id = :tenant
+  AND id = :id
+  AND version = :expected_version
+RETURNING version;                 -- must return exactly one row: version 10
+
+INSERT INTO outbox(
+    event_id, aggregate_type, aggregate_id, aggregate_version, event_type)
+VALUES (
+    :operation_id, 'article', :id, 10, 'ARTICLE_UPDATED');
+
+INSERT INTO operation_result(operation_id, aggregate_version, result_code)
+VALUES (:operation_id, 10, 'UPDATED');
+
+COMMIT;
+```
+
+The three statements are one transaction. A unique key on `operation_id` prevents a replay from representing a new business operation. A unique event ID also gives the outbox consumer a deduplication key; the aggregate ID can be the partition key for per-article ordering.
+
+```java
+EditTxnResult committed = editTransaction(9, 9, false);
+assert committed.updateCount() == 1;
+assert committed.storedVersion() == 10;
+assert committed.outboxInserted();
+assert committed.operationResultInserted();
+
+EditTxnResult conflict = editTransaction(10, 9, false);
+assert conflict.decision() == EditTxnDecision.ROLLBACK_VERSION_CONFLICT;
+assert !conflict.outboxInserted();
+```
+
+### Transaction trace
+
+| Step | Article | Outbox | Operation result | Externally committed? |
+|---:|---|---|---|---|
+| t0 | v9 | absent | absent | yes, old state |
+| t1 | v10 staged | absent | absent | no |
+| t2 | v10 staged | v10 event staged | absent | no |
+| t3 | v10 staged | v10 event staged | `UPDATED` staged | no |
+| t4 | v10 | v10 event | `UPDATED` | yes, one atomic state |
+
+```mermaid
+sequenceDiagram
+    participant A as API
+    participant DB as PostgreSQL transaction
+    participant O as Outbox relay
+    A->>DB: update where version = 9
+    DB-->>A: one row, new version 10
+    A->>DB: insert event + operation result
+    A->>DB: COMMIT
+    DB-->>A: success after configured durability boundary
+    O->>DB: read committed outbox row
+    O->>O: invalidate version pointer idempotently
+```
+
+**Invariant:** a committed v10 article has its v10 event and operation result; a failed version predicate or aborted transaction has none of the three. The model is `O(1)` business work plus index costs for the article and unique operation/event keys.
+
+## Example 110 — WAL orders durability; a page flush is not the commit boundary
+
+Write-ahead logging requires the log records describing a data-page change to reach durable storage before the corresponding dirty data page. With normal durable settings, PostgreSQL can acknowledge commit after the required WAL is flushed without forcing every heap and index page immediately. Recovery replays committed changes whose pages had not yet been written.
+
+| Moment | Shared-buffer page | WAL state | Crash result |
+|---|---|---|---|
+| t0 | article v9 | prior committed prefix | recover v9 |
+| t1 | v10 tuple and outbox being built | records may only be buffered | transaction is not yet durable |
+| t2 | v10 state dirty | commit record/prefix durable | REDO can recover v10 and outbox |
+| t3 | article/outbox pages flushed | durable WAL retained as required | recover v10 with less REDO work |
+
+```mermaid
+flowchart TD
+    S["stage article v10 + outbox"] --> W["append WAL records"]
+    W --> F{"required WAL durable?"}
+    F -->|no, crash| R9["discard uncommitted work; recover v9"]
+    F -->|yes| C["commit is recoverable"]
+    C --> A["acknowledge according to synchronous_commit"]
+    C --> P["flush heap/index pages later"]
+    P --> K["checkpoint advances REDO start"]
+```
+
+```java
+CrashOutcome before = recoverEdit(CrashPoint.BEFORE_DURABLE_COMMIT);
+assert before.recoveredVersion() == 9;
+assert !before.outboxRecovered();
+
+CrashOutcome after = recoverEdit(
+        CrashPoint.AFTER_DURABLE_COMMIT_BEFORE_PAGE_FLUSH);
+assert after.recoveredVersion() == 10;
+assert after.outboxRecovered();
+assert after.walRedoRequired();
+```
+
+The phrase “commit returned” must include the configured durability policy:
+
+```java
+assert durabilityBoundary(true, true)
+        == DurabilityBoundary.DURABLE_BEFORE_SUCCESS;
+assert durabilityBoundary(true, false)
+        == DurabilityBoundary.SUCCESS_CAN_PRECEDE_DURABILITY;
+assert durabilityBoundary(false, true)
+        == DurabilityBoundary.CRASH_RECOVERY_UNSAFE;
+```
+
+- With `fsync=on` and non-`off` local `synchronous_commit`, success waits for the local WAL flush.
+- With `synchronous_commit=off`, PostgreSQL can report success before crash-safe durability; a database crash may lose a recent acknowledged transaction without corrupting transactional consistency.
+- With `fsync=off`, the server cannot promise consistent recovery from an operating-system or hardware crash; production reasoning must not call that durable.
+
+Do not turn this into a byte-level universal claim. WAL record formats and storage stacks vary; the portable reasoning is the ordering guarantee and the selected acknowledgement boundary.
+
+## Example 111 — A lost response creates an unknown outcome, not a rollback
+
+Suppose the WAL flush and commit complete, but the TCP connection breaks before the API receives the response. Database recovery yields article v10 and its outbox/result rows. The client's knowledge is still **unknown**.
+
+```mermaid
+sequenceDiagram
+    participant E as Editor
+    participant API as Edit API
+    participant DB as Database
+    E->>API: PUT expected=9, operation=edit-a8f1
+    API->>DB: article + outbox + result transaction
+    DB->>DB: durable commit of v10
+    DB--xAPI: success response lost
+    API--xE: timeout
+    E->>API: resolve/retry same operation ID
+    API->>DB: SELECT operation_result
+    DB-->>API: UPDATED, version 10
+    API-->>E: original result, no second edit
+```
+
+| Retry evidence | Safe decision | Unsafe shortcut |
+|---|---|---|
+| recorded result exists for same operation ID | return it | apply another update |
+| no result; same ID; deadline remains | retry the same atomic transaction | invent a new ID |
+| new ID presented for the timed-out action | reject or require explicit new user intent | treat it as an automatic retry |
+| result absent and deadline exhausted | stop with unresolved/retryable status | loop forever |
+
+```java
+CrashOutcome lost = recoverEdit(
+        CrashPoint.RESPONSE_LOST_AFTER_DURABLE_COMMIT);
+assert lost.recoveredVersion() == 10;
+assert lost.clientKnowledge() == ClientKnowledge.UNKNOWN_QUERY_OPERATION_ID;
+
+assert resolveEditRetry(true, true, true)
+        == EditRetryDecision.RETURN_RECORDED_RESULT;
+assert resolveEditRetry(false, false, true)
+        == EditRetryDecision.REJECT_NEW_OPERATION_ID;
+```
+
+A retry with expected version 9 may now receive an optimistic conflict, but that fact alone cannot prove *which* actor wrote v10. The operation-result row answers the business question directly. Cache invalidation remains an idempotent downstream action keyed by event ID/version; it is not part of the editor's database commit.
+
+## Example 112 — Checkpoint and vacuum solve different problems
+
+A checkpoint writes dirty buffers and establishes the WAL position from which REDO must begin after a crash. Vacuum handles MVCC lifecycle: it reclaims obsolete row versions when no relevant transaction can still see them, refreshes visibility information and protects against transaction-ID wraparound. Neither operation is a backup.
+
+| Symptom | Evidence to join | Likely subsystem | First investigation |
+|---|---|---|---|
+| restart recovery time grows | WAL generated since redo point, checkpoint frequency/time, storage throughput | checkpoint/WAL | inspect `pg_stat_checkpointer`, WAL volume and I/O headroom |
+| table/index size grows after many updates | dead tuples, oldest snapshot/XID, autovacuum progress | MVCC/vacuum | find old transactions/slots; verify autovacuum can keep up |
+| checkpoint spikes latency | checkpoint write/sync timing and dirty buffers | checkpoint I/O | tune with measured headroom; do not merely checkpoint more often |
+| index-only scans perform heap fetches | visibility-map coverage and recent page changes | vacuum/visibility | inspect all-visible coverage and vacuum activity |
+
+```java
+assert diagnoseMaintenance(true, true, false, false)
+        == MaintenanceDiagnosis.VACUUM_RETENTION_PRESSURE;
+assert diagnoseMaintenance(false, false, true, true)
+        == MaintenanceDiagnosis.CHECKPOINT_RECOVERY_PRESSURE;
+assert diagnoseMaintenance(true, true, true, true)
+        == MaintenanceDiagnosis.BOTH_SIGNAL_FAMILIES;
+```
+
+```mermaid
+flowchart TD
+    I["incident: disk growth or slow restart"] --> Q{"old snapshots + dead versions growing?"}
+    Q -->|yes| V["vacuum retention investigation"]
+    Q -->|no| W{"recovery time + WAL since checkpoint growing?"}
+    W -->|yes| C["checkpoint/WAL investigation"]
+    W -->|no| M["collect both signal families"]
+    V --> B["backups remain a separate restore contract"]
+    C --> B
+    M --> B
+```
+
+The important diagnostic rule is causal: a long reader can hold old versions even when checkpoints are healthy, while a long REDO interval can slow restart even when vacuum is healthy. Similar “disk is growing” or “database is slow” reports therefore require different metrics and remedies.
+
+## The complete write-side mental model
+
+```text
+authenticated editor intent + stable operation ID
+  → optimistic UPDATE where version = expected
+  → require exactly one updated row
+  → stage outbox event and operation result in the same transaction
+  → append WAL before dirty article/index/outbox pages may reach storage
+  → cross the configured durable commit boundary
+  → acknowledge, or record an unknown client outcome if the response is lost
+  → recover committed-but-unflushed pages with REDO after a crash
+  → relay the committed outbox event idempotently
+  → invalidate/fence cache state by monotonic version
+  → checkpoint bounds later REDO work
+  → vacuum eventually reclaims obsolete MVCC versions
+```
+
+### Primary references for Section 28
+
+Accessed 2026-10-19.
+
+183. [PostgreSQL 18 — Write-ahead logging](https://www.postgresql.org/docs/current/wal-intro.html): WAL-before-data ordering, commit without immediate data-page flush and REDO recovery.
+184. [PostgreSQL 18 — WAL configuration](https://www.postgresql.org/docs/current/wal-configuration.html): checkpoints, redo records, dirty-page flushing and checkpoint/recovery trade-offs.
+185. [PostgreSQL 18 — WAL server configuration](https://www.postgresql.org/docs/current/runtime-config-wal.html): `fsync`, `synchronous_commit`, local/standby durability and acknowledgement behavior.
+186. [PostgreSQL 18 — `UPDATE`](https://www.postgresql.org/docs/current/sql-update.html): affected-row command count plus old/new values through `RETURNING`.
+187. [Java SE 17 — `Statement`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/Statement.html): JDBC DML update counts and timeout behavior.
+188. [Debezium — Outbox event router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html): unique event IDs for deduplication and aggregate keys for ordered routing.
+189. [PostgreSQL 18 — Routine vacuuming](https://www.postgresql.org/docs/current/routine-vacuuming.html): dead-version reuse, visibility-map maintenance, old transactions and wraparound protection.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -6073,8 +6315,8 @@ Accessed 2026-10-19.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; and lines **1457–1532**, “Follow a single database read all the way to a row”
-- Deliberate continuation: Section 28, “Follow one committed edit and three crash points,” spans source lines **1533–1595**, bounded by the Section 29 heading at line **1596**, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; and lines **1533–1595**, “Follow one committed edit and three crash points”
+- Deliberate continuation: Section 29, “B+ tree dry run: insert, split, range query and secondary lookup,” spans source lines **1596–1643**, bounded by the Section 30 heading at line **1644**, and remains unprocessed.
 
 Validation commands:
 

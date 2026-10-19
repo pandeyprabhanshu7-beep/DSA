@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-27. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-28. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -3346,6 +3346,113 @@ public final class ConsistencyContracts {
         return ReadBottleneck.values()[largest];
     }
 
+    enum EditTxnDecision { COMMIT, ROLLBACK_VERSION_CONFLICT }
+
+    record EditTxnResult(
+            EditTxnDecision decision,
+            int updateCount,
+            long storedVersion,
+            boolean outboxInserted,
+            boolean operationResultInserted) {}
+
+    static EditTxnResult editTransaction(
+            long currentVersion,
+            long expectedVersion,
+            boolean failBeforeCommit) {
+        if (currentVersion <= 0 || expectedVersion <= 0) {
+            throw new IllegalArgumentException("versions must be positive");
+        }
+        if (currentVersion != expectedVersion) {
+            return new EditTxnResult(
+                    EditTxnDecision.ROLLBACK_VERSION_CONFLICT,
+                    0, currentVersion, false, false);
+        }
+        long nextVersion = Math.addExact(currentVersion, 1);
+        if (failBeforeCommit) throw new InjectedFailure();
+        return new EditTxnResult(EditTxnDecision.COMMIT, 1, nextVersion, true, true);
+    }
+
+    enum CrashPoint {
+        BEFORE_DURABLE_COMMIT,
+        AFTER_DURABLE_COMMIT_BEFORE_PAGE_FLUSH,
+        RESPONSE_LOST_AFTER_DURABLE_COMMIT
+    }
+
+    enum ClientKnowledge {
+        NOT_COMMITTED_AFTER_RECOVERY,
+        COMMIT_ACKNOWLEDGED,
+        UNKNOWN_QUERY_OPERATION_ID
+    }
+
+    record CrashOutcome(
+            long recoveredVersion,
+            boolean outboxRecovered,
+            boolean walRedoRequired,
+            ClientKnowledge clientKnowledge) {}
+
+    static CrashOutcome recoverEdit(CrashPoint point) {
+        Objects.requireNonNull(point, "point");
+        return switch (point) {
+            case BEFORE_DURABLE_COMMIT -> new CrashOutcome(
+                    9, false, false, ClientKnowledge.NOT_COMMITTED_AFTER_RECOVERY);
+            case AFTER_DURABLE_COMMIT_BEFORE_PAGE_FLUSH -> new CrashOutcome(
+                    10, true, true, ClientKnowledge.COMMIT_ACKNOWLEDGED);
+            case RESPONSE_LOST_AFTER_DURABLE_COMMIT -> new CrashOutcome(
+                    10, true, true, ClientKnowledge.UNKNOWN_QUERY_OPERATION_ID);
+        };
+    }
+
+    enum DurabilityBoundary {
+        DURABLE_BEFORE_SUCCESS,
+        SUCCESS_CAN_PRECEDE_DURABILITY,
+        CRASH_RECOVERY_UNSAFE
+    }
+
+    static DurabilityBoundary durabilityBoundary(boolean fsync, boolean synchronousCommit) {
+        if (!fsync) return DurabilityBoundary.CRASH_RECOVERY_UNSAFE;
+        return synchronousCommit
+                ? DurabilityBoundary.DURABLE_BEFORE_SUCCESS
+                : DurabilityBoundary.SUCCESS_CAN_PRECEDE_DURABILITY;
+    }
+
+    enum EditRetryDecision {
+        RETURN_RECORDED_RESULT,
+        RETRY_SAME_OPERATION_ID,
+        REJECT_NEW_OPERATION_ID,
+        STOP_AT_DEADLINE
+    }
+
+    static EditRetryDecision resolveEditRetry(
+            boolean operationResultFound,
+            boolean sameOperationId,
+            boolean deadlineRemaining) {
+        if (operationResultFound) return EditRetryDecision.RETURN_RECORDED_RESULT;
+        if (!sameOperationId) return EditRetryDecision.REJECT_NEW_OPERATION_ID;
+        return deadlineRemaining
+                ? EditRetryDecision.RETRY_SAME_OPERATION_ID
+                : EditRetryDecision.STOP_AT_DEADLINE;
+    }
+
+    enum MaintenanceDiagnosis {
+        VACUUM_RETENTION_PRESSURE,
+        CHECKPOINT_RECOVERY_PRESSURE,
+        BOTH_SIGNAL_FAMILIES,
+        NO_PRESSURE_DETECTED
+    }
+
+    static MaintenanceDiagnosis diagnoseMaintenance(
+            boolean oldSnapshotPresent,
+            boolean deadVersionsGrowing,
+            boolean recoveryTimeGrowing,
+            boolean walSinceCheckpointGrowing) {
+        boolean vacuumPressure = oldSnapshotPresent && deadVersionsGrowing;
+        boolean checkpointPressure = recoveryTimeGrowing && walSinceCheckpointGrowing;
+        if (vacuumPressure && checkpointPressure) return MaintenanceDiagnosis.BOTH_SIGNAL_FAMILIES;
+        if (vacuumPressure) return MaintenanceDiagnosis.VACUUM_RETENTION_PRESSURE;
+        if (checkpointPressure) return MaintenanceDiagnosis.CHECKPOINT_RECOVERY_PRESSURE;
+        return MaintenanceDiagnosis.NO_PRESSURE_DETECTED;
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -4956,6 +5063,64 @@ public final class ConsistencyContracts {
         assert largestReadStage(30, 100, 80, 900) == ReadBottleneck.JDBC_MATERIALIZATION;
     }
 
+    private static void committedEditTransactionScenarios() {
+        EditTxnResult committed = editTransaction(9, 9, false);
+        assert committed.decision() == EditTxnDecision.COMMIT;
+        assert committed.updateCount() == 1 && committed.storedVersion() == 10;
+        assert committed.outboxInserted() && committed.operationResultInserted();
+
+        EditTxnResult conflict = editTransaction(10, 9, false);
+        assert conflict.decision() == EditTxnDecision.ROLLBACK_VERSION_CONFLICT;
+        assert conflict.updateCount() == 0 && conflict.storedVersion() == 10;
+        assert !conflict.outboxInserted() && !conflict.operationResultInserted();
+
+        try {
+            editTransaction(9, 9, true);
+            throw new AssertionError("failure before commit was not injected");
+        } catch (InjectedFailure expected) {}
+    }
+
+    private static void walCrashBoundaryScenarios() {
+        CrashOutcome before = recoverEdit(CrashPoint.BEFORE_DURABLE_COMMIT);
+        assert before.recoveredVersion() == 9 && !before.outboxRecovered();
+        assert !before.walRedoRequired();
+
+        CrashOutcome after = recoverEdit(CrashPoint.AFTER_DURABLE_COMMIT_BEFORE_PAGE_FLUSH);
+        assert after.recoveredVersion() == 10 && after.outboxRecovered();
+        assert after.walRedoRequired();
+
+        assert durabilityBoundary(true, true) == DurabilityBoundary.DURABLE_BEFORE_SUCCESS;
+        assert durabilityBoundary(true, false)
+                == DurabilityBoundary.SUCCESS_CAN_PRECEDE_DURABILITY;
+        assert durabilityBoundary(false, true) == DurabilityBoundary.CRASH_RECOVERY_UNSAFE;
+    }
+
+    private static void lostEditResponseScenarios() {
+        CrashOutcome lost = recoverEdit(CrashPoint.RESPONSE_LOST_AFTER_DURABLE_COMMIT);
+        assert lost.recoveredVersion() == 10 && lost.outboxRecovered();
+        assert lost.clientKnowledge() == ClientKnowledge.UNKNOWN_QUERY_OPERATION_ID;
+
+        assert resolveEditRetry(true, true, true)
+                == EditRetryDecision.RETURN_RECORDED_RESULT;
+        assert resolveEditRetry(false, true, true)
+                == EditRetryDecision.RETRY_SAME_OPERATION_ID;
+        assert resolveEditRetry(false, false, true)
+                == EditRetryDecision.REJECT_NEW_OPERATION_ID;
+        assert resolveEditRetry(false, true, false)
+                == EditRetryDecision.STOP_AT_DEADLINE;
+    }
+
+    private static void checkpointVacuumDiagnosisScenarios() {
+        assert diagnoseMaintenance(true, true, false, false)
+                == MaintenanceDiagnosis.VACUUM_RETENTION_PRESSURE;
+        assert diagnoseMaintenance(false, false, true, true)
+                == MaintenanceDiagnosis.CHECKPOINT_RECOVERY_PRESSURE;
+        assert diagnoseMaintenance(true, true, true, true)
+                == MaintenanceDiagnosis.BOTH_SIGNAL_FAMILIES;
+        assert diagnoseMaintenance(false, false, false, false)
+                == MaintenanceDiagnosis.NO_PRESSURE_DETECTED;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -5068,7 +5233,11 @@ public final class ConsistencyContracts {
         slottedPageScenarios();
         bufferLayerScenarios();
         mvccAndProtocolScenarios();
-        System.out.println("PASS 108 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization");
+        committedEditTransactionScenarios();
+        walCrashBoundaryScenarios();
+        lostEditResponseScenarios();
+        checkpointVacuumDiagnosisScenarios();
+        System.out.println("PASS 112 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis");
     }
 }
 
