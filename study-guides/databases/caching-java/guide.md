@@ -5650,6 +5650,203 @@ Accessed 2026-10-19.
 160. [PostgreSQL 18 certificate authentication](https://www.postgresql.org/docs/current/auth-cert.html): explicit client-certificate mapping to database authentication.
 
 
+# Section 26 — Production acceptance gates
+
+A production checklist is useful only when every item names **evidence**, a **decision owner**, and a **blocking outcome**. “Reviewed” is not evidence. A representative `EXPLAIN (ANALYZE, BUFFERS)` result, a measured restore time, an enforced database privilege, or a failed canary that stopped rollout is evidence.
+
+This section converts the source checklist into four release gates. Each gate returns either `accepted` or a concrete blocker list. A release cannot average its way to safety: one missing correctness boundary, one unbounded miss path, or one untested restore keeps the gate closed.
+
+## Gate 101 — Transaction and storage acceptance
+
+The storage gate combines four claims that must agree:
+
+1. **Transaction contract:** each mutation names its invariants, transaction boundary, failure-domain durability and post-write replica rule.
+2. **Representative access paths:** plans are captured with production-like cardinality and skew, not an empty schema or evenly distributed toy data.
+3. **Maintenance headroom:** foreground writes plus index maintenance, vacuum or compaction remain inside the disk, CPU and space budget at the tested peak.
+4. **Enforced immutability:** revision-addressed data cannot be changed through ordinary write APIs or database privileges.
+
+```java
+AcceptanceResult result = storageAcceptance(
+        transactionContractWritten,
+        representativePlansVerified,
+        maintenanceHeadroomMeasured,
+        immutableWritesEnforced);
+
+if (!result.accepted()) {
+    throw new IllegalStateException("release blocked: " + result.blockers());
+}
+```
+
+PostgreSQL recommends examining index usage with real workload statistics and using `EXPLAIN ANALYZE` on representative data. That matters because a plan proven on uniform test rows can fail after one tenant owns most of a table. `VACUUM` also has an operational budget: routine vacuum reclaims reusable space while `VACUUM FULL` rewrites the table, needs extra disk and takes an exclusive lock.
+
+| Case | Evidence | Decision |
+|---|---|---|
+| A — ready | invariants and replica routing documented; skewed plans captured; vacuum/compaction peak measured; immutable role tested | accept |
+| B — synthetic plans | plan captured only on 10,000 uniform rows | block: representative query plans not verified |
+| C — comments-only immutability | revision is called immutable, but the application role can still `UPDATE` it; maintenance lag was not loaded | block on both controls |
+
+```mermaid
+flowchart TD
+    A["Write contract"] --> B["Representative plans"]
+    B --> C["Maintenance headroom"]
+    C --> D["Immutable privilege test"]
+    D -->|all pass| E["Storage accepted"]
+    A -->|missing| F["Release blocked"]
+    B -->|missing| F
+    C -->|missing| F
+    D -->|missing| F
+```
+
+**Trace C:** a deployment writes revision `r42`; an admin test connects as the production application role; `UPDATE artifact_revision SET payload = ... WHERE revision = 'r42'` succeeds. The cache key may still say `r42`, so readers can observe two values under one supposedly immutable identity. The gate fails before rollout; a comment or Java `final` field cannot repair the database authority boundary.
+
+## Gate 102 — Cache acceptance
+
+The cache gate rejects the idea that “Redis is optional” is a complete outage design. The release evidence must define the cached object, key namespace and tenant scope, maximum entry and aggregate size, hard/soft freshness, negative-cache semantics, and privacy/retention rule. Then it must prove that both misses and outages have bounded concurrency, finite waits and an explicit overload outcome.
+
+Two further boundaries are non-negotiable:
+
+- a cache fill lease may reduce duplicate work, but it is not a financial or inventory correctness lock;
+- every cache hit is authorized against the current request context; cached bytes are not a permissions oracle.
+
+```java
+AcceptanceResult cache = cacheAcceptance(
+        dataContractExplicit,
+        missAndOutagePathBounded,
+        cacheLeaseNotCorrectnessLock,
+        authorizationCheckedOnEveryHit);
+```
+
+| Case | Trace | Decision |
+|---|---|---|
+| A — bounded miss | 500 requests miss one key → one fill owner, 39 bounded waiters, 460 early overload responses | accept if the measured SQL admission budget survives |
+| B — cache outage | Redis is unavailable → every request immediately queries SQL with no semaphore | block: miss or outage path unbounded |
+| C — unsafe hit | tenant B guesses tenant A's key and the handler returns the cached value before authorization | block: cache hit bypasses authorization |
+
+Redis `maxmemory` and an eviction policy bound memory behavior, but eviction is not a correctness or retention proof. Likewise, Redis ACLs can constrain commands and key patterns, but application authorization still belongs on the request path.
+
+```mermaid
+flowchart TD
+    R["Request + principal"] --> A{"Authorized?"}
+    A -->|no| X["Deny"]
+    A -->|yes| C{"Cache hit?"}
+    C -->|yes| V["Validate envelope and freshness"]
+    C -->|no| P{"DB permit?"}
+    P -->|yes| Q["Bounded SQL read"]
+    P -->|no| O["Overload response"]
+```
+
+The authorization check occurs before both the hit return and the database fallback. Negative entries carry the same tenant/key scope and a finite lifetime; otherwise an absence learned in one context can suppress a valid lookup in another.
+
+## Gate 103 — Connectivity and security acceptance
+
+Pool sizing is a fleet equation, not a per-process guess:
+
+\[
+\text{application connections} =
+\text{maximum replicas} \times \text{pools per replica} \times \text{maximumPoolSize}
+\]
+
+The value must fit below the database connection ceiling after subtracting administration, migration, monitoring and surge reserve. For example, `6 × 1 × 12 = 72` application connections fit a 100-connection database with a reserve of 20. `8 × 2 × 10 = 160` does not, even though a pool size of ten looks small in one JVM.
+
+```java
+AcceptanceResult connectionGate = connectivitySecurityAcceptance(
+        6, 1, 12,     // fleet replicas, pools per replica, maximumPoolSize
+        100, 20,      // database limit, non-application reserve
+        timeoutStackTested,
+        tlsIdentityAndCaVerified,
+        leastPrivilegeRolesAndAclsVerified);
+```
+
+Timeouts are separate controls with separate owners:
+
+| Boundary | Example control | Acceptance evidence |
+|---|---|---|
+| pool checkout | HikariCP `connectionTimeout` | callers stop waiting before the end-to-end deadline |
+| statement execution | JDBC `Statement.setQueryTimeout` | driver cancellation behavior observed under a slow query |
+| network I/O | JDBC `Connection.setNetworkTimeout` and driver socket settings | a partitioned socket cannot hang past the request budget |
+| proxy / database | proxy queue and server statement/lock controls | lower layers do not outlive the caller and consume hidden capacity |
+| HTTP request | caller deadline | one finite budget covers retries and cleanup |
+
+HikariCP's `maximumPoolSize` is the maximum number of actual backend connections, while `connectionTimeout` bounds pool acquisition. JDBC's query timeout and network timeout cover different waits; setting one does not silently configure the other.
+
+**Three security cases:**
+
+1. Server TLS validates the expected hostname against the trusted CA bundle, the database authenticates a least-privilege application role, and Redis ACLs restrict both commands and key patterns: accept.
+2. Traffic is encrypted but hostname verification is disabled: block, because encryption without peer identity permits the wrong endpoint.
+3. The database role is scoped, but Redis uses a shared unrestricted credential: block, because the least-privilege claim is incomplete.
+
+## Gate 104 — Release and recovery acceptance
+
+The last gate asks whether the system can change and fail safely, not whether its happy path works once. Evidence must cover rolling deployment, credential and CA rotation, an unknown transaction outcome, and restoration from a real backup.
+
+```java
+AcceptanceResult releaseGate = releaseRecoveryAcceptance(
+        rollingDeployAndRollbackExercised,
+        credentialRotationExercised,
+        unknownCommitOutcomeProved,
+        backupRestoreMeasured);
+```
+
+Kubernetes rolling updates replace pods incrementally. A readiness failure removes an unready pod from Service endpoints, so acceptance should prove that a new revision becomes ready only after its dependencies and compatibility checks pass, and that rollback does not require the old schema or credential to have already disappeared.
+
+```mermaid
+sequenceDiagram
+    participant D as Deployment
+    participant N as New pod
+    participant S as Service
+    participant O as Old pod
+    D->>N: start new revision
+    N->>N: startup and readiness checks
+    alt ready
+        N-->>S: eligible endpoint
+        D->>O: drain then terminate
+    else not ready
+        S-->>N: no production traffic
+        D->>D: pause or roll back
+    end
+```
+
+| Case | Required trace | Decision |
+|---|---|---|
+| A — controlled change | mixed-version canary, readiness exclusion, rollback, overlapping credential trust, stored idempotent outcome, timed restore | accept |
+| B — no restore | backups exist, but nobody restored one into an isolated environment or measured RTO/RPO | block: backup restore not exercised and measured |
+| C — happy path only | rollout, rotation and commit all tested only when responses arrive normally | block on rollout, rotation and unknown-outcome evidence |
+
+PostgreSQL point-in-time recovery depends on a working base backup plus an unbroken, tested WAL archive. A backup job reporting success is therefore only an input. Acceptance requires restoring, replaying to a chosen target, checking application invariants, recording recovery time and proving the recovered data meets the promised recovery point.
+
+## One release record
+
+Store the four gate results with the artifact revision, schema revision, test-data profile, environment, evidence links, owners and expiry date. Evidence expires when a relevant assumption changes—for example fleet size, pool topology, data skew, index set, Redis policy, trust store, backup mechanism or rollout strategy.
+
+The final release predicate is deliberately strict:
+
+```text
+release = storage.accepted
+       && cache.accepted
+       && connectivitySecurity.accepted
+       && releaseRecovery.accepted
+```
+
+This does not claim that a checklist eliminates incidents. It makes each accepted risk and each unproved boundary visible before production traffic discovers it.
+
+### Primary references for Section 26
+
+Accessed 2026-10-19.
+
+161. [PostgreSQL 18 — Examining index usage](https://www.postgresql.org/docs/current/indexes-examine.html): representative data, workload statistics and `EXPLAIN ANALYZE` for plan verification.
+162. [PostgreSQL 18 — `VACUUM`](https://www.postgresql.org/docs/current/sql-vacuum.html): dead-tuple cleanup, index cleanup, locking and disk implications of routine and full vacuum.
+163. [Redis — Key eviction](https://redis.io/docs/latest/develop/reference/eviction/): `maxmemory`, eviction policies and memory-pressure behavior.
+164. [Redis — ACL](https://redis.io/docs/latest/operate/oss_and_stack/management/security/acl/): command and key-pattern permissions for least-privilege cache identities.
+165. [HikariCP configuration](https://github.com/brettwooldridge/HikariCP): pool acquisition timeout, maximum pool size, connection lifetime and metrics.
+166. [Java SE 17 — `Statement`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/Statement.html): query-timeout semantics and cancellation attempt.
+167. [Java SE 17 — `Connection`](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/Connection.html): network-timeout semantics for connection requests.
+168. [PostgreSQL 18 — SSL support](https://www.postgresql.org/docs/current/ssl-tcp.html): TLS, certificate authorities, client certificates and identity configuration.
+169. [Kubernetes — Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/): rolling-update behavior, rollout status and rollback.
+170. [Kubernetes — Pod lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/): readiness and removal of unready pods from Service endpoints.
+171. [PostgreSQL 18 — Backup and restore](https://www.postgresql.org/docs/current/backup.html): backup approaches and recovery foundations.
+172. [PostgreSQL 18 — Continuous archiving and point-in-time recovery](https://www.postgresql.org/docs/current/continuous-archiving.html): base backups, WAL archiving, replay and recovery targets.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -5657,8 +5854,8 @@ Accessed 2026-10-19.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; and lines **1428–1442**, “Senior-engineer review questions”
-- Deliberate continuation: Section 26, “Production-readiness checklist,” spans source lines **1443–1456**, bounded by the Phase 7 heading at line **1457**, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; and lines **1443–1456**, “Production-readiness checklist”
+- Deliberate continuation: Section 27, “Follow a single database read all the way to a row,” spans source lines **1457–1532**, bounded by the Section 28 heading at line **1533**, and remains unprocessed.
 
 Validation commands:
 

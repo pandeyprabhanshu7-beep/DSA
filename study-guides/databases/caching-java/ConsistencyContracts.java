@@ -3145,6 +3145,79 @@ public final class ConsistencyContracts {
                 || certificateAuthenticationConfigured;
     }
 
+    record AcceptanceResult(boolean accepted, List<String> blockers) {
+        AcceptanceResult {
+            blockers = List.copyOf(blockers);
+            if (accepted == !blockers.isEmpty()) {
+                throw new IllegalArgumentException("acceptance result must match blockers");
+            }
+        }
+    }
+
+    static AcceptanceResult storageAcceptance(
+            boolean invariantsAndDurabilityWritten,
+            boolean representativePlansVerified,
+            boolean maintenanceHeadroomMeasured,
+            boolean immutableRevisionsEnforced) {
+        List<String> blockers = new ArrayList<>();
+        if (!invariantsAndDurabilityWritten) blockers.add("transaction and durability contract missing");
+        if (!representativePlansVerified) blockers.add("representative query plans not verified");
+        if (!maintenanceHeadroomMeasured) blockers.add("vacuum or compaction headroom unknown");
+        if (!immutableRevisionsEnforced) blockers.add("revision immutability not enforced");
+        return new AcceptanceResult(blockers.isEmpty(), blockers);
+    }
+
+    static AcceptanceResult cacheAcceptance(
+            boolean scopeSizeFreshnessRetentionExplicit,
+            boolean missAndOutageConcurrencyBounded,
+            boolean correctnessLocksSeparate,
+            boolean cacheHitsAuthorized) {
+        List<String> blockers = new ArrayList<>();
+        if (!scopeSizeFreshnessRetentionExplicit) blockers.add("cache contract incomplete");
+        if (!missAndOutageConcurrencyBounded) blockers.add("miss or outage path unbounded");
+        if (!correctnessLocksSeparate) blockers.add("cache lease reused as correctness lock");
+        if (!cacheHitsAuthorized) blockers.add("cache hit bypasses authorization");
+        return new AcceptanceResult(blockers.isEmpty(), blockers);
+    }
+
+    static AcceptanceResult connectivitySecurityAcceptance(
+            int applicationInstances,
+            int poolsPerInstance,
+            int maximumPoolSize,
+            int databaseConnectionBudget,
+            int surgeAndAdminReserve,
+            boolean layeredTimeoutsTested,
+            boolean tlsIdentityVerified,
+            boolean leastPrivilegeRolesAndAcls) {
+        if (applicationInstances < 0 || poolsPerInstance < 0 || maximumPoolSize < 0
+                || databaseConnectionBudget < 0 || surgeAndAdminReserve < 0
+                || surgeAndAdminReserve > databaseConnectionBudget) {
+            throw new IllegalArgumentException("connectivity budget");
+        }
+        List<String> blockers = new ArrayList<>();
+        long fleetMaximum = (long) applicationInstances * poolsPerInstance * maximumPoolSize;
+        if (fleetMaximum > databaseConnectionBudget - surgeAndAdminReserve) {
+            blockers.add("fleet pools exceed database budget after reserve");
+        }
+        if (!layeredTimeoutsTested) blockers.add("timeout stack not tested together");
+        if (!tlsIdentityVerified) blockers.add("TLS peer identity not verified");
+        if (!leastPrivilegeRolesAndAcls) blockers.add("database roles or Redis ACLs too broad");
+        return new AcceptanceResult(blockers.isEmpty(), blockers);
+    }
+
+    static AcceptanceResult releaseRecoveryAcceptance(
+            boolean readinessAndRollbackExercised,
+            boolean credentialRotationExercised,
+            boolean unknownCommitReconciled,
+            boolean backupRestoreMeasured) {
+        List<String> blockers = new ArrayList<>();
+        if (!readinessAndRollbackExercised) blockers.add("rolling readiness or rollback unproved");
+        if (!credentialRotationExercised) blockers.add("credential rotation unproved");
+        if (!unknownCommitReconciled) blockers.add("unknown commit outcome unproved");
+        if (!backupRestoreMeasured) blockers.add("backup restore not exercised and measured");
+        return new AcceptanceResult(blockers.isEmpty(), blockers);
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -4642,6 +4715,59 @@ public final class ConsistencyContracts {
         assert unknownCommitAction(false, true) == UnknownCommitAction.RETRY_SAME_OPERATION_ID;
     }
 
+    private static void productionStorageAcceptanceScenarios() {
+        AcceptanceResult ready = storageAcceptance(true, true, true, true);
+        assert ready.accepted() && ready.blockers().isEmpty();
+
+        AcceptanceResult syntheticOnly = storageAcceptance(true, false, true, true);
+        assert !syntheticOnly.accepted();
+        assert syntheticOnly.blockers().equals(List.of("representative query plans not verified"));
+
+        AcceptanceResult commentsOnly = storageAcceptance(true, true, false, false);
+        assert !commentsOnly.accepted();
+        assert commentsOnly.blockers().contains("vacuum or compaction headroom unknown");
+        assert commentsOnly.blockers().contains("revision immutability not enforced");
+    }
+
+    private static void productionCacheAcceptanceScenarios() {
+        assert cacheAcceptance(true, true, true, true).accepted();
+
+        AcceptanceResult outage = cacheAcceptance(true, false, true, true);
+        assert !outage.accepted();
+        assert outage.blockers().equals(List.of("miss or outage path unbounded"));
+
+        AcceptanceResult unsafeTrust = cacheAcceptance(true, true, false, false);
+        assert unsafeTrust.blockers().contains("cache lease reused as correctness lock");
+        assert unsafeTrust.blockers().contains("cache hit bypasses authorization");
+    }
+
+    private static void productionConnectivitySecurityAcceptanceScenarios() {
+        AcceptanceResult ready = connectivitySecurityAcceptance(
+                6, 1, 12, 100, 20, true, true, true);
+        assert ready.accepted(); // 72 application connections leave 28, including 20 reserved.
+
+        AcceptanceResult oversized = connectivitySecurityAcceptance(
+                8, 2, 10, 100, 20, true, true, true);
+        assert !oversized.accepted();
+        assert oversized.blockers().contains("fleet pools exceed database budget after reserve");
+
+        AcceptanceResult insecure = connectivitySecurityAcceptance(
+                4, 1, 10, 100, 20, false, false, false);
+        assert insecure.blockers().size() == 3;
+    }
+
+    private static void productionReleaseRecoveryAcceptanceScenarios() {
+        assert releaseRecoveryAcceptance(true, true, true, true).accepted();
+
+        AcceptanceResult noRestore = releaseRecoveryAcceptance(true, true, true, false);
+        assert !noRestore.accepted();
+        assert noRestore.blockers().equals(List.of("backup restore not exercised and measured"));
+
+        AcceptanceResult happyPathOnly = releaseRecoveryAcceptance(false, false, false, true);
+        assert happyPathOnly.blockers().size() == 3;
+        assert happyPathOnly.blockers().contains("unknown commit outcome unproved");
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -4746,7 +4872,11 @@ public final class ConsistencyContracts {
         seniorCacheSafetyReviewScenarios();
         seniorPoolTimeoutHealthReviewScenarios();
         seniorProtocolOutcomeReviewScenarios();
-        System.out.println("PASS 100 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review");
+        productionStorageAcceptanceScenarios();
+        productionCacheAcceptanceScenarios();
+        productionConnectivitySecurityAcceptanceScenarios();
+        productionReleaseRecoveryAcceptanceScenarios();
+        System.out.println("PASS 104 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance");
     }
 }
 
