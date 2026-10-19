@@ -621,7 +621,8 @@
         "Section 24: recovery runbooks — fenced database promotion/restore, capacity-gated cache warming, evidence-led pool diagnosis and fresh-connection certificate/credential rotation",
         "Section 25: senior-engineer review drills — visibility/storage qualification, cache/filter safety, pool/timeout/health boundaries and protocol/unknown-commit reasoning",
         "Section 26: production acceptance gates — transaction/storage evidence, bounded and authorized cache paths, fleet connectivity/security budgets and exercised release/recovery outcomes",
-        "Section 27: one database read end to end — plan reuse, composite-index and slotted-page lookup, buffer ownership, MVCC visibility, protocol bytes and JDBC diagnosis"
+        "Section 27: one database read end to end — plan reuse, composite-index and slotted-page lookup, buffer ownership, MVCC visibility, protocol bytes and JDBC diagnosis",
+        "Section 28: one committed edit and three crash points — optimistic update/outbox/result atomicity, WAL durability, unknown-response reconciliation and checkpoint/vacuum diagnosis"
       ],
       "source_revision": {
         "baseline_commit": "e8961ba3f7208a18faa548925ae1b3fa6d21f3c8",
@@ -629,12 +630,12 @@
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-1532",
-        "canonical_sha256_after": "162b6d167bb98372a07f2ac3084c86028a6e3bc14d77fb5f082188454c9bcd2a"
+        "processed_lines": "62-1595",
+        "canonical_sha256_after": "858b82010c5a0967f841a469e0f420957ac275f92d9a55e2fd9f9b4663011991"
       },
-      "content_commit": "97c6cdc8a603520ea09766f7d27e8099e4cdf62a",
-      "validation": "Exact source lines 1457-1532 were bounded by the Section 28 heading and expanded into four current primary-source-backed walkthroughs for plan reuse, slotted-page relocation, buffer ownership and MVCC/protocol/JDBC diagnosis. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 108 total scenario groups; the independent build emitted 186 class files. Deterministic reader generation passed exact 395319-character Markdown payload equality, source SHA-256 162b6d167bb98372a07f2ac3084c86028a6e3bc14d77fb5f082188454c9bcd2a, 1338 unique HTML IDs, 244 search entries, fragments, allowed relative links, 221 balanced fences and 112 Mermaid sources. The standalone javac command was unavailable; real PostgreSQL/Redis/JDBC services, browser, assistive-technology and Mermaid visual QA were not executed. The live canonical Markdown placeholder audit remains 170. The content was published atomically with an expected-head guard.",
-      "next_action": "Process exactly Section 28, Follow one committed edit and three crash points, source lines 1533-1595, bounded by the Section 29 heading at line 1596.",
+      "content_commit": "83c4b39cca43b85791c53cd7cccced01b4a9731a",
+      "validation": "Exact source lines 1533-1595 were bounded by the Section 29 heading and expanded into four current primary-source-backed walkthroughs for version-checked article/outbox/result atomicity, WAL/page-flush crash boundaries, operation-ID recovery after a lost response, and checkpoint-versus-vacuum diagnosis. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 112 total scenario groups; the independent build emitted 194 class files. Deterministic reader generation passed exact 408108-character Markdown payload equality, source SHA-256 858b82010c5a0967f841a469e0f420957ac275f92d9a55e2fd9f9b4663011991, 1411 unique HTML IDs, 253 search entries, fragments, allowed relative links, 233 balanced fences and 116 Mermaid sources. The standalone javac command was unavailable; real PostgreSQL/Redis/JDBC services, browser, assistive-technology and Mermaid visual QA were not executed. The live canonical Markdown placeholder audit remains 170. The content was published atomically with an expected-head guard.",
+      "next_action": "Process exactly Section 29, B+ tree dry run: insert, split, range query and secondary lookup, source lines 1596-1643, bounded by the Section 30 heading at line 1644.",
       "priority": 12
     },
     {
@@ -908,7 +909,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 28 only, 'Follow one committed edit and three crash points,' source lines 1533-1595, bounded by the Section 29 heading at line 1596.",
+    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 29 only, 'B+ tree dry run: insert, split, range query and secondary lookup,' source lines 1596-1643, bounded by the Section 30 heading at line 1644.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -994,15 +995,16 @@
       "Database/caching Section 24: fenced database promotion/restore, capacity-gated cache warming, evidence-led pool diagnosis and fresh-connection certificate/credential rotation",
       "Database/caching Section 25: senior visibility/storage, cache/filter safety, pool/timeout/health and protocol/unknown-commit review drills",
       "Database/caching Section 26: transaction/storage, cache, connectivity/security and release/recovery production acceptance gates",
-      "Database/caching Section 27: end-to-end plan, index/page, buffer/MVCC and protocol/JDBC database-read trace"
+      "Database/caching Section 27: end-to-end plan, index/page, buffer/MVCC and protocol/JDBC database-read trace",
+      "Database/caching Section 28: atomic versioned edit/outbox/result, WAL crash boundaries, unknown-response reconciliation and checkpoint/vacuum diagnosis"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 1457-1532 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 27, Follow a single database read all the way to a row",
-    "validation": "Section 27 was bounded by the Section 28 heading and expanded into four primary-source-backed walkthroughs for plan reuse, slotted-page relocation, buffer ownership and MVCC/protocol/JDBC diagnosis. Java 17 source launch and compilation through jdk.compiler passed 108 total scenario groups and emitted 186 class files; deterministic reader generation passed exact 395319-character payload equality, 1338 unique IDs, 244 search entries, fragments, allowed relative links, 221 balanced fences and 112 Mermaid sources; the live canonical Markdown marker audit remains 170. The content was published atomically with an expected-head guard. The standalone javac command, real PostgreSQL/Redis/JDBC services, browser, assistive-technology and Mermaid visual QA were unavailable.",
-    "estimated_next_tokens": 9000,
-    "estimate_method": "Heuristic only for the bounded committed-edit/crash-point section, primary-reference reconciliation, examples, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "97c6cdc8a603520ea09766f7d27e8099e4cdf62a",
-    "last_processed_at": "2026-10-18T23:52:50-04:00",
-    "next_batch_decision": "Section 27 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 28; resume at source lines 1533-1595, bounded by the Section 29 heading at line 1596."
+    "processed_section": "database_internals_caching_java_master_guide.md lines 1533-1595 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 28, Follow one committed edit and three crash points",
+    "validation": "Section 28 was bounded by the Section 29 heading and expanded into four primary-source-backed walkthroughs for atomic versioned edits, WAL/page-flush durability, unknown-response recovery and checkpoint/vacuum diagnosis. Java 17 source launch and compilation through jdk.compiler passed 112 total scenario groups and emitted 194 class files; deterministic reader generation passed exact 408108-character payload equality, 1411 unique IDs, 253 search entries, fragments, allowed relative links, 233 balanced fences and 116 Mermaid sources; the live canonical Markdown marker audit remains 170. The content was published atomically with an expected-head guard. The standalone javac command, real PostgreSQL/Redis/JDBC services, browser, assistive-technology and Mermaid visual QA were unavailable.",
+    "estimated_next_tokens": 8000,
+    "estimate_method": "Heuristic only for the bounded B+ tree dry run, primary-reference reconciliation, examples, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "83c4b39cca43b85791c53cd7cccced01b4a9731a",
+    "last_processed_at": "2026-10-19T03:23:22-04:00",
+    "next_batch_decision": "Section 28 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 29; resume at source lines 1596-1643, bounded by the Section 30 heading at line 1644."
   }
 }
 
