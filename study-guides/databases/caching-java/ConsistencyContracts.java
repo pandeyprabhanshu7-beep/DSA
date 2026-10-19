@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-23. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-24. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -2832,6 +2832,201 @@ public final class ConsistencyContracts {
         return UnknownCommitAction.STOP_AT_DEADLINE;
     }
 
+    enum DatabaseFailureKind { PROCESS, STORAGE, NETWORK_PARTITION }
+
+    enum DatabaseRecoveryAction {
+        FENCE_BEFORE_FAILOVER,
+        PROMOTE_ELIGIBLE_REPLICA,
+        RESTORE_AND_REPLAY_WAL
+    }
+
+    record DatabaseRecoveryPlan(
+            DatabaseRecoveryAction action,
+            boolean writesAllowed,
+            boolean reconcileUnknownOutcomes,
+            int reconnectBatchSize,
+            List<String> steps) {}
+
+    static DatabaseRecoveryPlan databaseRecoveryPlan(
+            DatabaseFailureKind failure,
+            boolean failedPrimaryFenced,
+            boolean eligibleReplica,
+            int reconnectBatchSize) {
+        Objects.requireNonNull(failure, "failure");
+        if (reconnectBatchSize < 1) throw new IllegalArgumentException("reconnectBatchSize");
+        if (!failedPrimaryFenced) {
+            return new DatabaseRecoveryPlan(
+                    DatabaseRecoveryAction.FENCE_BEFORE_FAILOVER,
+                    false,
+                    true,
+                    0,
+                    List.of("stop authoritative routing", "fence old primary", "verify one writer"));
+        }
+        if (eligibleReplica && failure != DatabaseFailureKind.STORAGE) {
+            return new DatabaseRecoveryPlan(
+                    DatabaseRecoveryAction.PROMOTE_ELIGIBLE_REPLICA,
+                    true,
+                    true,
+                    reconnectBatchSize,
+                    List.of("verify replay position", "promote once", "reconcile operation IDs",
+                            "open reconnect batches", "watch database and pool saturation"));
+        }
+        return new DatabaseRecoveryPlan(
+                DatabaseRecoveryAction.RESTORE_AND_REPLAY_WAL,
+                false,
+                true,
+                reconnectBatchSize,
+                List.of("select trusted base backup", "replay WAL to recovery target",
+                        "validate invariants", "restore authoritative routing gradually"));
+    }
+
+    enum CacheRecoveryAction {
+        RECONNECT_AND_OBSERVE,
+        WARM_HOT_KEYS_WITH_BUDGET,
+        SHED_LOAD_TO_PROTECT_DATABASE
+    }
+
+    record CacheRecoveryPlan(
+            CacheRecoveryAction action,
+            int allowedWarmers,
+            int remainingDatabasePermits,
+            boolean fullKeyspaceReloadAllowed,
+            List<String> signals) {}
+
+    static CacheRecoveryPlan cacheRecoveryPlan(
+            boolean redisReachable,
+            double hitRatio,
+            int databaseActive,
+            int databaseCapacity,
+            int requestedWarmers,
+            int warmingBudget) {
+        if (hitRatio < 0 || hitRatio > 1) throw new IllegalArgumentException("hitRatio");
+        if (databaseActive < 0 || databaseCapacity < 1 || databaseActive > databaseCapacity) {
+            throw new IllegalArgumentException("database capacity");
+        }
+        if (requestedWarmers < 0 || warmingBudget < 0) {
+            throw new IllegalArgumentException("warming budget");
+        }
+        int remaining = databaseCapacity - databaseActive;
+        List<String> signals = List.of(
+                "Redis reconnect rate", "cache hit ratio", "database active sessions",
+                "pool pending threads", "miss-load p99");
+        if (!redisReachable) {
+            return new CacheRecoveryPlan(
+                    remaining == 0
+                            ? CacheRecoveryAction.SHED_LOAD_TO_PROTECT_DATABASE
+                            : CacheRecoveryAction.RECONNECT_AND_OBSERVE,
+                    0, remaining, false, signals);
+        }
+        if (remaining == 0) {
+            return new CacheRecoveryPlan(
+                    CacheRecoveryAction.SHED_LOAD_TO_PROTECT_DATABASE,
+                    0, 0, false, signals);
+        }
+        int allowed = hitRatio < 0.80
+                ? Math.min(Math.min(requestedWarmers, warmingBudget), remaining)
+                : 0;
+        return new CacheRecoveryPlan(
+                allowed > 0
+                        ? CacheRecoveryAction.WARM_HOT_KEYS_WITH_BUDGET
+                        : CacheRecoveryAction.RECONNECT_AND_OBSERVE,
+                allowed, remaining, false, signals);
+    }
+
+    enum PoolExhaustionCause {
+        LONG_CONNECTION_HOLD,
+        DATABASE_LOCK_WAIT,
+        PGBOUNCER_SECOND_QUEUE,
+        DATABASE_AT_CAPACITY,
+        POOL_CAPACITY_MISMATCH
+    }
+
+    record PoolDiagnosis(
+            PoolExhaustionCause cause,
+            String firstAction,
+            boolean increasePoolNow) {}
+
+    static PoolDiagnosis diagnosePoolExhaustion(
+            long usageP99Millis,
+            long waitP99Millis,
+            boolean databaseLockWait,
+            boolean externalWorkInsideTransaction,
+            boolean pgbouncerWaiting,
+            int databaseActive,
+            int databaseCapacity) {
+        if (usageP99Millis < 0 || waitP99Millis < 0
+                || databaseActive < 0 || databaseCapacity < 1
+                || databaseActive > databaseCapacity) {
+            throw new IllegalArgumentException("pool evidence");
+        }
+        if (databaseLockWait) {
+            return new PoolDiagnosis(
+                    PoolExhaustionCause.DATABASE_LOCK_WAIT,
+                    "find blocker and shorten the locked transaction", false);
+        }
+        if (externalWorkInsideTransaction || usageP99Millis > 2_000) {
+            return new PoolDiagnosis(
+                    PoolExhaustionCause.LONG_CONNECTION_HOLD,
+                    "remove external work and profile oldest holders", false);
+        }
+        if (pgbouncerWaiting) {
+            return new PoolDiagnosis(
+                    PoolExhaustionCause.PGBOUNCER_SECOND_QUEUE,
+                    "inspect PgBouncer waiters and backend capacity", false);
+        }
+        if (databaseActive >= databaseCapacity) {
+            return new PoolDiagnosis(
+                    PoolExhaustionCause.DATABASE_AT_CAPACITY,
+                    "shed load or reduce database work per request", false);
+        }
+        return new PoolDiagnosis(
+                PoolExhaustionCause.POOL_CAPACITY_MISMATCH,
+                "validate global connection budget before a bounded adjustment",
+                waitP99Millis > 0);
+    }
+
+    enum RotationAction {
+        ABORT_AND_RESTORE_OLD_MATERIAL,
+        CONTINUE_OVERLAP_AND_CANARY,
+        COMPLETE_AFTER_OLD_SESSIONS_DRAIN
+    }
+
+    record RotationPlan(
+            RotationAction action,
+            boolean activeQueriesProveRotation,
+            int creationFailurePercent,
+            List<String> gates) {}
+
+    static RotationPlan rotationPlan(
+            int oldSessions,
+            int newConnectionAttempts,
+            int newConnectionSuccesses,
+            boolean trustAndCredentialOverlapPresent) {
+        if (oldSessions < 0 || newConnectionAttempts < 0 || newConnectionSuccesses < 0
+                || newConnectionSuccesses > newConnectionAttempts) {
+            throw new IllegalArgumentException("rotation evidence");
+        }
+        int failurePercent = newConnectionAttempts == 0
+                ? 0
+                : (newConnectionAttempts - newConnectionSuccesses) * 100 / newConnectionAttempts;
+        List<String> gates = List.of(
+                "canary creates verified connection", "connection-creation failures stay zero",
+                "old sessions drain", "new trust and credential path remains healthy");
+        if (!trustAndCredentialOverlapPresent || failurePercent > 0) {
+            return new RotationPlan(
+                    RotationAction.ABORT_AND_RESTORE_OLD_MATERIAL,
+                    false, failurePercent, gates);
+        }
+        if (oldSessions > 0 || newConnectionAttempts == 0) {
+            return new RotationPlan(
+                    RotationAction.CONTINUE_OVERLAP_AND_CANARY,
+                    false, failurePercent, gates);
+        }
+        return new RotationPlan(
+                RotationAction.COMPLETE_AFTER_OLD_SESSIONS_DRAIN,
+                false, failurePercent, gates);
+    }
+
     private static void atomicTransferScenarios() {
         AtomicLedger ledger = new AtomicLedger(500, 200);
         try {
@@ -4216,6 +4411,73 @@ public final class ConsistencyContracts {
                 .requiredObservation().contains("unknown format");
     }
 
+    private static void databaseRecoveryRunbookScenarios() {
+        DatabaseRecoveryPlan partition = databaseRecoveryPlan(
+                DatabaseFailureKind.NETWORK_PARTITION, false, true, 4);
+        assert partition.action() == DatabaseRecoveryAction.FENCE_BEFORE_FAILOVER;
+        assert !partition.writesAllowed() && partition.reconnectBatchSize() == 0;
+
+        DatabaseRecoveryPlan promoted = databaseRecoveryPlan(
+                DatabaseFailureKind.PROCESS, true, true, 4);
+        assert promoted.action() == DatabaseRecoveryAction.PROMOTE_ELIGIBLE_REPLICA;
+        assert promoted.writesAllowed() && promoted.reconcileUnknownOutcomes();
+        assert promoted.steps().indexOf("promote once")
+                < promoted.steps().indexOf("open reconnect batches");
+
+        DatabaseRecoveryPlan restored = databaseRecoveryPlan(
+                DatabaseFailureKind.STORAGE, true, false, 2);
+        assert restored.action() == DatabaseRecoveryAction.RESTORE_AND_REPLAY_WAL;
+        assert !restored.writesAllowed();
+    }
+
+    private static void cacheRecoveryRunbookScenarios() {
+        CacheRecoveryPlan warm = cacheRecoveryPlan(true, 0.12, 36, 40, 20, 6);
+        assert warm.action() == CacheRecoveryAction.WARM_HOT_KEYS_WITH_BUDGET;
+        assert warm.allowedWarmers() == 4;
+        assert !warm.fullKeyspaceReloadAllowed();
+        assert warm.signals().contains("pool pending threads");
+
+        CacheRecoveryPlan saturated = cacheRecoveryPlan(true, 0.05, 40, 40, 20, 6);
+        assert saturated.action() == CacheRecoveryAction.SHED_LOAD_TO_PROTECT_DATABASE;
+        assert saturated.allowedWarmers() == 0;
+
+        CacheRecoveryPlan disconnected = cacheRecoveryPlan(false, 0.90, 12, 40, 4, 4);
+        assert disconnected.action() == CacheRecoveryAction.RECONNECT_AND_OBSERVE;
+        assert disconnected.allowedWarmers() == 0;
+    }
+
+    private static void poolExhaustionRunbookScenarios() {
+        PoolDiagnosis locks = diagnosePoolExhaustion(600, 900, true, false, false, 18, 40);
+        assert locks.cause() == PoolExhaustionCause.DATABASE_LOCK_WAIT;
+        assert !locks.increasePoolNow();
+
+        PoolDiagnosis holder = diagnosePoolExhaustion(4_500, 800, false, true, false, 18, 40);
+        assert holder.cause() == PoolExhaustionCause.LONG_CONNECTION_HOLD;
+
+        PoolDiagnosis secondQueue = diagnosePoolExhaustion(250, 900, false, false, true, 18, 40);
+        assert secondQueue.cause() == PoolExhaustionCause.PGBOUNCER_SECOND_QUEUE;
+
+        PoolDiagnosis boundedChange = diagnosePoolExhaustion(250, 900, false, false, false, 18, 40);
+        assert boundedChange.cause() == PoolExhaustionCause.POOL_CAPACITY_MISMATCH;
+        assert boundedChange.increasePoolNow();
+    }
+
+    private static void certificateCredentialRotationScenarios() {
+        RotationPlan hiddenFailure = rotationPlan(18, 10, 7, true);
+        assert hiddenFailure.action() == RotationAction.ABORT_AND_RESTORE_OLD_MATERIAL;
+        assert hiddenFailure.creationFailurePercent() == 30;
+        assert !hiddenFailure.activeQueriesProveRotation();
+
+        RotationPlan overlap = rotationPlan(18, 10, 10, true);
+        assert overlap.action() == RotationAction.CONTINUE_OVERLAP_AND_CANARY;
+
+        RotationPlan complete = rotationPlan(0, 50, 50, true);
+        assert complete.action() == RotationAction.COMPLETE_AFTER_OLD_SESSIONS_DRAIN;
+
+        RotationPlan noOverlap = rotationPlan(18, 1, 1, false);
+        assert noOverlap.action() == RotationAction.ABORT_AND_RESTORE_OLD_MATERIAL;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -4312,7 +4574,11 @@ public final class ConsistencyContracts {
         leaseFaultInjectionScenarios();
         writeSkewHarnessScenarios();
         unknownCommitRecoveryScenarios();
-        System.out.println("PASS 92 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery");
+        databaseRecoveryRunbookScenarios();
+        cacheRecoveryRunbookScenarios();
+        poolExhaustionRunbookScenarios();
+        certificateCredentialRotationScenarios();
+        System.out.println("PASS 96 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation");
     }
 }
 

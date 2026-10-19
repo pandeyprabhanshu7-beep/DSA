@@ -5153,6 +5153,292 @@ Accessed 2026-10-18.
 138. [pgJDBC SSL documentation](https://jdbc.postgresql.org/documentation/ssl/): certificate-chain and hostname verification, `verify-full`, and the weaker identity guarantees of `require`.
 
 
+# Section 24 — Recovery runbooks
+
+A recovery runbook is an executable decision contract, not a list that begins with “restart it.” It must state the evidence required to move forward, the unsafe action that remains forbidden, the capacity gate for each recovery step, and the invariant that proves recovery is complete.
+
+The four incidents in this section share one rule:
+
+> Restore **one authoritative path under bounded load**, prove it with fresh work, and only then increase traffic.
+
+```mermaid
+flowchart TD
+    D["detect and classify"] --> F["freeze unsafe automation"]
+    F --> E["collect minimum evidence"]
+    E --> R{"safe recovery gate satisfied?"}
+    R -->|no| B["remain degraded or shed load"]
+    R -->|yes| C["restore one bounded path"]
+    C --> V["verify fresh work and invariants"]
+    V -->|healthy| X["expand gradually"]
+    V -->|regression| B
+```
+
+## Learning and requirements contract
+
+After this section you should be able to:
+
+1. classify a database incident as process, storage or network-partition failure before choosing promotion or restore;
+2. require fencing before a replacement primary accepts authoritative writes;
+3. resolve ambiguous commit outcomes by operation identity instead of assuming rollback;
+4. recover from an empty or failed cache without turning every JVM into an unbounded loader;
+5. diagnose pool exhaustion from wait, usage, database, lock and proxy evidence before changing pool size;
+6. rotate certificates or credentials using overlap, forced new-connection canaries and drain gates; and
+7. separate **service restored** from **incident closed** by requiring invariant checks, backlog drain and stable saturation signals.
+
+The four executable examples below raise `ConsistencyContracts.java` from 92 to 96 scenario groups. They are decision oracles; real failover, cache, pool and TLS exercises still require the production topology or an isolated equivalent.
+
+## The minimum incident record
+
+Every runbook invocation should capture the following without placing secrets, full SQL text, tenant IDs or operation IDs in low-cardinality metrics:
+
+| Field | Why it matters |
+|---|---|
+| incident ID and UTC timestamps | joins application, database, cache, pool and proxy evidence |
+| last known good deployment/configuration | prevents unrelated rollback guesses |
+| failure class and confidence | keeps process restart, storage restore and partition fencing distinct |
+| current write authority | makes split-brain risk explicit |
+| RPO/RTO and last replayed position | defines acceptable promotion/restore boundary |
+| unknown operation count | prevents ambiguous commits from being silently duplicated |
+| admission limit and current saturation | makes recovery traffic part of the plan |
+| entry, abort and completion gates | stops improvised “looks better” decisions |
+
+## Example 93 — database crash: fence, promote or restore
+
+### Requirement and four concrete cases
+
+| Case | Evidence | Safe action | Forbidden action |
+|---|---|---|---|
+| process died; replica is caught up | host/process failure, storage healthy, eligible standby | fence old writer, promote once, resolve unknown operations, reconnect in batches | let every application race through DNS and refill its pool |
+| network partition | old primary cannot be proved stopped | stop authoritative routing and fence first | promote while both sides might accept writes |
+| primary storage corruption | checksums/I/O evidence; trustworthy backup and WAL exist | restore base backup and replay WAL to selected target | repeatedly restart against suspect storage |
+| response lost during outage | operation ID exists; commit result unknown | query authoritative operation result and retry the **same** ID only when absent and within deadline | create a fresh ID and duplicate the effect |
+
+PostgreSQL streaming replication is asynchronous by default, so “a replica exists” does not prove zero data loss. Record the replay position and the intended RPO. A high-availability standby must also be provisioned with the connections, authentication and WAL behavior it needs after promotion.
+
+```java
+DatabaseRecoveryPlan partition = databaseRecoveryPlan(
+        DatabaseFailureKind.NETWORK_PARTITION, false, true, 4);
+assert partition.action() == DatabaseRecoveryAction.FENCE_BEFORE_FAILOVER;
+assert !partition.writesAllowed();
+
+DatabaseRecoveryPlan promoted = databaseRecoveryPlan(
+        DatabaseFailureKind.PROCESS, true, true, 4);
+assert promoted.action() == DatabaseRecoveryAction.PROMOTE_ELIGIBLE_REPLICA;
+assert promoted.reconcileUnknownOutcomes();
+assert promoted.steps().indexOf("promote once")
+        < promoted.steps().indexOf("open reconnect batches");
+
+DatabaseRecoveryPlan restored = databaseRecoveryPlan(
+        DatabaseFailureKind.STORAGE, true, false, 2);
+assert restored.action() == DatabaseRecoveryAction.RESTORE_AND_REPLAY_WAL;
+```
+
+### Recovery trace
+
+| Time | Gate | Evidence/action | Traffic state |
+|---:|---|---|---|
+| 00:00 | classify | primary unreachable; standby replay lag 240 ms | writes stopped; reads use documented degraded policy |
+| 00:20 | fence | old primary write endpoint removed and independently fenced | promotion still blocked until fencing is confirmed |
+| 00:35 | promote | one eligible standby promoted; new timeline recorded | one canary writer only |
+| 00:50 | resolve | query durable result rows for timed-out operation IDs | no blind mutation replay |
+| 01:10 | reconnect | four connections admitted per application wave | watch creation failures, active sessions and buffer-cache pressure |
+| 03:00 | expand | fresh write/read invariant passes; lag and saturation stable | raise traffic one step at a time |
+
+```mermaid
+stateDiagram-v2
+    [*] --> WritesStopped: primary unavailable
+    WritesStopped --> Fencing: classify failure
+    Fencing --> WritesStopped: fence not proved
+    Fencing --> Promoting: old primary fenced and replica eligible
+    Fencing --> Restoring: no eligible replica
+    Promoting --> Canary: one writer authority
+    Restoring --> Canary: WAL replay and validation complete
+    Canary --> Expanding: fresh invariant passes
+    Expanding --> Recovered: saturation remains stable
+```
+
+**Correctness invariant:** at most one system is authorized to accept authoritative writes. The algorithm is operationally `O(u + b)`, where `u` is the number of ambiguous operations to resolve and `b` is the number of reconnect batches; WAL replay cost is proportional to the log range replayed.
+
+## Example 94 — cache flush or failover: warm demand, not the entire keyspace
+
+A cache recovery is a database-capacity incident in disguise. Hit ratio falls before SQL often reaches its limit. The safe response is to preserve database headroom, re-establish client connectivity, and warm only demonstrably hot keys under one global budget.
+
+### Requirement and examples
+
+1. **Flush, healthy database:** Redis is reachable, hit ratio is 12%, database has 4 of 40 permits free, 20 JVMs request warmers, and the global warming budget is 6. Admit only 4 warmers.
+2. **Flush, saturated database:** database is already 40/40. Admit zero warmers and shed nonessential work.
+3. **Failover in progress:** Redis is unreachable but the database has headroom. Use the bounded SQL fallback and client reconnect policy; do not start warming until the cache endpoint is healthy.
+4. **Recovered steady state:** connectivity is healthy and hit ratio is 94%. Stop proactive warming; demand traffic maintains the hot set.
+
+```java
+CacheRecoveryPlan warm = cacheRecoveryPlan(true, 0.12, 36, 40, 20, 6);
+assert warm.action() == CacheRecoveryAction.WARM_HOT_KEYS_WITH_BUDGET;
+assert warm.allowedWarmers() == 4; // min(requested, warm budget, DB headroom)
+assert !warm.fullKeyspaceReloadAllowed();
+
+CacheRecoveryPlan saturated = cacheRecoveryPlan(true, 0.05, 40, 40, 20, 6);
+assert saturated.action() == CacheRecoveryAction.SHED_LOAD_TO_PROTECT_DATABASE;
+assert saturated.allowedWarmers() == 0;
+```
+
+```mermaid
+flowchart TD
+    O["flush or failover observed"] --> K{"Redis endpoint healthy?"}
+    K -->|no| P["bounded SQL fallback plus reconnect"]
+    K -->|yes| H{"database headroom available?"}
+    H -->|no| S["shed load; zero warmers"]
+    H -->|yes| W["warm ranked hot keys within global permits"]
+    W --> M["observe hit ratio, DB active, pool pending, miss-load p99"]
+    M -->|stable| N["remove proactive warming"]
+    M -->|saturation rises| S
+```
+
+### Trace the coupled signals
+
+| Phase | Hit ratio | Redis connection churn | DB active / cap | Pool pending | Decision |
+|---|---:|---:|---:|---:|---|
+| failover | 91% → 62% | rising | 18/40 | 0 | reconnect, retain DB bulkhead |
+| cold cache | 12% | stable | 36/40 | 9 | four global warmers; prioritize top keys |
+| unsafe edge | 5% | stable | 40/40 | 80 | zero warmers; reject/shed low-priority work |
+| recovered | 94% | flat | 14/40 | 0 | stop proactive warming |
+
+Redis documents reconnect behavior and failover testing, and its observability model includes connection closures, request/hit data and evictions. Those signals must be joined with database sessions and Hikari pending/usage metrics. A high Redis hit ratio by itself does not prove the fallback path is safe.
+
+If there are `n` known hot keys and the warming budget admits `w` concurrent loads, scheduling is `O(n log n)` when keys are ranked at incident time, or `O(n)` when a precomputed heavy-hitter list exists; concurrency stays `O(w)`. Never multiply `w` by the number of JVMs accidentally—use a shared admission budget, partitions, or deterministic ownership.
+
+## Example 95 — pool exhaustion: locate the queue before enlarging it
+
+“All connections active” is a symptom. The cause may be a long holder, a database lock, external network work inside a transaction, database saturation, a second PgBouncer queue, a leak, or a legitimate pool/database capacity mismatch.
+
+Start with **oldest connection holders and oldest transactions**, then correlate:
+
+- Hikari `Usage` p99: how long leases stay out of the pool;
+- Hikari `Wait` p99 and pending threads: checkout pressure;
+- database active sessions, CPU/I/O and lock waits;
+- PgBouncer client-waiting versus server-active state; and
+- request traces showing external calls inside transaction scope.
+
+```java
+PoolDiagnosis locks = diagnosePoolExhaustion(
+        600, 900, true, false, false, 18, 40);
+assert locks.cause() == PoolExhaustionCause.DATABASE_LOCK_WAIT;
+assert !locks.increasePoolNow();
+
+PoolDiagnosis holder = diagnosePoolExhaustion(
+        4_500, 800, false, true, false, 18, 40);
+assert holder.cause() == PoolExhaustionCause.LONG_CONNECTION_HOLD;
+
+PoolDiagnosis secondQueue = diagnosePoolExhaustion(
+        250, 900, false, false, true, 18, 40);
+assert secondQueue.cause() == PoolExhaustionCause.PGBOUNCER_SECOND_QUEUE;
+```
+
+| Evidence | Most likely branch | First safe action | Why “add connections” is unsafe |
+|---|---|---|---|
+| usage p99 rises before wait p99; external span inside transaction | long holder | move external work outside transaction; bound query/lock time | more holders amplify downstream work |
+| lock wait and old transaction | database blocker | identify blocker; cancel only under approved policy; fix transaction scope | more sessions wait on the same lock |
+| Hikari pending plus PgBouncer clients waiting | second queue | inspect proxy mode/backend cap and session-feature pinning | expands the first queue into the second |
+| DB active at global capacity | database saturation | shed work or reduce per-request DB cost | increases context switching and tail latency |
+| short usage, no locks/proxy wait, DB headroom | capacity mismatch | validate fleet-wide budget, then test a bounded change | local `maximumPoolSize` ignores total instances |
+
+```mermaid
+flowchart TD
+    P["pool pending rises"] --> U{"usage p99 or oldest holder high?"}
+    U -->|yes| H["shorten holder; find leak/external work"]
+    U -->|no| L{"database lock wait?"}
+    L -->|yes| B["resolve blocker and transaction scope"]
+    L -->|no| G{"PgBouncer waiting?"}
+    G -->|yes| Q["inspect second queue and backend cap"]
+    G -->|no| C{"database has measured headroom?"}
+    C -->|no| S["shed or reduce work"]
+    C -->|yes| T["bounded capacity experiment"]
+```
+
+Hikari defines `maximumPoolSize` as the cap on actual database connections and makes callers wait up to `connectionTimeout` when the pool is full. Its metrics distinguish checkout wait, lease usage, active, idle and pending counts. The Hikari sizing guidance explicitly warns that a smaller pool can improve latency and advises application-level analysis before enlargement.
+
+Diagnosis is `O(1)` for aggregated metrics but `O(h + t)` when inspecting `h` holders and `t` active transactions. Prefer top-k/oldest queries and traces over high-cardinality metric labels.
+
+## Example 96 — certificate or credential rotation: prove replacement connections
+
+Existing pooled sessions can remain healthy after the server certificate, trust bundle, password or database role has changed. Active-query success therefore proves only that **old sessions still work**. The rotation is safe only when controlled new connections succeed through the same hostname, trust, authentication and session-initialization path production will use.
+
+### Safe overlap sequence
+
+1. install a trust/credential overlap that accepts old and new material where the platform supports it;
+2. canary the exact production endpoint with a deliberately new physical connection and `verify-full` identity checks;
+3. watch **connection-creation failures**, not only current active queries;
+4. roll the client configuration gradually and keep the previous material available during the abort window;
+5. force controlled churn below the thundering-herd threshold, or wait for old sessions to retire;
+6. remove old material only after old-session count reaches zero and fresh canaries remain healthy.
+
+```java
+RotationPlan hiddenFailure = rotationPlan(18, 10, 7, true);
+assert hiddenFailure.action() == RotationAction.ABORT_AND_RESTORE_OLD_MATERIAL;
+assert hiddenFailure.creationFailurePercent() == 30;
+assert !hiddenFailure.activeQueriesProveRotation();
+
+RotationPlan overlap = rotationPlan(18, 10, 10, true);
+assert overlap.action() == RotationAction.CONTINUE_OVERLAP_AND_CANARY;
+
+RotationPlan complete = rotationPlan(0, 50, 50, true);
+assert complete.action() == RotationAction.COMPLETE_AFTER_OLD_SESSIONS_DRAIN;
+```
+
+```mermaid
+sequenceDiagram
+    participant O as old pooled sessions
+    participant R as rotation controller
+    participant C as new-connection canary
+    participant D as database endpoint
+    R->>D: install overlap/new material
+    R->>C: create fresh physical connection
+    C->>D: TLS verify-full + database authentication
+    D-->>C: success or explicit failure
+    R->>O: drain with bounded churn
+    R->>C: repeat fresh canaries
+    R->>D: remove old material only after zero old sessions
+```
+
+| Observation | Meaning | Gate |
+|---|---|---|
+| active queries pass; no new attempts measured | inconclusive | do not continue |
+| fresh connection has certificate/hostname failure | trust/identity path broken | abort and restore overlap |
+| TLS succeeds; authentication fails | credential/role path broken | abort and diagnose auth separately |
+| 50/50 fresh creations pass; old sessions remain | new path healthy, drain incomplete | continue overlap |
+| fresh creations pass; old sessions zero | replacement path proved | remove old material under rollback window |
+
+pgJDBC `sslmode=verify-full` checks both the trust chain and hostname; certificate verification failure closes the new connection. Do not “recover” by weakening verification to `require`. Also account for Hikari `maxLifetime`: a rotation that works only because the pool has not yet replaced old sessions can fail gradually, then sharply as many sessions retire together.
+
+The decision is `O(a)` over `a` sampled connection attempts; the implementation should aggregate counts rather than retain credential details. Keep audit events for configuration version, target endpoint, result category and rollback action—never the secret itself.
+
+## Cross-runbook release gate
+
+Do not close the incident until all applicable checks are true:
+
+- exactly one authoritative database writer exists and fresh write/read verification passes;
+- ambiguous operations are resolved by durable operation ID;
+- Redis clients reconnect and hit ratio recovers without exhausting the SQL admission budget;
+- Hikari pending/usage and database/proxy queues return to stable ranges;
+- a fresh physical connection succeeds through current TLS identity and credential checks;
+- reconnect/warming/backlog work is bounded and draining;
+- the degraded mode is removed deliberately, not left as a silent permanent configuration; and
+- a fault rehearsal reproduces the trigger and proves the abort gate.
+
+### Primary references for Section 24
+
+Accessed 2026-10-18.
+
+139. [PostgreSQL 18 log-shipping standby servers](https://www.postgresql.org/docs/current/warm-standby.html): standby preparation, WAL/timeline behavior, promotion readiness and asynchronous streaming-replication lag.
+140. [PostgreSQL 18 continuous archiving and PITR](https://www.postgresql.org/docs/current/continuous-archiving.html): base backups, WAL replay and consistent point-in-time recovery.
+141. [Redis resilient application guidance](https://redis.io/docs/latest/operate/rc/resilient-apps/): reconnect behavior, DNS refresh and controlled failover testing.
+142. [Redis client observability](https://redis.io/docs/latest/develop/clients/observability/): connection-close, cache-request and eviction signals.
+143. [Redis monitoring guidance](https://redis.io/docs/latest/operate/rs/monitoring/get-started/): hit ratio, connection establishment failures, eviction/expiry and authentication/certificate signals.
+144. [HikariCP configuration](https://github.com/brettwooldridge/HikariCP): `maximumPoolSize`, `connectionTimeout`, initialization, metrics and failover-related controls.
+145. [HikariCP pool-sizing guidance](https://github.com/brettwooldridge/HikariCP/wiki/About-Pool-Sizing): database-aware sizing and the latency cost of oversized pools.
+146. [HikariCP Dropwizard metrics](https://github.com/brettwooldridge/HikariCP/wiki/Dropwizard-Metrics): checkout wait, connection usage, active, idle and pending measurements.
+147. [pgJDBC SSL documentation](https://jdbc.postgresql.org/documentation/ssl/): certificate-chain/hostname verification and failure of unverifiable `verify-full` connections.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -5160,8 +5446,8 @@ Accessed 2026-10-18.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; and lines **1365–1409**, “Fault-injection and integration test matrix”
-- Deliberate continuation: Section 24, “Recovery runbooks,” spans source lines **1410–1427**, bounded by the Section 25 heading, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; and lines **1410–1427**, “Recovery runbooks”
+- Deliberate continuation: Section 25, “Senior-engineer review questions,” spans source lines **1428–1442**, bounded by the Section 26 heading at line **1443**, and remains unprocessed.
 
 Validation commands:
 
