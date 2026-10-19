@@ -1,6 +1,6 @@
 # Database Internals, Caching, and Java Connectivity
 
-> **Incremental canonical guide.** This publication deepens source Sections 1–5: **ACID/BASE contracts**, **B+ tree page economics**, **LSM write/read/compaction mechanics**, **row/column storage with CDC-fed analytics**, and **isolation anomalies with engine-specific semantics**. Later source sections are deliberately queued rather than summarized prematurely.
+> **Incremental canonical guide.** This publication deepens confirmed source Sections 1–25 across database internals, caching, Java connectivity, production contracts, fault/recovery practice, and senior review drills. Later source sections remain deliberately queued rather than summarized prematurely.
 
 ## Learning contract
 
