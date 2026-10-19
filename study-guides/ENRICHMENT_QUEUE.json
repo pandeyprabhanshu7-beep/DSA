@@ -102,7 +102,7 @@
       "status": "IN_PROGRESS",
       "last_read_at": "2026-10-18",
       "sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-      "selection": "Sections 1-23, source lines 62-1409, read and promoted into the incremental canonical database guide; later sections remain queued."
+      "selection": "Sections 1-24, source lines 62-1427, read and promoted into the incremental canonical database guide; later sections remain queued."
     },
     {
       "name": "top_5_system_design_interview_blueprints.md",
@@ -593,7 +593,7 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-18T18:33:19-04:00",
+      "last_processed_at": "2026-10-18T21:07:26-04:00",
       "processed_sections": [
         "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
         "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios",
@@ -617,7 +617,8 @@
         "Section 20: explicit production contract — immutable revision keys, authorization-first reads, bounded Redis-to-primary fallback, post-publish negative-cache visibility and joined timeout budgets",
         "Section 21: complete Java cache-aside component — typed envelopes, owner-checked Lua publication and cleanup, second lookup, bounded waiter polling, shared SQL bulkhead and monotonic Redis cooldown",
         "Section 22: mutable-row caching — same-transaction durable outbox, recoverable relay claims, idempotent monotonic generations and stale-reader publication fencing",
-        "Section 23: fault injection — real-service oracle matrix, lease-expiry races, deliberate write skew with whole-transaction retry and unknown-commit recovery"
+        "Section 23: fault injection — real-service oracle matrix, lease-expiry races, deliberate write skew with whole-transaction retry and unknown-commit recovery",
+        "Section 24: recovery runbooks — fenced database promotion/restore, capacity-gated cache warming, evidence-led pool diagnosis and fresh-connection certificate/credential rotation"
       ],
       "source_revision": {
         "baseline_commit": "e8961ba3f7208a18faa548925ae1b3fa6d21f3c8",
@@ -625,12 +626,12 @@
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-1409",
-        "canonical_sha256_after": "1851f2611e6f6edbbb621c5fbda152ecdd5e807e8eb78182fbc4d48a4eac6fe0"
+        "processed_lines": "62-1427",
+        "canonical_sha256_after": "df5c03abc823861b8996cfe16d7163f434204687f5e40432aa80b7f057b91f0d"
       },
-      "content_commit": "10515058f97d015329fc3844116616050e769007",
-      "validation": "Exact source lines 1365-1409 were bounded by the Section 24 heading and consolidated against current Testcontainers PostgreSQL/Toxiproxy, PostgreSQL 18 isolation/retry, Redis scripting/Cluster and pgJDBC TLS documentation. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 92 total scenario groups, including four new fault-oracle, lease-expiry, write-skew-retry and unknown-commit groups. Deterministic reader generation passed exact 337105-character Markdown payload equality, source SHA-256 metadata, 1128 unique HTML IDs, 203 search entries, fragments, allowed relative links, 186 balanced fences and 99 Mermaid sources. The standalone javac command was unavailable; real Testcontainers dependencies, browser, assistive-technology and Mermaid visual QA were not executed. Live canonical DSA placeholder audit remains 170. The four-file content tree was published atomically with an expected-head guard.",
-      "next_action": "Process exactly Section 24, Recovery runbooks, source lines 1410-1427, bounded by the Section 25 heading.",
+      "content_commit": "8338e36646f47276863c981562130ef2fcaadc1e",
+      "validation": "Exact source lines 1410-1427 were bounded by the Section 25 heading and consolidated against current PostgreSQL 18 standby/PITR, Redis failover/observability, HikariCP sizing/metrics and pgJDBC TLS documentation. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 96 total scenario groups, including four new database recovery, cache recovery, pool diagnosis and certificate/credential rotation groups. Deterministic reader generation passed exact 355696-character Markdown payload equality, source SHA-256 metadata, 1191 unique HTML IDs, 217 search entries, fragments, allowed relative links, 195 balanced fences and 104 Mermaid sources. The standalone javac command was unavailable; real failover/cache/pool/TLS services, browser, assistive-technology and Mermaid visual QA were not executed. Live canonical Markdown placeholder audit remains 170. The four-file content tree was published atomically with an expected-head guard.",
+      "next_action": "Process exactly Section 25, Senior-engineer review questions, source lines 1428-1442, bounded by the Section 26 heading at line 1443.",
       "priority": 12
     },
     {
@@ -904,7 +905,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 24 only, 'Recovery runbooks,' source lines 1410-1427, bounded by the Section 25 heading.",
+    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 25 only, 'Senior-engineer review questions,' source lines 1428-1442, bounded by the Section 26 heading at line 1443.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -986,15 +987,16 @@
       "Database/caching Section 20: immutable revision identity, authorization-first reads, bounded fallback, strict publication visibility and joined production budgets",
       "Database/caching Section 21: typed envelopes, owner-checked Lua publication, second lookup, bounded waiter polling, shared SQL bulkhead and Redis cooldown",
       "Database/caching Section 22: same-transaction durable outbox, recoverable relay claims, monotonic generation updates and stale-reader fencing",
-      "Database/caching Section 23: real-service fault matrix, lease-expiry ownership, deliberate write skew with whole-transaction retry and unknown-commit recovery"
+      "Database/caching Section 23: real-service fault matrix, lease-expiry ownership, deliberate write skew with whole-transaction retry and unknown-commit recovery",
+      "Database/caching Section 24: fenced database promotion/restore, capacity-gated cache warming, evidence-led pool diagnosis and fresh-connection certificate/credential rotation"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 1365-1409 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 23, Fault-injection and integration test matrix",
-    "validation": "Section 23 was bounded by the Section 24 heading and consolidated with current Testcontainers PostgreSQL/Toxiproxy, PostgreSQL 18 isolation/retry, Redis scripting/Cluster and pgJDBC TLS documentation. Java 17 source launch and compilation through jdk.compiler passed 92 total scenario groups; deterministic reader generation passed exact 337105-character payload equality, 1128 unique IDs, 203 search entries, fragments, allowed relative links, 186 balanced fences and 99 Mermaid sources; live canonical DSA marker audit remains 170. The four-file content tree was published atomically with an expected-head guard. The standalone javac command, real Testcontainers dependencies, browser, assistive-technology and Mermaid visual QA were unavailable.",
-    "estimated_next_tokens": 7800,
-    "estimate_method": "Heuristic only for bounded fault-injection matrix source review, primary-reference refresh, deep consolidation, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "10515058f97d015329fc3844116616050e769007",
-    "last_processed_at": "2026-10-18T18:33:19-04:00",
-    "next_batch_decision": "Section 23 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 24; resume at source lines 1410-1427, bounded by the Section 25 heading."
+    "processed_section": "database_internals_caching_java_master_guide.md lines 1410-1427 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 24, Recovery runbooks",
+    "validation": "Section 24 was bounded by the Section 25 heading and consolidated with current PostgreSQL 18 standby/PITR, Redis failover/observability, HikariCP sizing/metrics and pgJDBC TLS documentation. Java 17 source launch and compilation through jdk.compiler passed 96 total scenario groups; deterministic reader generation passed exact 355696-character payload equality, 1191 unique IDs, 217 search entries, fragments, allowed relative links, 195 balanced fences and 104 Mermaid sources; live canonical Markdown marker audit remains 170. The four-file content tree was published atomically with an expected-head guard. The standalone javac command, real failover/cache/pool/TLS services, browser, assistive-technology and Mermaid visual QA were unavailable.",
+    "estimated_next_tokens": 7400,
+    "estimate_method": "Heuristic only for bounded senior-review source review, primary-reference reconciliation, deep answer examples, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "8338e36646f47276863c981562130ef2fcaadc1e",
+    "last_processed_at": "2026-10-18T21:07:26-04:00",
+    "next_batch_decision": "Section 24 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 25; resume at source lines 1428-1442, bounded by the Section 26 heading at line 1443."
   }
 }
 
