@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-31. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-32. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -875,6 +875,101 @@ public final class ConsistencyContracts {
             // A real client rolls back and reruns every read and decision with backoff/deadline.
         }
         throw new IllegalStateException("retry budget exhausted");
+    }
+
+    enum LabIsolation { READ_COMMITTED, REPEATABLE_READ }
+
+    record PriceReadTrace(
+            int firstRead,
+            int secondRead,
+            long firstSnapshot,
+            long secondSnapshot,
+            boolean nonRepeatableRead) {}
+
+    static PriceReadTrace twoSessionPriceTrace(
+            LabIsolation isolation, int initialPrice, int committedPrice) {
+        Objects.requireNonNull(isolation, "isolation");
+        if (initialPrice < 0 || committedPrice < 0) {
+            throw new IllegalArgumentException("prices must be non-negative");
+        }
+        long firstSnapshot = 1;
+        long secondSnapshot = isolation == LabIsolation.READ_COMMITTED ? 2 : 1;
+        int secondRead = secondSnapshot == 2 ? committedPrice : initialPrice;
+        return new PriceReadTrace(
+                initialPrice,
+                secondRead,
+                firstSnapshot,
+                secondSnapshot,
+                initialPrice != secondRead);
+    }
+
+    record GuardedRosterOutcome(
+            boolean aliceOnCall,
+            boolean bobOnCall,
+            List<String> acceptedOffCall,
+            int guardAcquisitions) {
+        int onCallCount() { return (aliceOnCall ? 1 : 0) + (bobOnCall ? 1 : 0); }
+    }
+
+    static GuardedRosterOutcome guardedOffCall(List<String> requestedEngineers) {
+        Objects.requireNonNull(requestedEngineers, "requestedEngineers");
+        boolean alice = true;
+        boolean bob = true;
+        List<String> accepted = new ArrayList<>();
+        int acquisitions = 0;
+        for (String engineer : requestedEngineers) {
+            if (!engineer.equals("A") && !engineer.equals("B")) {
+                throw new IllegalArgumentException("unknown engineer: " + engineer);
+            }
+            acquisitions++; // acquire the shift guard before reading the current roster
+            int currentOnCall = (alice ? 1 : 0) + (bob ? 1 : 0);
+            if (currentOnCall <= 1) continue;
+            if (engineer.equals("A") && alice) {
+                alice = false;
+                accepted.add(engineer);
+            } else if (engineer.equals("B") && bob) {
+                bob = false;
+                accepted.add(engineer);
+            }
+        }
+        return new GuardedRosterOutcome(
+                alice, bob, List.copyOf(accepted), acquisitions);
+    }
+
+    record TransferLockPlan(List<Integer> accountOrder) {}
+
+    static TransferLockPlan canonicalTransferLocks(int firstAccount, int secondAccount) {
+        if (firstAccount == secondAccount) {
+            throw new IllegalArgumentException("a transfer requires two accounts");
+        }
+        return new TransferLockPlan(firstAccount < secondAccount
+                ? List.of(firstAccount, secondAccount)
+                : List.of(secondAccount, firstAccount));
+    }
+
+    static boolean oppositeOrderCreatesWaitCycle(
+            List<Integer> transactionA, List<Integer> transactionB) {
+        Objects.requireNonNull(transactionA, "transactionA");
+        Objects.requireNonNull(transactionB, "transactionB");
+        if (transactionA.size() != 2 || transactionB.size() != 2) {
+            throw new IllegalArgumentException("two-lock traces required");
+        }
+        return !transactionA.get(0).equals(transactionA.get(1))
+                && transactionA.get(0).equals(transactionB.get(1))
+                && transactionA.get(1).equals(transactionB.get(0));
+    }
+
+    enum TransactionRetryAction { RETRY_WHOLE_TRANSACTION, STOP }
+
+    static TransactionRetryAction retryAfterRollback(
+            String sqlState, boolean rolledBack, int completedAttempts, int maxAttempts) {
+        if (completedAttempts < 0 || maxAttempts <= 0) {
+            throw new IllegalArgumentException("positive retry budget required");
+        }
+        boolean transientRollback = sqlState.equals("40001") || sqlState.equals("40P01");
+        return transientRollback && rolledBack && completedAttempts < maxAttempts
+                ? TransactionRetryAction.RETRY_WHOLE_TRANSACTION
+                : TransactionRetryAction.STOP;
     }
 
     record TopologyEstimate(
@@ -4223,6 +4318,56 @@ public final class ConsistencyContracts {
         } catch (IllegalArgumentException expected) {}
     }
 
+    private static void nonRepeatableReadLabScenarios() {
+        PriceReadTrace readCommitted = twoSessionPriceTrace(
+                LabIsolation.READ_COMMITTED, 100, 120);
+        assert readCommitted.firstRead() == 100 && readCommitted.secondRead() == 120;
+        assert readCommitted.firstSnapshot() != readCommitted.secondSnapshot();
+        assert readCommitted.nonRepeatableRead();
+
+        PriceReadTrace repeatableRead = twoSessionPriceTrace(
+                LabIsolation.REPEATABLE_READ, 100, 120);
+        assert repeatableRead.firstRead() == 100 && repeatableRead.secondRead() == 100;
+        assert repeatableRead.firstSnapshot() == repeatableRead.secondSnapshot();
+        assert !repeatableRead.nonRepeatableRead();
+    }
+
+    private static void writeSkewRetryLabScenarios() {
+        OnCallSchedule writeSkew = onCallSchedule(IsolationHarness.REPEATABLE_READ, false);
+        assert writeSkew.committedTransactions() == 2;
+        assert !writeSkew.invariantPreserved();
+
+        OnCallSchedule retried = onCallSchedule(IsolationHarness.SERIALIZABLE, true);
+        assert retried.serializationFailures() == 1;
+        assert retried.decisionEvaluations() == 3;
+        assert retried.invariantPreserved();
+        assert retryAfterRollback("40001", true, 1, 3)
+                == TransactionRetryAction.RETRY_WHOLE_TRANSACTION;
+    }
+
+    private static void guardRowLabScenarios() {
+        GuardedRosterOutcome guarded = guardedOffCall(List.of("A", "B"));
+        assert guarded.guardAcquisitions() == 2;
+        assert guarded.acceptedOffCall().equals(List.of("A"));
+        assert !guarded.aliceOnCall() && guarded.bobOnCall();
+        assert guarded.onCallCount() == 1;
+    }
+
+    private static void deadlockOrderingLabScenarios() {
+        assert oppositeOrderCreatesWaitCycle(List.of(10, 20), List.of(20, 10));
+        TransferLockPlan a = canonicalTransferLocks(10, 20);
+        TransferLockPlan b = canonicalTransferLocks(20, 10);
+        assert a.accountOrder().equals(List.of(10, 20));
+        assert a.equals(b);
+        assert !oppositeOrderCreatesWaitCycle(a.accountOrder(), b.accountOrder());
+        assert retryAfterRollback("40P01", true, 1, 3)
+                == TransactionRetryAction.RETRY_WHOLE_TRANSACTION;
+        assert retryAfterRollback("40P01", false, 1, 3)
+                == TransactionRetryAction.STOP;
+        assert retryAfterRollback("23505", true, 1, 3)
+                == TransactionRetryAction.STOP;
+    }
+
     private static void topologyEstimateScenarios() {
         TopologyEstimate estimate = topologyEstimate(
                 12, 50_000, 1_000_000, 1_024,
@@ -5646,6 +5791,10 @@ public final class ConsistencyContracts {
         writeSkewScenarios();
         lostUpdateScenarios();
         serializationRetryScenarios();
+        nonRepeatableReadLabScenarios();
+        writeSkewRetryLabScenarios();
+        guardRowLabScenarios();
+        deadlockOrderingLabScenarios();
         topologyEstimateScenarios();
         admissionScenarios();
         twoLevelInvalidationScenarios();
@@ -5738,7 +5887,7 @@ public final class ConsistencyContracts {
         walCrashBoundaryScenarios();
         lostEditResponseScenarios();
         checkpointVacuumDiagnosisScenarios();
-        System.out.println("PASS 124 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis");
+        System.out.println("PASS 128 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis");
     }
 }
 

@@ -6929,6 +6929,235 @@ Accessed 2026-10-20.
 210. [PostgreSQL 18 — Row and array comparisons](https://www.postgresql.org/docs/18/functions-comparisons.html#ROW-WISE-COMPARISON): left-to-right row-constructor ordering and null behavior.
 
 
+# Section 32 — Isolation laboratory with two sessions
+
+Isolation claims become useful only when the schedule is explicit. This lab fixes the engine to PostgreSQL 18, names sessions A and B, records the value each statement can see, and distinguishes three different mechanisms:
+
+- **MVCC snapshot visibility:** which committed row versions a statement may read;
+- **blocking locks:** which transaction must wait before it can change a protected resource; and
+- **Serializable validation:** which apparently successful transaction is rolled back because the combined history has no safe serial order.
+
+The distinction matters. PostgreSQL Read Committed starts each command with a fresh snapshot, so two reads in one transaction can differ. Repeatable Read holds the snapshot established by the first non-transaction-control statement and prevents that non-repeatable read, but its snapshot-isolation semantics can still admit a cross-row serialization anomaly. Serializable adds dependency monitoring and rejects an unsafe history with SQLSTATE `40001`. Explicit row locks can serialize a chosen business resource, but they can also deadlock when callers acquire multiple locks in inconsistent order.
+
+## Requirements and invariants
+
+1. every trace names the isolation level, session, statement order and commit boundary;
+2. “same snapshot” is not confused with “business invariant preserved”;
+3. a roster change commits only if at least one engineer remains on call;
+4. a guard-row design acquires the guard **before** reading the roster it protects;
+5. every transfer locks accounts in one global order, regardless of transfer direction;
+6. `40001` and selected `40P01` failures trigger a rollback and bounded retry of the **whole** transaction, including reads and decisions; and
+7. retries are deadline- and attempt-bounded, and non-transient errors are not reclassified merely to make progress.
+
+## Example 125 — Read Committed changes; Repeatable Read stays on one snapshot
+
+Prepare a disposable table outside the two transactions:
+
+```sql
+CREATE TEMP TABLE isolation_price_demo (
+    id integer PRIMARY KEY,
+    price integer NOT NULL CHECK (price >= 0)
+);
+INSERT INTO isolation_price_demo VALUES (1, 100);
+```
+
+The conceptual two-session trace is:
+
+| Step | Session A | Session B | A reads | Why |
+|---:|---|---|---:|---|
+| 1 | `BEGIN ISOLATION LEVEL READ COMMITTED` | — | — | no data snapshot is fixed by `BEGIN` |
+| 2 | `SELECT price ...` | — | 100 | A's first statement snapshot |
+| 3 | — | `UPDATE ... SET price=120; COMMIT` | — | version 120 becomes committed |
+| 4 | `SELECT price ...` | — | 120 | a new Read Committed statement snapshot |
+| 5 | `COMMIT` | — | — | A observed a non-repeatable read |
+
+Reset the row to 100, begin A at Repeatable Read and repeat the schedule. A's first `SELECT` establishes its transaction snapshot; the second returns 100 even after B commits 120. That stability is a visibility guarantee, not a promise that every multi-row business rule is safe.
+
+```mermaid
+sequenceDiagram
+    participant A as Session A
+    participant B as Session B
+    A->>A: Read 100 on snapshot 1
+    B->>B: Update 120 and commit
+    A->>A: RC reads 120 on snapshot 2
+    A->>A: RR reads 100 on snapshot 1
+```
+
+```java
+PriceReadTrace readCommitted = twoSessionPriceTrace(
+        LabIsolation.READ_COMMITTED, 100, 120);
+assert readCommitted.firstRead() == 100;
+assert readCommitted.secondRead() == 120;
+assert readCommitted.nonRepeatableRead();
+
+PriceReadTrace repeatableRead = twoSessionPriceTrace(
+        LabIsolation.REPEATABLE_READ, 100, 120);
+assert repeatableRead.firstRead() == 100;
+assert repeatableRead.secondRead() == 100;
+assert repeatableRead.firstSnapshot() == repeatableRead.secondSnapshot();
+```
+
+The Java snapshots are deterministic teaching tokens, not PostgreSQL transaction IDs. A real verification should use two independent database sessions, preserve the command order, and capture server version, isolation setting, SQLSTATE and results.
+
+## Example 126 — Stable snapshots still permit write skew
+
+Start with two independent rows:
+
+| engineer | on_call |
+|---|---:|
+| A | true |
+| B | true |
+
+Both Repeatable Read transactions evaluate `SELECT count(*) ... WHERE on_call` against the same two-person snapshot. A updates only row A; B updates only row B. There is no same-row write/write conflict, so both can commit and leave zero engineers on call.
+
+| Step | Transaction A | Transaction B | Roster visible to that transaction |
+|---:|---|---|---|
+| 1 | read count = 2 | read count = 2 | A=true, B=true |
+| 2 | set A=false | set B=false | each still reasons from its stable snapshot |
+| 3 | commit | commit | durable result A=false, B=false |
+
+```mermaid
+flowchart TD
+    S["Snapshot: A and B on call"] --> TA["Tx A decides A may leave"]
+    S --> TB["Tx B decides B may leave"]
+    TA --> CA["Commit A=false"]
+    TB --> CB["Commit B=false"]
+    CA --> X["Invariant broken: zero on call"]
+    CB --> X
+```
+
+At Serializable, PostgreSQL monitors the read/write dependency pattern. In this deterministic schedule A commits and B receives `40001`; the application rolls B back and reruns its read and decision. The retry now sees only one engineer on call and leaves B unchanged.
+
+```java
+OnCallSchedule repeatable = onCallSchedule(
+        IsolationHarness.REPEATABLE_READ, false);
+assert repeatable.committedTransactions() == 2;
+assert !repeatable.invariantPreserved();
+
+OnCallSchedule retried = onCallSchedule(
+        IsolationHarness.SERIALIZABLE, true);
+assert retried.serializationFailures() == 1;
+assert retried.decisionEvaluations() == 3; // the decision was rerun
+assert retried.invariantPreserved();
+assert retryAfterRollback("40001", true, 1, 3)
+        == TransactionRetryAction.RETRY_WHOLE_TRANSACTION;
+```
+
+Do not retry only the final `UPDATE`: its values were chosen from the failed snapshot. PostgreSQL deliberately leaves whole-transaction retry to the application because only the application can repeat its decision logic correctly. Any external side effect should either commit atomically through an outbox/idempotency record or happen after the database outcome is known.
+
+## Example 127 — Serialize the business resource, then re-read current state
+
+When every roster mutation is for one shift, a guard row can turn a cross-row predicate into one lockable resource:
+
+```sql
+BEGIN ISOLATION LEVEL READ COMMITTED;
+
+SELECT shift_id
+FROM shift_guard
+WHERE shift_id = 42
+FOR UPDATE;
+
+-- Run only after the guard is acquired. Under Read Committed this statement
+-- sees commits completed while this transaction was waiting for the guard.
+SELECT count(*)
+FROM shift_roster
+WHERE shift_id = 42 AND on_call;
+
+UPDATE shift_roster
+SET on_call = false
+WHERE shift_id = 42 AND engineer = 'A';
+
+COMMIT;
+```
+
+Every code path that changes membership must lock the same guard first. If A holds it, B waits. After A commits, B acquires the guard, re-reads the roster on a new Read Committed statement snapshot, sees only one remaining engineer, and rejects B's request.
+
+```mermaid
+sequenceDiagram
+    participant A as Request A off
+    participant G as Shift 42 guard
+    participant B as Request B off
+    A->>G: Lock, read 2, set A off
+    B->>G: Wait for same guard
+    A->>G: Commit and unlock
+    G-->>B: Acquire, re-read 1
+    B->>B: Reject change; keep B on
+```
+
+```java
+GuardedRosterOutcome guarded = guardedOffCall(List.of("A", "B"));
+assert guarded.guardAcquisitions() == 2;
+assert guarded.acceptedOffCall().equals(List.of("A"));
+assert guarded.onCallCount() == 1;
+assert !guarded.aliceOnCall() && guarded.bobOnCall();
+```
+
+Do not bolt this lock onto a Repeatable Read transaction after that transaction has already established an old snapshot: obtaining the lock does not make the earlier snapshot current. PostgreSQL's application-consistency guidance explicitly calls for locks before queries in that mode. Read Committed plus “lock guard, then read” is easier to reason about for this protocol.
+
+A single-authority design is the same serialization idea at a service boundary: route every change for shift 42 to one active owner, which evaluates one request at a time against current durable state. A queue name alone is not the invariant. Partition ownership, fencing and failover must prevent two consumers from acting as the authority for the same shift.
+
+## Example 128 — Break the deadlock cycle with a global lock order
+
+Transfers expose a different failure mode. Suppose A locks account 10 and then waits for 20, while B locks 20 and then waits for 10:
+
+| Transaction | Holds | Waits for | Wait edge |
+|---|---:|---:|---|
+| A | 10 | 20 | A → B |
+| B | 20 | 10 | B → A |
+
+That cycle cannot make progress. PostgreSQL detects it and aborts one participant with `40P01`; which participant is not a contract. The primary prevention is a global acquisition order: every transfer touching accounts 10 and 20 locks 10 first and 20 second, even when money moves from 20 to 10.
+
+```mermaid
+flowchart TD
+    U["Unordered: A holds 10; B holds 20"] --> W["A waits 20; B waits 10"]
+    W --> D["Deadlock: abort one transaction"]
+    O["Ordered: both request 10 then 20"] --> Q["One waits before holding 20"]
+    Q --> C["First commits; second continues"]
+```
+
+```java
+assert oppositeOrderCreatesWaitCycle(List.of(10, 20), List.of(20, 10));
+
+TransferLockPlan a = canonicalTransferLocks(10, 20);
+TransferLockPlan b = canonicalTransferLocks(20, 10);
+assert a.accountOrder().equals(List.of(10, 20));
+assert a.equals(b);
+assert !oppositeOrderCreatesWaitCycle(a.accountOrder(), b.accountOrder());
+
+assert retryAfterRollback("40P01", true, 1, 3)
+        == TransactionRetryAction.RETRY_WHOLE_TRANSACTION;
+assert retryAfterRollback("40P01", false, 1, 3)
+        == TransactionRetryAction.STOP;
+assert retryAfterRollback("23505", true, 1, 3)
+        == TransactionRetryAction.STOP;
+```
+
+Retry deadlocks only after the failed transaction has rolled back, with a bounded attempt count, jittered backoff and the original operation identity. Do not retry every SQLSTATE indiscriminately: a uniqueness violation or invalid input can be persistent. PostgreSQL recommends unconditional retry for `40001`; retrying `40P01` is often appropriate but still belongs to an application policy.
+
+Ordinary MVCC reads without a locking clause do not join this row-lock wait graph. `SELECT ... FOR UPDATE` does: it waits on conflicting row changes and returns the updated row under Read Committed, while Repeatable Read or Serializable can instead fail if the row changed after the transaction snapshot.
+
+## What to say in an interview
+
+Use the memory line **snapshot, invariant, coordinator, order, retry**:
+
+- Read Committed refreshes visibility per statement; Repeatable Read stabilizes one transaction snapshot;
+- a stable snapshot prevents non-repeatable reads but does not alone protect a cross-row invariant;
+- Serializable rejects unsafe dependency cycles, so `40001` is an expected control path, not an impossible outage;
+- a guard row or properly fenced single authority serializes one named business resource;
+- consistent multi-resource lock order prevents the classic deadlock cycle; and
+- after `40001` or a retryable `40P01`, roll back and rerun the complete decision within an explicit retry budget.
+
+### Primary references for Section 32
+
+Accessed 2026-10-20.
+
+211. [PostgreSQL 18 — Transaction isolation](https://www.postgresql.org/docs/18/transaction-iso.html): statement versus transaction snapshots, PostgreSQL Repeatable Read, serialization anomalies and Serializable dependency monitoring.
+212. [PostgreSQL 18 — Explicit locking](https://www.postgresql.org/docs/18/explicit-locking.html): `SELECT FOR UPDATE`, row-lock waits, deadlock detection and consistent acquisition order.
+213. [PostgreSQL 18 — Serialization failure handling](https://www.postgresql.org/docs/18/mvcc-serialization-failure-handling.html): SQLSTATE `40001`, `40P01`, complete-transaction retry and the absence of an automatic retry facility.
+214. [PostgreSQL 18 — Application-level consistency](https://www.postgresql.org/docs/18/applevel-consistency.html): cross-row consistency, Serializable enforcement, explicit blocking locks and lock-before-query snapshot cautions.
+215. [PostgreSQL 18 — Error codes](https://www.postgresql.org/docs/18/errcodes-appendix.html): canonical names for `40001` (`serialization_failure`) and `40P01` (`deadlock_detected`).
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -6936,8 +7165,8 @@ Accessed 2026-10-20.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; and lines **1691–1760**, “Design an index for an actual slow endpoint”
-- Deliberate continuation: Section 32, “Isolation laboratory with two sessions,” spans source lines **1761–1816**, bounded by the Section 33 heading at line **1817**, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; and lines **1761–1816**, “Isolation laboratory with two sessions”
+- Deliberate continuation: Section 33, “Eviction dry runs: identical requests, different survivors,” spans source lines **1817–1863**, bounded by the Section 34 heading at line **1864**, and remains unprocessed.
 
 Validation commands:
 
