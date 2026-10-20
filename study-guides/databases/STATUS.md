@@ -15,7 +15,7 @@ Source: `database_internals_caching_java_master_guide.md`, Library version 1, wh
 Validation:
 
 - Java source contains 136 deterministic scenario groups; the selected execution runtime was unavailable, so Java execution and independent compilation were not performed in this pass.
-- Static reader validation confirms exact 479,681-character Markdown payload embedding, SHA-256 `a25adf9386879d1b5e902f72be69ae09a12defa2a0b34ed1dfd6e8d475f184a9`, 1,717 unique IDs, 301 search entries, 285 balanced fences and 136 Mermaid sources.
+- Static reader validation confirms exact 479,602-character Markdown payload embedding, SHA-256 `1a2be3081bb444edc862304a2139d63036e077c46f81b676afd844389c30f11c`, 1,717 unique IDs, 301 search entries, 293 balanced fences and 140 Mermaid sources.
 - The live canonical Java-marker audit remains 170.
 - Production Redis/database integration, browser, assistive-technology and rendered Mermaid QA were unavailable.
 
