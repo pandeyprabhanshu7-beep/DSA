@@ -5861,6 +5861,162 @@ public final class ConsistencyContracts {
                 == MaintenanceDiagnosis.NO_PRESSURE_DETECTED;
     }
 
+
+    private enum CacheRaceEntryKind { VALUE, ABSENT }
+
+    private record CacheRaceEntry(CacheRaceEntryKind kind, String payload) {
+        CacheRaceEntry {
+            Objects.requireNonNull(kind);
+            Objects.requireNonNull(payload);
+        }
+    }
+
+    private record CacheRaceLeaseCleanup(
+            String ownerBeforeCleanup,
+            String ownerAfterCleanup,
+            boolean deleted) {}
+
+    private record CacheRacePublish(
+            long observedGeneration,
+            long currentGeneration,
+            CacheRaceEntry entryAfter,
+            boolean published) {}
+
+    private record CacheRaceLoadBudget(
+            int instanceCount,
+            int permitsPerInstance,
+            int databaseConcurrentBudget,
+            int serviceMillis,
+            int fleetConcurrentPotential,
+            int safeStaticPermitsPerInstance,
+            long fleetRatePerSecond,
+            boolean overConcurrencyBudget) {}
+
+    private record CacheRaceContract(
+            boolean uniqueLeaseToken,
+            boolean ownerCheckedRelease,
+            boolean atomicGenerationPublish,
+            boolean negativeEntriesFenced,
+            boolean visibilitySourceDeclared,
+            int admittedFleetConcurrency,
+            int databaseConcurrentBudget) {
+        boolean strictEnough() {
+            return uniqueLeaseToken
+                    && ownerCheckedRelease
+                    && atomicGenerationPublish
+                    && negativeEntriesFenced
+                    && visibilitySourceDeclared
+                    && admittedFleetConcurrency <= databaseConcurrentBudget;
+        }
+    }
+
+    private static CacheRaceLeaseCleanup cacheRaceReleaseLease(
+            String currentOwner,
+            String releasingOwner,
+            boolean ownerChecked) {
+        Objects.requireNonNull(releasingOwner);
+        if (!ownerChecked || Objects.equals(currentOwner, releasingOwner)) {
+            return new CacheRaceLeaseCleanup(currentOwner, null, currentOwner != null);
+        }
+        return new CacheRaceLeaseCleanup(currentOwner, currentOwner, false);
+    }
+
+    private static CacheRacePublish cacheRacePublishIfGenerationUnchanged(
+            long observedGeneration,
+            long currentGeneration,
+            CacheRaceEntry currentEntry,
+            CacheRaceEntry candidate) {
+        Objects.requireNonNull(currentEntry);
+        Objects.requireNonNull(candidate);
+        boolean publish = observedGeneration == currentGeneration;
+        return new CacheRacePublish(
+                observedGeneration,
+                currentGeneration,
+                publish ? candidate : currentEntry,
+                publish);
+    }
+
+    private static CacheRaceLoadBudget cacheRaceLoadBudget(
+            int instanceCount,
+            int permitsPerInstance,
+            int databaseConcurrentBudget,
+            int serviceMillis) {
+        if (instanceCount <= 0 || permitsPerInstance < 0
+                || databaseConcurrentBudget < 0 || serviceMillis <= 0) {
+            throw new IllegalArgumentException("budget inputs");
+        }
+        int fleetPotential = Math.multiplyExact(instanceCount, permitsPerInstance);
+        long perInstanceRate = (long) permitsPerInstance * 1_000L / serviceMillis;
+        return new CacheRaceLoadBudget(
+                instanceCount,
+                permitsPerInstance,
+                databaseConcurrentBudget,
+                serviceMillis,
+                fleetPotential,
+                databaseConcurrentBudget / instanceCount,
+                Math.multiplyExact(perInstanceRate, instanceCount),
+                fleetPotential > databaseConcurrentBudget);
+    }
+
+    private static void cacheLeaseExpiryRaceScenarios() {
+        CacheRaceLeaseCleanup unsafe =
+                cacheRaceReleaseLease("B", "A", false);
+        assert unsafe.deleted() && unsafe.ownerAfterCleanup() == null;
+
+        CacheRaceLeaseCleanup safe =
+                cacheRaceReleaseLease("B", "A", true);
+        assert !safe.deleted() && safe.ownerAfterCleanup().equals("B");
+
+        CacheRaceLeaseCleanup owner =
+                cacheRaceReleaseLease("A", "A", true);
+        assert owner.deleted() && owner.ownerAfterCleanup() == null;
+    }
+
+    private static void cacheGenerationValueRaceScenarios() {
+        CacheRaceEntry current =
+                new CacheRaceEntry(CacheRaceEntryKind.VALUE, "profile-v6");
+        CacheRacePublish stale = cacheRacePublishIfGenerationUnchanged(
+                5, 6, current,
+                new CacheRaceEntry(CacheRaceEntryKind.VALUE, "profile-v5"));
+        assert !stale.published();
+        assert stale.entryAfter().payload().equals("profile-v6");
+
+        CacheRacePublish fresh = cacheRacePublishIfGenerationUnchanged(
+                6, 6, current,
+                new CacheRaceEntry(CacheRaceEntryKind.VALUE, "profile-v6"));
+        assert fresh.published();
+    }
+
+    private static void cacheNegativeResurrectionRaceScenarios() {
+        CacheRaceEntry created =
+                new CacheRaceEntry(CacheRaceEntryKind.VALUE, "revision-9");
+        CacheRacePublish negative = cacheRacePublishIfGenerationUnchanged(
+                8, 9, created,
+                new CacheRaceEntry(CacheRaceEntryKind.ABSENT, ""));
+        assert !negative.published();
+        assert negative.entryAfter().kind() == CacheRaceEntryKind.VALUE;
+        assert negative.entryAfter().payload().equals("revision-9");
+    }
+
+    private static void cacheFleetLoadBudgetScenarios() {
+        CacheRaceLoadBudget overloaded =
+                cacheRaceLoadBudget(40, 8, 100, 5);
+        assert overloaded.fleetConcurrentPotential() == 320;
+        assert overloaded.safeStaticPermitsPerInstance() == 2;
+        assert overloaded.overConcurrencyBudget();
+        assert overloaded.fleetRatePerSecond() == 64_000;
+
+        CacheRaceLoadBudget safe =
+                cacheRaceLoadBudget(40, 2, 100, 5);
+        assert !safe.overConcurrencyBudget();
+
+        CacheRaceContract contract = new CacheRaceContract(
+                true, true, true, true, true, 100, 100);
+        assert contract.strictEnough();
+        assert !new CacheRaceContract(
+                true, false, true, true, true, 100, 100).strictEnough();
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -5997,7 +6153,11 @@ public final class ConsistencyContracts {
         walCrashBoundaryScenarios();
         lostEditResponseScenarios();
         checkpointVacuumDiagnosisScenarios();
-        System.out.println("PASS 132 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis");
+        cacheLeaseExpiryRaceScenarios();
+        cacheGenerationValueRaceScenarios();
+        cacheNegativeResurrectionRaceScenarios();
+        cacheFleetLoadBudgetScenarios();
+        System.out.println("PASS 136 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget");
     }
 }
 

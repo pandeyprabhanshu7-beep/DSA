@@ -7359,6 +7359,213 @@ Accessed 2026-10-20.
 219. [Caffeine — Eviction](https://github.com/ben-manes/caffeine/wiki/Eviction): size-based eviction and a production Java policy that considers both recency and frequency.
 
 
+
+# Section 34 — Cache concurrency lab: three races and a precise contract {#section-34-cache-concurrency-lab}
+
+A cache TTL is an expiry policy, not proof that a loader stopped executing. A delete is an operation, not proof that the caller still owns the lease. An invalidation is an event, not proof that an older reader cannot publish afterward. This lab turns those distinctions into one explicit contract and four executable traces.
+
+## Requirements and invariants {#section-34-requirements-and-invariants}
+
+The examples use a single Redis authority for each related set of keys. A production design must state the following before implementation:
+
+1. **Lease identity:** every acquisition receives a unique, unpredictable token; release or extension succeeds only when the stored token still matches.
+2. **Lease scope:** the lease reduces duplicate work for one key. It does not authorize a database write and, after expiry, it does not fence a paused process from an external resource.
+3. **Publication fence:** a loader records generation \(g\), reads the database, then compares \(g\) and publishes the value in one atomic cache-side operation. Separate compare and set commands recreate the race.
+4. **Negative entries:** absence is typed data with its own TTL, but it obeys the same generation fence as a positive value.
+5. **Visibility source:** a fill that follows a committed write reads from a source whose visibility contract includes that write—normally the primary or a replica guarded by a replay position. A generation check cannot repair an old replica result.
+6. **Failure policy:** losing the cache or its generation state must have an explicit behavior: bypass, rebuild from a durable epoch, or reject strict reads. Silent reset to an older generation is not safe.
+7. **Load budget:** admission is sized at maximum fleet width, separately from an operations-per-second limit. Waiting is bounded by the request deadline; saturation rejects, serves an eligible stale value, or enters a declared fallback.
+
+The model below is deliberately small. Redis's current lock guidance uses atomic \`SET ... NX PX\` acquisition and owner-checked release (\`DELEX ... IFEQ\` in Redis 8.4, or a Lua comparison on earlier versions). Redis scripts execute atomically on one server, which is the property needed for generation compare-and-publish. Those facts do not by themselves supply cross-region consensus, durable generations, database fencing, or a fleet budget.
+
+## Example 133 — Lease expiry: loader A must not delete loader B's lease {#example-133-lease-expiry}
+
+Use the source trace exactly:
+
+| Time | Loader A | Loader B | Cache lease |
+|---:|---|---|---|
+| 0 ms | acquires token \`A\`, TTL 100 ms | — | \`A\` |
+| 20 ms | begins slow database load | — | \`A\` |
+| 100 ms | still paused | — | expired |
+| 110 ms | still paused | acquires token \`B\` | \`B\` |
+| 130 ms | resumes and cleans up | still loading | must remain \`B\` |
+
+An unconditional \`DEL\` at 130 ms erases B's live lease. Owner-checked release compares the stored token and A's token atomically, returns “not released,” and leaves B in place.
+
+\`\`\`java
+CacheRaceLeaseCleanup unsafe =
+        cacheRaceReleaseLease("B", "A", false);
+assert unsafe.deleted();
+assert unsafe.ownerAfterCleanup() == null; // A destroyed B's lease
+
+CacheRaceLeaseCleanup safe =
+        cacheRaceReleaseLease("B", "A", true);
+assert !safe.deleted();
+assert safe.ownerAfterCleanup().equals("B");
+\`\`\`
+
+\`\`\`mermaid
+sequenceDiagram
+    participant A as Loader A
+    participant C as Cache lease
+    participant B as Loader B
+    A->>C: SET lease A NX PX 100
+    Note over A: database load exceeds TTL
+    C-->>B: A expired
+    B->>C: SET lease B NX PX 100
+    A->>C: release only if token equals A
+    C-->>A: reject; current token is B
+\`\`\`
+
+The release rule protects B's coordination state; it does not make A harmless after expiry. If loaders can mutate another resource, that resource must reject stale fencing tokens or the operation must be intrinsically idempotent. Lease extension is also owner-checked and bounded—an unlimited renewal loop can damage liveness.
+
+## Example 134 — A writer invalidates while an older value load is in flight {#example-134-generation-fenced-value}
+
+Reader R observes generation 5 and starts a database read. Writer W commits version 6, atomically advances the cache generation to 6, and removes the cached value. R then returns with version 5. A plain \`SET\` resurrects stale data; an atomic compare-and-publish rejects it because \(5 \ne 6\).
+
+| Step | R's observation | Cache generation | Cache value |
+|---:|---|---:|---|
+| 1 | records \(g=5\) | 5 | miss |
+| 2 | loads database version 5 | 5 | miss |
+| 3 | writer commits version 6 | 6 | invalidated |
+| 4 | R tries \`publish(expected=5, value=v5)\` | 6 | reject; keep \`v6\` or miss |
+
+\`\`\`java
+CacheRaceEntry current =
+        new CacheRaceEntry(CacheRaceEntryKind.VALUE, "profile-v6");
+CacheRacePublish stale =
+        cacheRacePublishIfGenerationUnchanged(
+                5, 6, current,
+                new CacheRaceEntry(CacheRaceEntryKind.VALUE, "profile-v5"));
+
+assert !stale.published();
+assert stale.entryAfter().payload().equals("profile-v6");
+
+CacheRacePublish fresh =
+        cacheRacePublishIfGenerationUnchanged(
+                6, 6, current,
+                new CacheRaceEntry(CacheRaceEntryKind.VALUE, "profile-v6"));
+assert fresh.published();
+\`\`\`
+
+\`\`\`mermaid
+sequenceDiagram
+    participant R as Reader
+    participant DB as Primary database
+    participant W as Writer
+    participant C as Cache and generation
+    R->>C: read generation 5
+    R->>DB: load version 5
+    W->>DB: commit version 6
+    W->>C: advance to 6 and invalidate
+    R->>C: atomically compare 5 and publish v5
+    C-->>R: reject; current generation is 6
+\`\`\`
+
+The writer-to-cache transition still needs a delivery contract. A transactional outbox can make invalidation retriable, and monotonic events can prevent an old invalidation from moving the generation backward. The cache script must never manufacture “next generation” from a stale event; it should apply a version/epoch only when it advances the current state.
+
+## Example 135 — Negative resurrection after create uses the same fence {#example-135-generation-fenced-negative}
+
+A negative entry is a cached claim that a lookup was complete and absent. It can race just like a value:
+
+1. R records generation 8 and queries a not-yet-created revision.
+2. R receives absent.
+3. W creates the revision, commits it, advances the generation to 9, and invalidates.
+4. R publishes its older \`ABSENT\` result.
+
+A short negative TTL only bounds how long the bug survives. It does not make step 4 correct. The same atomic generation predicate must guard both \`VALUE\` and \`ABSENT\`.
+
+\`\`\`java
+CacheRaceEntry created =
+        new CacheRaceEntry(CacheRaceEntryKind.VALUE, "revision-9");
+CacheRacePublish negativeResurrection =
+        cacheRacePublishIfGenerationUnchanged(
+                8, 9, created,
+                new CacheRaceEntry(CacheRaceEntryKind.ABSENT, ""));
+
+assert !negativeResurrection.published();
+assert negativeResurrection.entryAfter().kind()
+        == CacheRaceEntryKind.VALUE;
+assert negativeResurrection.entryAfter().payload().equals("revision-9");
+\`\`\`
+
+\`\`\`mermaid
+sequenceDiagram
+    participant R as Reader
+    participant DB as Primary database
+    participant W as Creator
+    participant C as Cache and generation
+    R->>C: read generation 8
+    R->>DB: revision absent
+    W->>DB: create and commit revision 9
+    W->>C: advance to 9 and invalidate
+    R->>C: publish ABSENT only if generation is 8
+    C-->>R: reject; generation is 9
+\`\`\`
+
+For a just-published immutable revision, an even simpler strict contract is to bypass negative caching and read the primary until publication visibility is established. If replica reads are allowed, bind the request to a required replay position or accept/document bounded staleness. Generation equality and database visibility are two independent predicates.
+
+## Example 136 — Convert a per-JVM bulkhead into a fleet contract {#example-136-fleet-load-budget}
+
+Assume 40 JVMs and eight concurrent cache-miss loads per JVM. The fleet can create 320 simultaneous database loads. If the database's measured safe miss-path budget is 100, “eight is small” is false at fleet scale. A conservative equal allocation at 40 instances is \(\lfloor100/40\rfloor=2\) permits per JVM, leaving 20 shared permits unallocated unless a shared admission controller can lend them safely.
+
+Concurrency and rate are also different controls. With eight slots and 5 ms average service time, a continuously saturated JVM can complete about \(8 \times 1000/5 = 1{,}600\) operations/s; 40 such JVMs can attempt about 64,000 operations/s in this simplified model.
+
+\`\`\`java
+CacheRaceLoadBudget overloaded =
+        cacheRaceLoadBudget(40, 8, 100, 5);
+assert overloaded.fleetConcurrentPotential() == 320;
+assert overloaded.safeStaticPermitsPerInstance() == 2;
+assert overloaded.overConcurrencyBudget();
+assert overloaded.fleetRatePerSecond() == 64_000;
+
+CacheRaceContract contract = new CacheRaceContract(
+        true, true, true, true, true, 100, 100);
+assert contract.strictEnough();
+\`\`\`
+
+\`\`\`mermaid
+flowchart TD
+    F["40 JVMs × 8 miss permits"] --> P["Potential concurrency: 320"]
+    D["Measured database budget: 100"] --> G{"Admission gate"}
+    P --> G
+    G -->|permit| L["Load primary and publish with generation fence"]
+    G -->|no permit| X["Bounded wait, eligible stale, or reject"]
+    R["Separate rate budget"] --> G
+\`\`\`
+
+Resilience4j exposes a semaphore bulkhead for maximum parallel executions and a fixed-thread-pool bulkhead with a bounded queue. Its rate limiter controls permissions per refresh period. Combining them is intentional: the bulkhead caps in-flight work; the rate limiter caps arrival/completion pressure. A local implementation must be recalculated for maximum autoscale, while a shared gate must define failure behavior so losing the admission service does not fail open into an origin outage.
+
+A precise cache-concurrency contract can now be reviewed as predicates:
+
+| Boundary | Required predicate | Evidence |
+|---|---|---|
+| lease release/extension | stored token equals caller token | forced expiry and late-cleanup test |
+| value publication | observed generation equals current generation | writer-between-read-and-publish test |
+| negative publication | same generation predicate | create-between-absent-and-publish test |
+| database visibility | fill source includes required commit | primary read or replay-position test |
+| cache recovery | generation cannot silently move backward | failover/restart monotonicity test |
+| miss admission | fleet concurrency and rate remain within budgets | max-scale load test and saturation metrics |
+
+## What to say in an interview {#section-34-interview-answer}
+
+Use the memory line **own, fence, see, admit**:
+
+- **own:** a unique token controls lease cleanup; expiry alone never proves ownership;
+- **fence:** value and absent results publish only under one atomic generation comparison;
+- **see:** the database read source must include the write whose generation was observed;
+- **admit:** size concurrency and rate at fleet scale, with bounded saturation behavior; and
+- state the residual contract: cache failover, delayed invalidation and replica lag determine whether the system is strict, bounded-stale or best effort.
+
+### Primary references for Section 34 {#section-34-primary-references}
+
+Accessed 2026-10-20.
+
+220. [Redis — Distributed locks](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/): atomic \`SET ... NX PX\` acquisition, unique ownership tokens, owner-checked release, lease-validity limits and the need for fencing tokens.
+221. [Redis — Scripting with Lua](https://redis.io/docs/latest/develop/programmability/eval-intro/): atomic script execution and conditional multi-key updates on one Redis server.
+222. [Resilience4j — Bulkhead](https://resilience4j.readme.io/docs/bulkhead): semaphore concurrency limits and fixed-thread-pool bulkheads with bounded queues.
+223. [Resilience4j — RateLimiter](https://resilience4j.readme.io/docs/ratelimiter): permission budgets over refresh periods, separate from concurrent-execution limits.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -7366,8 +7573,8 @@ Accessed 2026-10-20.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; and lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”
-- Deliberate continuation: Section 34, “Cache concurrency lab: three races and a precise contract,” spans source lines **1864–1909**, bounded by the Section 35 heading at line **1910**, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; and lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”
+- Deliberate continuation: Section 35, “Connection pooling with real queue arithmetic,” spans source lines **1910–1945**, bounded by the Section 36 heading at line **1946**, and remains unprocessed.
 
 Validation commands:
 
