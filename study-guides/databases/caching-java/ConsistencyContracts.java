@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-29. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-30. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -420,6 +420,113 @@ public final class ConsistencyContracts {
         double ra = bytesRead / (double) usefulBytesReturned;
         long headroom = Math.addExact(Math.addExact(liveBytes, obsoleteBytes), compactionOverlapBytes);
         return new Amplification(wa, ra, headroom);
+    }
+
+    record LsmCandidate(String place, LsmVersion version) {
+        LsmCandidate {
+            if (place == null || place.isBlank()) throw new IllegalArgumentException("place");
+            Objects.requireNonNull(version, "version");
+        }
+    }
+
+    record LsmVisibilityTrace(LsmRead read, List<String> placesChecked) {}
+
+    static LsmVisibilityTrace visibleAcrossPlaces(
+            List<LsmCandidate> candidates, long snapshotSequence) {
+        List<LsmVersion> versions = candidates.stream().map(LsmCandidate::version).toList();
+        List<String> places = candidates.stream().map(LsmCandidate::place).toList();
+        return new LsmVisibilityTrace(
+                newestVisible(versions, snapshotSequence, true), List.copyOf(places));
+    }
+
+    record LsmCompactionPlan(
+            List<LsmVersion> retained, boolean completeHistoryCoverage, boolean tombstoneDropped) {}
+
+    static LsmCompactionPlan compactKeyHistory(
+            List<LsmVersion> newestFirst,
+            long oldestSnapshotSequence,
+            boolean completeHistoryCoverage) {
+        if (newestFirst.isEmpty() || oldestSnapshotSequence < 0) {
+            throw new IllegalArgumentException("history and snapshot sequence required");
+        }
+        long previous = Long.MAX_VALUE;
+        for (LsmVersion version : newestFirst) {
+            if (version.sequence() >= previous) {
+                throw new IllegalArgumentException("history must be newest first");
+            }
+            previous = version.sequence();
+        }
+
+        LsmVersion newest = newestFirst.get(0);
+        if (newest.tombstone()
+                && canDropTombstone(
+                        newest.sequence(), oldestSnapshotSequence, completeHistoryCoverage)) {
+            return new LsmCompactionPlan(List.of(), true, true);
+        }
+
+        List<LsmVersion> retained = new ArrayList<>();
+        boolean keptFloorForOldestSnapshot = false;
+        for (LsmVersion version : newestFirst) {
+            if (version.sequence() >= oldestSnapshotSequence) {
+                retained.add(version);
+            } else if (!keptFloorForOldestSnapshot) {
+                retained.add(version);
+                keptFloorForOldestSnapshot = true;
+            }
+        }
+        return new LsmCompactionPlan(
+                List.copyOf(retained), completeHistoryCoverage, false);
+    }
+
+    record BloomProbeBudget(
+            int candidateFiles,
+            double falsePositiveRate,
+            double expectedDataBlockProbes,
+            int observedDataBlockProbes) {}
+
+    static BloomProbeBudget bloomProbeBudget(
+            int candidateFiles, double falsePositiveRate, boolean... filterMayContain) {
+        if (candidateFiles < 0 || falsePositiveRate < 0 || falsePositiveRate > 1
+                || filterMayContain.length != candidateFiles) {
+            throw new IllegalArgumentException("invalid candidate/filter model");
+        }
+        int observed = 0;
+        for (boolean mayContain : filterMayContain) if (mayContain) observed++;
+        return new BloomProbeBudget(
+                candidateFiles,
+                falsePositiveRate,
+                candidateFiles * falsePositiveRate,
+                observed);
+    }
+
+    record CompactionDebtBudget(
+            double ingestMbPerSecond,
+            double outputBytesPerInputByte,
+            double compactionDemandMbPerSecond,
+            double sustainableDeviceMbPerSecond,
+            double debtMbPerSecond,
+            double debtAfterWindowMb,
+            boolean stallsExpected) {}
+
+    static CompactionDebtBudget compactionDebtBudget(
+            double ingestMbPerSecond,
+            double outputBytesPerInputByte,
+            double sustainableDeviceMbPerSecond,
+            long windowSeconds) {
+        if (ingestMbPerSecond < 0 || outputBytesPerInputByte < 0
+                || sustainableDeviceMbPerSecond < 0 || windowSeconds < 0) {
+            throw new IllegalArgumentException("negative compaction budget input");
+        }
+        double demand = ingestMbPerSecond * outputBytesPerInputByte;
+        double debtRate = Math.max(0, demand - sustainableDeviceMbPerSecond);
+        return new CompactionDebtBudget(
+                ingestMbPerSecond,
+                outputBytesPerInputByte,
+                demand,
+                sustainableDeviceMbPerSecond,
+                debtRate,
+                debtRate * windowSeconds,
+                debtRate > 0);
     }
 
     record ScanEstimate(long rowStoreBytes, long selectedColumnBytes, double reductionFactor) {}
@@ -3769,6 +3876,75 @@ public final class ConsistencyContracts {
         } catch (IllegalArgumentException expected) {}
     }
 
+    private static void lsmThreePlaceVisibilityScenarios() {
+        List<LsmCandidate> p7 = List.of(
+                new LsmCandidate("mutable memtable", new LsmVersion(30, null, true)),
+                new LsmCandidate("SST-B", new LsmVersion(20, "120", false)),
+                new LsmCandidate("SST-A", new LsmVersion(10, "100", false)));
+
+        LsmVisibilityTrace latest = visibleAcrossPlaces(p7, 30);
+        assert !latest.read().found() && latest.read().sequence() == 30;
+        assert latest.placesChecked().equals(List.of("mutable memtable", "SST-B", "SST-A"));
+
+        LsmVisibilityTrace at25 = visibleAcrossPlaces(p7, 25);
+        assert at25.read().found() && at25.read().value().equals("120");
+        assert at25.read().sequence() == 20;
+
+        LsmVisibilityTrace at15 = visibleAcrossPlaces(p7, 15);
+        assert at15.read().found() && at15.read().value().equals("100");
+        assert at15.read().sequence() == 10;
+    }
+
+    private static void lsmCompactionMergeSafetyScenarios() {
+        List<LsmVersion> p7 = List.of(
+                new LsmVersion(30, null, true),
+                new LsmVersion(20, "120", false),
+                new LsmVersion(10, "100", false));
+
+        LsmCompactionPlan snapshot15 = compactKeyHistory(p7, 15, true);
+        assert snapshot15.retained().stream().map(LsmVersion::sequence).toList()
+                .equals(List.of(30L, 20L, 10L));
+
+        LsmCompactionPlan snapshot25 = compactKeyHistory(p7, 25, true);
+        assert snapshot25.retained().stream().map(LsmVersion::sequence).toList()
+                .equals(List.of(30L, 20L));
+
+        LsmCompactionPlan bottommostNoSnapshots = compactKeyHistory(p7, 31, true);
+        assert bottommostNoSnapshots.tombstoneDropped();
+        assert bottommostNoSnapshots.retained().isEmpty();
+
+        LsmCompactionPlan incompleteCoverage = compactKeyHistory(p7, 31, false);
+        assert !incompleteCoverage.tombstoneDropped();
+        assert incompleteCoverage.retained().get(0).tombstone();
+    }
+
+    private static void lsmBloomProbeBudgetScenarios() {
+        BloomProbeBudget expected = bloomProbeBudget(
+                8, 0.01,
+                false, false, false, false, false, false, false, false);
+        assert Math.abs(expected.expectedDataBlockProbes() - 0.08) < 0.000001;
+        assert expected.observedDataBlockProbes() == 0;
+
+        BloomProbeBudget oneFalsePositive = bloomProbeBudget(
+                8, 0.01,
+                false, false, true, false, false, false, false, false);
+        assert oneFalsePositive.observedDataBlockProbes() == 1;
+        assert oneFalsePositive.candidateFiles() == 8;
+    }
+
+    private static void lsmCompactionDebtBudgetScenarios() {
+        CompactionDebtBudget overloaded = compactionDebtBudget(50, 6, 250, 60);
+        assert overloaded.compactionDemandMbPerSecond() == 300;
+        assert overloaded.debtMbPerSecond() == 50;
+        assert overloaded.debtAfterWindowMb() == 3_000;
+        assert overloaded.stallsExpected();
+
+        CompactionDebtBudget sustainable = compactionDebtBudget(40, 4, 250, 60);
+        assert sustainable.compactionDemandMbPerSecond() == 160;
+        assert sustainable.debtMbPerSecond() == 0;
+        assert !sustainable.stallsExpected();
+    }
+
     private static void columnSelectionScenarios() {
         ScanEstimate estimate = scanEstimate(10_000_000L, 200, 8, 8);
         assert estimate.rowStoreBytes() == 2_000_000_000L;
@@ -5272,6 +5448,10 @@ public final class ConsistencyContracts {
         lsmSnapshotReadScenarios();
         lsmTombstoneScenarios();
         lsmAmplificationScenarios();
+        lsmThreePlaceVisibilityScenarios();
+        lsmCompactionMergeSafetyScenarios();
+        lsmBloomProbeBudgetScenarios();
+        lsmCompactionDebtBudgetScenarios();
         columnSelectionScenarios();
         vectorBatchScenarios();
         granulePruningScenarios();
@@ -5372,7 +5552,7 @@ public final class ConsistencyContracts {
         walCrashBoundaryScenarios();
         lostEditResponseScenarios();
         checkpointVacuumDiagnosisScenarios();
-        System.out.println("PASS 116 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis");
+        System.out.println("PASS 120 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis");
     }
 }
 

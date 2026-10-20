@@ -6484,6 +6484,228 @@ Accessed 2026-10-20.
 195. [MySQL 8.4 — Optimizing InnoDB queries](https://dev.mysql.com/doc/refman/8.4/en/optimizing-innodb-queries.html): short primary keys, concatenated indexes and covering-index trade-offs.
 
 
+# Section 30 — LSM dry run: the same key exists in three places
+
+Section 3 remains the canonical explanation of the WAL, memtable, immutable flush, sorted runs, read/write/space amplification and compaction styles. This bounded section adds the missing **one-key state machine**. It follows product `P7` through two flushed values and one in-memory deletion, then makes the reader and compactor prove which versions they may return or discard.
+
+The sequence numbers below are simplified visibility/order identifiers. They are not wall-clock timestamps, and this model does not claim that every LSM engine exposes RocksDB's exact API.
+
+## Requirements and invariants
+
+The executable model must keep these rules explicit:
+
+1. a point read gathers candidates from every relevant mutable/immutable structure and chooses the newest version not newer than its snapshot;
+2. a visible tombstone means **absent**, not “continue until an older value is found”;
+3. compaction may discard an old value only when required snapshots no longer need it;
+4. a tombstone may disappear only when the compaction has enough history coverage to prove that no masked value can resurface;
+5. a negative Bloom-filter answer can avoid a data-block probe, while a positive answer is only “may contain”; and
+6. sustained compaction demand above sustainable device throughput accumulates debt and eventually forces throttling or stalls.
+
+RocksDB snapshots are associated with internal sequence numbers, and compaction tracks live snapshot boundaries when deciding which versions remain necessary. That is the production analogue of the teaching model's `snapshotSequence` and `oldestSnapshotSequence` inputs.
+
+## Example 117 — `P7` is deleted now, worth 120 at snapshot 25 and worth 100 at snapshot 15
+
+Build this concrete history:
+
+| Step | Operation | Mutable memory | Immutable files |
+|---:|---|---|---|
+| 1 | `PUT P7=100 @10` | `P7@10=100` | none |
+| 2 | flush | empty new memtable | SST-A: `P7@10=100` |
+| 3 | `PUT P7=120 @20` | `P7@20=120` | SST-A unchanged |
+| 4 | flush | empty new memtable | SST-B: `P7@20=120`; SST-A: `P7@10=100` |
+| 5 | `DELETE P7 @30` | `P7@30=TOMBSTONE` | SST-B and SST-A still hold old values |
+
+A latest read at sequence 30 must stop logically at the tombstone and return absent. A snapshot read at 25 ignores the future deletion and returns 120. A snapshot at 15 ignores both newer entries and returns 100.
+
+```mermaid
+flowchart TD
+    Q["Read P7 at snapshot S"] --> M["Memtable: tombstone @30"]
+    Q --> B["SST-B: 120 @20"]
+    Q --> A["SST-A: 100 @10"]
+    M --> V["Keep candidates with sequence <= S"]
+    B --> V
+    A --> V
+    V --> N["Choose greatest visible sequence"]
+    N --> O["S=30 absent; S=25 120; S=15 100"]
+```
+
+```java
+List<LsmCandidate> p7 = List.of(
+        new LsmCandidate("mutable memtable", new LsmVersion(30, null, true)),
+        new LsmCandidate("SST-B", new LsmVersion(20, "120", false)),
+        new LsmCandidate("SST-A", new LsmVersion(10, "100", false)));
+
+assert !visibleAcrossPlaces(p7, 30).read().found();
+assert visibleAcrossPlaces(p7, 25).read().value().equals("120");
+assert visibleAcrossPlaces(p7, 15).read().value().equals("100");
+```
+
+| Snapshot | Visible candidates | Winner | Result |
+|---:|---|---|---|
+| 30 | tombstone@30, 120@20, 100@10 | tombstone@30 | absent |
+| 25 | 120@20, 100@10 | 120@20 | 120 |
+| 15 | 100@10 | 100@10 | 100 |
+| 5 | none | none | absent / not found |
+
+This is why “find the key in an SSTable” is not a read algorithm. The reader needs file/range selection, filter/index checks, internal-key ordering, snapshot visibility and tombstone semantics. A real engine may avoid touching candidates through metadata and filters, but any skipped source must be eliminated by a correctness-preserving rule rather than search order alone.
+
+## Example 118 — Merge streams without resurrecting the deleted value
+
+Suppose a compaction merges the three versions for `P7` with other sorted keys. For this key, the input streams are logically:
+
+```text
+memtable/flush input: P7@30=TOMBSTONE
+SST-B:               P7@20=120
+SST-A:               P7@10=100
+```
+
+The merge order is newest sequence first within the user key. What may be removed depends on both snapshot retention and coverage:
+
+| Oldest required snapshot | Coverage includes all older places? | Minimum conservative output for `P7` | Why |
+|---:|---|---|---|
+| 15 | yes | tombstone@30, 120@20, 100@10 | snapshots 15 and 25 still need both values |
+| 25 | yes | tombstone@30, 120@20 | snapshot 25 needs 120; 100 is obsolete |
+| 31 | yes | nothing | deletion is older than every required snapshot and no hidden older value remains |
+| 31 | no | tombstone@30 | dropping it could expose 100 in an unmerged run |
+
+```mermaid
+flowchart TD
+    I["Merge P7 versions: 30 delete, 20 value, 10 value"] --> S{"Old snapshots still required?"}
+    S -->|yes| K["Keep one visible floor per snapshot stripe"]
+    S -->|no| C{"Complete older-history coverage?"}
+    C -->|no| T["Retain tombstone"]
+    C -->|yes| D["Drop tombstone and masked values"]
+    T --> P["Prevent resurrection"]
+    D --> P
+```
+
+```java
+List<LsmVersion> history = List.of(
+        new LsmVersion(30, null, true),
+        new LsmVersion(20, "120", false),
+        new LsmVersion(10, "100", false));
+
+assert compactKeyHistory(history, 25, true).retained().stream()
+        .map(LsmVersion::sequence).toList().equals(List.of(30L, 20L));
+
+assert compactKeyHistory(history, 31, true).retained().isEmpty();
+assert compactKeyHistory(history, 31, true).tombstoneDropped();
+
+assert compactKeyHistory(history, 31, false).retained().get(0).tombstone();
+```
+
+The last assertion is the safety line. If SST-A remains outside the compaction and the deletion marker is dropped, a later read can rediscover `P7@10=100`. RocksDB's range-deletion implementation describes snapshot stripes and atomic compaction units because tombstone boundaries and visibility are correctness problems, not merely space-reclamation details. Application compaction filters add another contract: filtering values can affect snapshot repeatability, so retention policy must be explicit and tested.
+
+The model intentionally uses a conservative “retain all versions at or newer than the oldest snapshot plus one visible floor” rule. A real engine can perform tighter garbage collection using every active snapshot boundary, level topology, merge semantics and bottommost-file knowledge.
+
+## Example 119 — Eight candidate files at 1% false-positive rate do not mean eight data reads
+
+Assume file-range metadata leaves eight SSTables that could contain a missing key. Each file has a filter with a modeled 1% false-positive probability. The expected unnecessary **data-block** probes are:
+
+```text
+8 candidate files × 0.01 false-positive probability = 0.08 probes per lookup
+```
+
+That expectation is an average under the model's assumptions, not a promise that every 100 requests performs exactly eight probes. One request can see zero false positives; another can see one or more. Filter and index checks still consume CPU and may themselves miss in cache.
+
+```java
+BloomProbeBudget noFalsePositive = bloomProbeBudget(
+        8, 0.01,
+        false, false, false, false, false, false, false, false);
+assert noFalsePositive.expectedDataBlockProbes() == 0.08;
+assert noFalsePositive.observedDataBlockProbes() == 0;
+
+BloomProbeBudget oneFalsePositive = bloomProbeBudget(
+        8, 0.01,
+        false, false, true, false, false, false, false, false);
+assert oneFalsePositive.observedDataBlockProbes() == 1;
+```
+
+```mermaid
+flowchart LR
+    Q["Missing-key lookup"] --> R["Range metadata: 8 candidates"]
+    R --> F["Check 8 filters"]
+    F -->|definitely absent| X["Skip data block"]
+    F -->|may contain| B["Probe candidate block"]
+    B --> N["Confirm absent"]
+```
+
+RocksDB's full-filter documentation describes one Bloom filter per SST file: a negative result avoids searching the data block, while “may exist” continues the lookup. Its tuning guide separately notes that point lookups can use filters to reduce read amplification, whereas range scans cannot be summarized by the same point-filter arithmetic.
+
+Measure at least these separately:
+
+- candidate files after range/level metadata;
+- filter checks and filter-block cache misses;
+- true and false positives;
+- index/data-block reads and bytes;
+- block-cache hit/miss state; and
+- end-to-end point-read latency.
+
+Without those dimensions, a low storage-read count can hide high CPU/filter work, while a hot block cache can hide an inefficient candidate set.
+
+## Example 120 — Convert write amplification into a compaction-debt rate
+
+Assume the workload ingests 50 MB/s and measured compaction output is 6 bytes for every logical byte ingested. The background output demand is approximately 300 MB/s. If the storage path sustainably delivers 250 MB/s to this work, debt grows by 50 MB every second—about 3,000 MB in one minute.
+
+```java
+CompactionDebtBudget overloaded = compactionDebtBudget(50, 6, 250, 60);
+assert overloaded.compactionDemandMbPerSecond() == 300;
+assert overloaded.debtMbPerSecond() == 50;
+assert overloaded.debtAfterWindowMb() == 3_000;
+assert overloaded.stallsExpected();
+
+CompactionDebtBudget sustainable = compactionDebtBudget(40, 4, 250, 60);
+assert sustainable.debtMbPerSecond() == 0;
+assert !sustainable.stallsExpected();
+```
+
+```mermaid
+flowchart TD
+    I["Ingest 50 MB/s"] --> A["Compaction output ratio 6x"]
+    A --> D["Demand 300 MB/s"]
+    S["Sustainable device 250 MB/s"] --> G["Gap 50 MB/s"]
+    D --> G
+    G --> B["Debt after 60 s: 3000 MB"]
+    B --> W["Throttle or write stall eventually"]
+```
+
+Memory and additional Level-0 files can absorb a mismatch temporarily; they do not make a sustained negative budget stable. RocksDB documents slowdowns/stops when flushes, Level-0 file counts or estimated pending compaction bytes exceed thresholds. Its compaction statistics expose compaction bytes, write amplification and stall time, so diagnose the budget with measured interval data rather than one theoretical multiplier.
+
+Useful remedies change different terms:
+
+| Action | Primary term changed | Qualification |
+|---|---|---|
+| batch or reshape writes | logical ingest/overlap | validate latency and durability requirements |
+| reduce write amplification | output per input | depends on compaction style, key distribution and level sizing |
+| increase background jobs | usable compaction parallelism | only helps until CPU/storage saturates |
+| add storage bandwidth | sustainable throughput | include WAL, flush, reads and other tenants |
+| shard | per-node ingest and working set | adds routing, rebalancing and operational cost |
+| enlarge buffers | burst absorption and flush shape | delays pressure; does not cure a permanent throughput deficit |
+
+## What to say in an interview
+
+Use the memory line **newest visible wins; tombstones hide; compaction proves**:
+
+- a key may have versions in mutable memory, immutable memory and several SSTables;
+- snapshot sequence determines which version is eligible, and a visible tombstone returns absent;
+- compaction is a sorted merge plus a garbage-collection proof over snapshots and remaining history;
+- Bloom filters reduce unnecessary point-read probes but do not eliminate filter/index CPU or govern range-scan cost; and
+- compaction debt is a rate mismatch, so compare measured background byte demand with sustainable throughput and stall thresholds.
+
+### Primary references for Section 30
+
+Accessed 2026-10-20.
+
+196. [RocksDB — Snapshot](https://github.com/facebook/rocksdb/wiki/Snapshot): internal snapshot sequence numbers and snapshot-aware flush/compaction decisions.
+197. [RocksDB — Architecture Guide](https://github.com/facebook/rocksdb/wiki/Rocksdb-Architecture-Guide): immutable data files and preservation of keys visible to active snapshots during compaction.
+198. [RocksDB — DeleteRange implementation](https://github.com/facebook/rocksdb/wiki/DeleteRange-Implementation): snapshot stripes, range-tombstone compaction and atomic compaction units.
+199. [RocksDB — Compaction filter](https://github.com/facebook/rocksdb/wiki/Compaction-Filter): application filtering semantics and snapshot-repeatability caveats.
+200. [RocksDB — New Bloom Filter Format](https://rocksdb.org/blog/2014/09/12/new-bloom-filter-format.html): per-SST filters, negative avoidance and “may exist” continuation for point lookups.
+201. [RocksDB — Tuning Guide](https://github.com/facebook/rocksdb/wiki/RocksDB-Tuning-Guide): read/write/space amplification, point-versus-range lookup cost and compaction sizing.
+202. [RocksDB — Write Stalls](https://github.com/facebook/rocksdb/wiki/Write-Stalls): pending flush, Level-0 and pending-compaction-byte slowdown/stop conditions.
+203. [RocksDB — Compaction Stats and DB Status](https://github.com/facebook/rocksdb/wiki/Compaction-Stats-and-DB-Status): interval compaction I/O, write amplification and stall evidence.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -6491,8 +6713,8 @@ Accessed 2026-10-20.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; and lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”
-- Deliberate continuation: Section 30, “LSM dry run: the same key exists in three places,” spans source lines **1644–1690**, bounded by the Section 31 heading at line **1691**, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; and lines **1644–1690**, “LSM dry run: the same key exists in three places”
+- Deliberate continuation: Section 31, “Design an index for an actual slow endpoint,” spans source lines **1691–1760**, bounded by the Section 32 heading at line **1761**, and remains unprocessed.
 
 Validation commands:
 
