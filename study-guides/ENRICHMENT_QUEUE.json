@@ -102,7 +102,7 @@
       "status": "IN_PROGRESS",
       "last_read_at": "2026-10-20",
       "sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-      "selection": "Sections 1-35, source lines 62-1945, read and promoted into the incremental canonical database guide; later sections remain queued."
+      "selection": "Sections 1-36, source lines 62-1983, read and promoted into the incremental canonical database guide; later sections remain queued."
     },
     {
       "name": "top_5_system_design_interview_blueprints.md",
@@ -593,7 +593,7 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-20T16:07:01-04:00",
+      "last_processed_at": "2026-10-20T16:39:08-04:00",
       "processed_sections": [
         "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
         "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios",
@@ -629,7 +629,8 @@
         "Section 32: two-session isolation laboratory — statement and transaction snapshots, write skew with Serializable retry, guard-row serialization and globally ordered transfer locks",
         "Section 33: eviction dry runs — exact LRU/FIFO divergence, LFU ties and phase-change aging, 2Q ghost reload and one-pass CMS scan admission",
         "Section 34: cache concurrency contract — owner-checked lease cleanup, generation-fenced positive/negative publication, declared visibility/recovery boundaries and fleet concurrency/rate admission",
-        "Section 35: connection-pool queue arithmetic — borrow-to-close residency, hold-time-driven queue stability, layered Hikari/PgBouncer waiting rooms and explicit deadline/unknown-commit ownership"
+        "Section 35: connection-pool queue arithmetic — borrow-to-close residency, hold-time-driven queue stability, layered Hikari/PgBouncer waiting rooms and explicit deadline/unknown-commit ownership",
+        "Section 36: PostgreSQL protocol framing walkthrough — exact SSLRequest bytes, chunk-safe simple-query decoding, bounded handshake admission and separate identity/authentication/authorization gates"
       ],
       "source_revision": {
         "baseline_commit": "e8961ba3f7208a18faa548925ae1b3fa6d21f3c8",
@@ -637,12 +638,12 @@
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-1945",
-        "canonical_sha256_after": "5a5e4d00f692c9ee5cb2cf1f45a8e1d33b3e9fce55145de894305451c74d1696"
+        "processed_lines": "62-1983",
+        "canonical_sha256_after": "64a84c1d34dd3a1b689402dd88aba4a9190404c9bbda29dfca00ed4e987f0094"
       },
-      "content_commit": "0b36fa200b61a5b25cbc952d2d0423a33a04483d",
-      "validation": "Exact source lines 1910-1945 were bounded by the Section 36 heading and expanded into four current primary-reference-backed connection-pool labs for borrow-to-close residency arithmetic, hold-time-driven queue stability, separate Hikari/PgBouncer waiting rooms, and explicit configuration/deadline/unknown-commit ownership. Java 17 source launch passed all 140 deterministic scenario groups. Deterministic reader generation passed exact 492171-character Markdown payload equality, source SHA-256 5a5e4d00f692c9ee5cb2cf1f45a8e1d33b3e9fce55145de894305451c74d1696, 1830 unique HTML IDs, 308 search entries, fragments, allowed relative links, 303 balanced fences and 144 Mermaid sources. Standalone javac, production HikariCP/PgBouncer/PostgreSQL integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
-      "next_action": "Process exactly Section 36, Protocol walkthrough with actual framing examples, source lines 1946-1983, bounded by the Section 37 heading at line 1984.",
+      "content_commit": "692bf652e19e1eed238633249893d5cece82319d",
+      "validation": "Exact source lines 1946-1983 were bounded by the Section 37 heading and expanded into four current primary-reference-backed PostgreSQL protocol labs for SSLRequest bytes, incremental simple-query framing, handshake-versus-pool admission and independent security gates. Java 17 source launch passed all 144 deterministic scenario groups. Deterministic reader generation passed exact 501437-character Markdown payload equality, source SHA-256 64a84c1d34dd3a1b689402dd88aba4a9190404c9bbda29dfca00ed4e987f0094, 1878 unique HTML IDs, 315 search entries, fragments, allowed relative links, 312 balanced fences and 148 Mermaid sources. All five content-commit remote blob hashes matched, including the restored full canonical Markdown blob. Standalone javac, production PostgreSQL integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
+      "next_action": "Process exactly Section 37, source lines 1984-2038, bounded by the Section 38 heading at line 2039.",
       "priority": 12
     },
     {
@@ -916,7 +917,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 36 only, 'Protocol walkthrough with actual framing examples,' source lines 1946-1983, bounded by the Section 37 heading at line 1984.",
+    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 37 only, source lines 1984-2038, bounded by the Section 38 heading at line 2039.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1010,15 +1011,16 @@
       "Database/caching Section 32: two-session statement/snapshot traces, write-skew retry, guard-row serialization and deadlock-safe global lock order",
       "Database/caching Section 33: exact LRU/FIFO trace divergence, LFU phase-change aging, 2Q ghost reload and CMS scan-pollution admission",
       "Database/caching Section 34: lease-expiry ownership, generation-fenced value/negative publication and fleet concurrency/rate admission",
-      "Database/caching Section 35: borrow-to-close residency arithmetic, hold-time queue stability, layered Hikari/PgBouncer waiting rooms and explicit deadline/unknown-commit ownership"
+      "Database/caching Section 35: borrow-to-close residency arithmetic, hold-time queue stability, layered Hikari/PgBouncer waiting rooms and explicit deadline/unknown-commit ownership",
+      "Database/caching Section 36: exact SSLRequest bytes, chunk-safe simple-query framing, bounded handshake admission and independent identity/authentication/authorization gates"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 1910-1945 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 35, Connection pooling with real queue arithmetic",
-    "validation": "Exact source lines 1910-1945 were bounded by the Section 36 heading and expanded into four current primary-reference-backed connection-pool labs for borrow-to-close residency arithmetic, hold-time-driven queue stability, separate Hikari/PgBouncer waiting rooms, and explicit configuration/deadline/unknown-commit ownership. Java 17 source launch passed all 140 deterministic scenario groups. Deterministic reader generation passed exact 492171-character Markdown payload equality, source SHA-256 5a5e4d00f692c9ee5cb2cf1f45a8e1d33b3e9fce55145de894305451c74d1696, 1830 unique HTML IDs, 308 search entries, fragments, allowed relative links, 303 balanced fences and 144 Mermaid sources. Standalone javac, production HikariCP/PgBouncer/PostgreSQL integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
-    "estimated_next_tokens": 7900,
-    "estimate_method": "Heuristic only for the bounded protocol framing walkthrough, primary-reference reconciliation, examples, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "0b36fa200b61a5b25cbc952d2d0423a33a04483d",
-    "last_processed_at": "2026-10-20T16:07:01-04:00",
-    "next_batch_decision": "Section 35 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 36; resume at source lines 1946-1983, bounded by the Section 37 heading at line 1984."
+    "processed_section": "database_internals_caching_java_master_guide.md lines 1946-1983 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 36, Protocol walkthrough with actual framing examples",
+    "validation": "Exact source lines 1946-1983 were bounded by the Section 37 heading and expanded into four current primary-reference-backed PostgreSQL protocol labs for SSLRequest bytes, incremental simple-query framing, handshake-versus-pool admission and independent security gates. Java 17 source launch passed all 144 deterministic scenario groups. Deterministic reader generation passed exact 501437-character Markdown payload equality, source SHA-256 64a84c1d34dd3a1b689402dd88aba4a9190404c9bbda29dfca00ed4e987f0094, 1878 unique HTML IDs, 315 search entries, fragments, allowed relative links, 312 balanced fences and 148 Mermaid sources. All five content-commit remote blob hashes matched, including the restored full canonical Markdown blob. Standalone javac, production PostgreSQL integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
+    "estimated_next_tokens": 8200,
+    "estimate_method": "Heuristic only for bounded Section 37 source review, primary-reference reconciliation, examples, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "692bf652e19e1eed238633249893d5cece82319d",
+    "last_processed_at": "2026-10-20T16:39:08-04:00",
+    "next_batch_decision": "Section 36 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 37; resume at source lines 1984-2038, bounded by the Section 38 heading at line 2039."
   }
 }
 
