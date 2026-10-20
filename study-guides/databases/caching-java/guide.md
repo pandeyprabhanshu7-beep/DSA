@@ -7158,6 +7158,207 @@ Accessed 2026-10-20.
 215. [PostgreSQL 18 — Error codes](https://www.postgresql.org/docs/18/errcodes-appendix.html): canonical names for `40001` (`serialization_failure`) and `40P01` (`deadlock_detected`).
 
 
+# Section 33 — Eviction dry runs: identical requests, different survivors
+
+An eviction policy is a state machine, not a label. For every request, write down whether it is a resident hit, a ghost hit or a miss; which metadata changes; which key is selected when capacity is full; and the exact order after the transition. This lab uses a three-entry resident cache unless stated otherwise. In every order below, the **leftmost key is the next victim**.
+
+The policies answer different questions:
+
+- **LRU:** which resident was accessed least recently?
+- **FIFO:** which resident was admitted earliest?
+- **exact LFU:** which resident has the smallest counter, with LRU as the explicit tie-break here?
+- **2Q:** has a recently evicted identity proved reuse strongly enough to enter the protected queue?
+- **admission-aware cache:** should this miss displace anything at all?
+
+## Requirements and invariants
+
+1. capacity means resident entries; a 2Q ghost queue stores identifiers only and is accounted separately;
+2. LRU hits change recency, while FIFO hits do not change insertion order;
+3. this exact LFU lab increments a counter on every resident access and breaks equal-frequency ties by least recent access;
+4. decay is a named policy operation, not an invisible correction applied only when a test fails;
+5. a 2Q ghost hit is still a backing-store miss: the identifier survives, but the value must be reloaded before admission to `Am`;
+6. one-pass batch reads have a declared admission path—shared, bypassed, or isolated—rather than silently polluting an online cache; and
+7. production claims distinguish exact teaching models from sampled or probabilistic implementations.
+
+## Example 129 — One trace, two different survivors: LRU versus FIFO
+
+Run the identical request trace `A, B, C, A, D, B` at capacity three. A request inserts on miss. The LRU and FIFO states agree until the second `A`; that hit changes only LRU's order.
+
+| Step | Request | LRU outcome and order | FIFO outcome and order |
+|---:|---|---|---|
+| 1 | A | miss → `A` | miss → `A` |
+| 2 | B | miss → `A B` | miss → `A B` |
+| 3 | C | miss → `A B C` | miss → `A B C` |
+| 4 | A | hit → `B C A` | hit → `A B C` |
+| 5 | D | miss, evict B → `C A D` | miss, evict A → `B C D` |
+| 6 | B | miss, evict C → `A D B` | hit → `B C D` |
+
+```mermaid
+flowchart TD
+    T["Trace A B C A D B"] --> L["LRU: hit A moves it right"]
+    T --> F["FIFO: hit A leaves order unchanged"]
+    L --> LS["Survivors A D B"]
+    F --> FS["Survivors B C D"]
+```
+
+```java
+ExactLruCache lru = new ExactLruCache(3);
+FifoCache fifo = new FifoCache(3);
+for (String key : List.of("A", "B", "C")) {
+    lru.put(key, 1);
+    fifo.put(key, 1);
+}
+
+assert lru.get("A") == 1;
+assert fifo.get("A") == 1;
+assert lru.orderLeastToMostRecent().equals(List.of("B", "C", "A"));
+assert fifo.orderOldestToNewest().equals(List.of("A", "B", "C"));
+
+assert lru.put("D", 1).equals("B");
+assert fifo.put("D", 1).equals("A");
+assert lru.put("B", 1).equals("C");
+assert fifo.get("B") == 1;
+```
+
+Java's access-order `LinkedHashMap` is a convenient exact LRU teaching primitive: documented access methods move an existing entry from least to most recent. The class is not synchronized, and an access changes iteration order, so it is not by itself a production concurrent cache. Insertion-order mode supplies the FIFO order used here.
+
+## Example 130 — Exact LFU needs both a tie-break and an aging story
+
+First, trace `A, B, C, A, D, B` with `(frequency, recency)` metadata:
+
+| Step | Request | Decision | Resident state after request |
+|---:|---|---|---|
+| 1–3 | A, B, C | three misses | A:1, B:1, C:1 |
+| 4 | A | resident hit | A:2, B:1, C:1 |
+| 5 | D | B and C tie at 1; B is older | evict B → A:2, C:1, D:1 |
+| 6 | B | C and D tie at 1; C is older | evict C → A:2, D:1, B:1 |
+
+```mermaid
+flowchart TD
+    M["Miss at full capacity"] --> C["Choose minimum frequency"]
+    C --> T{"One candidate?"}
+    T -->|yes| E["Evict it"]
+    T -->|no| R["Evict least recent among the tie"]
+```
+
+```java
+ExactLfuModel trace = new ExactLfuModel(3);
+for (String key : List.of("A", "B", "C")) trace.put(key, 1);
+trace.get("A");
+assert trace.put("D", 1).equals("B");
+assert trace.put("B", 1).equals("C");
+```
+
+Now add 10,000 accesses to D, followed by a new phase with 100 accesses each to A and B. Without aging, inactive D still has frequency 10,001 and survives the next admission while one of the currently active keys loses. With fourteen explicit half-decays, all three counters reach one; LRU tie-breaking then evicts D because its last access predates the new A/B phase.
+
+```java
+ExactLfuModel aged = new ExactLfuModel(3);
+for (String key : List.of("A", "B", "D")) aged.put(key, 1);
+for (int i = 0; i < 10_000; i++) aged.get("D");
+for (int i = 0; i < 100; i++) aged.get("A");
+for (int i = 0; i < 100; i++) aged.get("B");
+for (int i = 0; i < 14; i++) aged.decay();
+assert aged.put("E", 1).equals("D");
+```
+
+Do not transfer those exact numbers to Redis. Redis documents an **approximated** LFU: a small probabilistic counter, periodic decay and sampled eviction candidates. TinyLFU is different again: its frequency sketch primarily decides whether a candidate deserves admission over a resident; it is not the exact-counter resident policy above. State the product and configuration before promising “LFU behavior.”
+
+## Example 131 — Full 2Q: a ghost hit is evidence, not a cached value
+
+Use one resident slot in `A1in`, two resident slots in protected `Am`, and two identifier slots in ghost queue `A1out`. `A1in` overflow moves only the evicted identifier into `A1out`. A request for a ghost identifier reloads its value and admits it to `Am`.
+
+| Request | Classification | `A1in` resident | `A1out` ghost IDs | `Am` resident |
+|---|---|---|---|---|
+| A | new miss | A | — | — |
+| B | new miss; evict A's value | B | A | — |
+| A | ghost hit; reload A | B | — | A |
+| C | new miss; evict B's value | C | B | A |
+| D | new miss; evict C's value | D | B C | A |
+| A | protected resident hit | D | B C | A |
+
+```mermaid
+flowchart TD
+    N["New identity"] --> I["A1in resident probation"]
+    I -->|overflow| G["A1out identifier only"]
+    G -->|second reference + reload| A["Am protected resident"]
+    A -->|resident hit| A
+```
+
+```java
+FullTwoQueueModel cache = new FullTwoQueueModel(1, 2, 2);
+assert cache.request("A").hit() == TwoQHit.NEW;
+assert cache.request("B").evictedResident().equals("A");
+
+TwoQResult reload = cache.request("A");
+assert reload.hit() == TwoQHit.GHOST_HIT;
+assert cache.ghostOrder().isEmpty();
+assert cache.amLeastToMostRecent().equals(List.of("A"));
+
+cache.request("C");
+cache.request("D");
+assert cache.ghostOrder().equals(List.of("B", "C"));
+assert cache.request("A").hit() == TwoQHit.AM_HIT;
+```
+
+The distinction is operational: a resident hit can return a value immediately; a ghost hit must budget backing-store latency and can fail during reload. The original 2Q paper describes `A1out` as tags and uses it to filter admission to `Am`; its scan experiments show why not granting long-lived privilege on a first reference helps resist sequential pollution.
+
+## Example 132 — A CMS rebuild can erase the online working set
+
+Suppose a shared three-entry LRU holds homepage articles `H1,H2,H3`. A nightly search-index rebuild reads `S1,S2,S3,S4` exactly once each. If every scan miss is admitted, the state moves as follows:
+
+| Phase | LRU order after phase | Immediate homepage misses |
+|---|---|---:|
+| hot set warmed | `H1 H2 H3` | 0 |
+| shared scan admits S1–S4 | `S2 S3 S4` | 3 |
+| scan bypasses online cache | `H1 H2 H3` | 0 |
+
+```mermaid
+flowchart TD
+    J["One-pass CMS rebuild"] --> D{"Admission path"}
+    D -->|shared LRU| P["S2 S3 S4 replace hot articles"]
+    D -->|bypass| H["H1 H2 H3 remain resident"]
+    D -->|separate cache| B["Batch pressure isolated"]
+```
+
+```java
+ScanPollutionResult shared = searchRebuildScan(ScanAdmission.SHARED_LRU);
+assert shared.postScanResidents().equals(List.of("S2", "S3", "S4"));
+assert shared.hotMissesAfterScan() == 3;
+
+ScanPollutionResult bypass = searchRebuildScan(ScanAdmission.BYPASS_ONE_PASS);
+assert bypass.postScanResidents().equals(List.of("H1", "H2", "H3"));
+assert bypass.hotMissesAfterScan() == 0;
+```
+
+Three defensible designs change different boundaries:
+
+- **bypass:** the batch reads the authority without populating the online cache;
+- **separate cache:** batch and interactive traffic have independent capacity and eviction telemetry; or
+- **admission-aware shared cache:** a frequency/admission policy can reject one-pass candidates that are unlikely to beat residents.
+
+Adding capacity only postpones pollution when the scan cardinality can still exceed the enlarged cache. Validate with a trace or shadow policy and record online hit ratio, scan admissions/rejections, evictions by workload, backing-store load and post-job recovery time.
+
+## What to say in an interview
+
+Use the memory line **hit mutation, tie-break, ghost reload, admission**:
+
+- run the exact trace because LRU and FIFO can produce different survivors from the same requests;
+- define LFU's counter, tie-break and decay rather than saying only “least frequent”;
+- treat a 2Q ghost as reuse evidence whose value still requires reload;
+- separate resident capacity from identifier-history capacity;
+- protect interactive locality from one-pass jobs with bypass, isolation or admission control; and
+- name whether the production implementation is exact, sampled, approximate or sketch-based.
+
+### Primary references for Section 33
+
+Accessed 2026-10-20.
+
+216. [Java SE 21 — `LinkedHashMap`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/LinkedHashMap.html): insertion order, access order, eldest-entry removal and synchronization caveats.
+217. [Redis — Key eviction](https://redis.io/docs/latest/develop/reference/eviction/): sampled LRU, probabilistic LFU counters, decay and configuration controls.
+218. [Johnson and Shasha — 2Q: A Low Overhead High Performance Buffer Management Replacement Algorithm](https://www.vldb.org/conf/1994/P439.PDF): `A1in`, identifier-only `A1out`, protected `Am`, admission filtering and scan-resistance experiments.
+219. [Caffeine — Eviction](https://github.com/ben-manes/caffeine/wiki/Eviction): size-based eviction and a production Java policy that considers both recency and frequency.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -7165,8 +7366,8 @@ Accessed 2026-10-20.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; and lines **1761–1816**, “Isolation laboratory with two sessions”
-- Deliberate continuation: Section 33, “Eviction dry runs: identical requests, different survivors,” spans source lines **1817–1863**, bounded by the Section 34 heading at line **1864**, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; and lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”
+- Deliberate continuation: Section 34, “Cache concurrency lab: three races and a precise contract,” spans source lines **1864–1909**, bounded by the Section 35 heading at line **1910**, and remains unprocessed.
 
 Validation commands:
 

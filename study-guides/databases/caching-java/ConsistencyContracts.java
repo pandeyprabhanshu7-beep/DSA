@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-32. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-33. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -1456,6 +1456,31 @@ public final class ConsistencyContracts {
             map.remove(eldest);
             return eldest;
         }
+    }
+
+    enum ScanAdmission { SHARED_LRU, BYPASS_ONE_PASS }
+    record ScanPollutionResult(List<String> postScanResidents, int hotMissesAfterScan) {}
+
+    /**
+     * Models a nightly one-pass search-index rebuild sharing a three-entry article cache.
+     * Bypass means the batch still reads the source rows, but does not admit them here.
+     */
+    static ScanPollutionResult searchRebuildScan(ScanAdmission admission) {
+        ExactLruCache cache = new ExactLruCache(3);
+        for (String key : List.of("H1", "H2", "H3")) cache.put(key, 1);
+        for (String scanKey : List.of("S1", "S2", "S3", "S4")) {
+            if (admission == ScanAdmission.SHARED_LRU) cache.put(scanKey, 1);
+        }
+        List<String> postScan = cache.orderLeastToMostRecent();
+
+        int misses = 0;
+        for (String key : List.of("H1", "H2", "H3")) {
+            if (cache.get(key) == null) {
+                misses++;
+                cache.put(key, 1);
+            }
+        }
+        return new ScanPollutionResult(postScan, misses);
     }
 
     record StampedeEstimate(long concurrentLoads, long aggregateDatabaseMillis) {}
@@ -4569,6 +4594,87 @@ public final class ConsistencyContracts {
         assert !lru.contains("A"); // the same one-pass scan displaced A under exact LRU
     }
 
+    private static void evictionPolicyTraceScenarios() {
+        ExactLruCache lru = new ExactLruCache(3);
+        FifoCache fifo = new FifoCache(3);
+        for (String key : List.of("A", "B", "C")) {
+            lru.put(key, 1);
+            fifo.put(key, 1);
+        }
+
+        assert lru.get("A") == 1;
+        assert fifo.get("A") == 1;
+        assert lru.orderLeastToMostRecent().equals(List.of("B", "C", "A"));
+        assert fifo.orderOldestToNewest().equals(List.of("A", "B", "C"));
+
+        assert lru.put("D", 1).equals("B");
+        assert fifo.put("D", 1).equals("A");
+        assert lru.put("B", 1).equals("C");
+        assert fifo.get("B") == 1;
+        assert lru.orderLeastToMostRecent().equals(List.of("A", "D", "B"));
+        assert fifo.orderOldestToNewest().equals(List.of("B", "C", "D"));
+    }
+
+    private static void lfuPhaseChangeLabScenarios() {
+        ExactLfuModel trace = new ExactLfuModel(3);
+        for (String key : List.of("A", "B", "C")) trace.put(key, 1);
+        trace.get("A");
+        assert trace.put("D", 1).equals("B"); // B and C tie; B is least recent
+        assert trace.put("B", 1).equals("C"); // C and D tie; C is least recent
+        assert trace.contains("A") && trace.contains("D") && trace.contains("B");
+
+        ExactLfuModel sticky = new ExactLfuModel(3);
+        for (String key : List.of("A", "B", "D")) sticky.put(key, 1);
+        for (int i = 0; i < 10_000; i++) sticky.get("D");
+        for (int i = 0; i < 100; i++) sticky.get("A");
+        for (int i = 0; i < 100; i++) sticky.get("B");
+        sticky.put("E", 1);
+        assert sticky.contains("D"); // an inactive historical winner still pins a slot
+
+        ExactLfuModel aged = new ExactLfuModel(3);
+        for (String key : List.of("A", "B", "D")) aged.put(key, 1);
+        for (int i = 0; i < 10_000; i++) aged.get("D");
+        for (int i = 0; i < 100; i++) aged.get("A");
+        for (int i = 0; i < 100; i++) aged.get("B");
+        for (int i = 0; i < 14; i++) aged.decay();
+        assert aged.put("E", 1).equals("D"); // all counters reached one; LRU tie breaks
+    }
+
+    private static void twoQueueGhostLabScenarios() {
+        FullTwoQueueModel cache = new FullTwoQueueModel(1, 2, 2);
+        assert cache.request("A").hit() == TwoQHit.NEW;
+        assert cache.a1inOrder().equals(List.of("A"));
+
+        assert cache.request("B").evictedResident().equals("A");
+        assert cache.a1inOrder().equals(List.of("B"));
+        assert cache.ghostOrder().equals(List.of("A"));
+
+        TwoQResult reload = cache.request("A");
+        assert reload.hit() == TwoQHit.GHOST_HIT;
+        assert cache.a1inOrder().equals(List.of("B"));
+        assert cache.ghostOrder().isEmpty();
+        assert cache.amLeastToMostRecent().equals(List.of("A"));
+
+        cache.request("C");
+        assert cache.a1inOrder().equals(List.of("C"));
+        assert cache.ghostOrder().equals(List.of("B"));
+        cache.request("D");
+        assert cache.a1inOrder().equals(List.of("D"));
+        assert cache.ghostOrder().equals(List.of("B", "C"));
+        assert cache.request("A").hit() == TwoQHit.AM_HIT;
+        assert cache.amLeastToMostRecent().equals(List.of("A"));
+    }
+
+    private static void cmsScanPollutionLabScenarios() {
+        ScanPollutionResult shared = searchRebuildScan(ScanAdmission.SHARED_LRU);
+        assert shared.postScanResidents().equals(List.of("S2", "S3", "S4"));
+        assert shared.hotMissesAfterScan() == 3;
+
+        ScanPollutionResult bypass = searchRebuildScan(ScanAdmission.BYPASS_ONE_PASS);
+        assert bypass.postScanResidents().equals(List.of("H1", "H2", "H3"));
+        assert bypass.hotMissesAfterScan() == 0;
+    }
+
     private static void stampedeArithmeticScenarios() {
         StampedeEstimate burst = naiveExpiryBurst(8_000, 150);
         assert burst.concurrentLoads() == 1_200;
@@ -5807,6 +5913,10 @@ public final class ConsistencyContracts {
         exactLfuScenarios();
         fifoScenarios();
         fullTwoQueueScenarios();
+        evictionPolicyTraceScenarios();
+        lfuPhaseChangeLabScenarios();
+        twoQueueGhostLabScenarios();
+        cmsScanPollutionLabScenarios();
         stampedeArithmeticScenarios();
         localSingleFlightScenarios();
         fillLeaseScenarios();
@@ -5887,7 +5997,7 @@ public final class ConsistencyContracts {
         walCrashBoundaryScenarios();
         lostEditResponseScenarios();
         checkpointVacuumDiagnosisScenarios();
-        System.out.println("PASS 128 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis");
+        System.out.println("PASS 132 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis");
     }
 }
 
