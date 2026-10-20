@@ -7992,6 +7992,210 @@ Accessed 2026-10-20.
 230. [PostgreSQL 18 — SSL Support](https://www.postgresql.org/docs/18/libpq-ssl.html): certificate-chain and hostname verification semantics for `verify-ca` and `verify-full`.
 231. [PostgreSQL 18 — Row Security Policies](https://www.postgresql.org/docs/18/ddl-rowsecurity.html): row-level command restrictions, default-deny behavior and owner/`BYPASSRLS` caveats.
 
+# Section 37 — Read the Java component as execution stories {#section-37-cache-component-execution-stories}
+
+The cache-aside component is easier to verify as a set of observable stories than as one long method. Each story names the authoritative result, who owns the fill lease, whether a JDBC checkout may occur, which metric increments, and what must happen on failure. The central rule is: **cache transport state, database result state, and lease ownership are different facts**.
+
+## Example 145 — A body hit, an absence hit, and a miss are three different outcomes {#example-145-first-probe-envelope-semantics}
+
+The cache envelope is a versioned serialization contract:
+
+| Redis value | Meaning | First-probe metric | JDBC checkout? |
+|---|---|---|---|
+| `v1:hello` | present body `hello` | hit | no |
+| `n1` | known absence | hit | no |
+| no key | unknown; load may be required | miss | not yet |
+| Redis exception | transport failure | error | only through the database budget |
+
+An empty article body can be encoded as `v1:` and remains distinct from `n1`. An unknown prefix is rejected instead of being reinterpreted as a miss; otherwise a rolling deployment could silently turn incompatible data into database load.
+
+```java
+FirstProbe body = firstProbe("v1:hello", true);
+assert body.kind() == FirstProbeKind.BODY_HIT;
+assert body.body().equals("hello") && !body.jdbcCheckout();
+
+FirstProbe absent = firstProbe("n1", true);
+assert absent.kind() == FirstProbeKind.ABSENT_HIT;
+assert absent.countsAsFirstProbeHit();
+
+FirstProbe miss = firstProbe(null, true);
+assert miss.kind() == FirstProbeKind.MISS;
+assert miss.countsAsFirstProbeMiss() && !miss.jdbcCheckout();
+```
+
+The existing `cms.cache.hits` and `cms.cache.misses` describe the initial probe. A value discovered by the second lookup after lease acquisition is a coalesced hit, but it does not retroactively change the first probe. Either name dashboards as `first.probe.*` or add a separate `coalesced.hit` counter; do not present unlike events as one ambiguous ratio. Micrometer's portable convention uses lowercase dot-separated meter names, while backends translate that convention as needed.
+
+```mermaid
+flowchart TD
+    G["Initial Redis GET"] --> E{"Envelope"}
+    E -->|"v1:body"| B["Body hit; return without JDBC"]
+    E -->|"n1"| N["Absence hit; return not found"]
+    E -->|"missing"| M["First-probe miss; enter coordination"]
+    E -->|"exception"| R["Redis error; enter cooldown boundary"]
+```
+
+## Example 146 — The second lookup closes the lease-acquisition race {#example-146-owner-safe-miss-coalescing}
+
+Assume node A misses. Between that miss and A's successful lease acquisition, node B may finish a load and publish. A must therefore check Redis again after acquiring the lease and before using a database permit.
+
+```java
+HealthyMissStory coalesced = healthyMissStory(true, true, true);
+assert !coalesced.databaseRead();
+assert !coalesced.publishAttempted();
+assert coalesced.steps().get(2).equals("second lookup");
+
+HealthyMissStory owner = healthyMissStory(false, true, true);
+assert owner.databaseRead() && owner.publishAttempted();
+assert owner.leaseOwnedAtPublish();
+
+HealthyMissStory saturated = healthyMissStory(false, false, true);
+assert !saturated.databaseRead();
+assert saturated.steps().contains("reject database load budget");
+```
+
+The complete owner path is:
+
+1. initial lookup misses;
+2. acquire a unique-token lease with finite TTL;
+3. perform the second lookup;
+4. acquire one bounded database-load permit;
+5. execute SQL;
+6. atomically verify ownership, store the envelope with TTL, and delete the lease; and
+7. in final cleanup, delete only if the token still matches.
+
+Redis documents token-checked release because plain `DEL` can erase a successor's lock after the original lease expires. Redis scripts/functions execute atomically, so ownership comparison, publication and lease deletion can form one server-side state transition. Keep scripts short because their atomicity also blocks conflicting server activity while they run.
+
+```mermaid
+sequenceDiagram
+    participant A as Node A
+    participant R as Redis
+    participant P as DB permit
+    participant D as Database
+    A->>R: first GET = miss
+    A->>R: acquire unique-token lease
+    A->>R: second GET
+    alt another loader already published
+        R-->>A: envelope; skip JDBC
+    else still missing
+        A->>P: try acquire
+        A->>D: bounded SQL read
+        A->>R: compare owner + publish + unlock atomically
+    end
+```
+
+A nonowner may wait and recheck only a bounded number of times. If policy allows a fallback database read, it consumes the same global database-load budget and must not publish without lease ownership. Rejection or allowed stale data may be safer for expensive reads.
+
+## Example 147 — Redis failure and database failure must take different paths {#example-147-cache-database-failure-boundaries}
+
+Catching the entire service method and translating every exception to “cache miss” is dangerous. It can turn a database permission error into a false not-found response. Keep Redis access in a narrow boundary, and represent a successful empty query separately from a failed query.
+
+| Event | Correct action | Forbidden shortcut |
+|---|---|---|
+| Redis access fails | count Redis error, enter short cooldown, attempt SQL only with a permit | spin on Redis or open unbounded SQL |
+| database returns a row | release permit, return row; cache only under valid ownership | hold permit during unrelated work |
+| database returns empty successfully | release permit; eligible for `n1` publication | equate every exception with empty |
+| database throws | release permit in `finally`, propagate failure, attempt owner-safe cleanup | publish `n1` |
+| no database permit | reject or serve explicitly allowed stale data | queue forever |
+
+```java
+FailureBoundaryStory redisDown = failureBoundaryStory(
+        false, true, DatabaseResultKind.BODY);
+assert redisDown.redisErrorCounted() && redisDown.cooldownEntered();
+assert redisDown.sqlAttempted() && redisDown.sqlPermitReleased();
+
+FailureBoundaryStory databaseDown = failureBoundaryStory(
+        true, true, DatabaseResultKind.FAILURE);
+assert databaseDown.databaseFailurePropagated();
+assert databaseDown.sqlPermitReleased();
+assert !databaseDown.negativePublished();
+
+FailureBoundaryStory knownAbsent = failureBoundaryStory(
+        true, true, DatabaseResultKind.ABSENT);
+assert knownAbsent.negativePublished();
+```
+
+Resilience4j's semaphore bulkhead expresses the two relevant controls directly: a maximum concurrent-call count and a bounded maximum wait. A cooldown and a bulkhead solve different problems—the cooldown suppresses repeated Redis attempts, while the bulkhead protects database concurrency.
+
+```mermaid
+flowchart TD
+    A["Cache access"] -->|"Redis exception"| C["Count error + short cooldown"]
+    A -->|"miss"| P{"DB permit available?"}
+    C --> P
+    P -->|no| R["Reject or allowed stale"]
+    P -->|yes| D{"Database result"}
+    D -->|body| B["Return body; publish only if owner"]
+    D -->|successful empty| N["Return absent; owner may publish n1"]
+    D -->|exception| X["Release permit; propagate failure"]
+```
+
+## Example 148 — Lease expiry changes publication rights, not immutable truth {#example-148-expired-lease-data-contract}
+
+Node A owns a lease and begins SQL. It pauses beyond the lease TTL; node B acquires the successor lease. A then receives revision 7 from the database.
+
+- If revision 7 is immutable and authorization was independently checked, A may return those bytes to its caller.
+- A must not publish because it no longer owns the lease; the compare-owner operation rejects it.
+- If the data means “current stock,” “current permissions,” or another mutable fact, the old read is not automatically safe. The component must reload, compare a version/generation, or use a stronger authority contract.
+- Lease ownership never substitutes for user authorization.
+
+```java
+ExpiredLeaseStory immutable = expiredLeaseStory(true, true, false);
+assert immutable.returnRevisionToCaller();
+assert !immutable.publishAccepted() && !immutable.mustReloadAuthority();
+
+ExpiredLeaseStory mutable = expiredLeaseStory(false, true, false);
+assert !mutable.returnRevisionToCaller();
+assert !mutable.publishAccepted() && mutable.mustReloadAuthority();
+
+ExpiredLeaseStory unauthorized = expiredLeaseStory(true, false, true);
+assert !unauthorized.returnRevisionToCaller();
+assert !unauthorized.publishAccepted();
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Loader A
+    participant R as Redis
+    participant B as Loader B
+    participant D as Database
+    A->>R: acquire token A
+    A->>D: read immutable revision 7
+    Note over A,R: token A expires
+    B->>R: acquire token B
+    D-->>A: revision 7
+    A->>R: publish with token A
+    R-->>A: rejected; B remains owner
+    A-->>A: return only if immutable + authorized
+```
+
+The method responsibility map makes code review concrete:
+
+| Method boundary | Owns | Must not silently do |
+|---|---|---|
+| `get` | cache-aside coordination | authorize users or retry without a bound |
+| `lookup` | envelope decoding | convert transport failure to known absence |
+| `acquire` | one lease attempt | infer success from an ambiguous timeout |
+| `loadDatabase` | bounded SQL lookup | cache a database failure |
+| `publish` | owner-checked insertion | claim SQL and Redis are one transaction |
+| `unlock` | conditional cleanup | delete a successor's lease |
+
+## What to say in an interview {#section-37-interview-answer}
+
+Use the memory line **decode, recheck, separate, qualify**:
+
+- **decode:** typed envelopes distinguish value, absence, miss and corruption;
+- **recheck:** a successful lease acquisition is followed by a second cache lookup;
+- **separate:** Redis transport failure, database failure and successful absence have different outcomes and metrics; and
+- **qualify:** expired ownership may still allow an immutable authorized result to return, but never stale publication or mutable-value assumptions.
+
+### Primary references for Section 37 {#section-37-primary-references}
+
+Accessed 2026-10-20.
+
+232. [Redis — Distributed locks](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/): unique lease tokens, TTL validity and owner-checked release after expiry races.
+233. [Redis — Programmability](https://redis.io/docs/latest/develop/programmability/) and [Lua scripting](https://redis.io/docs/latest/develop/programmability/eval-intro/): atomic server-side script execution for conditional publication and cleanup.
+234. [Resilience4j — Bulkhead](https://resilience4j.readme.io/docs/bulkhead): bounded concurrent calls and maximum wait duration for protecting database loads.
+235. [Micrometer — Naming meters](https://docs.micrometer.io/micrometer/reference/concepts/naming.html): portable lowercase dot-separated meter naming conventions.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -7999,8 +8203,8 @@ Accessed 2026-10-20.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; and lines **1946–1983**, “Protocol walkthrough with actual framing examples”
-- Deliberate continuation: Section 37 starts at source line **1984** and is bounded by the Section 38 heading at line **2039**; it remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; and lines **1984–2038**, “Read the Java component as six execution stories”
+- Deliberate continuation: Section 38 starts at source line **2039** and is bounded by the Section 39 heading at line **2103**; it remains unprocessed.
 
 Validation commands:
 

@@ -16,7 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-36. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-37. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -6481,6 +6481,191 @@ public final class ConsistencyContracts {
         assert !unverifiedServer.operationAllowed();
     }
 
+    private enum FirstProbeKind {
+        BODY_HIT,
+        ABSENT_HIT,
+        MISS,
+        REDIS_FAILURE
+    }
+
+    private record FirstProbe(
+            FirstProbeKind kind,
+            String body,
+            boolean jdbcCheckout,
+            boolean countsAsFirstProbeHit,
+            boolean countsAsFirstProbeMiss) {}
+
+    private record HealthyMissStory(
+            List<String> steps,
+            boolean databaseRead,
+            boolean publishAttempted,
+            boolean leaseOwnedAtPublish) {}
+
+    private enum DatabaseResultKind { BODY, ABSENT, FAILURE }
+
+    private record FailureBoundaryStory(
+            boolean redisErrorCounted,
+            boolean cooldownEntered,
+            boolean sqlAttempted,
+            boolean sqlPermitReleased,
+            boolean negativePublished,
+            boolean databaseFailurePropagated) {}
+
+    private record ExpiredLeaseStory(
+            boolean returnRevisionToCaller,
+            boolean publishAccepted,
+            boolean mustReloadAuthority,
+            String reason) {}
+
+    private static FirstProbe firstProbe(String envelope, boolean redisAvailable) {
+        if (!redisAvailable) {
+            return new FirstProbe(
+                    FirstProbeKind.REDIS_FAILURE, null, false, false, false);
+        }
+        if (envelope == null) {
+            return new FirstProbe(
+                    FirstProbeKind.MISS, null, false, false, true);
+        }
+        if (envelope.equals("n1")) {
+            return new FirstProbe(
+                    FirstProbeKind.ABSENT_HIT, null, false, true, false);
+        }
+        if (envelope.startsWith("v1:")) {
+            return new FirstProbe(
+                    FirstProbeKind.BODY_HIT,
+                    envelope.substring(3),
+                    false,
+                    true,
+                    false);
+        }
+        throw new IllegalArgumentException("unknown cache envelope");
+    }
+
+    private static HealthyMissStory healthyMissStory(
+            boolean secondLookupPresent,
+            boolean sqlPermitAvailable,
+            boolean leaseOwnedAtPublish) {
+        List<String> steps = new ArrayList<>();
+        steps.add("initial lookup miss");
+        steps.add("acquire owner lease");
+        steps.add("second lookup");
+        if (secondLookupPresent) {
+            steps.add("return coalesced hit");
+            return new HealthyMissStory(List.copyOf(steps), false, false, true);
+        }
+        if (!sqlPermitAvailable) {
+            steps.add("reject database load budget");
+            return new HealthyMissStory(List.copyOf(steps), false, false, true);
+        }
+        steps.add("bounded database read");
+        steps.add("owner-checked publish");
+        return new HealthyMissStory(
+                List.copyOf(steps), true, true, leaseOwnedAtPublish);
+    }
+
+    private static FailureBoundaryStory failureBoundaryStory(
+            boolean redisAvailable,
+            boolean sqlPermitAvailable,
+            DatabaseResultKind databaseResult) {
+        boolean sqlAttempted = sqlPermitAvailable;
+        boolean databaseFailure = sqlAttempted
+                && databaseResult == DatabaseResultKind.FAILURE;
+        boolean negativePublished = redisAvailable
+                && sqlAttempted
+                && databaseResult == DatabaseResultKind.ABSENT;
+        return new FailureBoundaryStory(
+                !redisAvailable,
+                !redisAvailable,
+                sqlAttempted,
+                sqlAttempted,
+                negativePublished,
+                databaseFailure);
+    }
+
+    private static ExpiredLeaseStory expiredLeaseStory(
+            boolean immutableRevision,
+            boolean authorizationChecked,
+            boolean stillOwnsLease) {
+        if (!authorizationChecked) {
+            return new ExpiredLeaseStory(
+                    false, false, true, "authorization is not cache ownership");
+        }
+        if (stillOwnsLease) {
+            return new ExpiredLeaseStory(
+                    true, true, false, "current owner may publish");
+        }
+        if (immutableRevision) {
+            return new ExpiredLeaseStory(
+                    true, false, false,
+                    "immutable authorized revision remains valid for this caller");
+        }
+        return new ExpiredLeaseStory(
+                false, false, true,
+                "mutable value requires a fresh authoritative decision");
+    }
+
+    private static void cacheStoryFirstProbeScenarios() {
+        FirstProbe body = firstProbe("v1:hello", true);
+        assert body.kind() == FirstProbeKind.BODY_HIT;
+        assert body.body().equals("hello") && !body.jdbcCheckout();
+        assert body.countsAsFirstProbeHit() && !body.countsAsFirstProbeMiss();
+
+        FirstProbe absent = firstProbe("n1", true);
+        assert absent.kind() == FirstProbeKind.ABSENT_HIT;
+        assert absent.countsAsFirstProbeHit() && absent.body() == null;
+
+        FirstProbe miss = firstProbe(null, true);
+        assert miss.kind() == FirstProbeKind.MISS;
+        assert miss.countsAsFirstProbeMiss() && !miss.jdbcCheckout();
+    }
+
+    private static void cacheStoryHealthyMissScenarios() {
+        HealthyMissStory coalesced = healthyMissStory(true, true, true);
+        assert !coalesced.databaseRead() && !coalesced.publishAttempted();
+        assert coalesced.steps().get(2).equals("second lookup");
+
+        HealthyMissStory owner = healthyMissStory(false, true, true);
+        assert owner.databaseRead() && owner.publishAttempted();
+        assert owner.leaseOwnedAtPublish();
+
+        HealthyMissStory saturated = healthyMissStory(false, false, true);
+        assert !saturated.databaseRead();
+        assert saturated.steps().contains("reject database load budget");
+    }
+
+    private static void cacheStoryFailureBoundaryScenarios() {
+        FailureBoundaryStory redisDown = failureBoundaryStory(
+                false, true, DatabaseResultKind.BODY);
+        assert redisDown.redisErrorCounted() && redisDown.cooldownEntered();
+        assert redisDown.sqlAttempted() && redisDown.sqlPermitReleased();
+        assert !redisDown.negativePublished();
+
+        FailureBoundaryStory databaseDown = failureBoundaryStory(
+                true, true, DatabaseResultKind.FAILURE);
+        assert databaseDown.databaseFailurePropagated();
+        assert databaseDown.sqlPermitReleased();
+        assert !databaseDown.negativePublished();
+
+        FailureBoundaryStory knownAbsent = failureBoundaryStory(
+                true, true, DatabaseResultKind.ABSENT);
+        assert knownAbsent.negativePublished();
+        assert !knownAbsent.databaseFailurePropagated();
+    }
+
+    private static void cacheStoryExpiredLeaseScenarios() {
+        ExpiredLeaseStory immutable = expiredLeaseStory(true, true, false);
+        assert immutable.returnRevisionToCaller();
+        assert !immutable.publishAccepted() && !immutable.mustReloadAuthority();
+
+        ExpiredLeaseStory mutable = expiredLeaseStory(false, true, false);
+        assert !mutable.returnRevisionToCaller();
+        assert !mutable.publishAccepted() && mutable.mustReloadAuthority();
+
+        ExpiredLeaseStory unauthorized = expiredLeaseStory(true, false, true);
+        assert !unauthorized.returnRevisionToCaller();
+        assert !unauthorized.publishAccepted() && unauthorized.mustReloadAuthority();
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -6629,7 +6814,11 @@ public final class ConsistencyContracts {
         protocolSimpleQueryFramingScenarios();
         protocolHandshakeAdmissionScenarios();
         protocolSecurityContractScenarios();
-        System.out.println("PASS 144 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract");
+        cacheStoryFirstProbeScenarios();
+        cacheStoryHealthyMissScenarios();
+        cacheStoryFailureBoundaryScenarios();
+        cacheStoryExpiredLeaseScenarios();
+        System.out.println("PASS 148 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract");
     }
 }
 
