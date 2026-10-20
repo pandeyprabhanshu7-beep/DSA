@@ -6706,6 +6706,229 @@ Accessed 2026-10-20.
 203. [RocksDB — Compaction Stats and DB Status](https://github.com/facebook/rocksdb/wiki/Compaction-Stats-and-DB-Status): interval compaction I/O, write amplification and stall evidence.
 
 
+# Section 31 — Design an index for an actual slow endpoint
+
+This section starts with the request contract, not with an index-shaped guess:
+
+```http
+GET /tenants/7/orders?status=PAID&limit=20
+```
+
+The endpoint must return the newest 20 paid orders for one tenant, in a deterministic order that can continue with an opaque cursor. Assume 100 million orders overall, 100,000 for tenant 7 and 30,000 paid orders for that tenant.
+
+```sql
+SELECT id, created_at, total_cents
+FROM orders
+WHERE tenant_id = 7 AND status = 'PAID'
+ORDER BY created_at DESC, id DESC
+LIMIT 20;
+```
+
+The design target is therefore not merely “find paid orders.” It is **seek to one equality prefix, read in the required order and stop after 20**:
+
+```sql
+CREATE INDEX orders_tenant_status_recent
+ON orders (tenant_id, status, created_at DESC, id DESC)
+INCLUDE (total_cents);
+```
+
+`tenant_id,status` form the equality prefix. `created_at,id` form the descending order and stable tie-break. `total_cents` is payload: it can make an index-only plan physically eligible, but it does not route the scan and does not guarantee zero heap visits. PostgreSQL still checks the heap unless the relevant heap page is marked all-visible.
+
+## Requirements and invariants
+
+1. the response is scoped by both tenant and status;
+2. `(created_at DESC, id DESC)` is a total order for this endpoint—`created_at` alone is not enough when timestamps tie;
+3. the first page and every continuation page use the same filter and order;
+4. an opaque cursor binds the tenant, status, order version and last `(created_at,id)` tuple, and is rejected if its scope differs from the request;
+5. the proposed index is judged with representative parameters and `EXPLAIN (ANALYZE, BUFFERS)`, not by its name or a development-sized table; and
+6. write cost, index size, page visibility and the rest of the workload remain part of the decision.
+
+The Java model below treats its list as already ordered like the composite B-tree. It demonstrates the contract; it is not a PostgreSQL cost model.
+
+## Example 121 — Equality prefix, descending suffix and a deterministic tie
+
+Consider this slice of the index for tenant 7 and status `PAID`:
+
+| Index position | `created_at` | `id` | `total_cents` | Returned for `LIMIT 3`? |
+|---:|---:|---:|---:|---|
+| 1 | 300 | 73 | 9,900 | yes |
+| 2 | 300 | 72 | 8,500 | yes |
+| 3 | 290 | 71 | 7,200 | yes; stop |
+| 4 | 280 | 70 | 6,100 | no; parent `LIMIT` has enough rows |
+
+The two rows at time 300 prove why `id DESC` belongs in both the SQL order and the cursor tuple. Relying on the B-tree's internal tuple identifier as an unstated tie-break would not make the API contract portable or stable.
+
+```mermaid
+flowchart TD
+    Q["tenant=7, status=PAID, limit=3"] --> S["Seek equality prefix (7, PAID)"]
+    S --> A["300 / id 73"]
+    A --> B["300 / id 72"]
+    B --> C["290 / id 71"]
+    C --> L["Limit satisfied; stop"]
+```
+
+```java
+List<EndpointOrder> indexOrder = List.of(
+        new EndpointOrder(7, "PAID", 300, 73, 9_900),
+        new EndpointOrder(7, "PAID", 300, 72, 8_500),
+        new EndpointOrder(7, "PAID", 290, 71, 7_200),
+        new EndpointOrder(7, "PAID", 280, 70, 6_100));
+
+EndpointPage page = endpointPage(indexOrder, 7, "PAID", null, 3);
+assert page.rows().stream().map(EndpointOrder::id).toList()
+        .equals(List.of(73, 72, 71));
+assert page.matchingEntriesExamined() == 3;
+```
+
+PostgreSQL can use a B-tree to produce sorted output. The `ORDER BY ... LIMIT 20` case is especially important: an aligned index can supply the first 20 entries directly, whereas an explicit sort must first process its input to determine which 20 come first. The planner may still choose another plan when its cost model predicts that plan is cheaper; this is a candidate to measure, not a hint to force.
+
+`INCLUDE (total_cents)` changes a different dimension. All requested columns are stored in the index, so an index-only scan becomes possible. On frequently modified order pages, however, unset visibility-map bits can still produce heap fetches. Adding every response column also enlarges and increases the maintenance cost of the index. Cover only narrow, frequently needed payload after measuring.
+
+## Example 122 — Two single-column indexes can filter, but their bitmap loses order
+
+Suppose the database instead has one index on `tenant_id` and another on `status`. PostgreSQL may combine their bitmaps to find the 30,000 matching heap locations. Bitmap heap access visits table rows in physical location order, so the source index ordering is lost and this query still needs a sort for `(created_at DESC,id DESC)`.
+
+| Candidate shape | Matching candidates | Rows explicitly sorted | Rows returned | Required order produced by access path? |
+|---|---:|---:|---:|---|
+| aligned composite B-tree | up to the first 20 needed | 0 | 20 | yes |
+| bitmap-AND of separate indexes | 30,000 | 30,000 | 20 | no |
+| broad scan plus filter | workload-dependent | 30,000 matches | 20 | no |
+
+Those numbers are a teaching workload trace, not promised PostgreSQL counters. The actual planner can use top-N sorting and stop behavior, and its choice depends on statistics, caching, row widths and cost settings. The point is that candidate combination and output ordering are separate properties.
+
+```mermaid
+flowchart TD
+    T["tenant_id index"] --> B["Bitmap AND"]
+    S["status index"] --> B
+    B --> H["Heap rows in physical order"]
+    H --> O["Sort 30,000 matches"]
+    O --> L["Return newest 20"]
+```
+
+```java
+EndpointPlanChoice aligned = endpointPlanChoice(true, true, 30_000, 20);
+assert aligned.kind() == EndpointPlanKind.ORDERED_COMPOSITE_INDEX;
+assert aligned.candidateRows() == 20 && aligned.rowsSorted() == 0;
+
+EndpointPlanChoice separate = endpointPlanChoice(false, true, 30_000, 20);
+assert separate.kind() == EndpointPlanKind.BITMAP_AND_THEN_SORT;
+assert separate.candidateRows() == 30_000 && separate.rowsSorted() == 30_000;
+```
+
+Do not infer that the composite index is universally superior. A global operations query with no tenant equality, a query for every status, or an aggregation over old orders has a different access pattern. PostgreSQL 18 can sometimes use B-tree skip scan when a leading column is unconstrained and has few distinct values, but that possibility is cost-based; it does not erase the need to design each high-value query from its predicates, order and result size.
+
+## Example 123 — Read the plan as evidence, then locate the endpoint gap
+
+Run the representative read in an isolated or explicitly safe environment:
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT id, created_at, total_cents
+FROM orders
+WHERE tenant_id = 7 AND status = 'PAID'
+ORDER BY created_at DESC, id DESC
+LIMIT 20;
+```
+
+`ANALYZE` executes the statement. It is safe here only because the statement is a read; for a mutating statement its effects occur unless an explicit rollback strategy is used. Planner costs are arbitrary cost units, not milliseconds. Parent node costs, times and buffers include descendant work, so do not add every line as if the values were disjoint.
+
+Use a before/after comparison with the same parameters and realistic cache conditions:
+
+| Observation | What it establishes | Next bounded check |
+|---|---|---|
+| estimated 50 rows, actual 30,000 | the selectivity estimate is badly low | statistics freshness, tenant/status correlation and skew |
+| 70,000 rows removed by filter | the chosen access path finds too broad a set | predicate-aligned composite or justified partial index |
+| sort method reports disk use | the sort crossed its memory budget | test order alignment before globally raising memory |
+| index-only node reports 18 heap fetches | columns are stored, but pages were not all-visible | update/vacuum pattern and visibility map |
+| database 12 ms, endpoint 190 ms | this query plan cannot explain most wall time | pool wait, extra queries, serialization and network |
+
+```mermaid
+flowchart TD
+    E["EXPLAIN evidence"] --> R{"Estimate close to actual?"}
+    R -->|no| ST["Statistics and correlation"]
+    R -->|yes| P["Sort, filter, buffers, heap fetches"]
+    P --> G{"Database explains endpoint time?"}
+    G -->|no| A["Pool, N+1, serialization, network"]
+    G -->|yes| D["Tune measured database path"]
+```
+
+```java
+List<String> findings = diagnoseEndpointPlan(new EndpointPlanEvidence(
+        50, 30_000, 70_000, true, 18, 12, 190));
+assert findings.size() == 5;
+assert findings.get(0).startsWith("row-estimate skew");
+assert findings.get(4).startsWith("endpoint gap");
+```
+
+For repeatable automation, prefer `FORMAT JSON` and compare named fields instead of parsing aligned text. Keep the full query and bind values with the evidence; a plan captured for an unrepresentative tenant can hide skew. Also separate database execution from pool checkout and application work—`EXPLAIN` does not measure queueing before the query or network delivery to the client.
+
+## Example 124 — Keyset pagination across tied timestamps without cross-scope replay
+
+If page 1 ends at `(created_at=300,id=72)`, the next request adds a strict row comparison:
+
+```sql
+SELECT id, created_at, total_cents
+FROM orders
+WHERE tenant_id = 7
+  AND status = 'PAID'
+  AND (created_at, id) < (300, 72)
+ORDER BY created_at DESC, id DESC
+LIMIT 20;
+```
+
+For `<`, PostgreSQL compares row-constructor elements left to right and stops at the first unequal pair. Thus `(300,71)` is after the cursor in this descending feed, while `(300,73)` and `(300,72)` are not. Keep both ordering columns non-null, or define explicit null placement and cursor semantics; a decisive row comparison involving null can evaluate to unknown.
+
+```mermaid
+flowchart TD
+    C["Cursor: tenant 7, PAID, last=(300,72)"] --> V{"Scope and signature valid?"}
+    V -->|no| X["Reject cursor"]
+    V -->|yes| K["Seek tuple strictly less than (300,72)"]
+    K --> A["Return (300,71), then (290,70)"]
+    A --> N["Issue next opaque cursor"]
+```
+
+```java
+EndpointPage first = endpointPage(indexOrder, 7, "PAID", null, 2);
+EndpointOrder last = first.rows().get(first.rows().size() - 1);
+EndpointCursor cursor = new EndpointCursor(
+        last.tenantId(), last.status(), last.createdAt(), last.id());
+EndpointPage second = endpointPage(indexOrder, 7, "PAID", cursor, 2);
+
+assert first.rows().stream().map(EndpointOrder::id).toList().equals(List.of(73, 72));
+assert second.rows().stream().map(EndpointOrder::id).toList().equals(List.of(71, 70));
+```
+
+The production cursor should also carry an order/schema version and integrity protection so clients cannot silently alter its scope. Decode it into typed bind parameters; never splice cursor text into SQL. A cursor from tenant 7 or status `PAID` must not be accepted for tenant 8 or another filter.
+
+Keyset pagination avoids walking and discarding an ever-growing `OFFSET`, but it does **not** create a snapshot across separate HTTP requests. A row inserted before page 2 may appear only in a refreshed first page, and a row whose status changes may enter or leave the feed. Define the product contract:
+
+- **live feed:** monotonic cursor movement, with documented membership changes; or
+- **consistent export:** one database snapshot/transaction or a materialized export identity with bounded lifetime.
+
+## What to say in an interview
+
+Use the memory line **filter prefix, order suffix, evidence, cursor**:
+
+- start from the exact predicates, order, projection, limit and pagination contract;
+- align leading equality keys, then the ordered tuple and explicit unique tie-break;
+- treat `INCLUDE` as narrow payload that permits—but does not guarantee—an index-only scan;
+- distinguish filtering via multiple indexes from producing ordered output;
+- verify estimates, actual rows, loops, filters, sort method, buffers and heap fetches; and
+- bind the cursor to request scope while distinguishing keyset stability from snapshot consistency.
+
+### Primary references for Section 31
+
+Accessed 2026-10-20.
+
+204. [PostgreSQL 18 — Multicolumn indexes](https://www.postgresql.org/docs/18/indexes-multicolumn.html): leading equality/inequality behavior and cost-based skip scan.
+205. [PostgreSQL 18 — Indexes and `ORDER BY`](https://www.postgresql.org/docs/18/indexes-ordering.html): B-tree ordering, multicolumn direction and the `ORDER BY ... LIMIT` stop advantage.
+206. [PostgreSQL 18 — Combining multiple indexes](https://www.postgresql.org/docs/18/indexes-bitmap-scans.html): bitmap combination, physical heap order and loss of source-index ordering.
+207. [PostgreSQL 18 — Index-only scans and covering indexes](https://www.postgresql.org/docs/18/indexes-index-only-scans.html): `INCLUDE` payload, visibility-map checks, heap visits and index-bloat trade-offs.
+208. [PostgreSQL 18 — `EXPLAIN`](https://www.postgresql.org/docs/18/sql-explain.html): execution semantics, buffers, machine-readable output and profiling caveats.
+209. [PostgreSQL 18 — Using `EXPLAIN`](https://www.postgresql.org/docs/18/using-explain.html): cost units, inclusive nodes, row estimates and actual execution evidence.
+210. [PostgreSQL 18 — Row and array comparisons](https://www.postgresql.org/docs/18/functions-comparisons.html#ROW-WISE-COMPARISON): left-to-right row-constructor ordering and null behavior.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -6713,8 +6936,8 @@ Accessed 2026-10-20.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; and lines **1644–1690**, “LSM dry run: the same key exists in three places”
-- Deliberate continuation: Section 31, “Design an index for an actual slow endpoint,” spans source lines **1691–1760**, bounded by the Section 32 heading at line **1761**, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; and lines **1691–1760**, “Design an index for an actual slow endpoint”
+- Deliberate continuation: Section 32, “Isolation laboratory with two sessions,” spans source lines **1761–1816**, bounded by the Section 33 heading at line **1817**, and remains unprocessed.
 
 Validation commands:
 

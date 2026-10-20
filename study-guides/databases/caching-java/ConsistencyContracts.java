@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-30. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-31. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -527,6 +527,127 @@ public final class ConsistencyContracts {
                 debtRate,
                 debtRate * windowSeconds,
                 debtRate > 0);
+    }
+
+    record EndpointOrder(
+            int tenantId, String status, long createdAt, int id, long totalCents) {
+        EndpointOrder {
+            if (tenantId <= 0 || status == null || status.isBlank()
+                    || createdAt <= 0 || id <= 0 || totalCents < 0) {
+                throw new IllegalArgumentException("invalid endpoint order");
+            }
+        }
+    }
+
+    record EndpointCursor(int tenantId, String status, long lastCreatedAt, int lastId) {
+        EndpointCursor {
+            if (tenantId <= 0 || status == null || status.isBlank()
+                    || lastCreatedAt <= 0 || lastId <= 0) {
+                throw new IllegalArgumentException("invalid endpoint cursor");
+            }
+        }
+    }
+
+    record EndpointPage(List<EndpointOrder> rows, int matchingEntriesExamined) {}
+
+    static EndpointPage endpointPage(
+            List<EndpointOrder> compositeIndexOrder,
+            int tenantId,
+            String status,
+            EndpointCursor cursor,
+            int limit) {
+        if (tenantId <= 0 || status == null || status.isBlank() || limit < 0) {
+            throw new IllegalArgumentException("invalid endpoint request");
+        }
+        if (cursor != null
+                && (cursor.tenantId() != tenantId || !cursor.status().equals(status))) {
+            throw new IllegalArgumentException("cursor scope does not match request");
+        }
+        List<EndpointOrder> rows = new ArrayList<>();
+        int examined = 0;
+        for (EndpointOrder order : compositeIndexOrder) {
+            if (order.tenantId() != tenantId || !order.status().equals(status)) continue;
+            examined++;
+            if (cursor != null) {
+                boolean beforeCursor = order.createdAt() < cursor.lastCreatedAt()
+                        || (order.createdAt() == cursor.lastCreatedAt()
+                            && order.id() < cursor.lastId());
+                if (!beforeCursor) continue;
+            }
+            if (rows.size() < limit) rows.add(order);
+            if (rows.size() == limit) break;
+        }
+        return new EndpointPage(List.copyOf(rows), examined);
+    }
+
+    enum EndpointPlanKind {
+        ORDERED_COMPOSITE_INDEX,
+        BITMAP_AND_THEN_SORT,
+        BROAD_SCAN_THEN_SORT
+    }
+
+    record EndpointPlanChoice(
+            EndpointPlanKind kind,
+            int candidateRows,
+            int rowsSorted,
+            int rowsReturned,
+            boolean preservesRequiredOrder) {}
+
+    static EndpointPlanChoice endpointPlanChoice(
+            boolean alignedCompositeIndex,
+            boolean separateTenantAndStatusIndexes,
+            int matchingRows,
+            int limit) {
+        if (matchingRows < 0 || limit < 0) throw new IllegalArgumentException("row counts");
+        int returned = Math.min(matchingRows, limit);
+        if (alignedCompositeIndex) {
+            return new EndpointPlanChoice(
+                    EndpointPlanKind.ORDERED_COMPOSITE_INDEX,
+                    returned, 0, returned, true);
+        }
+        if (separateTenantAndStatusIndexes) {
+            return new EndpointPlanChoice(
+                    EndpointPlanKind.BITMAP_AND_THEN_SORT,
+                    matchingRows, matchingRows, returned, false);
+        }
+        return new EndpointPlanChoice(
+                EndpointPlanKind.BROAD_SCAN_THEN_SORT,
+                matchingRows, matchingRows, returned, false);
+    }
+
+    record EndpointPlanEvidence(
+            int estimatedRows,
+            int actualRows,
+            int rowsRemovedByFilter,
+            boolean sortSpilled,
+            int heapFetches,
+            int databaseMillis,
+            int endpointMillis) {}
+
+    static List<String> diagnoseEndpointPlan(EndpointPlanEvidence evidence) {
+        Objects.requireNonNull(evidence, "evidence");
+        if (evidence.estimatedRows() < 0 || evidence.actualRows() < 0
+                || evidence.rowsRemovedByFilter() < 0 || evidence.heapFetches() < 0
+                || evidence.databaseMillis() < 0 || evidence.endpointMillis() < 0) {
+            throw new IllegalArgumentException("negative plan evidence");
+        }
+        List<String> findings = new ArrayList<>();
+        if (evidence.actualRows() > Math.max(10, evidence.estimatedRows() * 10L)) {
+            findings.add("row-estimate skew: inspect statistics and tenant/status correlation");
+        }
+        if (evidence.rowsRemovedByFilter() > evidence.actualRows()) {
+            findings.add("broad access path: inspect composite or partial index suitability");
+        }
+        if (evidence.sortSpilled()) {
+            findings.add("disk sort: test an order-aligned index before raising memory");
+        }
+        if (evidence.heapFetches() > 0) {
+            findings.add("heap fetches: covering eligibility does not prove all-visible pages");
+        }
+        if (evidence.endpointMillis() > evidence.databaseMillis() * 3L) {
+            findings.add("endpoint gap: inspect pool wait, extra calls, serialization and network");
+        }
+        return List.copyOf(findings);
     }
 
     record ScanEstimate(long rowStoreBytes, long selectedColumnBytes, double reductionFactor) {}
@@ -3945,6 +4066,67 @@ public final class ConsistencyContracts {
         assert !sustainable.stallsExpected();
     }
 
+    private static void endpointCompositeIndexScenarios() {
+        List<EndpointOrder> indexOrder = List.of(
+                new EndpointOrder(7, "PAID", 300, 73, 9_900),
+                new EndpointOrder(7, "PAID", 300, 72, 8_500),
+                new EndpointOrder(7, "PAID", 290, 71, 7_200),
+                new EndpointOrder(7, "PAID", 280, 70, 6_100),
+                new EndpointOrder(7, "PENDING", 400, 90, 4_000),
+                new EndpointOrder(8, "PAID", 500, 99, 5_000));
+
+        EndpointPage page = endpointPage(indexOrder, 7, "PAID", null, 3);
+        assert page.rows().stream().map(EndpointOrder::id).toList()
+                .equals(List.of(73, 72, 71));
+        assert page.matchingEntriesExamined() == 3;
+        assert page.rows().stream().map(EndpointOrder::totalCents).toList()
+                .equals(List.of(9_900L, 8_500L, 7_200L));
+    }
+
+    private static void endpointPlanShapeScenarios() {
+        EndpointPlanChoice aligned = endpointPlanChoice(true, true, 30_000, 20);
+        assert aligned.kind() == EndpointPlanKind.ORDERED_COMPOSITE_INDEX;
+        assert aligned.candidateRows() == 20 && aligned.rowsSorted() == 0;
+        assert aligned.preservesRequiredOrder();
+
+        EndpointPlanChoice separate = endpointPlanChoice(false, true, 30_000, 20);
+        assert separate.kind() == EndpointPlanKind.BITMAP_AND_THEN_SORT;
+        assert separate.candidateRows() == 30_000 && separate.rowsSorted() == 30_000;
+        assert !separate.preservesRequiredOrder();
+    }
+
+    private static void endpointPlanEvidenceScenarios() {
+        List<String> findings = diagnoseEndpointPlan(new EndpointPlanEvidence(
+                50, 30_000, 70_000, true, 18, 12, 190));
+        assert findings.size() == 5;
+        assert findings.get(0).startsWith("row-estimate skew");
+        assert findings.get(4).startsWith("endpoint gap");
+
+        assert diagnoseEndpointPlan(new EndpointPlanEvidence(
+                20, 20, 0, false, 0, 4, 5)).isEmpty();
+    }
+
+    private static void endpointKeysetPaginationScenarios() {
+        List<EndpointOrder> indexOrder = List.of(
+                new EndpointOrder(7, "PAID", 300, 73, 9_900),
+                new EndpointOrder(7, "PAID", 300, 72, 8_500),
+                new EndpointOrder(7, "PAID", 300, 71, 7_200),
+                new EndpointOrder(7, "PAID", 290, 70, 6_100));
+
+        EndpointPage first = endpointPage(indexOrder, 7, "PAID", null, 2);
+        EndpointOrder last = first.rows().get(first.rows().size() - 1);
+        EndpointCursor cursor = new EndpointCursor(
+                last.tenantId(), last.status(), last.createdAt(), last.id());
+        EndpointPage second = endpointPage(indexOrder, 7, "PAID", cursor, 2);
+        assert first.rows().stream().map(EndpointOrder::id).toList().equals(List.of(73, 72));
+        assert second.rows().stream().map(EndpointOrder::id).toList().equals(List.of(71, 70));
+
+        try {
+            endpointPage(indexOrder, 8, "PAID", cursor, 2);
+            throw new AssertionError("cross-tenant cursor accepted");
+        } catch (IllegalArgumentException expected) {}
+    }
+
     private static void columnSelectionScenarios() {
         ScanEstimate estimate = scanEstimate(10_000_000L, 200, 8, 8);
         assert estimate.rowStoreBytes() == 2_000_000_000L;
@@ -5452,6 +5634,10 @@ public final class ConsistencyContracts {
         lsmCompactionMergeSafetyScenarios();
         lsmBloomProbeBudgetScenarios();
         lsmCompactionDebtBudgetScenarios();
+        endpointCompositeIndexScenarios();
+        endpointPlanShapeScenarios();
+        endpointPlanEvidenceScenarios();
+        endpointKeysetPaginationScenarios();
         columnSelectionScenarios();
         vectorBatchScenarios();
         granulePruningScenarios();
@@ -5552,7 +5738,7 @@ public final class ConsistencyContracts {
         walCrashBoundaryScenarios();
         lostEditResponseScenarios();
         checkpointVacuumDiagnosisScenarios();
-        System.out.println("PASS 120 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis");
+        System.out.println("PASS 124 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis");
     }
 }
 
