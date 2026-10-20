@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "8db8fb08ce2f5415dcbdf332f991ddd7e3a2aa2b",
+  "last_successful_commit": "d42abea04ff985a369b43cf10991475510b04948",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -866,19 +866,19 @@
     "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
     "source_version_id": "1",
     "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-    "section": "Section 30 only: LSM dry run: the same key exists in three places, source lines 1644-1690, bounded by the Section 31 heading at line 1691",
+    "section": "Section 31 only: Design an index for an actual slow endpoint, source lines 1691-1760, bounded by the Section 32 heading at line 1761",
     "status": "QUEUED",
     "estimated_tokens": 8000,
-    "estimate_method": "Heuristic only: reserve ~1000 tokens to review the bounded LSM three-place dry run, ~1500 for primary-reference reconciliation, ~3500 for deep examples/Java/HTML, and ~2000 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimate_method": "Heuristic only: reserve ~1000 tokens to review the bounded slow-endpoint index design, ~1500 for primary-reference reconciliation, ~3500 for deep examples/Java/HTML, and ~2000 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
     "javascript": "Node v24.19.0 executed examples.mjs; all 70 scenario groups passed, including four new final-revision diagnosis and speaking-frame assertions.",
     "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 206630-character embedded payload equality, 77 unique anchors, 151 balanced fences, 54 Mermaid diagrams, inline JavaScript, fragment targets, relative links, JSON syntax, and the live 170-marker Java-placeholder invariant passed. All six content-commit remote blob hashes matched; no commit statuses or check runs were configured. Browser and assistive-technology integration plus Mermaid visual QA were not executed.",
-    "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Sections 1-29 reader now has 120 validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
-    "database": "Database Sections 1-29 use confirmed source version 1 through line 1643. Section 29 was bounded by the Section 30 heading and expanded without duplicating the existing B+ tree chapter into four primary-source-backed dry runs for separator/split invariants, linked-leaf ranges, InnoDB secondary lookups and PostgreSQL index-only visibility. Java 17 source launch and independent compilation through jdk.compiler passed 116 total scenario groups and emitted 198 class files; deterministic reader generation passed exact 418164-character payload equality, source hash 51d3f0663047496056f209582a05eb33797cdc1b7e7bdd0590a73c8117838540, 1456 unique HTML IDs, 261 search entries, fragments, allowed relative links, 243 balanced fences and 120 Mermaid sources; the live canonical Markdown marker audit remains 170. The content was published atomically with an expected-head guard. The standalone javac command, real PostgreSQL/MySQL services, browser, assistive-technology and Mermaid visual QA were unavailable.",
-    "last_processed_at": "2026-10-20T04:15:21-04:00"
+    "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Sections 1-30 reader now has 124 validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
+    "database": "Database Sections 1-30 use confirmed source version 1 through line 1690. Section 30 was bounded by the Section 31 heading and expanded without duplicating the foundational LSM chapter into four primary-source-backed dry runs for three-place snapshot visibility, tombstone-safe compaction, Bloom-filter probe accounting and compaction-debt budgeting. Java 17 source launch and independent compilation through jdk.compiler passed 120 total scenario groups and emitted 203 class files; deterministic reader generation passed exact 431166-character payload equality, source hash 93da73d1b8670ca113e057ddec1add0cbb37f47766b55113ce25acfa59f9db85, 1507 unique HTML IDs, 269 search entries, fragments, allowed relative links, 253 balanced fences and 124 Mermaid sources; the live canonical Markdown marker audit remains 170. The content was published atomically with an expected-head guard. The standalone javac command, real RocksDB services, browser, assistive-technology and Mermaid visual QA were unavailable.",
+    "last_processed_at": "2026-10-20T05:52:26-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-14T16:16:21-04:00",
@@ -905,18 +905,18 @@
     "estimate_method": "Heuristic for bounded database-source verification, targeted primary-source refresh, deep consolidation/HTML and validation/checkpoint reserves; not actual quota percentage"
   },
   "database_caching_java_intake_checkpoint": {
-    "last_processed_at": "2026-10-20T04:15:21-04:00",
+    "last_processed_at": "2026-10-20T05:52:26-04:00",
     "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
     "source_library_file_id": "libfile_969515775294819195d90fe08e46b7be",
     "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
     "source_version_id": "1",
-    "processed": "Sections 1-29, ACID/BASE, B+ trees, LSM trees, row/column storage, isolation, cache topology, four read/write strategies, eviction internals, cache stampede coordination, cache penetration/Bloom filters, cache-avalanche protection, pool/network-proxy architecture, physical connection costs, Hikari controls/metrics, JDBC API/protocol boundaries, PostgreSQL connection chronology/stage-by-stage mechanics, MySQL authentication order, prepared-query mechanics, explicit production contract, complete Java cache-aside component, mutable-row outbox/fencing, the fault-injection matrix, recovery runbooks, senior-engineer review drills, production acceptance gates, the end-to-end database-read walkthrough, the committed-edit/crash-point walkthrough and the B+ split/range/secondary/index-only dry run, source lines 62-1643; latest bounded section is lines 1596-1643",
+    "processed": "Sections 1-30, ACID/BASE, B+ trees, LSM trees, row/column storage, isolation, cache topology, four read/write strategies, eviction internals, cache stampede coordination, cache penetration/Bloom filters, cache-avalanche protection, pool/network-proxy architecture, physical connection costs, Hikari controls/metrics, JDBC API/protocol boundaries, PostgreSQL connection chronology/stage-by-stage mechanics, MySQL authentication order, prepared-query mechanics, explicit production contract, complete Java cache-aside component, mutable-row outbox/fencing, the fault-injection matrix, recovery runbooks, senior-engineer review drills, production acceptance gates, the end-to-end database-read walkthrough, the committed-edit/crash-point walkthrough, the B+ split/range/secondary/index-only dry run and the LSM three-place snapshot/compaction/probe/debt dry run, source lines 62-1690; latest bounded section is lines 1644-1690",
     "status": "IN_PROGRESS",
-    "validation": "Section 29 was bounded by the Section 30 heading and expanded without duplicating the existing B+ tree chapter into four current primary-source-backed dry runs for separator/split invariants, linked-leaf ranges, InnoDB secondary lookups and PostgreSQL index-only visibility. Java 17 source launch and independent compilation through jdk.compiler passed 116 total scenario groups and emitted 198 class files; deterministic reader generation and exact 418164-character payload equality passed with source hash 51d3f0663047496056f209582a05eb33797cdc1b7e7bdd0590a73c8117838540, 1456 unique IDs, 261 search entries, fragments, allowed relative links, 243 balanced fences and 120 Mermaid sources. The live canonical Markdown marker audit remains 170; the content was published atomically with an expected-head guard. The standalone javac command, real PostgreSQL/MySQL services, browser/assistive-technology/Mermaid visual QA were unavailable.",
-    "content_commit": "8db8fb08ce2f5415dcbdf332f991ddd7e3a2aa2b",
-    "next_section": "Section 30, LSM dry run: the same key exists in three places, source lines 1644-1690, bounded by the Section 31 heading at line 1691",
+    "validation": "Section 30 was bounded by the Section 31 heading and expanded without duplicating the foundational LSM chapter into four current primary-source-backed dry runs for three-place snapshot visibility, tombstone-safe compaction, Bloom-filter probe accounting and compaction-debt budgeting. Java 17 source launch and independent compilation through jdk.compiler passed 120 total scenario groups and emitted 203 class files; deterministic reader generation and exact 431166-character payload equality passed with source hash 93da73d1b8670ca113e057ddec1add0cbb37f47766b55113ce25acfa59f9db85, 1507 unique IDs, 269 search entries, fragments, allowed relative links, 253 balanced fences and 124 Mermaid sources. The live canonical Markdown marker audit remains 170; the content was published atomically with an expected-head guard. The standalone javac command, real RocksDB services, browser/assistive-technology/Mermaid visual QA were unavailable.",
+    "content_commit": "d42abea04ff985a369b43cf10991475510b04948",
+    "next_section": "Section 31, Design an index for an actual slow endpoint, source lines 1691-1760, bounded by the Section 32 heading at line 1761",
     "estimated_next_tokens": 8000,
-    "estimate_method": "Heuristic for the bounded LSM three-place dry run, primary-reference reconciliation, examples/Java/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "estimate_method": "Heuristic for the bounded slow-endpoint index design, primary-reference reconciliation, examples/Java/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
 
