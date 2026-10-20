@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "2880ca4bef5017d7f17cebb6a86b30177c001b87",
+  "last_successful_commit": "634384798e4ad6e524cfb3ab17944b561e252de5",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -866,19 +866,19 @@
     "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
     "source_version_id": "1",
     "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-    "section": "Section 32 only: Isolation laboratory with two sessions, source lines 1761-1816, bounded by the Section 33 heading at line 1817",
+    "section": "Section 33 only: Eviction dry runs: identical requests, different survivors, source lines 1817-1863, bounded by the Section 34 heading at line 1864",
     "status": "QUEUED",
     "estimated_tokens": 8000,
-    "estimate_method": "Heuristic only: reserve ~1000 tokens to review the bounded two-session isolation lab, ~1500 for primary-reference reconciliation, ~3500 for deep examples/Java/HTML, and ~2000 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimate_method": "Heuristic only: reserve ~1000 tokens to review the bounded eviction dry runs, ~1500 for primary-reference reconciliation, ~3500 for deep examples/Java/HTML, and ~2000 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
     "javascript": "Node v24.19.0 executed examples.mjs; all 70 scenario groups passed, including four new final-revision diagnosis and speaking-frame assertions.",
     "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 206630-character embedded payload equality, 77 unique anchors, 151 balanced fences, 54 Mermaid diagrams, inline JavaScript, fragment targets, relative links, JSON syntax, and the live 170-marker Java-placeholder invariant passed. All six content-commit remote blob hashes matched; no commit statuses or check runs were configured. Browser and assistive-technology integration plus Mermaid visual QA were not executed.",
-    "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Sections 1-31 reader now has 128 validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
-    "database": "Database Sections 1-31 use confirmed source version 1 through line 1760. Section 31 was bounded by the Section 32 heading and expanded without duplicating the foundational B-tree chapter into four current PostgreSQL-primary-reference-backed examples for aligned composite access, bitmap-plus-sort trade-offs, EXPLAIN evidence and scope-bound keyset pagination. Java 17 source launch and independent compilation through jdk.compiler passed 124 total scenario groups and emitted 209 class files; deterministic reader generation passed exact 444411-character payload equality, source hash 219160a530f07a2a2dd8060a3ccf747d3e66a022b26459b0bf12f9593dea6fe6, 1574 unique HTML IDs, 277 search entries, fragments, allowed relative links, 266 balanced fences and 128 Mermaid sources; the live canonical Markdown marker audit remains 170. The content was published atomically with an expected-head guard. The standalone javac command, a real PostgreSQL data set, browser, assistive-technology and Mermaid visual QA were unavailable.",
-    "last_processed_at": "2026-10-20T09:01:34-04:00"
+    "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Sections 1-32 reader now has 132 validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
+    "database": "Database Sections 1-32 use confirmed source version 1 through line 1816. Section 32 was bounded by the Section 33 heading and expanded into four current PostgreSQL-18-primary-reference-backed two-session examples for non-repeatable reads, write skew with whole-transaction retry, guard-row serialization and deadlock-safe global lock order. Java 17 source launch and independent compilation through jdk.compiler passed 128 total scenario groups and emitted 214 class files; deterministic reader generation passed exact 456873-character payload equality, source hash 8414b7de645b4d001073652a6bc3c67eaa380eab154a91a4c7e0d6d17a584a69, 1653 unique HTML IDs, 285 search entries, fragments, allowed relative links, 276 balanced fences and 132 Mermaid sources; the live canonical Markdown marker audit remains 170. The content was published atomically with an expected-head guard. The standalone javac command, a real PostgreSQL two-session environment, browser, assistive-technology and Mermaid visual QA were unavailable.",
+    "last_processed_at": "2026-10-20T10:07:27-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-14T16:16:21-04:00",
@@ -905,18 +905,18 @@
     "estimate_method": "Heuristic for bounded database-source verification, targeted primary-source refresh, deep consolidation/HTML and validation/checkpoint reserves; not actual quota percentage"
   },
   "database_caching_java_intake_checkpoint": {
-    "last_processed_at": "2026-10-20T09:01:34-04:00",
+    "last_processed_at": "2026-10-20T10:07:27-04:00",
     "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
     "source_library_file_id": "libfile_969515775294819195d90fe08e46b7be",
     "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
     "source_version_id": "1",
-    "processed": "Sections 1-31, ACID/BASE, B+ trees, LSM trees, row/column storage, isolation, cache topology, four read/write strategies, eviction internals, cache stampede coordination, cache penetration/Bloom filters, cache-avalanche protection, pool/network-proxy architecture, physical connection costs, Hikari controls/metrics, JDBC API/protocol boundaries, PostgreSQL connection chronology/stage-by-stage mechanics, MySQL authentication order, prepared-query mechanics, explicit production contract, complete Java cache-aside component, mutable-row outbox/fencing, the fault-injection matrix, recovery runbooks, senior-engineer review drills, production acceptance gates, the end-to-end database-read walkthrough, the committed-edit/crash-point walkthrough, the B+ split/range/secondary/index-only dry run, the LSM three-place snapshot/compaction/probe/debt dry run and the slow-endpoint composite-index/plan/cursor design, source lines 62-1760; latest bounded section is lines 1691-1760",
+    "processed": "Sections 1-32, ACID/BASE, B+ trees, LSM trees, row/column storage, isolation, cache topology, four read/write strategies, eviction internals, cache stampede coordination, cache penetration/Bloom filters, cache-avalanche protection, pool/network-proxy architecture, physical connection costs, Hikari controls/metrics, JDBC API/protocol boundaries, PostgreSQL connection chronology/stage-by-stage mechanics, MySQL authentication order, prepared-query mechanics, explicit production contract, complete Java cache-aside component, mutable-row outbox/fencing, the fault-injection matrix, recovery runbooks, senior-engineer review drills, production acceptance gates, the end-to-end database-read walkthrough, the committed-edit/crash-point walkthrough, the B+ split/range/secondary/index-only dry run, the LSM three-place snapshot/compaction/probe/debt dry run, the slow-endpoint composite-index/plan/cursor design and the two-session isolation/write-skew/guard/deadlock lab, source lines 62-1816; latest bounded section is lines 1761-1816",
     "status": "IN_PROGRESS",
-    "validation": "Section 31 was bounded by the Section 32 heading and expanded without duplicating the foundational B-tree chapter into four current PostgreSQL-primary-reference-backed examples for aligned composite access, bitmap-plus-sort trade-offs, EXPLAIN evidence and scope-bound keyset pagination. Java 17 source launch and independent compilation through jdk.compiler passed 124 total scenario groups and emitted 209 class files; deterministic reader generation and exact 444411-character payload equality passed with source hash 219160a530f07a2a2dd8060a3ccf747d3e66a022b26459b0bf12f9593dea6fe6, 1574 unique IDs, 277 search entries, fragments, allowed relative links, 266 balanced fences and 128 Mermaid sources. The live canonical Markdown marker audit remains 170; the content was published atomically with an expected-head guard. The standalone javac command, a real PostgreSQL data set, browser/assistive-technology/Mermaid visual QA were unavailable.",
-    "content_commit": "2880ca4bef5017d7f17cebb6a86b30177c001b87",
-    "next_section": "Section 32, Isolation laboratory with two sessions, source lines 1761-1816, bounded by the Section 33 heading at line 1817",
+    "validation": "Section 32 was bounded by the Section 33 heading and expanded into four current PostgreSQL-18-primary-reference-backed two-session examples for non-repeatable reads, write skew with whole-transaction retry, guard-row serialization and deadlock-safe global lock order. Java 17 source launch and independent compilation through jdk.compiler passed 128 total scenario groups and emitted 214 class files; deterministic reader generation and exact 456873-character payload equality passed with source hash 8414b7de645b4d001073652a6bc3c67eaa380eab154a91a4c7e0d6d17a584a69, 1653 unique IDs, 285 search entries, fragments, allowed relative links, 276 balanced fences and 132 Mermaid sources. The live canonical Markdown marker audit remains 170; the content was published atomically with an expected-head guard. The standalone javac command, a real PostgreSQL two-session environment, browser/assistive-technology/Mermaid visual QA were unavailable.",
+    "content_commit": "634384798e4ad6e524cfb3ab17944b561e252de5",
+    "next_section": "Section 33, Eviction dry runs: identical requests, different survivors, source lines 1817-1863, bounded by the Section 34 heading at line 1864",
     "estimated_next_tokens": 8000,
-    "estimate_method": "Heuristic for the bounded two-session isolation lab, primary-reference reconciliation, examples/Java/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "estimate_method": "Heuristic for the bounded eviction dry runs, primary-reference reconciliation, examples/Java/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
 
