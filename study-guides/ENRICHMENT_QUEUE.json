@@ -102,7 +102,7 @@
       "status": "IN_PROGRESS",
       "last_read_at": "2026-10-20",
       "sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-      "selection": "Sections 1-30, source lines 62-1690, read and promoted into the incremental canonical database guide; later sections remain queued."
+      "selection": "Sections 1-33, source lines 62-1863, read and promoted into the incremental canonical database guide; later sections remain queued."
     },
     {
       "name": "top_5_system_design_interview_blueprints.md",
@@ -593,7 +593,7 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-20T10:07:27-04:00",
+      "last_processed_at": "2026-10-20T10:42:15-04:00",
       "processed_sections": [
         "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
         "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios",
@@ -626,7 +626,8 @@
         "Section 29: B+ tree dry run — declared right-child-minimum separators, split propagation, linked-leaf ranges, InnoDB secondary lookups and PostgreSQL index-only visibility",
         "Section 30: LSM three-place dry run — snapshot-visible versions, tombstone-safe compaction, Bloom probe accounting and compaction-debt budgeting",
         "Section 31: slow-endpoint index design — equality-prefix/order-suffix composite access, bitmap-plus-sort contrast, EXPLAIN evidence and scope-bound keyset pagination",
-        "Section 32: two-session isolation laboratory — statement and transaction snapshots, write skew with Serializable retry, guard-row serialization and globally ordered transfer locks"
+        "Section 32: two-session isolation laboratory — statement and transaction snapshots, write skew with Serializable retry, guard-row serialization and globally ordered transfer locks",
+        "Section 33: eviction dry runs — exact LRU/FIFO divergence, LFU ties and phase-change aging, 2Q ghost reload and one-pass CMS scan admission"
       ],
       "source_revision": {
         "baseline_commit": "e8961ba3f7208a18faa548925ae1b3fa6d21f3c8",
@@ -634,12 +635,12 @@
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-1816",
-        "canonical_sha256_after": "8414b7de645b4d001073652a6bc3c67eaa380eab154a91a4c7e0d6d17a584a69"
+        "processed_lines": "62-1863",
+        "canonical_sha256_after": "fc03a5fbadb402e51056032cffe78c662959810fcdaf248b84cec6fa5e25c54b"
       },
-      "content_commit": "634384798e4ad6e524cfb3ab17944b561e252de5",
-      "validation": "Exact source lines 1761-1816 were bounded by the Section 33 heading and expanded into four current PostgreSQL-18-primary-reference-backed two-session examples for non-repeatable reads, write skew with whole-transaction retry, guard-row serialization and deadlock-safe global lock order. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 128 total scenario groups; the independent build emitted 214 class files. Deterministic reader generation passed exact 456873-character Markdown payload equality, source SHA-256 8414b7de645b4d001073652a6bc3c67eaa380eab154a91a4c7e0d6d17a584a69, 1653 unique HTML IDs, 285 search entries, fragments, allowed relative links, 276 balanced fences and 132 Mermaid sources. The standalone javac command was unavailable; a real PostgreSQL two-session environment, browser, assistive-technology and Mermaid visual QA were not executed. The live canonical Markdown placeholder audit remains 170. The content was published atomically with an expected-head guard.",
-      "next_action": "Process exactly Section 33, Eviction dry runs: identical requests, different survivors, source lines 1817-1863, bounded by the Section 34 heading at line 1864.",
+      "content_commit": "dde22993d19fe3423f81b31775900f62568f2a3d",
+      "validation": "Exact source lines 1817-1863 were bounded by the Section 34 heading and expanded into four current primary-reference-backed eviction labs for LRU/FIFO divergence, exact LFU ties and phase-change aging, full 2Q ghost reload, and one-pass CMS scan admission. Java 17 source launch and independent compilation through the installed jdk.compiler module passed 132 total scenario groups; the independent build emitted 216 class files. Deterministic reader generation passed exact 467272-character Markdown payload equality, source SHA-256 fc03a5fbadb402e51056032cffe78c662959810fcdaf248b84cec6fa5e25c54b, 1714 unique HTML IDs, 293 search entries, fragments, allowed relative links, 285 balanced fences and 136 Mermaid sources. The standalone javac command was unavailable; production-cache integration, browser, assistive-technology and Mermaid visual QA were not executed. The live canonical Markdown placeholder audit remains 170. The content was published atomically with an expected-head guard.",
+      "next_action": "Process exactly Section 34, Cache concurrency lab: three races and a precise contract, source lines 1864-1909, bounded by the Section 35 heading at line 1910.",
       "priority": 12
     },
     {
@@ -913,7 +914,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 33 only, 'Eviction dry runs: identical requests, different survivors,' source lines 1817-1863, bounded by the Section 34 heading at line 1864.",
+    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 34 only, 'Cache concurrency lab: three races and a precise contract,' source lines 1864-1909, bounded by the Section 35 heading at line 1910.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1004,15 +1005,16 @@
       "Database/caching Section 29: declared B+ separator/split trace, linked-leaf range, InnoDB secondary lookup and PostgreSQL visibility-gated index-only access",
       "Database/caching Section 30: LSM three-place snapshot visibility, tombstone-safe compaction, Bloom probe accounting and compaction-debt budgeting",
       "Database/caching Section 31: slow-endpoint composite-index design, bitmap-plus-sort contrast, EXPLAIN evidence and scope-bound keyset pagination",
-      "Database/caching Section 32: two-session statement/snapshot traces, write-skew retry, guard-row serialization and deadlock-safe global lock order"
+      "Database/caching Section 32: two-session statement/snapshot traces, write-skew retry, guard-row serialization and deadlock-safe global lock order",
+      "Database/caching Section 33: exact LRU/FIFO trace divergence, LFU phase-change aging, 2Q ghost reload and CMS scan-pollution admission"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 1761-1816 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 32, Isolation laboratory with two sessions",
-    "validation": "Section 32 was bounded by the Section 33 heading and expanded into four current PostgreSQL-18-primary-reference-backed two-session examples for non-repeatable reads, write skew with whole-transaction retry, guard-row serialization and deadlock-safe global lock order. Java 17 source launch and compilation through jdk.compiler passed 128 total scenario groups and emitted 214 class files; deterministic reader generation passed exact 456873-character payload equality, 1653 unique IDs, 285 search entries, fragments, allowed relative links, 276 balanced fences and 132 Mermaid sources; the live canonical Markdown marker audit remains 170. The content was published atomically with an expected-head guard. The standalone javac command, a real PostgreSQL two-session environment, browser, assistive-technology and Mermaid visual QA were unavailable.",
-    "estimated_next_tokens": 8000,
-    "estimate_method": "Heuristic only for the bounded eviction dry runs, primary-reference reconciliation, examples, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "634384798e4ad6e524cfb3ab17944b561e252de5",
-    "last_processed_at": "2026-10-20T10:07:27-04:00",
-    "next_batch_decision": "Section 32 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 33; resume at source lines 1817-1863, bounded by the Section 34 heading at line 1864."
+    "processed_section": "database_internals_caching_java_master_guide.md lines 1817-1863 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 33, Eviction dry runs: identical requests, different survivors",
+    "validation": "Section 33 was bounded by the Section 34 heading and expanded into four current primary-reference-backed eviction labs for LRU/FIFO divergence, exact LFU ties and phase-change aging, full 2Q ghost reload, and one-pass CMS scan admission. Java 17 source launch and compilation through jdk.compiler passed 132 total scenario groups and emitted 216 class files; deterministic reader generation passed exact 467272-character payload equality, 1714 unique IDs, 293 search entries, fragments, allowed relative links, 285 balanced fences and 136 Mermaid sources; the live canonical Markdown marker audit remains 170. The content was published atomically with an expected-head guard. The standalone javac command, production-cache integration, browser, assistive-technology and Mermaid visual QA were unavailable.",
+    "estimated_next_tokens": 8200,
+    "estimate_method": "Heuristic only for the bounded cache-concurrency lab, primary-reference reconciliation, examples, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "dde22993d19fe3423f81b31775900f62568f2a3d",
+    "last_processed_at": "2026-10-20T10:42:15-04:00",
+    "next_batch_decision": "Section 33 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 34; resume at source lines 1864-1909, bounded by the Section 35 heading at line 1910."
   }
 }
 
