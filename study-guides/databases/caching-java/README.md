@@ -4,7 +4,7 @@
 - [Responsive searchable HTML](guide.html)
 - [Executable Java 17 scenarios](ConsistencyContracts.java)
 
-This topic is **in progress**. Sections 1–35 are promoted from confirmed Library source ranges through lines 62–1945. Section 35 adds four connection-pool queue labs: borrow-to-close residency arithmetic, hold-time-driven queue stability, separate Hikari/PgBouncer waiting rooms, and explicit configuration/deadline/unknown-commit contracts. The next bounded section is Section 36, “Protocol walkthrough with actual framing examples,” source lines 1946–1983, bounded by the Section 37 heading at line 1984.
+This topic is **in progress**. Sections 1–36 are promoted from confirmed Library source ranges through lines 62–1983. Section 36 adds four PostgreSQL protocol labs: exact SSLRequest bytes, incremental simple-query framing across arbitrary TCP chunks, handshake-latency versus pool-admission arithmetic, and separate server-identity/principal/tenant-authorization gates. The next bounded section is Section 37, source lines 1984–2038, bounded by the Section 38 heading at line 2039.
 
 Run `python3 build_reader.py`, `node validate_reader.mjs`, `javac ConsistencyContracts.java`, and `java -ea ConsistencyContracts` after changing this module. Markdown is canonical; the generated HTML embeds the exact Markdown bytes.
 

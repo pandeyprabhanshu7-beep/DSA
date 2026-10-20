@@ -10,11 +10,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-33. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-36. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -6286,6 +6288,199 @@ public final class ConsistencyContracts {
                 == PoolCommitTimeoutDecision.RETURN_COMMIT_RESPONSE;
     }
 
+    private enum SslNegotiationDecision {
+        START_TLS,
+        REJECT_TLS_REQUIRED,
+        REJECT_UNEXPECTED_RESPONSE
+    }
+
+    private record ProtocolQueryDecode(
+            boolean complete,
+            int declaredLength,
+            String query) {}
+
+    private enum HandshakeAdmissionDecision {
+        REUSE_POOLED_CONNECTION,
+        OPEN_BOUNDED_FRESH_CONNECTION,
+        REJECT_CAPACITY
+    }
+
+    private record ProtocolHandshakeBudget(
+            int roundTripMillis,
+            int sequentialWaits,
+            int poolWaitMillis,
+            int coldNetworkMillis,
+            boolean freshConnectionSlotAvailable,
+            HandshakeAdmissionDecision decision) {}
+
+    private record ProtocolSecurityContract(
+            boolean tlsEncrypted,
+            boolean serverIdentityVerified,
+            boolean databasePrincipalAuthenticated,
+            boolean tenantObjectAuthorized) {
+        boolean operationAllowed() {
+            return tlsEncrypted && serverIdentityVerified
+                    && databasePrincipalAuthenticated
+                    && tenantObjectAuthorized;
+        }
+    }
+
+    private static byte[] protocolSslRequest() {
+        return ByteBuffer.allocate(8)
+                .putInt(8)
+                .putInt(80_877_103)
+                .array();
+    }
+
+    private static SslNegotiationDecision sslNegotiationDecision(
+            byte serverResponse,
+            boolean tlsRequired) {
+        if (serverResponse == (byte) 'S') {
+            return SslNegotiationDecision.START_TLS;
+        }
+        if (serverResponse == (byte) 'N' && tlsRequired) {
+            return SslNegotiationDecision.REJECT_TLS_REQUIRED;
+        }
+        return SslNegotiationDecision.REJECT_UNEXPECTED_RESPONSE;
+    }
+
+    private static byte[] simpleQueryFrame(String sql) {
+        byte[] query = Objects.requireNonNull(sql).getBytes(StandardCharsets.UTF_8);
+        for (byte value : query) {
+            if (value == 0) throw new IllegalArgumentException("embedded NUL");
+        }
+        return ByteBuffer.allocate(1 + 4 + query.length + 1)
+                .put((byte) 'Q')
+                .putInt(4 + query.length + 1)
+                .put(query)
+                .put((byte) 0)
+                .array();
+    }
+
+    private static ProtocolQueryDecode decodeSimpleQuery(
+            byte[] received,
+            int maximumDeclaredLength) {
+        Objects.requireNonNull(received);
+        if (maximumDeclaredLength < 5) {
+            throw new IllegalArgumentException("maximum frame too small");
+        }
+        if (received.length < 5) {
+            return new ProtocolQueryDecode(false, -1, null);
+        }
+        if (received[0] != (byte) 'Q') {
+            throw new IllegalArgumentException("not a simple Query frame");
+        }
+        int declaredLength = ByteBuffer.wrap(received, 1, 4).getInt();
+        if (declaredLength < 5 || declaredLength > maximumDeclaredLength) {
+            throw new IllegalArgumentException("invalid Query length");
+        }
+        int totalBytes = Math.addExact(1, declaredLength);
+        if (received.length < totalBytes) {
+            return new ProtocolQueryDecode(false, declaredLength, null);
+        }
+        if (received[totalBytes - 1] != 0) {
+            throw new IllegalArgumentException("Query is not NUL terminated");
+        }
+        for (int i = 5; i < totalBytes - 1; i++) {
+            if (received[i] == 0) {
+                throw new IllegalArgumentException("embedded NUL");
+            }
+        }
+        String query = new String(
+                received, 5, totalBytes - 6, StandardCharsets.UTF_8);
+        return new ProtocolQueryDecode(true, declaredLength, query);
+    }
+
+    private static ProtocolHandshakeBudget protocolHandshakeBudget(
+            int roundTripMillis,
+            int sequentialWaits,
+            int poolWaitMillis,
+            boolean freshConnectionSlotAvailable) {
+        if (roundTripMillis < 0 || sequentialWaits < 0 || poolWaitMillis < 0) {
+            throw new IllegalArgumentException("handshake budget inputs");
+        }
+        int coldNetworkMillis = Math.multiplyExact(
+                roundTripMillis, sequentialWaits);
+        HandshakeAdmissionDecision decision;
+        if (poolWaitMillis <= coldNetworkMillis) {
+            decision = HandshakeAdmissionDecision.REUSE_POOLED_CONNECTION;
+        } else if (freshConnectionSlotAvailable) {
+            decision = HandshakeAdmissionDecision.OPEN_BOUNDED_FRESH_CONNECTION;
+        } else {
+            decision = HandshakeAdmissionDecision.REJECT_CAPACITY;
+        }
+        return new ProtocolHandshakeBudget(
+                roundTripMillis,
+                sequentialWaits,
+                poolWaitMillis,
+                coldNetworkMillis,
+                freshConnectionSlotAvailable,
+                decision);
+    }
+
+    private static void protocolSslRequestScenarios() {
+        byte[] expected = new byte[] {
+                0x00, 0x00, 0x00, 0x08,
+                0x04, (byte) 0xD2, 0x16, 0x2F
+        };
+        assert Arrays.equals(protocolSslRequest(), expected);
+        assert sslNegotiationDecision((byte) 'S', true)
+                == SslNegotiationDecision.START_TLS;
+        assert sslNegotiationDecision((byte) 'N', true)
+                == SslNegotiationDecision.REJECT_TLS_REQUIRED;
+        assert sslNegotiationDecision((byte) '?', true)
+                == SslNegotiationDecision.REJECT_UNEXPECTED_RESPONSE;
+    }
+
+    private static void protocolSimpleQueryFramingScenarios() {
+        byte[] expected = new byte[] {
+                0x51, 0x00, 0x00, 0x00, 0x0E,
+                0x53, 0x45, 0x4C, 0x45, 0x43, 0x54, 0x20,
+                0x31, 0x3B, 0x00
+        };
+        byte[] frame = simpleQueryFrame("SELECT 1;");
+        assert Arrays.equals(frame, expected);
+        ProtocolQueryDecode partial = decodeSimpleQuery(
+                Arrays.copyOf(frame, 9), 1_048_576);
+        assert !partial.complete();
+        assert partial.declaredLength() == 14;
+        ProtocolQueryDecode complete = decodeSimpleQuery(frame, 1_048_576);
+        assert complete.complete();
+        assert complete.query().equals("SELECT 1;");
+    }
+
+    private static void protocolHandshakeAdmissionScenarios() {
+        ProtocolHandshakeBudget coldWins = protocolHandshakeBudget(
+                5, 6, 200, true);
+        assert coldWins.coldNetworkMillis() == 30;
+        assert coldWins.decision()
+                == HandshakeAdmissionDecision.OPEN_BOUNDED_FRESH_CONNECTION;
+
+        ProtocolHandshakeBudget reuseWins = protocolHandshakeBudget(
+                5, 6, 10, true);
+        assert reuseWins.decision()
+                == HandshakeAdmissionDecision.REUSE_POOLED_CONNECTION;
+
+        ProtocolHandshakeBudget bounded = protocolHandshakeBudget(
+                5, 6, 200, false);
+        assert bounded.decision()
+                == HandshakeAdmissionDecision.REJECT_CAPACITY;
+    }
+
+    private static void protocolSecurityContractScenarios() {
+        ProtocolSecurityContract authorized = new ProtocolSecurityContract(
+                true, true, true, true);
+        assert authorized.operationAllowed();
+
+        ProtocolSecurityContract wrongTenant = new ProtocolSecurityContract(
+                true, true, true, false);
+        assert !wrongTenant.operationAllowed();
+
+        ProtocolSecurityContract unverifiedServer = new ProtocolSecurityContract(
+                true, false, true, true);
+        assert !unverifiedServer.operationAllowed();
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -6430,7 +6625,11 @@ public final class ConsistencyContracts {
         poolQueueStabilityScenarios();
         layeredPoolQueueScenarios();
         poolConfigurationAndOutcomeScenarios();
-        System.out.println("PASS 140 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome");
+        protocolSslRequestScenarios();
+        protocolSimpleQueryFramingScenarios();
+        protocolHandshakeAdmissionScenarios();
+        protocolSecurityContractScenarios();
+        System.out.println("PASS 144 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract");
     }
 }
 

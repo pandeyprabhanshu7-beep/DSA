@@ -7817,6 +7817,181 @@ Accessed 2026-10-20.
 226. [PgBouncer — Features and pooling modes](https://www.pgbouncer.org/features.html) and [configuration](https://www.pgbouncer.org/config): transaction-pool server assignment plus distinct client/server connection limits and their queue interpretation.
 227. [pgJDBC — Initializing the driver](https://jdbc.postgresql.org/documentation/use/): `connectTimeout`, `socketTimeout` and `cancelSignalTimeout` boundaries.
 
+# Section 36 — Protocol walkthrough with actual framing examples {#section-36-protocol-framing-walkthrough}
+
+PostgreSQL is a byte-stream protocol layered on TCP. Correctness therefore depends on parsing protocol-declared lengths, not on assuming that one socket read equals one message. The four examples below keep three boundaries distinct: **frame bytes**, **connection-admission latency**, and **security authorization**.
+
+## Example 141 — Encode the eight-byte SSLRequest exactly {#example-141-sslrequest-bytes}
+
+Before sending a startup packet on a direct SSL-negotiated connection, the client sends two network-byte-order 32-bit integers:
+
+| Offset | Field | Decimal | Hex bytes |
+|---:|---|---:|---|
+| 0 | request length | 8 | `00 00 00 08` |
+| 4 | SSL request code | 80,877,103 | `04 D2 16 2F` |
+
+The entire request is therefore `00 00 00 08 04 D2 16 2F`. The server answers with one byte: `S` (`0x53`) means start TLS; `N` means the server rejects SSL. If policy requires TLS, `N` is a hard failure. Any unexpected byte is a protocol failure rather than permission to downgrade.
+
+```java
+byte[] expected = new byte[] {
+        0x00, 0x00, 0x00, 0x08,
+        0x04, (byte) 0xD2, 0x16, 0x2F
+};
+assert Arrays.equals(protocolSslRequest(), expected);
+assert sslNegotiationDecision((byte) 'S', true)
+        == SslNegotiationDecision.START_TLS;
+assert sslNegotiationDecision((byte) 'N', true)
+        == SslNegotiationDecision.REJECT_TLS_REQUIRED;
+```
+
+Only after `S` does the client perform the TLS handshake. The PostgreSQL startup message, authentication exchange and query traffic then travel inside the encrypted channel.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as PostgreSQL
+    C->>S: SSLRequest (8 clear bytes)
+    S-->>C: S (0x53)
+    C->>S: TLS handshake
+    C->>S: encrypted StartupMessage
+    S-->>C: encrypted authentication and ReadyForQuery
+```
+
+An SSLRequest is not itself proof of peer identity. With libpq-style policy, certificate-chain verification is supplied by `verify-ca`; `verify-full` additionally checks that the certificate matches the requested host. Production clients should use hostname verification rather than treating encryption alone as server authentication.
+
+## Example 142 — Decode `SELECT 1;` across arbitrary TCP chunks {#example-142-simple-query-framing}
+
+A simple Query message contains a one-byte type `Q`, a four-byte length that includes the length field but excludes the type byte, and a NUL-terminated query string. `SELECT 1;` is nine UTF-8 bytes, so its declared length is (4 + 9 + 1 = 14), and its full frame is 15 bytes:
+
+```text
+51 00 00 00 0E 53 45 4C 45 43 54 20 31 3B 00
+ Q   declared 14      S  E  L  E  C  T     1  ; NUL
+```
+
+```java
+byte[] frame = simpleQueryFrame("SELECT 1;");
+assert frame.length == 15;
+
+ProtocolQueryDecode partial = decodeSimpleQuery(
+        Arrays.copyOf(frame, 9), 1_048_576);
+assert !partial.complete();
+assert partial.declaredLength() == 14;
+
+ProtocolQueryDecode complete = decodeSimpleQuery(frame, 1_048_576);
+assert complete.complete();
+assert complete.query().equals("SELECT 1;");
+```
+
+TCP may split this frame after any byte, or coalesce it with later frames. An incremental decoder must therefore:
+
+1. retain bytes until the type and four-byte length are available;
+2. reject a declared Query length below 5 or above a configured maximum;
+3. wait for `1 + declaredLength` total bytes;
+4. require the terminal NUL and reject embedded NULs for this teaching model; and
+5. leave any following bytes in the accumulator for the next frame.
+
+```mermaid
+flowchart TD
+    R["Arbitrary socket-read chunks"] --> A["Accumulator"]
+    A --> H{"Type + 4-byte length ready?"}
+    H -->|no| R
+    H -->|yes| V{"Length valid and bounded?"}
+    V -->|no| X["Close as protocol error"]
+    V -->|yes| F{"Complete frame buffered?"}
+    F -->|no| R
+    F -->|yes| D["Decode one frame; retain remainder"]
+```
+
+Do not allocate directly from an untrusted length without a maximum. A declared length is a framing claim, not permission to reserve arbitrary memory.
+
+## Example 143 — Compare handshake time with pool wait, then keep admission bounded {#example-143-handshake-latency-admission}
+
+Suppose the network round-trip time is 5 ms and connection establishment has six sequential network waits across TCP, TLS, startup and authentication. The network component of a fresh path is approximately:
+
+\[
+6 \times 5\text{ ms} = 30\text{ ms}
+\]
+
+That estimate excludes CPU, certificate validation, server scheduling and database work. Still, waiting 200 ms for a pooled connection can be slower than a 30 ms fresh network path. The conclusion is **not** “open unlimited connections”: a fresh connection is an alternate admission path only while an explicit database-safe connection slot is available.
+
+```java
+ProtocolHandshakeBudget coldWins = protocolHandshakeBudget(
+        5, 6, 200, true);
+assert coldWins.coldNetworkMillis() == 30;
+assert coldWins.decision()
+        == HandshakeAdmissionDecision.OPEN_BOUNDED_FRESH_CONNECTION;
+
+ProtocolHandshakeBudget bounded = protocolHandshakeBudget(
+        5, 6, 200, false);
+assert bounded.decision()
+        == HandshakeAdmissionDecision.REJECT_CAPACITY;
+```
+
+The six waits are a scenario input, not a universal PostgreSQL constant. Authentication can add exchanges—for example, SASL/SCRAM has multiple messages—and network behavior varies. Trace the actual chronology and measure each boundary.
+
+```mermaid
+flowchart TD
+    A["Request needs a database session"] --> P{"Pool wait ≤ estimated cold network?"}
+    P -->|yes| U["Reuse pooled connection"]
+    P -->|no| C{"Fresh-connection slot available?"}
+    C -->|yes| N["Open one bounded fresh connection"]
+    C -->|no| R["Reject capacity within deadline"]
+```
+
+A successful fresh handshake should normally replenish or join the managed pool rather than create an untracked ownership path. Admission, server session limits and request deadlines remain authoritative.
+
+## Example 144 — Encrypt, authenticate, and authorize are three separate gates {#example-144-protocol-security-contract}
+
+A production operation should pass three independent checks:
+
+| Gate | Question | Example evidence |
+|---|---|---|
+| server identity | Did the client reach the intended PostgreSQL server? | TLS certificate chain plus hostname verification |
+| database principal | Which role authenticated? | successful SCRAM exchange for the service role |
+| operation authorization | May this principal touch this tenant and object? | tenant predicate, ownership check and/or row security policy |
+
+```java
+ProtocolSecurityContract authorized = new ProtocolSecurityContract(
+        true, true, true, true);
+assert authorized.operationAllowed();
+
+ProtocolSecurityContract wrongTenant = new ProtocolSecurityContract(
+        true, true, true, false);
+assert !wrongTenant.operationAllowed();
+```
+
+A CMS service credential can prove “this is the CMS service” without proving “this request may edit tenant B's article.” PostgreSQL row security can restrict which rows a command returns or modifies; when row security is enabled and no applicable policy exists, the default is deny. Table owners and roles with `BYPASSRLS` normally bypass those policies, so deployment-role design and integration tests must verify the intended enforcement path.
+
+```mermaid
+flowchart TD
+    T["TLS: intended server?"] -->|verified| P["Authentication: intended DB principal?"]
+    T -->|no| D["Deny"]
+    P -->|authenticated| A["Authorization: tenant and object allowed?"]
+    P -->|no| D
+    A -->|yes| O["Execute operation"]
+    A -->|no| D
+```
+
+Test the negative path with a real authenticated service principal: an allowed tenant/object succeeds, a different tenant/object is denied, and a privileged migration owner is never used as the application runtime identity.
+
+## What to say in an interview {#section-36-interview-answer}
+
+Use the memory line **length, chunks, waits, gates**:
+
+- **length:** parse network-byte-order protocol lengths and bound them before allocation;
+- **chunks:** TCP read boundaries do not define PostgreSQL message boundaries;
+- **waits:** compare measured pool delay with fresh-handshake chronology, but admit only within a finite server budget; and
+- **gates:** encryption, server identity, principal authentication and tenant/object authorization answer different questions.
+
+### Primary references for Section 36 {#section-36-primary-references}
+
+Accessed 2026-10-20.
+
+228. [PostgreSQL 18 — Message Formats](https://www.postgresql.org/docs/18/protocol-message-formats.html): network framing for `SSLRequest`, `StartupMessage` and the simple `Query` message.
+229. [PostgreSQL 18 — Message Flow](https://www.postgresql.org/docs/18/protocol-flow.html): startup, authentication exchanges, command cycles and `ReadyForQuery` boundaries.
+230. [PostgreSQL 18 — SSL Support](https://www.postgresql.org/docs/18/libpq-ssl.html): certificate-chain and hostname verification semantics for `verify-ca` and `verify-full`.
+231. [PostgreSQL 18 — Row Security Policies](https://www.postgresql.org/docs/18/ddl-rowsecurity.html): row-level command restrictions, default-deny behavior and owner/`BYPASSRLS` caveats.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -7824,4 +7999,18 @@ Accessed 2026-10-20.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; and lines **1946–1983**, “Protocol walkthrough with actual framing examples”
+- Deliberate continuation: Section 37 starts at source line **1984** and is bounded by the Section 38 heading at line **2039**; it remains unprocessed.
+
+Validation commands:
+
+```bash
+python3 build_reader.py
+node validate_reader.mjs
+javac ConsistencyContracts.java
+java -ea ConsistencyContracts
+```
+
+The Markdown is canonical. `guide.html` is generated deterministically and embeds the exact Markdown bytes for synchronization checks.
+
+
