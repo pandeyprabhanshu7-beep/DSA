@@ -6308,6 +6308,182 @@ Accessed 2026-10-19.
 189. [PostgreSQL 18 — Routine vacuuming](https://www.postgresql.org/docs/current/routine-vacuuming.html): dead-version reuse, visibility-map maintenance, old transactions and wraparound protection.
 
 
+# Section 29 — B+ tree dry run: insert, split, range query and secondary lookup
+
+Section 2 remains the canonical explanation of page capacity, fan-out, composite-key design and production split costs. This bounded section supplies the missing **worked state transition**: start from one tiny leaf, perform three inserts, follow one bounded range across leaf links, and then compare two engines' base-row lookup rules. The toy capacity of four keys exists only to make splits visible; production indexes pack encoded tuples into pages and apply engine-specific concurrency, logging and cleanup rules.
+
+## Requirements and declared separator rule
+
+Use a two-level teaching tree whose leaves hold at most four distinct integer keys. Every internal separator `s` means **the child to its right begins at `s`**. Therefore equality with a separator routes right, while the record itself remains in a leaf.
+
+The executable model must preserve these invariants after every insert:
+
+1. keys are globally distinct and increasing across all leaves;
+2. each separator equals the minimum key of its right child;
+3. every leaf stays within the declared capacity after the operation;
+4. a range search descends once, then advances through ordered leaf siblings; and
+5. engine-specific base-row work is counted separately from index navigation.
+
+## Example 113 — Insert 25, 35 and 45; recompute routing separators
+
+Start with `[10,20,30,40]`. Inserting 25 produces five ordered keys, so split at the model's deterministic midpoint:
+
+```text
+[10,20,30,40] + 25
+  → merged [10,20,25,30,40]
+  → leaves [10,20] and [25,30,40]
+  → root separator [25]
+```
+
+The separator is copied routing information, not the only stored copy of 25. Insert 35 into the right leaf without a split. Inserting 45 then overflows that leaf and produces a second separator.
+
+| Operation | Routed leaf before insert | Root separators after | Ordered leaves after |
+|---|---|---|---|
+| start | — | `[]` | `[10,20,30,40]` |
+| insert 25 | only leaf | `[25]` | `[10,20]`; `[25,30,40]` |
+| insert 35 | right of 25 | `[25]` | `[10,20]`; `[25,30,35,40]` |
+| insert 45 | right of 25 | `[25,35]` | `[10,20]`; `[25,30]`; `[35,40,45]` |
+
+```mermaid
+flowchart TD
+    A["Leaf 10,20,30,40"] --> B["Insert 25; overflow"]
+    B --> R1["Root separator 25"]
+    R1 --> L1["Leaf 10,20"]
+    R1 --> L2["Leaf 25,30,40"]
+    L2 --> C["Insert 35, then 45; overflow"]
+    C --> R2["Root separators 25,35"]
+    R2 --> L3["Leaves: 10,20 | 25,30 | 35,40,45"]
+```
+
+```java
+TinyBPlusTree tree = new TinyBPlusTree(
+        List.of(), List.of(List.of(10, 20, 30, 40)));
+tree = insertTinyBPlus(tree, 25, 4);
+tree = insertTinyBPlus(tree, 35, 4);
+tree = insertTinyBPlus(tree, 45, 4);
+
+assert tree.separators().equals(List.of(25, 35));
+assert tree.leaves().equals(List.of(
+        List.of(10, 20), List.of(25, 30), List.of(35, 40, 45)));
+```
+
+The helper validates every reconstructed tree, so an empty leaf, unsorted key, duplicate key or separator that differs from the next leaf's minimum is rejected. It intentionally stops at one internal level; recursive internal-page splits and crash-safe publication remain engine responsibilities described in Section 2.
+
+## Example 114 — One descent, then scan sideways for `22 <= key <= 41`
+
+The lower bound 22 routes to the leftmost interval. A lower-bound search finds no qualifying entry there, so the scan follows the next-leaf link, returns 25 and 30, follows one more link, returns 35 and 40, and stops immediately when it encounters 45.
+
+| Leaf visited | Keys inspected | Result accumulated | Stop decision |
+|---:|---|---|---|
+| 1 | 10, 20 | `[]` | continue to next leaf |
+| 2 | 25, 30 | `[25,30]` | upper bound not crossed |
+| 3 | 35, 40, 45 | `[25,30,35,40]` | 45 is greater than 41 |
+
+```mermaid
+flowchart LR
+    Q["Range 22..41"] --> R["Route once to candidate leaf"]
+    R --> A["10,20: no match"]
+    A -.-> B["25,30: emit both"]
+    B -.-> C["35,40: emit; see 45"]
+    C --> S["Stop at upper bound"]
+```
+
+```java
+LinkedRangeScan scan = linkedRangeScan(tree, 22, 41);
+assert scan.keys().equals(List.of(25, 30, 35, 40));
+assert scan.leavesVisited() == 3;
+assert scan.firstRejectedKey() == 45;
+```
+
+The logical cost is `O(log_F n + k)` plus boundary entries and leaf pages visited, where `F` is fan-out and `k` is returned entries. That expression is not a physical-I/O promise: internal pages may be cached, leaf pages can span storage reads, and a non-covering query can add one base-row lookup per candidate. PostgreSQL documents B-tree support for equality, inequalities, `BETWEEN`, and sorted retrieval; the plan still depends on statistics and cost estimates.
+
+For a composite B-tree, the same dry run applies to tuples rather than single integers. Equality constraints on leading columns plus a range on the first non-equality column describe the narrowest guaranteed scan interval. A suffix-only predicate may require skip scan, a broader index scan, a different index or a sequential plan.
+
+## Example 115 — InnoDB secondary matches can trigger three clustered lookups
+
+Assume an InnoDB table with clustered primary key `order_id` and secondary index `(tenant_id, status)`. The secondary entries matching `(7,'OPEN')` carry primary keys 901, 905 and 912. If the query requests `shipping_address` and that value is not held in the secondary index, each candidate primary key is used to search the clustered index.
+
+```sql
+SELECT order_id, shipping_address
+FROM orders
+WHERE tenant_id = 7 AND status = 'OPEN';
+```
+
+```mermaid
+flowchart TD
+    Q["tenant 7, status OPEN"] --> S["Secondary B-tree range"]
+    S --> K["Primary keys 901,905,912"]
+    K --> P1["Clustered lookup 901"]
+    K --> P2["Clustered lookup 905"]
+    K --> P3["Clustered lookup 912"]
+    P1 --> O["Return full rows"]
+    P2 --> O
+    P3 --> O
+```
+
+```java
+SecondaryLookupPlan nonCovering =
+        secondaryLookupPlan(List.of(901, 905, 912), false);
+assert nonCovering.clusteredLookups() == 3;
+
+SecondaryLookupPlan covering =
+        secondaryLookupPlan(List.of(901, 905, 912), true);
+assert covering.clusteredLookups() == 0;
+```
+
+The second result models a covering secondary index: all requested values are present in the matched index entries, so the teaching plan needs no clustered-row retrieval. This is a workload trade-off, not a free optimization. Wider secondary entries lower fan-out, consume buffer and storage space, and increase write cost. InnoDB also stores primary-key columns in every secondary entry, which is why primary-key width affects every secondary index.
+
+## Example 116 — PostgreSQL “columns are covered” is necessary but not sufficient
+
+PostgreSQL's ordinary B-tree leaf entry identifies a heap tuple rather than storing the full clustered row. An index-only scan is physically possible when the index type supports it and every referenced column is stored in the index. MVCC visibility adds another condition: for each candidate heap page, the all-visible bit determines whether the executor can skip that heap visit.
+
+Model three candidates whose heap pages have visibility states `[true,false,true]`:
+
+```java
+IndexOnlyVisibilityPlan eligible =
+        indexOnlyVisibilityPlan(true, true, false, true);
+assert eligible.physicallyEligible();
+assert eligible.heapFetches() == 1;
+
+IndexOnlyVisibilityPlan missingColumn =
+        indexOnlyVisibilityPlan(false, true, true, true);
+assert !missingColumn.physicallyEligible();
+assert missingColumn.heapFetches() == 3;
+```
+
+```mermaid
+flowchart TD
+    I["Candidate index tuple"] --> C{"All referenced columns stored?"}
+    C -->|no| H["Visit heap for row data and visibility"]
+    C -->|yes| V{"Heap page all-visible?"}
+    V -->|yes| R["Return from index"]
+    V -->|no| H
+```
+
+`INCLUDE` columns can make the query physically eligible without changing the search key, but wide payload columns duplicate data and can bloat the index. On a frequently updated table, many visibility-map bits may be unset, so a nominal `Index Only Scan` can still report heap fetches. Confirm the real plan with representative `EXPLAIN (ANALYZE, BUFFERS)` evidence instead of inferring zero heap work from the index definition.
+
+## What to say in an interview
+
+Use the memory line **route high, store low, scan sideways** and then qualify it by engine:
+
+- internal separators route; leaf entries preserve sorted key order;
+- one lower-bound descent starts a range, linked leaves continue it;
+- an InnoDB secondary leaf includes the primary key and may cause a clustered lookup;
+- a PostgreSQL B-tree leaf points toward a heap tuple, while an index-only scan still depends on stored columns and visibility information; and
+- sequential identifiers improve locality but can concentrate writers on the right edge, whereas random identifiers distribute positions while increasing page churn.
+
+### Primary references for Section 29
+
+Accessed 2026-10-20.
+
+190. [PostgreSQL 18 — Index types](https://www.postgresql.org/docs/current/indexes-types.html): B-tree equality/range predicates and ordered retrieval.
+191. [PostgreSQL 18 — Multicolumn indexes](https://www.postgresql.org/docs/current/indexes-multicolumn.html): leading equality, first inequality and skip-scan boundaries.
+192. [PostgreSQL 18 — Index-only scans and covering indexes](https://www.postgresql.org/docs/current/indexes-index-only-scans.html): stored-column eligibility, visibility-map checks, heap visits and `INCLUDE` trade-offs.
+193. [PostgreSQL 18 — Using `EXPLAIN`](https://www.postgresql.org/docs/current/using-explain.html): index searches, heap fetches, buffer evidence and representative plan interpretation.
+194. [MySQL 8.4 — Clustered and secondary indexes](https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html): clustered row storage, primary-key payload in secondary records and the second lookup.
+195. [MySQL 8.4 — Optimizing InnoDB queries](https://dev.mysql.com/doc/refman/8.4/en/optimizing-innodb-queries.html): short primary keys, concatenated indexes and covering-index trade-offs.
+
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -6315,8 +6491,8 @@ Accessed 2026-10-19.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; and lines **1533–1595**, “Follow one committed edit and three crash points”
-- Deliberate continuation: Section 29, “B+ tree dry run: insert, split, range query and secondary lookup,” spans source lines **1596–1643**, bounded by the Section 30 heading at line **1644**, and remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; and lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”
+- Deliberate continuation: Section 30, “LSM dry run: the same key exists in three places,” spans source lines **1644–1690**, bounded by the Section 31 heading at line **1691**, and remains unprocessed.
 
 Validation commands:
 

@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-28. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-29. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -216,6 +216,94 @@ public final class ConsistencyContracts {
         List<Integer> left = List.copyOf(merged.subList(0, splitAt));
         List<Integer> right = List.copyOf(merged.subList(splitAt, merged.size()));
         return new LeafInsert(left, right, right.get(0), true);
+    }
+
+    record TinyBPlusTree(List<Integer> separators, List<List<Integer>> leaves) {
+        TinyBPlusTree {
+            separators = List.copyOf(separators);
+            List<List<Integer>> copied = new ArrayList<>();
+            for (List<Integer> leaf : leaves) copied.add(List.copyOf(leaf));
+            leaves = List.copyOf(copied);
+            if (leaves.isEmpty() || separators.size() != leaves.size() - 1) {
+                throw new IllegalArgumentException("one separator per right child is required");
+            }
+            Integer previous = null;
+            for (int leafIndex = 0; leafIndex < leaves.size(); leafIndex++) {
+                List<Integer> leaf = leaves.get(leafIndex);
+                if (leaf.isEmpty()) throw new IllegalArgumentException("empty leaf");
+                for (int key : leaf) {
+                    if (previous != null && key <= previous) {
+                        throw new IllegalArgumentException("keys must be globally distinct and sorted");
+                    }
+                    previous = key;
+                }
+                if (leafIndex > 0 && !separators.get(leafIndex - 1).equals(leaf.get(0))) {
+                    throw new IllegalArgumentException("separator must equal right-child minimum");
+                }
+            }
+        }
+    }
+
+    static TinyBPlusTree insertTinyBPlus(TinyBPlusTree tree, int key, int capacity) {
+        if (capacity < 2) throw new IllegalArgumentException("capacity must be at least two");
+        int leafIndex = 0;
+        while (leafIndex < tree.separators().size()
+                && key >= tree.separators().get(leafIndex)) {
+            leafIndex++;
+        }
+        int[] current = tree.leaves().get(leafIndex).stream().mapToInt(Integer::intValue).toArray();
+        LeafInsert inserted = insertIntoLeaf(current, key, capacity);
+        List<List<Integer>> leaves = new ArrayList<>(tree.leaves());
+        leaves.set(leafIndex, inserted.left());
+        if (inserted.split()) leaves.add(leafIndex + 1, inserted.right());
+        List<Integer> separators = new ArrayList<>();
+        for (int i = 1; i < leaves.size(); i++) separators.add(leaves.get(i).get(0));
+        return new TinyBPlusTree(separators, leaves);
+    }
+
+    record LinkedRangeScan(List<Integer> keys, int leavesVisited, Integer firstRejectedKey) {}
+
+    static LinkedRangeScan linkedRangeScan(TinyBPlusTree tree, int lowInclusive, int highInclusive) {
+        if (lowInclusive > highInclusive) throw new IllegalArgumentException("inverted range");
+        int leafIndex = 0;
+        while (leafIndex < tree.separators().size()
+                && lowInclusive >= tree.separators().get(leafIndex)) {
+            leafIndex++;
+        }
+        List<Integer> keys = new ArrayList<>();
+        int visited = 0;
+        for (int i = leafIndex; i < tree.leaves().size(); i++) {
+            visited++;
+            for (int key : tree.leaves().get(i)) {
+                if (key < lowInclusive) continue;
+                if (key > highInclusive) {
+                    return new LinkedRangeScan(List.copyOf(keys), visited, key);
+                }
+                keys.add(key);
+            }
+        }
+        return new LinkedRangeScan(List.copyOf(keys), visited, null);
+    }
+
+    record SecondaryLookupPlan(List<Integer> primaryKeys, int clusteredLookups, boolean covering) {}
+
+    static SecondaryLookupPlan secondaryLookupPlan(List<Integer> matchingPrimaryKeys, boolean covering) {
+        List<Integer> keys = List.copyOf(matchingPrimaryKeys);
+        return new SecondaryLookupPlan(keys, covering ? 0 : keys.size(), covering);
+    }
+
+    record IndexOnlyVisibilityPlan(boolean physicallyEligible, int heapFetches) {}
+
+    static IndexOnlyVisibilityPlan indexOnlyVisibilityPlan(
+            boolean allReferencedColumnsStored, boolean... candidateHeapPagesAllVisible) {
+        if (!allReferencedColumnsStored) {
+            return new IndexOnlyVisibilityPlan(false, candidateHeapPagesAllVisible.length);
+        }
+        int heapFetches = 0;
+        for (boolean allVisible : candidateHeapPagesAllVisible) {
+            if (!allVisible) heapFetches++;
+        }
+        return new IndexOnlyVisibilityPlan(true, heapFetches);
     }
 
     record LsmVersion(long sequence, String value, boolean tombstone) {
@@ -3589,6 +3677,49 @@ public final class ConsistencyContracts {
         } catch (IllegalArgumentException expected) {}
     }
 
+    private static void tinyBPlusInsertScenarios() {
+        TinyBPlusTree tree = new TinyBPlusTree(List.of(), List.of(List.of(10, 20, 30, 40)));
+        tree = insertTinyBPlus(tree, 25, 4);
+        assert tree.separators().equals(List.of(25));
+        assert tree.leaves().equals(List.of(List.of(10, 20), List.of(25, 30, 40)));
+
+        tree = insertTinyBPlus(tree, 35, 4);
+        assert tree.separators().equals(List.of(25));
+        tree = insertTinyBPlus(tree, 45, 4);
+        assert tree.separators().equals(List.of(25, 35));
+        assert tree.leaves().equals(List.of(
+                List.of(10, 20), List.of(25, 30), List.of(35, 40, 45)));
+    }
+
+    private static void linkedLeafRangeScenarios() {
+        TinyBPlusTree tree = new TinyBPlusTree(
+                List.of(25, 35),
+                List.of(List.of(10, 20), List.of(25, 30), List.of(35, 40, 45)));
+        LinkedRangeScan scan = linkedRangeScan(tree, 22, 41);
+        assert scan.keys().equals(List.of(25, 30, 35, 40));
+        assert scan.leavesVisited() == 3 && scan.firstRejectedKey() == 45;
+        assert linkedRangeScan(tree, 46, 99).keys().isEmpty();
+    }
+
+    private static void secondaryLookupPlanScenarios() {
+        List<Integer> matches = List.of(901, 905, 912);
+        SecondaryLookupPlan nonCovering = secondaryLookupPlan(matches, false);
+        assert nonCovering.primaryKeys().equals(matches);
+        assert nonCovering.clusteredLookups() == 3 && !nonCovering.covering();
+
+        SecondaryLookupPlan covering = secondaryLookupPlan(matches, true);
+        assert covering.clusteredLookups() == 0 && covering.covering();
+    }
+
+    private static void indexOnlyVisibilityScenarios() {
+        IndexOnlyVisibilityPlan eligible = indexOnlyVisibilityPlan(true, true, false, true);
+        assert eligible.physicallyEligible() && eligible.heapFetches() == 1;
+
+        IndexOnlyVisibilityPlan missingColumn = indexOnlyVisibilityPlan(false, true, true, true);
+        assert !missingColumn.physicallyEligible() && missingColumn.heapFetches() == 3;
+        assert indexOnlyVisibilityPlan(true, true, true).heapFetches() == 0;
+    }
+
     private static void lsmWritePathScenarios() {
         LsmBuffer db = new LsmBuffer();
         db.put("cart:7", "v1", 10);
@@ -5133,6 +5264,10 @@ public final class ConsistencyContracts {
         compositeRangeScenarios();
         secondaryIndexFootprintScenarios();
         leafSplitScenarios();
+        tinyBPlusInsertScenarios();
+        linkedLeafRangeScenarios();
+        secondaryLookupPlanScenarios();
+        indexOnlyVisibilityScenarios();
         lsmWritePathScenarios();
         lsmSnapshotReadScenarios();
         lsmTombstoneScenarios();
@@ -5237,7 +5372,7 @@ public final class ConsistencyContracts {
         walCrashBoundaryScenarios();
         lostEditResponseScenarios();
         checkpointVacuumDiagnosisScenarios();
-        System.out.println("PASS 112 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis");
+        System.out.println("PASS 116 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis");
     }
 }
 
