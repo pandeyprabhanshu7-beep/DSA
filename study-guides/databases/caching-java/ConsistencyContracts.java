@@ -6017,6 +6017,275 @@ public final class ConsistencyContracts {
                 true, false, true, true, true, 100, 100).strictEnough();
     }
 
+    private record PoolResidency(
+            int arrivalRatePerSecond,
+            int firstSqlMillis,
+            int remoteMillis,
+            int secondSqlMillis,
+            int poolSize,
+            int holdMillis,
+            double averageBorrowed,
+            boolean meanDemandExceedsPool) {}
+
+    private record PoolQueueArithmetic(
+            int arrivalRatePerSecond,
+            int holdMillis,
+            int poolSize,
+            int requestDeadlineMillis,
+            int acquisitionTimeoutMillis,
+            int sqlBudgetMillis,
+            double averageBorrowed,
+            double idealizedServiceCeilingPerSecond,
+            double meanHeadroomConnections,
+            boolean queuesAtMean) {
+        boolean deadlineOrderValid() {
+            return requestDeadlineMillis
+                    > acquisitionTimeoutMillis + sqlBudgetMillis;
+        }
+    }
+
+    private record LayeredPoolArithmetic(
+            int instanceCount,
+            int localMaximumPoolSize,
+            int localActiveAtSnapshot,
+            int proxyServerConnections,
+            int maxClientSessions,
+            int activeClientDemand,
+            int proxyQueuedAtSnapshot,
+            double localActiveFraction,
+            boolean proxySaturated) {}
+
+    private record PoolConfiguration(
+            int minimumIdle,
+            int maximumPoolSize,
+            int connectionTimeoutMillis,
+            int idleTimeoutMillis,
+            int borrowableCapacity,
+            boolean minimumIdleIsReservation,
+            boolean idleTimeoutAppliesToActive) {}
+
+    private record PoolDeadlineContract(
+            int requestDeadlineMillis,
+            int acquisitionTimeoutMillis,
+            int sqlBudgetMillis,
+            int responseMarginMillis) {
+        boolean ordered() {
+            return requestDeadlineMillis
+                    >= acquisitionTimeoutMillis + sqlBudgetMillis
+                    + responseMarginMillis;
+        }
+
+        int remainingAfterAcquireAndSqlMillis() {
+            return requestDeadlineMillis
+                    - acquisitionTimeoutMillis - sqlBudgetMillis;
+        }
+    }
+
+    private enum PoolCommitTimeoutDecision {
+        SAFE_TO_RETRY_TRANSACTION,
+        QUERY_STABLE_OPERATION_ID,
+        RETURN_RECORDED_RESULT,
+        RETURN_COMMIT_RESPONSE
+    }
+
+    private static PoolResidency poolResidency(
+            int arrivalRatePerSecond,
+            int firstSqlMillis,
+            int remoteMillis,
+            int secondSqlMillis,
+            int poolSize) {
+        if (arrivalRatePerSecond < 0 || firstSqlMillis < 0
+                || remoteMillis < 0 || secondSqlMillis < 0 || poolSize <= 0) {
+            throw new IllegalArgumentException("pool residency inputs");
+        }
+        int holdMillis = Math.addExact(
+                Math.addExact(firstSqlMillis, remoteMillis), secondSqlMillis);
+        double averageBorrowed =
+                arrivalRatePerSecond * holdMillis / 1_000.0;
+        return new PoolResidency(
+                arrivalRatePerSecond,
+                firstSqlMillis,
+                remoteMillis,
+                secondSqlMillis,
+                poolSize,
+                holdMillis,
+                averageBorrowed,
+                averageBorrowed > poolSize);
+    }
+
+    private static PoolQueueArithmetic poolQueueArithmetic(
+            int arrivalRatePerSecond,
+            int holdMillis,
+            int poolSize,
+            int requestDeadlineMillis,
+            int acquisitionTimeoutMillis,
+            int sqlBudgetMillis) {
+        if (arrivalRatePerSecond < 0 || holdMillis <= 0 || poolSize <= 0
+                || requestDeadlineMillis <= 0
+                || acquisitionTimeoutMillis < 0 || sqlBudgetMillis < 0) {
+            throw new IllegalArgumentException("pool queue inputs");
+        }
+        double averageBorrowed =
+                arrivalRatePerSecond * holdMillis / 1_000.0;
+        double serviceCeiling = poolSize * 1_000.0 / holdMillis;
+        return new PoolQueueArithmetic(
+                arrivalRatePerSecond,
+                holdMillis,
+                poolSize,
+                requestDeadlineMillis,
+                acquisitionTimeoutMillis,
+                sqlBudgetMillis,
+                averageBorrowed,
+                serviceCeiling,
+                poolSize - averageBorrowed,
+                averageBorrowed > poolSize);
+    }
+
+    private static LayeredPoolArithmetic layeredPoolArithmetic(
+            int instanceCount,
+            int localMaximumPoolSize,
+            int localActiveAtSnapshot,
+            int proxyServerConnections) {
+        if (instanceCount <= 0 || localMaximumPoolSize <= 0
+                || localActiveAtSnapshot < 0
+                || localActiveAtSnapshot > localMaximumPoolSize
+                || proxyServerConnections <= 0) {
+            throw new IllegalArgumentException("layered pool inputs");
+        }
+        int maxClients = Math.multiplyExact(
+                instanceCount, localMaximumPoolSize);
+        int activeClients = Math.multiplyExact(
+                instanceCount, localActiveAtSnapshot);
+        return new LayeredPoolArithmetic(
+                instanceCount,
+                localMaximumPoolSize,
+                localActiveAtSnapshot,
+                proxyServerConnections,
+                maxClients,
+                activeClients,
+                Math.max(0, activeClients - proxyServerConnections),
+                (double) localActiveAtSnapshot / localMaximumPoolSize,
+                activeClients >= proxyServerConnections);
+    }
+
+    private static PoolConfiguration interpretPoolConfiguration(
+            int minimumIdle,
+            int maximumPoolSize,
+            int connectionTimeoutMillis,
+            int idleTimeoutMillis) {
+        if (minimumIdle < 0 || maximumPoolSize <= 0
+                || minimumIdle > maximumPoolSize
+                || connectionTimeoutMillis < 0 || idleTimeoutMillis < 0) {
+            throw new IllegalArgumentException("pool configuration inputs");
+        }
+        return new PoolConfiguration(
+                minimumIdle,
+                maximumPoolSize,
+                connectionTimeoutMillis,
+                idleTimeoutMillis,
+                maximumPoolSize,
+                false,
+                false);
+    }
+
+    private static PoolDeadlineContract poolDeadlineContract(
+            int requestDeadlineMillis,
+            int acquisitionTimeoutMillis,
+            int sqlBudgetMillis,
+            int responseMarginMillis) {
+        if (requestDeadlineMillis <= 0 || acquisitionTimeoutMillis < 0
+                || sqlBudgetMillis < 0 || responseMarginMillis < 0) {
+            throw new IllegalArgumentException("deadline inputs");
+        }
+        return new PoolDeadlineContract(
+                requestDeadlineMillis,
+                acquisitionTimeoutMillis,
+                sqlBudgetMillis,
+                responseMarginMillis);
+    }
+
+    private static PoolCommitTimeoutDecision poolCommitTimeoutDecision(
+            boolean commitSent,
+            boolean responseReceived,
+            boolean operationResultRecorded) {
+        if (responseReceived) {
+            return PoolCommitTimeoutDecision.RETURN_COMMIT_RESPONSE;
+        }
+        if (!commitSent) {
+            return PoolCommitTimeoutDecision.SAFE_TO_RETRY_TRANSACTION;
+        }
+        return operationResultRecorded
+                ? PoolCommitTimeoutDecision.RETURN_RECORDED_RESULT
+                : PoolCommitTimeoutDecision.QUERY_STABLE_OPERATION_ID;
+    }
+
+    private static void poolResidencyArithmeticScenarios() {
+        PoolResidency heldAcrossRemote =
+                poolResidency(100, 8, 200, 8, 16);
+        assert heldAcrossRemote.holdMillis() == 216;
+        assert heldAcrossRemote.averageBorrowed() == 21.6;
+        assert heldAcrossRemote.meanDemandExceedsPool();
+
+        PoolResidency splitBoundary =
+                poolResidency(100, 8, 0, 8, 16);
+        assert splitBoundary.holdMillis() == 16;
+        assert splitBoundary.averageBorrowed() == 1.6;
+        assert !splitBoundary.meanDemandExceedsPool();
+    }
+
+    private static void poolQueueStabilityScenarios() {
+        PoolQueueArithmetic healthy =
+                poolQueueArithmetic(200, 25, 16, 150, 80, 40);
+        assert healthy.averageBorrowed() == 5.0;
+        assert healthy.idealizedServiceCeilingPerSecond() == 640.0;
+        assert healthy.meanHeadroomConnections() == 11.0;
+        assert healthy.deadlineOrderValid();
+
+        PoolQueueArithmetic unstable =
+                poolQueueArithmetic(200, 250, 16, 150, 80, 40);
+        assert unstable.averageBorrowed() == 50.0;
+        assert unstable.idealizedServiceCeilingPerSecond() == 64.0;
+        assert unstable.meanHeadroomConnections() == -34.0;
+        assert unstable.queuesAtMean();
+    }
+
+    private static void layeredPoolQueueScenarios() {
+        LayeredPoolArithmetic layered =
+                layeredPoolArithmetic(20, 16, 8, 80);
+        assert layered.maxClientSessions() == 320;
+        assert layered.activeClientDemand() == 160;
+        assert layered.proxyQueuedAtSnapshot() == 80;
+        assert layered.localActiveFraction() == 0.5;
+        assert layered.proxySaturated();
+
+        LayeredPoolArithmetic belowProxyLimit =
+                layeredPoolArithmetic(20, 16, 3, 80);
+        assert belowProxyLimit.proxyQueuedAtSnapshot() == 0;
+        assert !belowProxyLimit.proxySaturated();
+    }
+
+    private static void poolConfigurationAndOutcomeScenarios() {
+        PoolConfiguration config =
+                interpretPoolConfiguration(4, 16, 80, 600_000);
+        assert config.borrowableCapacity() == 16;
+        assert !config.minimumIdleIsReservation();
+        assert !config.idleTimeoutAppliesToActive();
+
+        PoolDeadlineContract deadlines =
+                poolDeadlineContract(150, 80, 60, 10);
+        assert deadlines.ordered();
+        assert deadlines.remainingAfterAcquireAndSqlMillis() == 10;
+
+        assert poolCommitTimeoutDecision(false, false, false)
+                == PoolCommitTimeoutDecision.SAFE_TO_RETRY_TRANSACTION;
+        assert poolCommitTimeoutDecision(true, false, false)
+                == PoolCommitTimeoutDecision.QUERY_STABLE_OPERATION_ID;
+        assert poolCommitTimeoutDecision(true, false, true)
+                == PoolCommitTimeoutDecision.RETURN_RECORDED_RESULT;
+        assert poolCommitTimeoutDecision(true, true, true)
+                == PoolCommitTimeoutDecision.RETURN_COMMIT_RESPONSE;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -6157,7 +6426,12 @@ public final class ConsistencyContracts {
         cacheGenerationValueRaceScenarios();
         cacheNegativeResurrectionRaceScenarios();
         cacheFleetLoadBudgetScenarios();
-        System.out.println("PASS 136 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget");
+        poolResidencyArithmeticScenarios();
+        poolQueueStabilityScenarios();
+        layeredPoolQueueScenarios();
+        poolConfigurationAndOutcomeScenarios();
+        System.out.println("PASS 140 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome");
     }
 }
+
 

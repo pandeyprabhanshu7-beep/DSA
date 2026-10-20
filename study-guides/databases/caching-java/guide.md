@@ -7567,6 +7567,256 @@ Accessed 2026-10-20.
 222. [Resilience4j — Bulkhead](https://resilience4j.readme.io/docs/bulkhead): semaphore concurrency limits and fixed-thread-pool bulkheads with bounded queues.
 223. [Resilience4j — RateLimiter](https://resilience4j.readme.io/docs/ratelimiter): permission budgets over refresh periods, separate from concurrent-execution limits.
 
+---
+
+# Section 35 — Connection pooling with real queue arithmetic {#section-35-connection-pooling-queue-arithmetic}
+
+A pool is a **bounded queue in front of a bounded execution resource**. Size it from measured connection residency, database-safe concurrency, maximum fleet width and an explicit waiting deadline. Query time alone is insufficient: a connection remains unavailable while application code holds its lease, even when no SQL is executing.
+
+Use two related models:
+
+\[
+L = \lambda W
+\]
+
+- \(L\): mean borrowed connections;
+- \(\lambda\): completed database work items per second; and
+- \(W\): mean connection hold time in seconds.
+
+And, for a pool with \(C\) connections and mean hold time \(W\):
+
+\[
+\text{idealized service ceiling} = C/W
+\]
+
+These are arithmetic checks, not a sizing oracle. Means hide bursts and tail latency; the database may saturate before every connection is busy; locks can extend \(W\); and several application pools can compete for one server budget. Measure acquisition wait, hold time, database execution, proxy wait where observable, timeout count and database saturation together.
+
+## Example 137 — Eight milliseconds of SQL can consume 216 milliseconds of pool residency {#example-137-pool-residency}
+
+A request performs this sequence:
+
+| Segment | Duration | Connection borrowed? |
+|---|---:|---|
+| first SQL statement | 8 ms | yes |
+| remote API call | 200 ms | yes |
+| second SQL statement | 8 ms | yes |
+| total | 216 ms | yes |
+
+At 100 requests/s, mean occupancy is \(100 \times 0.216 = 21.6\) connections. A 16-connection pool cannot sustain that mean without queueing. The SQL engine was active for only 16 ms, but the scarce lease was resident for 216 ms.
+
+```java
+PoolResidency heldAcrossRemote =
+        poolResidency(100, 8, 200, 8, 16);
+assert heldAcrossRemote.holdMillis() == 216;
+assert heldAcrossRemote.averageBorrowed() == 21.6;
+assert heldAcrossRemote.meanDemandExceedsPool();
+
+PoolResidency splitBoundary =
+        poolResidency(100, 8, 0, 8, 16);
+assert splitBoundary.holdMillis() == 16;
+assert splitBoundary.averageBorrowed() == 1.6;
+assert !splitBoundary.meanDemandExceedsPool();
+```
+
+Moving the remote call outside the transaction is safe only if the business invariant is redesigned. A typical shape is:
+
+1. commit an intent or outbox record in the first transaction;
+2. call the remote dependency without holding a database connection;
+3. apply the result in a second idempotent transaction using a stable operation ID; and
+4. expose a pending state rather than pretending the three steps are atomic.
+
+```mermaid
+sequenceDiagram
+    participant R as Request
+    participant P as Pool
+    participant DB as Database
+    participant API as Remote API
+    R->>P: borrow
+    P-->>R: connection
+    R->>DB: 8 ms SQL and durable intent
+    R->>P: return
+    R->>API: 200 ms call
+    R->>P: borrow again
+    R->>DB: 8 ms idempotent apply
+    R->>P: return
+```
+
+The revised boundary trades one long lease for two short leases. It does **not** promise the same atomicity as a single local transaction; the durable state machine and idempotency key are the correctness mechanism.
+
+## Example 138 — Same QPS, ten times the hold time, ten times the occupancy {#example-138-pool-queue-stability}
+
+For 200 operations/s:
+
+| Mean hold | Mean occupancy \(L\) | Idealized ceiling of pool 16 | Mean-state result |
+|---:|---:|---:|---|
+| 25 ms | 5 | 640 ops/s | 11 connections of mean headroom |
+| 250 ms | 50 | 64 ops/s | demand exceeds capacity by 34 connections |
+
+Incoming QPS did not change. Lock waiting, remote work inside a transaction, result streaming, slow consumers or leaked ownership can increase hold time and create a queue.
+
+```java
+PoolQueueArithmetic healthy =
+        poolQueueArithmetic(200, 25, 16, 150, 80, 40);
+assert healthy.averageBorrowed() == 5.0;
+assert healthy.idealizedServiceCeilingPerSecond() == 640.0;
+assert healthy.meanHeadroomConnections() == 11.0;
+assert healthy.deadlineOrderValid();
+
+PoolQueueArithmetic unstable =
+        poolQueueArithmetic(200, 250, 16, 150, 80, 40);
+assert unstable.averageBorrowed() == 50.0;
+assert unstable.idealizedServiceCeilingPerSecond() == 64.0;
+assert unstable.meanHeadroomConnections() == -34.0;
+assert unstable.queuesAtMean();
+```
+
+Here the request leaves 80 ms for connection acquisition and 40 ms for database work. Acquisition must fail before the request deadline has no useful work budget left. A retry that starts after the remaining deadline is smaller than acquisition plus execution cannot succeed honestly; reject it instead of feeding the queue.
+
+```mermaid
+flowchart TD
+    A["200 operations/s"] --> H{"Measured hold time"}
+    H -->|"25 ms"| O1["Mean occupancy 5"]
+    H -->|"250 ms"| O2["Mean occupancy 50"]
+    O1 --> C["Pool capacity 16"]
+    O2 --> C
+    C -->|"capacity available"| X["Execute within DB budget"]
+    C -->|"saturated"| Q["Bounded acquisition wait"]
+    Q -->|"deadline remains"| X
+    Q -->|"budget exhausted"| R["Reject; do not amplify with retries"]
+```
+
+Do not “fix” this graph by making the application pool larger until database-safe concurrency and fleet totals are known. HikariCP's sizing guidance explicitly favors a small pool near the database's effective parallel-work limit and recommends right-sizing an outside job queue to the pool for long-running work.
+
+## Example 139 — Hikari and PgBouncer are two distinct waiting rooms {#example-139-two-pooler-waiting-rooms}
+
+Assume:
+
+- 20 application instances;
+- Hikari `maximumPoolSize=16` per instance, so 320 client sessions can exist;
+- PgBouncer transaction pooling with 80 usable server connections for the applicable database/user pools; and
+- each local pool reports only 8 active connections.
+
+“50% active locally” is not spare database capacity. Fleet demand can be \(20 \times 8 = 160\) active client transactions competing for 80 server sessions. PgBouncer can queue 80 of them while every Hikari pool looks half empty.
+
+```java
+LayeredPoolArithmetic layered =
+        layeredPoolArithmetic(20, 16, 8, 80);
+assert layered.maxClientSessions() == 320;
+assert layered.activeClientDemand() == 160;
+assert layered.proxyQueuedAtSnapshot() == 80;
+assert layered.localActiveFraction() == 0.5;
+assert layered.proxySaturated();
+```
+
+In transaction pooling, PgBouncer assigns a server connection only for a transaction and returns it when the transaction ends. Its server limits and client limits are separate; current PgBouncer configuration documentation explicitly describes the difference between them as queue capacity. Therefore collect a correlated trace:
+
+| Timestamp | Boundary | What the delta means |
+|---|---|---|
+| \(t_0\) | request admitted | application queue starts |
+| \(t_1\) | Hikari borrow begins | local acquisition starts |
+| \(t_2\) | Hikari borrow returns | local wait is \(t_2-t_1\) |
+| \(t_3\) | transaction begins at server | proxy/network/startup interval is bounded by \(t_3-t_2\) |
+| \(t_4\) | SQL execution finishes | database work is \(t_4-t_3\) |
+| \(t_5\) | connection closes logically | application hold is \(t_5-t_2\) |
+| \(t_6\) | response completes | non-database tail is \(t_6-t_5\) |
+
+```mermaid
+flowchart TD
+    I["20 JVMs × max 16 clients"] --> H["Hikari waiting rooms"]
+    H --> D["160 active clients at 50% local utilization"]
+    D --> B["PgBouncer: 80 server sessions"]
+    B -->|"80 execute"| DB["PostgreSQL"]
+    B -->|"80 wait"| W["Proxy queue"]
+```
+
+Tag metrics by service, pool name, database and user without placing raw tenant IDs in unbounded labels. Inspect PgBouncer wait and server activity beside Hikari active/idle/pending values. A Hikari acquisition timer alone cannot distinguish local scarcity from time spent after the client session reaches a downstream pooler.
+
+## Example 140 — Configuration meanings and deadline ownership must be explicit {#example-140-pool-config-deadline-contract}
+
+For this configuration:
+
+```properties
+minimumIdle=4
+maximumPoolSize=16
+connectionTimeout=80
+idleTimeout=600000
+```
+
+the correct interpretation is:
+
+- `minimumIdle=4` is a target number of idle connections Hikari tries to maintain, not four reserved connections unavailable to borrowers;
+- `maximumPoolSize=16` includes idle plus in-use physical connections;
+- when 16 connections exist and none is idle, `getConnection()` waits up to `connectionTimeout`;
+- `idleTimeout` applies only when `minimumIdle < maximumPoolSize` and only to idle surplus; it does not cancel an active query or report; and
+- Hikari documents that an in-use connection is not retired merely because `maxLifetime` expires.
+
+```java
+PoolConfiguration config =
+        interpretPoolConfiguration(4, 16, 80, 600_000);
+assert config.borrowableCapacity() == 16;
+assert config.minimumIdleIsReservation() == false;
+assert config.idleTimeoutAppliesToActive() == false;
+
+PoolDeadlineContract deadlines =
+        poolDeadlineContract(150, 80, 60, 30);
+assert deadlines.ordered();
+assert deadlines.remainingAfterAcquireAndSqlMillis() == 10;
+```
+
+`socketTimeout` is a different boundary. pgJDBC documents it as a socket-read timeout that closes the connection if a server read takes too long. If a COMMIT was sent and the connection closes before the response arrives, the caller does not know from the timeout alone whether the commit happened. Resolve with a stable operation ID and durable result lookup; do not issue the business action under a new ID.
+
+```java
+assert poolCommitTimeoutDecision(false, false, false)
+        == PoolCommitTimeoutDecision.SAFE_TO_RETRY_TRANSACTION;
+assert poolCommitTimeoutDecision(true, false, false)
+        == PoolCommitTimeoutDecision.QUERY_STABLE_OPERATION_ID;
+assert poolCommitTimeoutDecision(true, false, true)
+        == PoolCommitTimeoutDecision.RETURN_RECORDED_RESULT;
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> NotSent
+    NotSent --> SafeRetry: acquire/query fails before COMMIT send
+    NotSent --> CommitSent: COMMIT bytes sent
+    CommitSent --> Known: response received
+    CommitSent --> Unknown: socket closes first
+    Unknown --> Known: lookup stable operation ID
+    Unknown --> Reject: deadline expires without evidence
+```
+
+Change one hypothesis at a time. If pool size, SQL, cache TTL and proxy limits change together, the experiment cannot identify which boundary improved or regressed.
+
+A reviewable pool contract is now concrete:
+
+| Boundary | Required evidence | Unsafe shortcut |
+|---|---|---|
+| connection residency | borrow-to-close histogram, not SQL time alone | size from average query time |
+| local pool | active, idle, pending, acquisition timeout | enlarge every instance independently |
+| fleet | maximum instances × per-instance maximum | inspect one JVM |
+| proxy | client/server counts and wait time by DB/user pool | infer proxy health from Hikari utilization |
+| database | measured safe concurrency, locks, CPU/I/O, latency | equate open sessions with useful parallelism |
+| deadline | request > acquisition + execution + response margin | retries after useful budget is gone |
+| ambiguous commit | stable operation ID and result query | retry with a new operation ID |
+
+## What to say in an interview {#section-35-interview-answer}
+
+Use the memory line **residency, rooms, limits, outcome**:
+
+- **residency:** apply \(L=\lambda W\) to borrow-to-close time, then inspect tails and bursts;
+- **rooms:** model each application pool and PgBouncer as separate queues;
+- **limits:** cap fleet connections by database-safe concurrency and order every timeout beneath the request deadline; and
+- **outcome:** a socket timeout after COMMIT is an unknown result, recovered by operation identity rather than blind retry.
+
+### Primary references for Section 35 {#section-35-primary-references}
+
+Accessed 2026-10-20.
+
+224. [HikariCP — README configuration](https://github.com/brettwooldridge/HikariCP): `minimumIdle`, `maximumPoolSize`, `connectionTimeout`, `idleTimeout` and `maxLifetime` semantics.
+225. [HikariCP — About Pool Sizing](https://github.com/brettwooldridge/HikariCP/wiki/About-Pool-Sizing): small-pool rationale, database parallelism limits, pool-locking arithmetic and matching outside job queues to long-running work.
+226. [PgBouncer — Features and pooling modes](https://www.pgbouncer.org/features.html) and [configuration](https://www.pgbouncer.org/config): transaction-pool server assignment plus distinct client/server connection limits and their queue interpretation.
+227. [pgJDBC — Initializing the driver](https://jdbc.postgresql.org/documentation/use/): `connectTimeout`, `socketTimeout` and `cancelSignalTimeout` boundaries.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -7574,17 +7824,4 @@ Accessed 2026-10-20.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; and lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”
-- Deliberate continuation: Section 35, “Connection pooling with real queue arithmetic,” spans source lines **1910–1945**, bounded by the Section 36 heading at line **1946**, and remains unprocessed.
-
-Validation commands:
-
-```bash
-python3 build_reader.py
-node validate_reader.mjs
-javac ConsistencyContracts.java
-java -ea ConsistencyContracts
-```
-
-The Markdown is canonical. `guide.html` is generated deterministically and embeds the exact Markdown bytes for synchronization checks.
-
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”
