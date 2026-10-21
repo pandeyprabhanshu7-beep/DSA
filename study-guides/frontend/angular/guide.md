@@ -9401,6 +9401,149 @@ The document validator can check payload identity, anchors, fences, links and re
 
 **Primary references (reviewed 2026-10-14):** Angular's [`NgZone` API](https://angular.dev/api/core/NgZone), [zoneless guide](https://angular.dev/guide/zoneless), [signals/computed guide](https://angular.dev/guide/signals), [slow-computation guide](https://angular.dev/best-practices/slow-computations), [dependency-injection services guide](https://angular.dev/guide/di/creating-and-using-services), [runtime-performance overview](https://angular.dev/best-practices/runtime-performance), and Angular Components' [CDK scrolling guide](https://github.com/angular/components/blob/main/src/cdk/scrolling/scrolling.md) and [`CdkVirtualScrollViewport` source](https://github.com/angular/components/blob/main/src/cdk/scrolling/virtual-scroll-viewport.ts); Angular's [server/hybrid-rendering and transfer-cache guide](https://angular.dev/guide/ssr), [DevTools overview](https://angular.dev/tools/devtools), [DevTools profiler](https://angular.dev/tools/devtools/profiler), [DevTools signal graph](https://angular.dev/tools/devtools/signals), [version compatibility](https://angular.dev/reference/versions), [Update Guide](https://angular.dev/update-guide), and [`ng update`](https://angular.dev/cli/update). The facade boundary, four examples, route/transfer table, trace, invariants, cost derivation and test design are added teaching material.
 
+<a id="final-revision"></a>
+## Final revision sheet — trigger, policy, proof
+
+The paired sources agree on the trigger map and 30-second speaking frame. Use the map to select a **policy**, then prove it with observable outcomes. Operator or API names without ownership, cancellation, security and cost boundaries are incomplete answers.
+
+### Requirements and response invariant
+
+1. Say the concurrency, ownership or freshness policy before naming an API.
+2. Trace at least one cancellation, duplicate, failure or hydration boundary.
+3. Separate client UX controls from authoritative server security.
+4. Name the dominant cost—DOM, derivation, network, scheduling or origin work—and verify that cost changed.
+5. Answer in this order: definition → why → mechanism → example → trade-off.
+
+### Example 1 — local state: derive with `computed`, bridge imperative APIs with `effect`
+
+```typescript
+readonly quantity = signal(2);
+readonly unitPrice = signal(12);
+readonly total = computed(() => this.quantity() * this.unitPrice());
+
+constructor() {
+  effect(() => localStorage.setItem('draftQuantity', String(this.quantity())));
+}
+```
+
+`total` is derived state, so `computed` gives it one owner and lazy memoization. The storage write is an imperative boundary, so an effect is appropriate. Do not copy `total` into another writable signal from an effect: that introduces a second source of truth and a propagation cycle. Trace: `quantity 2→3` invalidates `total`; the next read returns `36`; the effect eventually synchronizes `3` to storage.
+
+```mermaid
+flowchart LR
+  Q["quantity signal"] --> C["computed total"]
+  P["unitPrice signal"] --> C
+  Q --> E["effect"]
+  E --> I["imperative storage API"]
+```
+
+**Expected checks:** repeated `total()` reads without dependency changes do not recompute; changing either dependency recomputes once on the next read; storage failure is handled as boundary failure rather than corrupting derived state.
+
+### Example 2 — HTTP search: choose cancellation before `switchMap`
+
+```typescript
+readonly results$ = this.query.valueChanges.pipe(
+  map(value => value.trim()),
+  debounceTime(250),
+  distinctUntilChanged(),
+  switchMap(query => this.http.get<Result[]>('/api/search', {params: {query}}).pipe(
+    map(items => ({kind: 'ready' as const, items})),
+    catchError(error => of({kind: 'error' as const, error})),
+  )),
+  shareReplay({bufferSize: 1, refCount: true}),
+);
+```
+
+The policy is “a newer query replaces the older query.” `switchMap` unsubscribes the older Angular HTTP observable; sharing prevents overlapping view consumers from creating duplicate requests. It does not prove already-started origin work stopped, and it is not a retained domain cache. For parallel independent writes use bounded `mergeMap`; for ordered writes use `concatMap`; for double-submit suppression use `exhaustMap`; use `forkJoin` only when every finite input must complete, and `combineLatest` for continuing live values.
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant S as Search stream
+  participant A as API
+  U->>S: query A
+  S->>A: request A
+  U->>S: query AB
+  S--xA: unsubscribe A
+  S->>A: request AB
+  A-->>S: AB result
+  S-->>U: latest state
+```
+
+**Expected checks:** rapid `A→AB→ABC` exposes only `ABC`; two simultaneous consumers produce one request generation; inner failure keeps the outer query stream alive; removing the final consumer tears down the shared flight.
+
+### Example 3 — slow list: separate identity, DOM and derivation costs
+
+```html
+<cdk-virtual-scroll-viewport itemSize="48" class="viewport">
+  <order-row *cdkVirtualFor="let order of filtered(); trackBy: trackId"
+             [order]="order" />
+</cdk-virtual-scroll-viewport>
+```
+
+```typescript
+readonly filtered = computed(() => {
+  const needle = this.query().toLocaleLowerCase();
+  return this.orders().filter(order =>
+    order.customer.toLocaleLowerCase().includes(needle));
+});
+readonly trackId = (_: number, order: Order) => order.id;
+```
+
+Stable IDs preserve row/view identity; virtualization bounds live DOM near visible rows plus buffer; targeted reactive derivation avoids repeated template allocation. But the filter still scans O(`n`) records, all data remains in memory, and the original payload still crosses the network. If profiling shows those costs dominate, move filtering/paging to the server instead of claiming virtualization solved the system.
+
+```mermaid
+flowchart TD
+  A["Representative slow journey"] --> B{"Dominant evidence"}
+  B -->|"DOM / layout"| C["Virtualize + stable identity"]
+  B -->|"Derivation"| D["Computed / memoized owner"]
+  B -->|"Payload / origin"| E["Server paging or filtering"]
+  C --> F["Repeat same profile"]
+  D --> F
+  E --> F
+```
+
+**Expected checks:** 100,000 logical rows keep rendered nodes near the viewport budget; reorder/refetch preserves selection by business ID; profiling separately records filter time, DOM/layout time, heap and payload bytes.
+
+### Example 4 — SSR and security: hydrate equivalent UI, authorize every API request
+
+```typescript
+export const routes: Routes = [{
+  path: 'admin',
+  canActivate: [signedInGuard], // navigation UX only
+  loadComponent: () => import('./admin.page').then(m => m.AdminPage),
+}];
+
+// Server boundary: deny by default and verify principal + tenant + resource.
+http.authorizeHttpRequests(registry => registry
+  .requestMatchers('/api/admin/**').hasRole('ADMIN')
+  .anyRequest().authenticated());
+```
+
+A guard may hide or redirect a route, but a caller can bypass the router and call the API directly. The server remains authoritative. For SSR, server and browser must begin with equivalent Angular-owned DOM; defer browser-only scripts until a post-render boundary and keep request-specific state out of root singletons. Hydration reuses server DOM; incremental hydration delays interactivity for selected boundaries—it does not weaken authorization or data isolation.
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant G as Route guard
+  participant S as Server API
+  B->>G: navigate /admin
+  G-->>B: allow UX transition
+  B->>S: GET /api/admin/orders
+  S->>S: authenticate + authorize tenant/resource
+  S-->>B: 200 or deny
+  Note over B: Hydrate equivalent server DOM
+```
+
+**Expected checks:** direct API calls cannot bypass authorization; concurrent SSR requests cannot see each other's state; a server/client DOM mismatch fails the hydration test; browser-only libraries start after the documented render boundary and clean up on destroy.
+
+### Thirty-second answer card
+
+> **Definition:** name the concept. **Why:** state the problem and owner. **Mechanism:** state the policy before the API. **Example:** trace one success and one boundary. **Trade-off:** name cost, failure or legacy behavior.
+
+Modern Angular answers should lead; mention NgModules or ZoneJS only where enterprise behavior differs. This final sheet is an index into Q1–Q74, not a replacement for their proofs and examples.
+
+**Primary references (reviewed 2026-10-21):** Angular's [signals guide](https://angular.dev/guide/signals) and [effects guide](https://angular.dev/guide/signals/effect), [HTTP observable contract](https://angular.dev/guide/http/making-requests), [hydration guide](https://angular.dev/guide/hydration), [version and support schedule](https://angular.dev/reference/releases), [route guards](https://angular.dev/guide/routing/route-guards), and [runtime-performance guidance](https://angular.dev/best-practices/performance). The four examples, traces, tests and response invariant are added teaching material.
+
 <a id="exercise"></a>
 ## Integrated senior interview exercise
 
@@ -9448,5 +9591,5 @@ Place `/orders/:id` behind one public orders feature entry point. Keep order dom
 - Official Angular/RxJS rapid-fire items 11–20 material (reviewed 2026-10-14): Angular's [route loading strategies](https://angular.dev/guide/routing/loading-strategies), [customizing route behavior](https://angular.dev/guide/routing/customizing-route-behavior), [route guards](https://angular.dev/guide/routing/route-guards), [`FormGroup`](https://angular.dev/api/forms/FormGroup), [`FormArray`](https://angular.dev/api/forms/FormArray), [`ControlValueAccessor`](https://angular.dev/api/forms/ControlValueAccessor) and [`NG_VALUE_ACCESSOR`](https://angular.dev/api/forms/NG_VALUE_ACCESSOR); RxJS [`shareReplay`](https://rxjs.dev/api/operators/shareReplay), [`take`](https://rxjs.dev/api/operators/take), [`first`](https://rxjs.dev/api/operators/first), [`debounceTime`](https://rxjs.dev/api/operators/debounceTime), [`distinctUntilChanged`](https://rxjs.dev/api/operators/distinctUntilChanged), [`tap`](https://rxjs.dev/api/operators/tap), [`catchError`](https://rxjs.dev/api/operators/catchError), [`finalize`](https://rxjs.dev/api/operators/finalize), and the current [`shareReplay` source](https://github.com/ReactiveX/rxjs/blob/master/packages/rxjs/src/internal/operators/shareReplay.ts). Current contracts distinguish code preloading from activation, UX guards from authorization, cancellation from success, keyed and ordered form collections, and the model/view directions of a value accessor. The answer ladder, examples, trace, tests and costs are added teaching material; RxJS reset details remain package-version-sensitive.
 - Official Angular rapid-fire items 21–30 material (reviewed 2026-10-14): [HTTP interceptors](https://angular.dev/guide/http/interceptors), [HTTP client setup](https://angular.dev/guide/http/setup), [hydration](https://angular.dev/guide/hydration), [incremental hydration](https://angular.dev/guide/incremental-hydration), [NG0500](https://angular.dev/errors/NG0500), [application build system and HMR](https://angular.dev/tools/cli/build-system-migration), [strict template checking](https://angular.dev/tools/cli/template-typecheck), [component styling](https://angular.dev/guide/components/styling), [`ViewEncapsulation`](https://angular.dev/api/core/ViewEncapsulation), [`Renderer2`](https://angular.dev/api/core/Renderer2), [`NgZone`](https://angular.dev/api/core/NgZone), [zoneless](https://angular.dev/guide/zoneless) and [`afterNextRender`](https://angular.dev/api/core/afterNextRender). Current Angular 22.2.2 documentation defines functional interceptor order, exact-DOM hydration constraints, event replay, default incremental hydration with an explicit opt-out, builder-scoped HMR, template type checks, generated versus native style boundaries, imperative-renderer operations and scheduler-neutral explicit notifications. The ladder, examples, outcome matrix, trace, tests and costs are added teaching material.
 - Added explanations, examples, traces, cost derivations and diagrams are teaching material, not copied source prose.
-- **Next:** continue with the final bounded rapid-fire items 31–39 in both sources, beginning at Markdown line 1660 and DOCX extracted line 1098. Resolve the exact end-of-bank boundary before processing the following revision sheet, consolidate against the richer canonical chapters rather than duplicating them, and keep extending this one canonical guide.
+- **Source completion:** the Final Revision Sheet was compared in both sources (Markdown lines 1696–1751; DOCX extracted lines 1118–1177). The paired source is exhausted. Continue the wider queue without creating a duplicate Angular edition.
 

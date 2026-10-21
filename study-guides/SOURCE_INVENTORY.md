@@ -18,7 +18,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | database-caching-java | System design/data | PROMOTED | [`study-guides/databases/caching-java/`](databases/caching-java/) | database_internals_caching_java_master_guide.md |
 | cicd-cloud-kubernetes | DevOps/backend | PROMOTED | `study-guides/devops/cicd/` | cicd_aws_azure_teamcity_jenkins_guide.html<br>ai_cicd_spring_python_guides_complete.zip |
 | spring-ai-python-api | DevOps/backend | DISCOVERED | `study-guides/backend/spring-ai-python/` | ai_cicd_spring_python_guides_complete.zip<br>spring_ai_python_api_interview_guide.html |
-| angular | Frontend | IN_PROGRESS | `study-guides/frontend/angular/` | Angular_Interview_Mermaid_Workbook.md<br>Angular_Interview_Workbook.docx |
+| angular | Frontend | PROMOTED | `study-guides/frontend/angular/` | Angular_Interview_Mermaid_Workbook.md<br>Angular_Interview_Workbook.docx |
 | javascript-html-css | Frontend | PROMOTED | [`study-guides/frontend/javascript-html-css/`](frontend/javascript-html-css/) | JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md<br>JavaScript_HTML_CSS_Interview_Workbook.docx |
 | aws-networking | AWS/cloud | PROMOTED | `study-guides/aws/networking/` | Repository source or earlier analysis; locate as needed |
 | aws-master-course | AWS/cloud | NEEDS_SOURCE | `study-guides/aws/` | Repository source or earlier analysis; locate as needed |
@@ -53,7 +53,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md | 2026-09-08T00:10:00.856206Z | PROMOTED — canonical AI foundations/RAG/CAG base |
 | DSA_Graph_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.813753Z | DISCOVERED |
 | Advanced_Trees_FAANG_Mermaid_Study_Guide.md | 2026-09-08T00:10:00.813395Z | CORE PROCESSED — sections 3–10 promoted as focused modules; sections 1–2 merged into canonical Trees/BST cards; supplementary sections 11–15 remain inventory-only |
-| Angular_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.775386Z | IN PROGRESS — Q1–Q74 plus rapid-fire items 1–39 compared/promoted through lines 1660–1694; Final Revision Sheet starts at line 1696 and remains unprocessed |
+| Angular_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.775386Z | PROMOTED — Q1–Q74, rapid-fire items 1–39 and Final Revision Sheet processed through source end at line 1751 |
 | JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.753196Z | PROMOTED — Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet compared/promoted through source end at line 2041 |
 | DSA_Tree_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.743385Z | DISCOVERED |
 | DSA_Arrays_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.740223Z | DISCOVERED |
@@ -66,7 +66,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | Stack_Queue_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T05:33:07.971008Z | DISCOVERED |
 | DSA_Arrays_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T01:55:56.718502Z | DISCOVERED |
 | AI_RAG_CAG_Deep_Learning_Developer_Guide.docx | 2026-09-02T04:40:53.490553Z | READY — compared; two useful original figures retained |
-| Angular_Interview_Workbook.docx | 2026-08-31T14:40:43.673563Z | IN PROGRESS — Q1–Q74 plus rapid-fire items 1–39 compared/promoted through extracted lines 1098–1115; Final Revision Sheet starts at line 1118 and remains unprocessed |
+| Angular_Interview_Workbook.docx | 2026-08-31T14:40:43.673563Z | PROMOTED — Q1–Q74, rapid-fire items 1–39 and Final Revision Sheet processed through extracted source end at line 1177 |
 | JavaScript_HTML_CSS_Interview_Workbook.docx | 2026-08-31T14:40:39.905787Z | PROMOTED — corroborated Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet through rendered source end at line 1445 |
 | DSA_Graph_FAANG_Question_Workbook.docx | 2026-08-30T07:02:49.102302Z | DISCOVERED |
 | DSA_Tree_FAANG_Question_Workbook.docx | 2026-08-30T07:02:48.410227Z | DISCOVERED |
@@ -87,7 +87,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 - The AI-platform illustrated edition may hold useful material missing from a later master guide. Compare content; merge the best coverage in place.
 - Database internals, caching and Java connectivity are a distinct source, and arrays, advanced trees and frontend guides are newly enrolled topics.
 - The uploaded advanced-trees guide's core sections 1–10 are processed under [local project notes](local-project-notes/): Fenwick, lazy segment tree, trie, heap, B+ tree, B-tree, Red-Black Tree and AVL Tree are focused modules, while sections 1–2 improved canonical BT-1/BT-3 and BST-6/BST-7 in place. Supplementary sections 11–15 remain inventory-only rather than being treated as reviewed content.
-- Angular intake is in progress through Q74 plus rapid-fire items 1–39 from the paired Markdown/DOCX sources; its following Final Revision Sheet remains unprocessed. JavaScript/HTML/CSS intake now has one canonical [Markdown/HTML guide](frontend/javascript-html-css/) through Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet with executable examples. Its paired source is exhausted; continue consolidating rather than duplicating canonical answers.
+- Angular intake now has one canonical guide through Q74, rapid-fire items 1–39 and the Final Revision Sheet from both paired sources; that source pair is exhausted. JavaScript/HTML/CSS intake likewise covers Q1–Q72, rapid-fire items 1–32 and its Final Revision Sheet. Continue consolidating rather than duplicating canonical answers.
 - AI projects keep their code in existing repositories. Enroll technical explanations, setup, architecture and lessons here.
 - Missing AWS master-guide, cloud-comparison and Java/security source bytes remain NEEDS_SOURCE. Known topics are queued without pretending they were imported.
 - No personal resumes or unrelated private documents are enrolled. Source identifiers are retrieval references, not credentials.
