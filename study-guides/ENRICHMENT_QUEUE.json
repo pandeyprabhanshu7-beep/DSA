@@ -120,7 +120,11 @@
       "version_id": "1",
       "modified_at": "2026-09-11T21:27:10.870584Z",
       "size_bytes": 37445,
-      "status": "DISCOVERED"
+      "status": "IN_PROGRESS",
+      "last_read_at": "2026-10-21T11:02:39-04:00",
+      "sha256": "10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03",
+      "canonical_target": "study-guides/system-design/blueprints/guide.md",
+      "selection": "Library revision 1 was read directly. Blueprint 1, source lines 5-253, is promoted; Blueprints 2-5 remain queued."
     },
     {
       "name": "system_design_fundamentals_deep_research.md",
@@ -599,13 +603,26 @@
       "id": "system-design-blueprints",
       "domain": "System design/data",
       "canonical_target": "study-guides/system-design/blueprints/",
-      "target_exists": false,
-      "status": "DISCOVERED",
+      "target_exists": true,
+      "status": "IN_PROGRESS",
       "source_names": [
         "top_5_system_design_interview_blueprints.md"
       ],
-      "last_processed_at": null,
-      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "last_processed_at": "2026-10-21T11:02:39-04:00",
+      "processed_sections": [
+        "Blueprint 1: global video streaming — requirements and consistency, CDN/byte-hit arithmetic, entitlement and signed delivery, buffer-aware ABR, sequence-ordered progress, publication and failure evidence"
+      ],
+      "source_revision": {
+        "baseline_commit": "3fdd8b15594a440233169cb8e9504ff5cc9b858a",
+        "library_file_id": "libfile_787d49a6b3d08191a05765c530f781b3",
+        "file_id": "file_00000000214481fdb368917e2f9d55f1",
+        "version_id": "1",
+        "source_sha256": "10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03",
+        "canonical_sha256_after": "28114302e9d515af56b4fbe90761fca019e81246bf388520894dfbbbbc2ad007"
+      },
+      "last_successful_commit": "c9e6c714e51ec17aaf64acf8c6378601010dacdc",
+      "validation": "Java 17 source-file launch passed 13 scenario groups for capacity, origin exposure, ABR, progress ordering and invalid inputs. Deterministic reader generation passed exact 12850-byte payload equality, SHA-256 28114302e9d515af56b4fbe90761fca019e81246bf388520894dfbbbbc2ad007, 29 unique IDs, 2 search entries, local links/fragments, 14 balanced fences and 4 Mermaid sources. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
+      "next_action": "Rotate to DevOps/backend fairly. On the next blueprints turn, process Blueprint 2, Real-Time Ride-Hailing Service, source lines 254-459; Blueprints 3-5 remain queued.",
       "priority": 11
     },
     {
@@ -1053,15 +1070,16 @@
       "Database/caching Section 41: activity capacity arithmetic, tenant/user/time partitioning, tie-safe bucket pagination, hot-user shard fan-out and separate retention/failure/analytics policies",
       "Database/caching Section 42: seven-slot component contract, outbox acknowledgement/replay, cache-loader authority/lease ownership and connection-pool checkout/cleanup boundaries",
       "Database/caching Section 43: absolute-rate capacity, index read/write evidence, revision and membership publication, and pool/lease/transaction/network authority boundaries",
-      "AI platform Chapter 1: authority boundaries among prompting, RAG, fine-tuning and tool/MCP use"
+      "AI platform Chapter 1: authority boundaries among prompting, RAG, fine-tuning and tool/MCP use",
+      "System-design Blueprint 1: global video streaming contracts, four worked traces, executable Java and failure evidence"
     ],
-    "processed_section": "ai_platform_master_guide.html Chapter 1, Four things engineers often confuse (SHA-256 c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a), bounded by Chapter 2",
-    "validation": "The three resolved source artifacts were materialized and hashed; ZIP member listing and the bounded RAG/MCP Markdown were inspected, and the illustrated source was byte-identical to its bundle member. Java 17 source-file launch passed 14 scenario groups; standalone javac was unavailable. Deterministic reader generation passed exact 12814-character payload equality, SHA-256 e37b9b2d7f4f73cceec4ad9a6bb330f3e10fe5b22fe6f68f90b6e69a39fed31e, 30 unique IDs, 10 search entries, local links/fragments, 6 balanced fences and 4 Mermaid sources. Seven content files were atomically published with an expected-head guard. JSON and git diff checks passed; the live canonical Java-marker audit remains 170. Browser, assistive-technology and rendered Mermaid QA were not executed.",
-    "estimated_next_tokens": 8800,
-    "estimate_method": "Heuristic only for bounded Chapter 2 source review, current primary-reference reconciliation, examples, executable code, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "88619d316aea6a9a83391c77f472037f25eba955",
-    "last_processed_at": "2026-10-21T09:13:21-04:00",
-    "next_batch_decision": "Chapter 1 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Chapter 2 and rotate domains fairly."
+    "processed_section": "top_5_system_design_interview_blueprints.md Blueprint 1, Global Video Streaming Platform, source lines 5-253 (SHA-256 10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03), bounded by Blueprint 2",
+    "validation": "Library revision 1 was read and hashed. Java 17 source-file launch passed 13 scenario groups. Deterministic reader generation passed exact 12850-byte payload equality, SHA-256 28114302e9d515af56b4fbe90761fca019e81246bf388520894dfbbbbc2ad007, 29 unique IDs, 2 search entries, local links/fragments, 14 balanced fences and 4 Mermaid sources. Seven content files were atomically published with an expected-head guard. JSON and git diff checks passed; the live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
+    "estimated_next_tokens": 9000,
+    "estimate_method": "Heuristic only for one bounded DevOps/backend source comparison and enrichment pass with primary-reference, code, reader, validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "c9e6c714e51ec17aaf64acf8c6378601010dacdc",
+    "last_processed_at": "2026-10-21T11:02:39-04:00",
+    "next_batch_decision": "Blueprint 1 is the sole bounded section in this pass. Exact weekly/hourly quota percentages were not exposed. Rotate fairly to DevOps/backend; retain Blueprint 2 lines 254-459 as the next blueprints section."
   }
 }
 
