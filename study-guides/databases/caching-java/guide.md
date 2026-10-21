@@ -8557,6 +8557,162 @@ Accessed 2026-10-20.
 243. [Stripe — Idempotent requests](https://docs.stripe.com/api/idempotent_requests): safe request retries, stable keys and parameter-mismatch protection for external payment operations.
 244. [Debezium — Outbox Event Router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html): reliable state/event exchange, unique event identifiers and aggregate-key routing for committed outbox rows.
 
+# Section 40 — Design case C: reliable notification delivery {#section-40-reliable-notification-delivery}
+
+Reliable notification delivery begins by naming the fact that is guaranteed. An order service can atomically commit an order and an outbox record, but a broker acknowledgement does not prove that an email reached a mailbox, and provider acceptance does not prove that a person read it. Assume a peak of 5,000 order events/s while the email provider sustains 3,000/s. The product requires eventual email and in-app notification, retry of transient failures, no duplicate in-app rows, and an explicit state for uncertain email outcomes.
+
+## Example 157 — Model lifecycle boundaries instead of one misleading “sent” bit {#example-157-notification-lifecycle-boundaries}
+
+Record each observation separately: outbox committed, broker accepted, provider accepted, delivered, bounced, and user read. Each step belongs to a different authority. The database can prove the first fact; the broker, provider, recipient server, and product client supply later evidence.
+
+```java
+NotificationBoundary accepted = notificationBoundary(
+        NotificationStage.PROVIDER_ACCEPTED);
+assert accepted.durableApplicationFact();
+assert !accepted.provesHumanRead();
+
+NotificationBoundary delivered = notificationBoundary(
+        NotificationStage.DELIVERED);
+assert !delivered.provesHumanRead();
+
+NotificationBoundary read = notificationBoundary(NotificationStage.USER_READ);
+assert read.provesHumanRead();
+```
+
+The word “delivered” also needs a channel-specific definition. An email delivery event ordinarily means that the receiving mail server accepted the message; an in-app `USER_READ` event can mean that an authenticated client opened the notification. Neither is interchangeable with business-event acceptance.
+
+```mermaid
+flowchart TD
+    O["Order + outbox committed"] --> B["Broker accepted"]
+    B --> P["Provider accepted"]
+    P --> D["Recipient server delivered"]
+    D --> R["User read observed"]
+    P --> X["Bounce observed"]
+```
+
+Keep an append-only status history or monotonic state machine with provider event IDs. Late or repeated webhooks must not move `BOUNCED` or `DELIVERED` backward to `PROVIDER_ACCEPTED`.
+
+## Example 158 — Claim the in-app event and insert the notification in one transaction {#example-158-notification-inbox-deduplication}
+
+At-least-once delivery permits duplicates, so the consumer owns an inbox uniqueness key such as `(consumer_name, event_id)`. Claim the event and insert the in-app notification in the same transaction. Commit before acknowledging the broker.
+
+```sql
+WITH claimed AS (
+    INSERT INTO consumer_inbox(consumer_name, event_id, received_at)
+    VALUES (:consumer, :event_id, clock_timestamp())
+    ON CONFLICT DO NOTHING
+    RETURNING event_id
+)
+INSERT INTO in_app_notification(id, user_id, event_id, template_revision, payload)
+SELECT :notification_id, :user_id, event_id, :template_revision, :payload
+  FROM claimed;
+```
+
+```java
+InboxDelivery first = inboxDelivery(false, false);
+assert first.inboxClaimCommitted() && first.notificationInserted();
+
+InboxDelivery crashBeforeCommit = inboxDelivery(true, false);
+assert crashBeforeCommit.replayShouldApply();
+
+InboxDelivery lostAck = inboxDelivery(false, true);
+assert lostAck.notificationInserted();
+assert !lostAck.brokerAcked() && !lostAck.replayShouldApply();
+```
+
+```mermaid
+sequenceDiagram
+    participant Q as Broker
+    participant C as Consumer
+    participant D as Database
+    Q->>C: event E
+    C->>D: begin; claim E; insert notification
+    D-->>C: commit
+    C-->>Q: acknowledge E
+    Q->>C: redelivery after lost ack
+    C->>D: claim E conflicts; no second row
+```
+
+A crash before commit rolls back both writes and redelivery may apply them. A crash after commit but before acknowledgement causes redelivery, but the unique inbox claim makes the replay a no-op. This proves one durable in-app row, not exactly-once message transport.
+
+## Example 159 — Treat a timed-out external email send as unknown and reconcile {#example-159-email-unknown-outcome}
+
+The email provider call cannot be committed atomically with a local `processed = true` flag. Persist a stable attempt ID before the call and send it as the provider idempotency or metadata key when supported. If the connection times out, do not blindly mark success or issue an unrelated send. Query provider status, consume provider events, or place the attempt in a reconciliation queue.
+
+```java
+assert emailAction(false, false, false, false)
+        == EmailAction.SEND_WITH_STABLE_KEY;
+assert emailAction(true, false, false, false)
+        == EmailAction.RECONCILE;
+assert emailAction(true, true, true, false)
+        == EmailAction.COMPLETE_DELIVERED;
+assert emailAction(true, true, false, true)
+        == EmailAction.COMPLETE_BOUNCED;
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> READY
+    READY --> SUBMITTING: stable attempt id
+    SUBMITTING --> ACCEPTED: provider confirms
+    SUBMITTING --> UNKNOWN: timeout or disconnect
+    UNKNOWN --> ACCEPTED: status or event confirms
+    UNKNOWN --> READY: provider proves no acceptance
+    ACCEPTED --> DELIVERED: delivery event
+    ACCEPTED --> BOUNCED: bounce event
+```
+
+If the provider offers neither idempotent submission nor queryable status, document the residual duplicate-or-loss trade-off. Retrying favors eventual delivery but can duplicate; suppressing the retry can lose a notification. That is a product decision, not something a local boolean can solve.
+
+## Example 160 — Bound retries, measure backlog age, and separate immutable from fresh data {#example-160-notification-retry-backlog-freshness}
+
+At 5,000 incoming events/s and 3,000 provider submissions/s, backlog grows by 2,000/s, or 7.2 million events in one hour. Track both queue depth and age of the oldest transactional event. Separate transactional traffic from marketing traffic so a campaign cannot starve an order confirmation.
+
+```java
+NotificationLoadPlan overload = notificationLoadPlan(5_000, 3_000, 3_600);
+assert overload.backlogGrowthPerSecond() == 2_000;
+assert overload.backlogAfterWindow() == 7_200_000;
+assert overload.separatePriorities();
+
+assert retryAction(2, false, false) == RetryAction.BACKOFF_WITH_JITTER;
+assert retryAction(1, true, false) == RetryAction.TERMINAL_FAILURE;
+assert retryAction(1, false, true) == RetryAction.RECONCILIATION_REVIEW;
+```
+
+```mermaid
+flowchart TD
+    E["5,000 events/s"] --> T["Transactional queue"]
+    E --> M["Marketing queue"]
+    T --> G{"Failure class"}
+    G -->|transient| J["Bounded exponential backoff + jitter"]
+    G -->|permanent| F["Terminal failure + reason"]
+    G -->|ambiguous| U["Reconciliation review"]
+    J --> P["Provider: 3,000/s"]
+```
+
+Retry transient throttling and transport failures with capped exponential backoff plus jitter and a maximum attempt or age policy. Treat a malformed address as permanent. Treat an ambiguous submission separately from both: it needs reconciliation, not a normal retry loop.
+
+Template bodies are safe to cache by immutable revision. Preferences, suppression lists, and unsubscribe status are mutable safety inputs; resolve them at a freshness boundary appropriate to the channel, and require a fresh authoritative check when policy or law demands it. A durable outbox protects event creation, not stale consent decisions at send time.
+
+## What to say in an interview {#section-40-interview-answer}
+
+Use the memory line **name, claim, reconcile, drain**:
+
+- **name:** define outbox, broker, provider, delivery, bounce and read as different facts;
+- **claim:** make the inbox claim and in-app insert one local transaction, then acknowledge;
+- **reconcile:** persist a stable email attempt identity and resolve ambiguous provider outcomes explicitly; and
+- **drain:** bound retries, protect priority traffic, measure oldest age and keep suppression decisions fresh.
+
+### Primary references for Section 40 {#section-40-primary-references}
+
+Accessed 2026-10-21.
+
+245. [PostgreSQL 18 — `INSERT`](https://www.postgresql.org/docs/18/sql-insert.html): `ON CONFLICT DO NOTHING` and `RETURNING` semantics for a transactional inbox claim.
+246. [Debezium — Outbox Event Router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html): committed outbox records, event identity and aggregate routing.
+247. [Amazon SQS — At-least-once delivery](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html): duplicate delivery and idempotent consumer requirements.
+248. [Amazon SES — Event publishing](https://docs.aws.amazon.com/ses/latest/dg/monitor-sending-activity-using-notifications.html): distinct send, delivery, bounce, complaint and related provider events.
+249. [Amazon Builders' Library — Timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/): bounded retries, backoff and jitter under overload.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -8564,8 +8720,8 @@ Accessed 2026-10-20.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; lines **1984–2038**, “Read the Java component as six execution stories”; lines **2039–2102**, “Design case A: a multi-tenant publishing CMS”; and lines **2103–2169**, “Design case B: flash-sale inventory with one item left”
-- Deliberate continuation: Section 40 starts at source line **2170**; it remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; lines **1984–2038**, “Read the Java component as six execution stories”; lines **2039–2102**, “Design case A: a multi-tenant publishing CMS”; lines **2103–2169**, “Design case B: flash-sale inventory with one item left”; and lines **2170–2209**, “Design case C: reliable notification delivery”
+- Deliberate continuation: Section 41 begins at source line **2210** and ends at line **2253** before the Phase 9 heading at line **2254**; it remains unprocessed.
 
 Validation commands:
 

@@ -7046,6 +7046,175 @@ public final class ConsistencyContracts {
         assert !oversubscribed.conservesStock();
     }
 
+    private enum NotificationStage {
+        OUTBOX_COMMITTED,
+        BROKER_ACCEPTED,
+        PROVIDER_ACCEPTED,
+        DELIVERED,
+        BOUNCED,
+        USER_READ,
+        UNKNOWN
+    }
+
+    private record NotificationBoundary(
+            NotificationStage stage,
+            boolean durableApplicationFact,
+            boolean provesHumanRead) {}
+
+    private record InboxDelivery(
+            boolean inboxClaimCommitted,
+            boolean notificationInserted,
+            boolean brokerAcked,
+            boolean replayShouldApply) {}
+
+    private enum EmailAction {
+        SEND_WITH_STABLE_KEY,
+        RECONCILE,
+        WAIT_FOR_PROVIDER_EVENT,
+        COMPLETE_DELIVERED,
+        COMPLETE_BOUNCED
+    }
+
+    private enum RetryAction {
+        ATTEMPT_NOW,
+        BACKOFF_WITH_JITTER,
+        TERMINAL_FAILURE,
+        RECONCILIATION_REVIEW
+    }
+
+    private record NotificationLoadPlan(
+            long incomingPerSecond,
+            long providerPerSecond,
+            long backlogGrowthPerSecond,
+            long backlogAfterWindow,
+            boolean separatePriorities) {}
+
+    private static NotificationBoundary notificationBoundary(
+            NotificationStage stage) {
+        return new NotificationBoundary(
+                stage,
+                stage != NotificationStage.UNKNOWN,
+                stage == NotificationStage.USER_READ);
+    }
+
+    private static InboxDelivery inboxDelivery(
+            boolean crashBeforeCommit,
+            boolean crashAfterCommitBeforeAck) {
+        if (crashBeforeCommit) {
+            return new InboxDelivery(false, false, false, true);
+        }
+        return new InboxDelivery(
+                true,
+                true,
+                !crashAfterCommitBeforeAck,
+                false);
+    }
+
+    private static EmailAction emailAction(
+            boolean localAttemptExists,
+            boolean providerOutcomeKnown,
+            boolean delivered,
+            boolean bounced) {
+        if (!localAttemptExists) {
+            return EmailAction.SEND_WITH_STABLE_KEY;
+        }
+        if (!providerOutcomeKnown) {
+            return EmailAction.RECONCILE;
+        }
+        if (delivered) {
+            return EmailAction.COMPLETE_DELIVERED;
+        }
+        if (bounced) {
+            return EmailAction.COMPLETE_BOUNCED;
+        }
+        return EmailAction.WAIT_FOR_PROVIDER_EVENT;
+    }
+
+    private static RetryAction retryAction(
+            int attempt,
+            boolean permanentFailure,
+            boolean ambiguousOutcome) {
+        if (permanentFailure) {
+            return RetryAction.TERMINAL_FAILURE;
+        }
+        if (ambiguousOutcome) {
+            return RetryAction.RECONCILIATION_REVIEW;
+        }
+        return attempt == 0
+                ? RetryAction.ATTEMPT_NOW
+                : RetryAction.BACKOFF_WITH_JITTER;
+    }
+
+    private static NotificationLoadPlan notificationLoadPlan(
+            long incomingPerSecond,
+            long providerPerSecond,
+            long seconds) {
+        if (incomingPerSecond < 0 || providerPerSecond < 0 || seconds < 0) {
+            throw new IllegalArgumentException("notification load inputs");
+        }
+        long growth = Math.max(0, incomingPerSecond - providerPerSecond);
+        return new NotificationLoadPlan(
+                incomingPerSecond,
+                providerPerSecond,
+                growth,
+                Math.multiplyExact(growth, seconds),
+                true);
+    }
+
+    private static void notificationBoundaryScenarios() {
+        NotificationBoundary accepted = notificationBoundary(
+                NotificationStage.PROVIDER_ACCEPTED);
+        assert accepted.durableApplicationFact();
+        assert !accepted.provesHumanRead();
+
+        NotificationBoundary delivered = notificationBoundary(
+                NotificationStage.DELIVERED);
+        assert !delivered.provesHumanRead();
+
+        NotificationBoundary read = notificationBoundary(
+                NotificationStage.USER_READ);
+        assert read.provesHumanRead();
+    }
+
+    private static void notificationInboxScenarios() {
+        InboxDelivery first = inboxDelivery(false, false);
+        assert first.inboxClaimCommitted();
+        assert first.notificationInserted();
+        assert first.brokerAcked();
+
+        InboxDelivery crashBeforeCommit = inboxDelivery(true, false);
+        assert !crashBeforeCommit.notificationInserted();
+        assert crashBeforeCommit.replayShouldApply();
+
+        InboxDelivery lostAck = inboxDelivery(false, true);
+        assert lostAck.notificationInserted();
+        assert !lostAck.brokerAcked();
+        assert !lostAck.replayShouldApply();
+    }
+
+    private static void notificationExternalOutcomeScenarios() {
+        assert emailAction(false, false, false, false)
+                == EmailAction.SEND_WITH_STABLE_KEY;
+        assert emailAction(true, false, false, false)
+                == EmailAction.RECONCILE;
+        assert emailAction(true, true, true, false)
+                == EmailAction.COMPLETE_DELIVERED;
+        assert emailAction(true, true, false, true)
+                == EmailAction.COMPLETE_BOUNCED;
+    }
+
+    private static void notificationRetryCapacityScenarios() {
+        NotificationLoadPlan overload = notificationLoadPlan(5_000, 3_000, 3_600);
+        assert overload.backlogGrowthPerSecond() == 2_000;
+        assert overload.backlogAfterWindow() == 7_200_000;
+        assert overload.separatePriorities();
+
+        assert retryAction(0, false, false) == RetryAction.ATTEMPT_NOW;
+        assert retryAction(2, false, false) == RetryAction.BACKOFF_WITH_JITTER;
+        assert retryAction(1, true, false) == RetryAction.TERMINAL_FAILURE;
+        assert retryAction(1, false, true) == RetryAction.RECONCILIATION_REVIEW;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -7206,7 +7375,11 @@ public final class ConsistencyContracts {
         flashSaleAtomicReservationScenarios();
         flashSalePaymentExpiryScenarios();
         flashSaleTokenConservationScenarios();
-        System.out.println("PASS 156 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract, CMS traffic arithmetic, CMS publish transaction, CMS read policy, CMS layer collapse, flash-sale admission, atomic reservation, payment-expiry state race, stock-token conservation");
+        notificationBoundaryScenarios();
+        notificationInboxScenarios();
+        notificationExternalOutcomeScenarios();
+        notificationRetryCapacityScenarios();
+        System.out.println("PASS 160 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract, CMS traffic arithmetic, CMS publish transaction, CMS read policy, CMS layer collapse, flash-sale admission, atomic reservation, payment-expiry state race, stock-token conservation, notification lifecycle boundaries, transactional inbox dedupe, external email reconciliation, notification retry and backlog policy");
     }
 }
 
