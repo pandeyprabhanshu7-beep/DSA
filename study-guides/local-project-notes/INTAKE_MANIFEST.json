@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "53daf8321af08123429939198acb2d2d8f73d857",
+  "last_successful_commit": "6d5256ee9bc7bfabd21e38706deb347ef7195116",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -866,19 +866,19 @@
     "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
     "source_version_id": "1",
     "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-    "section": "Section 38 only: source lines 2039-2102, bounded by the Section 39 heading at line 2103",
+    "section": "Section 39 only: source lines 2103-2169, bounded by the Section 40 heading at line 2170",
     "status": "QUEUED",
-    "estimated_tokens": 9000,
-    "estimate_method": "Heuristic only: reserve ~1200 tokens to review bounded Section 38, ~1800 for primary-reference reconciliation, ~3800 for deep examples/Java/HTML, and ~2200 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 9200,
+    "estimate_method": "Heuristic only: reserve ~1300 tokens to review bounded Section 39, ~1800 for primary-reference reconciliation, ~3900 for deep examples/Java/HTML, and ~2200 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
     "java": "Java 17 jdk.compiler module compiled TreeTraversalMoments and its independent harness; TreeTraversalMomentsCheck passed 376980 assertions covering empty, singleton, branched and skewed examples plus 10000 seeded random trees compared with independent iterative preorder/inorder/postorder/BFS/height oracles and identity-based reachability validation.",
     "javascript": "Node v24.19.0 executed examples.mjs; all 70 scenario groups passed, including four new final-revision diagnosis and speaking-frame assertions.",
     "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 206630-character embedded payload equality, 77 unique anchors, 151 balanced fences, 54 Mermaid diagrams, inline JavaScript, fragment targets, relative links, JSON syntax, and the live 170-marker Java-placeholder invariant passed. All six content-commit remote blob hashes matched; no commit statuses or check runs were configured. Browser and assistive-technology integration plus Mermaid visual QA were not executed.",
-    "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Sections 1-37 reader now has 152 validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
-    "database": "Exact source lines 1984-2038 were bounded by the Section 38 heading and expanded into four current primary-reference-backed cache-component execution stories for typed first-probe envelopes and metrics, owner-safe miss coalescing, separate Redis/database failure paths and lease-expiry behavior under immutable versus mutable contracts. Java 17 source launch passed all 148 deterministic scenario groups. Deterministic reader generation passed exact 512396-character Markdown payload equality, source SHA-256 5b0b73db8e286a50422644fa40d52dc6ffe057140fb820adb72cf4c156853da4, 1937 unique HTML IDs, 322 search entries, fragments, allowed relative links, 320 balanced fences and 152 Mermaid sources. All five content-commit remote blob hashes matched. Standalone javac, production Redis/database integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
-    "last_processed_at": "2026-10-20T18:07:50-04:00"
+    "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Sections 1-38 reader now has 156 validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
+    "database": "Exact source lines 2039-2102 were bounded by the Section 39 heading and expanded into four current primary-reference-backed multi-tenant CMS design labs for layered traffic arithmetic, an optimistic pointer-plus-outbox publish transaction, separate public/editor read and cache policies, and independent CDN/Redis collapse budgets. Java 17 source launch passed all 152 deterministic scenario groups. Deterministic reader generation passed exact 523438-character Markdown payload equality, source SHA-256 9180ce718782514216c54bb41754e961b400b0f988dd65193e6e341e2a826fcf, 1998 unique HTML IDs, 329 search entries, fragments, allowed relative links, 329 balanced fences and 156 Mermaid sources. All five content-commit remote blob hashes matched. Standalone javac, production PostgreSQL/Redis/CDN/outbox integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
+    "last_processed_at": "2026-10-20T21:53:45-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-14T16:16:21-04:00",
@@ -905,18 +905,18 @@
     "estimate_method": "Heuristic for bounded database-source verification, targeted primary-source refresh, deep consolidation/HTML and validation/checkpoint reserves; not actual quota percentage"
   },
   "database_caching_java_intake_checkpoint": {
-    "last_processed_at": "2026-10-20T18:07:50-04:00",
+    "last_processed_at": "2026-10-20T21:53:45-04:00",
     "source_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
     "source_library_file_id": "libfile_969515775294819195d90fe08e46b7be",
     "source_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
     "source_version_id": "1",
-    "processed": "Sections 1-37 through source lines 62-2038; latest bounded section is lines 1984-2038 and adds typed first-probe envelopes and metrics, owner-safe miss coalescing, separate Redis/database failure paths and lease-expiry behavior under immutable versus mutable contracts.",
+    "processed": "Sections 1-38 through source lines 62-2102; latest bounded section is lines 2039-2102 and adds layered CMS traffic arithmetic, an optimistic pointer-plus-outbox publish transaction, separate public/editor read policies and independent CDN/Redis collapse budgets.",
     "status": "IN_PROGRESS",
-    "validation": "Exact source lines 1984-2038 were bounded by the Section 38 heading and expanded into four current primary-reference-backed cache-component execution stories for typed first-probe envelopes and metrics, owner-safe miss coalescing, separate Redis/database failure paths and lease-expiry behavior under immutable versus mutable contracts. Java 17 source launch passed all 148 deterministic scenario groups. Deterministic reader generation passed exact 512396-character Markdown payload equality, source SHA-256 5b0b73db8e286a50422644fa40d52dc6ffe057140fb820adb72cf4c156853da4, 1937 unique HTML IDs, 322 search entries, fragments, allowed relative links, 320 balanced fences and 152 Mermaid sources. All five content-commit remote blob hashes matched. Standalone javac, production Redis/database integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
-    "content_commit": "53daf8321af08123429939198acb2d2d8f73d857",
-    "next_section": "Section 38, source lines 2039-2102, bounded by the Section 39 heading at line 2103",
-    "estimated_next_tokens": 9000,
-    "estimate_method": "Heuristic for bounded Section 38 source review, primary-reference reconciliation, examples/Java/HTML and validation/checkpoint reserves; not actual quota percentage"
+    "validation": "Exact source lines 2039-2102 were bounded by the Section 39 heading and expanded into four current primary-reference-backed multi-tenant CMS design labs for layered traffic arithmetic, an optimistic pointer-plus-outbox publish transaction, separate public/editor read and cache policies, and independent CDN/Redis collapse budgets. Java 17 source launch passed all 152 deterministic scenario groups. Deterministic reader generation passed exact 523438-character Markdown payload equality, source SHA-256 9180ce718782514216c54bb41754e961b400b0f988dd65193e6e341e2a826fcf, 1998 unique HTML IDs, 329 search entries, fragments, allowed relative links, 329 balanced fences and 156 Mermaid sources. All five content-commit remote blob hashes matched. Standalone javac, production PostgreSQL/Redis/CDN/outbox integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
+    "content_commit": "6d5256ee9bc7bfabd21e38706deb347ef7195116",
+    "next_section": "Section 39, source lines 2103-2169, bounded by the Section 40 heading at line 2170",
+    "estimated_next_tokens": 9200,
+    "estimate_method": "Heuristic for bounded Section 39 source review, primary-reference reconciliation, examples/Java/HTML and validation/checkpoint reserves; not actual quota percentage"
   }
 }
 
