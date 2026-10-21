@@ -9034,6 +9034,179 @@ Accessed 2026-10-21.
 258. [Amazon SQS — Available CloudWatch metrics](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-available-cloudwatch-metrics.html): visible backlog, in-flight work and oldest-unprocessed-message age semantics.
 259. [OpenTelemetry — Messaging client metrics](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-metrics/): separate send, receive, process and acknowledgement operation measurements; these conventions are currently marked Development.
 
+# Section 43 — Ten debugging exercises, four falsifiable diagnoses {#section-43-debugging-exercises}
+
+The source exercises share one discipline: begin with the failed invariant and measured boundary, not the component whose name is most visible in the incident. The four labs below preserve all ten prompts while grouping related failure modes into executable decisions.
+
+## Example 169 — Convert ratios and durability claims into rates {#example-169-absolute-rate-diagnosis}
+
+A **99% cache hit ratio** sounds healthy until traffic is attached to it. At 100,000 requests/s, the remaining 1% is 1,000 database reads/s. If the database has only 500 safe reads/s of headroom, the cache is still an overload amplifier. Likewise, a durable queue can retain every message while its service rate falls behind arrivals: 5,000 arrivals/s minus 3,000 completions/s grows the backlog by 2,000/s, or 7.2 million messages/hour.
+
+```java
+CapacityDiagnosis diagnosis = capacityDiagnosis(
+        100_000, 0.99, 500,
+        5_000, 3_000);
+assert Math.abs(diagnosis.missRequestsPerSecond() - 1_000.0) < 0.001;
+assert Math.abs(diagnosis.databaseHeadroomPerSecond() + 500.0) < 0.001;
+assert diagnosis.databaseOverloaded();
+assert diagnosis.queueGrowthPerSecond() == 2_000;
+assert diagnosis.queueGrowthPerHour() == 7_200_000;
+assert diagnosis.queueUnstable();
+```
+
+| Trace | Calculation | Decision |
+|---|---:|---|
+| Cache misses | `100,000 × (1 − 0.99) = 1,000/s` | 500/s above safe database headroom; reduce miss rate, shed load, or add proven capacity |
+| Queue deficit | `5,000 − 3,000 = 2,000/s` | Durable but unstable; the oldest-message age will keep rising |
+| One-hour growth | `2,000 × 3,600 = 7,200,000` | Storage durability cannot satisfy a delivery-latency SLO |
+
+```mermaid
+flowchart TD
+    R["Requests or arrivals"] --> X["Convert ratio to absolute rate"]
+    X --> C{"Rate <= safe service?"}
+    C -->|yes| H["Check latency and distribution"]
+    C -->|no| B["Backlog or overload grows"]
+    B --> A["Apply admission, capacity, or demand fix"]
+```
+
+For caches, break down misses by key class, tenant, cold start and dependency cost; one expensive 1% is not equivalent to a cheap, uniform 1%. For queues, inspect arrival rate, successful service rate, retries, provider quotas, priority starvation and oldest pending age. Depth alone lacks the time dimension needed to prove the delivery SLO.
+
+## Example 170 — Treat every index as a measured read/write trade {#example-170-index-evidence}
+
+An index creates another ordered structure that must stay synchronized with the table. It may add index tuples, WAL, dirty pages, page splits, cache pressure and—in LSM-style engines—future compaction. A covering PostgreSQL index can still visit the heap because MVCC visibility is stored in the heap; an index-only scan avoids that visit only when the visibility map says the page is all-visible.
+
+```java
+IndexEvidence useful = indexEvidence(
+        200, 8,      // read queries/s, milliseconds saved per read
+        50, 2,       // writes/s, milliseconds added per write
+        0, 10_000);  // heap fetches, rows returned
+assert useful.readMillisSavedPerSecond() == 1_600;
+assert useful.writeMillisAddedPerSecond() == 100;
+assert useful.benefitExceedsWriteCost();
+
+IndexEvidence heapBound = indexEvidence(10, 2, 400, 1, 8_000, 10_000);
+assert !heapBound.benefitExceedsWriteCost();
+assert heapBound.inspectVisibilityMaintenance();
+```
+
+| Evidence | Before | After | Interpretation |
+|---|---:|---:|---|
+| Read time saved per second | 0 ms | 1,600 ms | Material benefit for the measured read shape |
+| Write time added per second | 0 ms | 100 ms | Accept only inside the write-latency and WAL budget |
+| `Heap Fetches` for 10,000 returned rows | 8,000 | 0 in the good trace | High fetches point to page visibility/churn, not a missing included column by itself |
+
+```mermaid
+flowchart TD
+    Q["Captured query + write workload"] --> P["Compare plans and latency"]
+    P --> W["Measure WAL, write latency, size"]
+    W --> V["Inspect Heap Fetches + vacuum visibility"]
+    V --> D{"Net benefit within budgets?"}
+    D -->|yes| K["Keep and monitor"]
+    D -->|no| E["Drop or redesign"]
+```
+
+Do not infer causality from “the write slowed after the index.” Compare a representative mixed workload, buffer state and write amplification before and after. For an index-only plan that still fetches heap tuples, inspect update churn, autovacuum progress and visibility-map coverage; the access method cannot prove visibility from index contents alone.
+
+## Example 171 — Trace publication by revision, and make membership completeness explicit {#example-171-publication-lifecycle}
+
+When half the nodes serve an old article, record the required revision and the revision observed at every layer: origin pointer, database row, shared cache, local cache, CDN and browser. Age alone is ambiguous; a revision turns “stale” into a falsifiable mismatch. The same publication boundary applies to Bloom filters: a Bloom filter has no false negatives only relative to the set successfully inserted into that particular filter snapshot. If a newly created customer has not reached the snapshot, an “absent” result is not authoritative.
+
+```java
+PublicationDiagnosis staleLayer = publicationDiagnosis(42, 41, true, false);
+assert staleLayer.action() == PublicationAction.RELOAD_FROM_AUTHORITY;
+
+PublicationDiagnosis incompleteBloom = publicationDiagnosis(42, 42, false, true);
+assert incompleteBloom.action() == PublicationAction.FAIL_OPEN_MEMBERSHIP_CHECK;
+
+PublicationDiagnosis fresh = publicationDiagnosis(42, 42, true, false);
+assert fresh.action() == PublicationAction.SERVE_MATCHING_REVISION;
+```
+
+| Probe | Observed fact | Safe conclusion |
+|---|---|---|
+| Origin pointer says `r42`; node-local cache says `r41` | Revision mismatch at the local layer | Bypass/evict that entry and load the required revision |
+| CDN says `r42`; browser says `r41` | Shared publication succeeded; client revalidation did not | Inspect response cache directives, validator and request path |
+| Bloom snapshot watermark is before customer creation | Snapshot is incomplete for that customer | Fail open to the authoritative store; repair/rebuild the filter |
+
+```mermaid
+flowchart TD
+    C["Commit entity/article revision"] --> O["Publish authoritative pointer"]
+    O --> M["Advance membership snapshot watermark"]
+    O --> S["Shared cache/CDN r42"]
+    S --> L["Local/browser cache with revision"]
+    M --> G{"Snapshot covers creation?"}
+    G -->|no| F["Fail open to authority"]
+    G -->|yes| U["Use Bloom result as hint"]
+```
+
+For the article incident, correlate invalidation/event IDs, revision keys and refill times; a late fill must not overwrite a newer revision. For membership, publish new members to the filter before enabling rejection, or version the filter and its completeness watermark. A Bloom filter is an optimization hint, never a substitute for proving that the indexed set is complete.
+
+## Example 172 — Authority expires at pool, lease, transaction and network boundaries {#example-172-authority-boundaries}
+
+Four misleading correlations become simpler once authority is named:
+
+1. A 20-connection pool with only five slow queries can still be full because connections reside in application work, idle transactions, lock waits, leaked handles, proxy queues or another workload sharing the pool.
+2. A six-second load under a five-second lease is no longer the sole owner. Owner checking protects cache publication; a business write needs a monotonically increasing fencing token enforced by the downstream authority.
+3. A Serializable transaction may retry. Sending email outside its database transaction can therefore repeat even when the database outcome is correct; commit an outbox row and make external delivery idempotent/reconcilable.
+4. HikariCP normally does not retire an in-use connection merely because `maxLifetime` elapsed. A report failing at a similar duration points first to database, proxy, socket/query timeout, network or failover evidence—not elapsed-time coincidence.
+
+```java
+assert poolResidencyDiagnosis(20, 5, 20)
+        == BoundaryAction.INVESTIGATE_NON_QUERY_RESIDENCY;
+assert leaseExpiryDiagnosis(6_000, 5_000, false)
+        == BoundaryAction.RETURN_WITHOUT_PUBLICATION;
+assert leaseExpiryDiagnosis(6_000, 5_000, true)
+        == BoundaryAction.REQUIRE_FENCED_BUSINESS_WRITE;
+assert serializableSideEffectDiagnosis(false)
+        == BoundaryAction.MOVE_SIDE_EFFECT_TO_OUTBOX;
+assert connectionLifetimeDiagnosis(true, true, false)
+        == BoundaryAction.INVESTIGATE_DATABASE_PROXY_OR_NETWORK;
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Application
+    participant P as Pool/lease
+    participant D as Database
+    participant O as Outbox/authority
+    A->>P: borrow or acquire token
+    P-->>A: bounded temporary authority
+    A->>D: transaction may wait or retry
+    D-->>A: commit or serialization failure
+    A->>O: commit intent inside transaction
+    Note over A,P: elapsed pool/lease time never proves downstream authority
+```
+
+| Symptom | Evidence to collect | Boundary-preserving response |
+|---|---|---|
+| Pool full, five queries slow | Checkout wait, connection residency, transaction state, locks, leak traces, proxy/database sessions | Find where the other 15 leases reside before enlarging the pool |
+| Task exceeds lease | Token, acquisition/expiry times, owner-checked publish result, downstream fence | Do not publish as owner; enforce a fence on mutable writes |
+| Two emails after Serializable retry | Transaction attempts, outbox event ID, provider idempotency/reconciliation state | Keep the side-effect intent transactional; deduplicate externally |
+| Report fails near `maxLifetime` | Pool eviction log, SQLSTATE, database/proxy timeout, socket exception, failover event | Diagnose the layer that terminated the in-use work |
+
+## Exercise review checklist {#section-43-review-checklist}
+
+- Turn percentages into absolute arrival, miss, service and deficit rates.
+- Compare index read savings with write amplification and actual plan evidence.
+- Carry revision IDs and publication watermarks across every cache or membership layer.
+- Distinguish temporary coordination ownership from authoritative business-write permission.
+- Put non-transactional side effects behind a durable, idempotent boundary.
+- Treat equal durations as a correlation to test, not proof of a shared timeout control.
+
+### Primary references for Section 43 {#section-43-primary-references}
+
+Accessed 2026-10-21.
+
+260. [PostgreSQL 18 — Indexes: introduction](https://www.postgresql.org/docs/18/indexes-intro.html): index synchronization adds DML overhead, and seldom-used indexes should be removed.
+261. [PostgreSQL 18 — Index-only scans and covering indexes](https://www.postgresql.org/docs/18/indexes-index-only-scans.html): MVCC visibility, heap visits and the all-visible visibility-map condition.
+262. [PostgreSQL 18 — Transaction isolation](https://www.postgresql.org/docs/18/transaction-iso.html): Serializable transactions can fail and require whole-transaction retry.
+263. [Redis — Distributed locks](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/): lease expiry, owner-token release and the need for fencing tokens for long-running work.
+264. [Debezium — Outbox Event Router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html): transactionally stored side-effect intent, stable event IDs and aggregate-key routing.
+265. [HikariCP — Configuration reference](https://github.com/brettwooldridge/HikariCP#frequently-used): `maxLifetime` retirement behavior and connection timeout controls.
+266. [IETF RFC 9111 — HTTP Caching](https://www.rfc-editor.org/rfc/rfc9111): cache keys, freshness, validators and private/shared cache layers.
+267. [Redis — Bloom filters](https://redis.io/docs/latest/develop/data-types/probabilistic/bloom-filter/): probabilistic membership behavior and insertion/check operations.
+268. [Amazon SQS — Available CloudWatch metrics](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-available-cloudwatch-metrics.html): visible backlog, in-flight work and oldest-message age semantics.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -9041,8 +9214,8 @@ Accessed 2026-10-21.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; lines **1984–2038**, “Read the Java component as six execution stories”; lines **2039–2102**, “Design case A: a multi-tenant publishing CMS”; lines **2103–2169**, “Design case B: flash-sale inventory with one item left”; lines **2170–2209**, “Design case C: reliable notification delivery”; lines **2210–2253**, “Design case D: a large activity-history service”; and lines **2256–2269**, “How to explain a subcomponent in an interview”
-- Deliberate continuation: Section 43 begins at source line **2270** and ends at line **2328**, bounded by the Section 44 heading at line **2329**; it remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; lines **1984–2038**, “Read the Java component as six execution stories”; lines **2039–2102**, “Design case A: a multi-tenant publishing CMS”; lines **2103–2169**, “Design case B: flash-sale inventory with one item left”; lines **2170–2209**, “Design case C: reliable notification delivery”; lines **2210–2253**, “Design case D: a large activity-history service”; lines **2256–2269**, “How to explain a subcomponent in an interview”; and lines **2270–2328**, “Exercises with expected reasoning”
+- Deliberate continuation: Section 44 begins at source line **2329** and runs through line **2402**, the end of the confirmed source; it remains unprocessed.
 
 Validation commands:
 

@@ -4,7 +4,7 @@
 - [Responsive searchable HTML](guide.html)
 - [Executable Java 17 scenarios](ConsistencyContracts.java)
 
-This topic is **in progress**. Sections 1–42 are promoted from confirmed Library source ranges through lines 62–2269. Section 42 adds four interview-explanation labs: a seven-slot contract lint, an outbox-relay acknowledgement trace, a cache-loader ownership trace, and a connection-pool checkout/cleanup trace. The next bounded section is Section 43, source lines 2270–2328, bounded by the Section 44 heading at line 2329.
+This topic is **in progress**. Sections 1–43 are promoted from confirmed Library source ranges through lines 62–2328. Section 43 turns ten debugging exercises into four falsifiable labs covering absolute-rate capacity, index evidence, revision/publication lifecycle, and pool/lease/transaction/network authority boundaries. The next bounded section is Section 44, source lines 2329–2402, which reaches the end of the confirmed source.
 
 Run `python3 build_reader.py`, `node validate_reader.mjs`, `javac ConsistencyContracts.java`, and `java -ea ConsistencyContracts` after changing this module. Markdown is canonical; the generated HTML embeds the exact Markdown bytes.
 

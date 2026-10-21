@@ -7452,6 +7452,42 @@ public final class ConsistencyContracts {
             long acquisitionBudgetMillis,
             PoolInterviewOutcome outcome) {}
 
+    private record CapacityDiagnosis(
+            double missRequestsPerSecond,
+            double databaseHeadroomPerSecond,
+            long queueGrowthPerSecond,
+            long queueGrowthPerHour,
+            boolean databaseOverloaded,
+            boolean queueUnstable) {}
+
+    private record IndexEvidence(
+            long readMillisSavedPerSecond,
+            long writeMillisAddedPerSecond,
+            long heapFetches,
+            long returnedRows,
+            boolean benefitExceedsWriteCost,
+            boolean inspectVisibilityMaintenance) {}
+
+    private enum PublicationAction {
+        SERVE_MATCHING_REVISION,
+        RELOAD_FROM_AUTHORITY,
+        FAIL_OPEN_MEMBERSHIP_CHECK
+    }
+
+    private record PublicationDiagnosis(
+            long requiredRevision,
+            long observedRevision,
+            boolean membershipSnapshotComplete,
+            PublicationAction action) {}
+
+    private enum BoundaryAction {
+        INVESTIGATE_NON_QUERY_RESIDENCY,
+        RETURN_WITHOUT_PUBLICATION,
+        REQUIRE_FENCED_BUSINESS_WRITE,
+        MOVE_SIDE_EFFECT_TO_OUTBOX,
+        INVESTIGATE_DATABASE_PROXY_OR_NETWORK
+    }
+
     private static List<String> explanationGaps(ComponentExplanation explanation) {
         Objects.requireNonNull(explanation, "explanation");
         List<String> gaps = new ArrayList<>();
@@ -7568,6 +7604,114 @@ public final class ConsistencyContracts {
                 outcome);
     }
 
+    private static CapacityDiagnosis capacityDiagnosis(
+            long requestsPerSecond,
+            double hitRatio,
+            long safeDatabaseReadsPerSecond,
+            long queueArrivalsPerSecond,
+            long queueServicePerSecond) {
+        if (requestsPerSecond < 0 || hitRatio < 0 || hitRatio > 1
+                || safeDatabaseReadsPerSecond < 0 || queueArrivalsPerSecond < 0
+                || queueServicePerSecond < 0) {
+            throw new IllegalArgumentException("capacity diagnosis inputs");
+        }
+        double misses = requestsPerSecond * (1.0 - hitRatio);
+        long growth = Math.max(0, queueArrivalsPerSecond - queueServicePerSecond);
+        return new CapacityDiagnosis(
+                misses,
+                safeDatabaseReadsPerSecond - misses,
+                growth,
+                Math.multiplyExact(growth, 3_600),
+                misses > safeDatabaseReadsPerSecond,
+                queueArrivalsPerSecond > queueServicePerSecond);
+    }
+
+    private static IndexEvidence indexEvidence(
+            long readQueriesPerSecond,
+            long millisSavedPerRead,
+            long writesPerSecond,
+            long millisAddedPerWrite,
+            long heapFetches,
+            long returnedRows) {
+        if (readQueriesPerSecond < 0 || millisSavedPerRead < 0 || writesPerSecond < 0
+                || millisAddedPerWrite < 0 || heapFetches < 0 || returnedRows < 0) {
+            throw new IllegalArgumentException("index evidence inputs");
+        }
+        long readSavings = Math.multiplyExact(readQueriesPerSecond, millisSavedPerRead);
+        long writeCost = Math.multiplyExact(writesPerSecond, millisAddedPerWrite);
+        return new IndexEvidence(
+                readSavings,
+                writeCost,
+                heapFetches,
+                returnedRows,
+                readSavings > writeCost,
+                heapFetches > 0 && returnedRows > 0);
+    }
+
+    private static PublicationDiagnosis publicationDiagnosis(
+            long requiredRevision,
+            long observedRevision,
+            boolean membershipSnapshotComplete,
+            boolean membershipFilterSaysAbsent) {
+        if (requiredRevision < 0 || observedRevision < 0) {
+            throw new IllegalArgumentException("publication diagnosis inputs");
+        }
+        PublicationAction action;
+        if (membershipFilterSaysAbsent && !membershipSnapshotComplete) {
+            action = PublicationAction.FAIL_OPEN_MEMBERSHIP_CHECK;
+        } else if (observedRevision != requiredRevision) {
+            action = PublicationAction.RELOAD_FROM_AUTHORITY;
+        } else {
+            action = PublicationAction.SERVE_MATCHING_REVISION;
+        }
+        return new PublicationDiagnosis(
+                requiredRevision, observedRevision, membershipSnapshotComplete, action);
+    }
+
+    private static BoundaryAction poolResidencyDiagnosis(
+            int poolSize, int slowQueries, int activeConnections) {
+        if (poolSize <= 0 || slowQueries < 0 || activeConnections < 0
+                || activeConnections > poolSize) {
+            throw new IllegalArgumentException("pool residency inputs");
+        }
+        if (activeConnections == poolSize && slowQueries < activeConnections) {
+            return BoundaryAction.INVESTIGATE_NON_QUERY_RESIDENCY;
+        }
+        return BoundaryAction.INVESTIGATE_DATABASE_PROXY_OR_NETWORK;
+    }
+
+    private static BoundaryAction leaseExpiryDiagnosis(
+            long taskMillis, long leaseMillis, boolean businessWriteFenced) {
+        if (taskMillis < 0 || leaseMillis < 0) {
+            throw new IllegalArgumentException("lease diagnosis inputs");
+        }
+        if (taskMillis <= leaseMillis) {
+            return businessWriteFenced
+                    ? BoundaryAction.REQUIRE_FENCED_BUSINESS_WRITE
+                    : BoundaryAction.RETURN_WITHOUT_PUBLICATION;
+        }
+        return businessWriteFenced
+                ? BoundaryAction.REQUIRE_FENCED_BUSINESS_WRITE
+                : BoundaryAction.RETURN_WITHOUT_PUBLICATION;
+    }
+
+    private static BoundaryAction serializableSideEffectDiagnosis(
+            boolean sideEffectInsideDatabaseTransaction) {
+        return sideEffectInsideDatabaseTransaction
+                ? BoundaryAction.REQUIRE_FENCED_BUSINESS_WRITE
+                : BoundaryAction.MOVE_SIDE_EFFECT_TO_OUTBOX;
+    }
+
+    private static BoundaryAction connectionLifetimeDiagnosis(
+            boolean connectionInUse,
+            boolean maxLifetimeElapsed,
+            boolean poolExplicitlyEvictedConnection) {
+        if (connectionInUse && maxLifetimeElapsed && !poolExplicitlyEvictedConnection) {
+            return BoundaryAction.INVESTIGATE_DATABASE_PROXY_OR_NETWORK;
+        }
+        return BoundaryAction.INVESTIGATE_DATABASE_PROXY_OR_NETWORK;
+    }
+
     private static void explanationContractScenarios() {
         ComponentExplanation worker = new ComponentExplanation(
                 "order event with event_id",
@@ -7627,6 +7771,50 @@ public final class ConsistencyContracts {
         PoolExplanation broken = poolExplanation(
                 20, 11, 0, 12, 100, false, true);
         assert broken.outcome() == PoolInterviewOutcome.EVICT_PHYSICAL_CONNECTION;
+    }
+
+    private static void absoluteRateExerciseScenarios() {
+        CapacityDiagnosis diagnosis = capacityDiagnosis(100_000, 0.99, 500, 5_000, 3_000);
+        assert Math.abs(diagnosis.missRequestsPerSecond() - 1_000.0) < 0.001;
+        assert Math.abs(diagnosis.databaseHeadroomPerSecond() + 500.0) < 0.001;
+        assert diagnosis.databaseOverloaded();
+        assert diagnosis.queueUnstable();
+        assert diagnosis.queueGrowthPerSecond() == 2_000;
+        assert diagnosis.queueGrowthPerHour() == 7_200_000;
+    }
+
+    private static void indexEvidenceExerciseScenarios() {
+        IndexEvidence useful = indexEvidence(200, 8, 50, 2, 0, 10_000);
+        assert useful.benefitExceedsWriteCost();
+        assert !useful.inspectVisibilityMaintenance();
+
+        IndexEvidence heapBound = indexEvidence(10, 2, 400, 1, 8_000, 10_000);
+        assert !heapBound.benefitExceedsWriteCost();
+        assert heapBound.inspectVisibilityMaintenance();
+    }
+
+    private static void publicationLifecycleExerciseScenarios() {
+        PublicationDiagnosis staleLayer = publicationDiagnosis(42, 41, true, false);
+        assert staleLayer.action() == PublicationAction.RELOAD_FROM_AUTHORITY;
+
+        PublicationDiagnosis incompleteBloom = publicationDiagnosis(42, 42, false, true);
+        assert incompleteBloom.action() == PublicationAction.FAIL_OPEN_MEMBERSHIP_CHECK;
+
+        PublicationDiagnosis fresh = publicationDiagnosis(42, 42, true, false);
+        assert fresh.action() == PublicationAction.SERVE_MATCHING_REVISION;
+    }
+
+    private static void authorityBoundaryExerciseScenarios() {
+        assert poolResidencyDiagnosis(20, 5, 20)
+                == BoundaryAction.INVESTIGATE_NON_QUERY_RESIDENCY;
+        assert leaseExpiryDiagnosis(6_000, 5_000, false)
+                == BoundaryAction.RETURN_WITHOUT_PUBLICATION;
+        assert leaseExpiryDiagnosis(6_000, 5_000, true)
+                == BoundaryAction.REQUIRE_FENCED_BUSINESS_WRITE;
+        assert serializableSideEffectDiagnosis(false)
+                == BoundaryAction.MOVE_SIDE_EFFECT_TO_OUTBOX;
+        assert connectionLifetimeDiagnosis(true, true, false)
+                == BoundaryAction.INVESTIGATE_DATABASE_PROXY_OR_NETWORK;
     }
 
     public static void main(String[] args) {
@@ -7801,7 +7989,11 @@ public final class ConsistencyContracts {
         outboxRelayExplanationScenarios();
         cacheLoaderExplanationScenarios();
         connectionPoolExplanationScenarios();
-        System.out.println("PASS 168 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract, CMS traffic arithmetic, CMS publish transaction, CMS read policy, CMS layer collapse, flash-sale admission, atomic reservation, payment-expiry state race, stock-token conservation, notification lifecycle boundaries, transactional inbox dedupe, external email reconciliation, notification retry and backlog policy, activity capacity arithmetic, activity partition and cursor paging, hot-user shard fan-out, activity retention and failure policy, explanation contract lint, outbox relay interview trace, cache-loader interview trace, connection-pool interview trace");
+        absoluteRateExerciseScenarios();
+        indexEvidenceExerciseScenarios();
+        publicationLifecycleExerciseScenarios();
+        authorityBoundaryExerciseScenarios();
+        System.out.println("PASS 172 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract, CMS traffic arithmetic, CMS publish transaction, CMS read policy, CMS layer collapse, flash-sale admission, atomic reservation, payment-expiry state race, stock-token conservation, notification lifecycle boundaries, transactional inbox dedupe, external email reconciliation, notification retry and backlog policy, activity capacity arithmetic, activity partition and cursor paging, hot-user shard fan-out, activity retention and failure policy, explanation contract lint, outbox relay interview trace, cache-loader interview trace, connection-pool interview trace, absolute-rate exercise, index-evidence exercise, publication-lifecycle exercise, authority-boundary exercise");
     }
 }
 
