@@ -16,7 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-41. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-42. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -7397,6 +7397,238 @@ public final class ConsistencyContracts {
         assert retention.standbyQueryMayBeCanceled();
     }
 
+    private record ComponentExplanation(
+            String input,
+            String ownedState,
+            String mechanism,
+            String successGuarantee,
+            String failureWindow,
+            String stressMetric,
+            String alternative) {}
+
+    private enum RelayCrash {
+        BEFORE_BROKER_ACK,
+        AFTER_ACK_BEFORE_PROGRESS,
+        AFTER_PROGRESS
+    }
+
+    private enum RelayRecovery {
+        RETRY_STABLE_EVENT_ID,
+        REPLAY_POSSIBLE_SAME_ID,
+        ALREADY_COMPLETE
+    }
+
+    private record RelayHealth(
+            long backlogRows,
+            long servicePerSecond,
+            long oldestPendingSeconds,
+            long freshnessSloSeconds,
+            boolean freshnessSloBreached) {}
+
+    private enum CacheInterviewAction {
+        RETURN_FRESH_HIT,
+        LOAD_AND_PUBLISH_IF_OWNER,
+        SERVE_DECLARED_STALE,
+        REJECT_OR_WAIT
+    }
+
+    private record CacheExplanation(
+            CacheInterviewAction action,
+            long authorityBudgetMillis,
+            boolean publicationAuthorized) {}
+
+    private enum PoolInterviewOutcome {
+        LEASE_GRANTED,
+        ACQUISITION_TIMEOUT,
+        ROLLBACK_THEN_RETURN,
+        EVICT_PHYSICAL_CONNECTION
+    }
+
+    private record PoolExplanation(
+            int maximumPoolSize,
+            int active,
+            int pending,
+            long acquisitionMillis,
+            long acquisitionBudgetMillis,
+            PoolInterviewOutcome outcome) {}
+
+    private static List<String> explanationGaps(ComponentExplanation explanation) {
+        Objects.requireNonNull(explanation, "explanation");
+        List<String> gaps = new ArrayList<>();
+        if (explanation.input() == null || explanation.input().isBlank()) gaps.add("input");
+        if (explanation.ownedState() == null || explanation.ownedState().isBlank()) {
+            gaps.add("owned state");
+        }
+        if (explanation.mechanism() == null || explanation.mechanism().isBlank()) {
+            gaps.add("mechanism");
+        }
+        if (explanation.successGuarantee() == null
+                || explanation.successGuarantee().isBlank()) {
+            gaps.add("success guarantee");
+        }
+        if (explanation.failureWindow() == null || explanation.failureWindow().isBlank()) {
+            gaps.add("failure window");
+        }
+        if (explanation.stressMetric() == null || explanation.stressMetric().isBlank()) {
+            gaps.add("stress metric");
+        }
+        if (explanation.alternative() == null || explanation.alternative().isBlank()) {
+            gaps.add("alternative");
+        }
+        return List.copyOf(gaps);
+    }
+
+    private static RelayRecovery relayRecovery(RelayCrash crash) {
+        Objects.requireNonNull(crash, "crash");
+        return switch (crash) {
+            case BEFORE_BROKER_ACK -> RelayRecovery.RETRY_STABLE_EVENT_ID;
+            case AFTER_ACK_BEFORE_PROGRESS -> RelayRecovery.REPLAY_POSSIBLE_SAME_ID;
+            case AFTER_PROGRESS -> RelayRecovery.ALREADY_COMPLETE;
+        };
+    }
+
+    private static RelayHealth relayHealth(
+            long backlogRows,
+            long servicePerSecond,
+            long oldestPendingSeconds,
+            long freshnessSloSeconds) {
+        if (backlogRows < 0 || servicePerSecond < 0 || oldestPendingSeconds < 0
+                || freshnessSloSeconds < 0) {
+            throw new IllegalArgumentException("relay health inputs");
+        }
+        return new RelayHealth(
+                backlogRows,
+                servicePerSecond,
+                oldestPendingSeconds,
+                freshnessSloSeconds,
+                oldestPendingSeconds > freshnessSloSeconds);
+    }
+
+    private static CacheExplanation cacheExplanation(
+            boolean freshHit,
+            boolean ownsLease,
+            boolean staleAvailable,
+            long authorityBudgetMillis,
+            long requiredLoadMillis) {
+        if (authorityBudgetMillis < 0 || requiredLoadMillis < 0) {
+            throw new IllegalArgumentException("cache explanation inputs");
+        }
+        if (freshHit) {
+            return new CacheExplanation(
+                    CacheInterviewAction.RETURN_FRESH_HIT,
+                    authorityBudgetMillis,
+                    false);
+        }
+        if (ownsLease && authorityBudgetMillis >= requiredLoadMillis) {
+            return new CacheExplanation(
+                    CacheInterviewAction.LOAD_AND_PUBLISH_IF_OWNER,
+                    authorityBudgetMillis,
+                    true);
+        }
+        if (staleAvailable) {
+            return new CacheExplanation(
+                    CacheInterviewAction.SERVE_DECLARED_STALE,
+                    authorityBudgetMillis,
+                    false);
+        }
+        return new CacheExplanation(
+                CacheInterviewAction.REJECT_OR_WAIT,
+                authorityBudgetMillis,
+                false);
+    }
+
+    private static PoolExplanation poolExplanation(
+            int maximumPoolSize,
+            int active,
+            int pending,
+            long acquisitionMillis,
+            long acquisitionBudgetMillis,
+            boolean transactionOpen,
+            boolean physicalConnectionBroken) {
+        if (maximumPoolSize <= 0 || active < 0 || active > maximumPoolSize || pending < 0
+                || acquisitionMillis < 0 || acquisitionBudgetMillis < 0) {
+            throw new IllegalArgumentException("pool explanation inputs");
+        }
+        PoolInterviewOutcome outcome;
+        if (active == maximumPoolSize && acquisitionMillis >= acquisitionBudgetMillis) {
+            outcome = PoolInterviewOutcome.ACQUISITION_TIMEOUT;
+        } else if (physicalConnectionBroken) {
+            outcome = PoolInterviewOutcome.EVICT_PHYSICAL_CONNECTION;
+        } else if (transactionOpen) {
+            outcome = PoolInterviewOutcome.ROLLBACK_THEN_RETURN;
+        } else {
+            outcome = PoolInterviewOutcome.LEASE_GRANTED;
+        }
+        return new PoolExplanation(
+                maximumPoolSize,
+                active,
+                pending,
+                acquisitionMillis,
+                acquisitionBudgetMillis,
+                outcome);
+    }
+
+    private static void explanationContractScenarios() {
+        ComponentExplanation worker = new ComponentExplanation(
+                "order event with event_id",
+                "consumer progress and inbox claim; not order truth",
+                "poll, unique inbox insert, apply, then acknowledge",
+                "local inbox and projection committed",
+                "before commit: replay; after commit before ack: duplicate delivery",
+                "oldest unprocessed age and processing-error rate",
+                "CDC projection instead of broker polling");
+        assert explanationGaps(worker).isEmpty();
+
+        ComponentExplanation vague = new ComponentExplanation(
+                "message", "", "Kafka", "", "", "throughput", "");
+        assert explanationGaps(vague).equals(List.of(
+                "owned state", "success guarantee", "failure window", "alternative"));
+    }
+
+    private static void outboxRelayExplanationScenarios() {
+        assert relayRecovery(RelayCrash.BEFORE_BROKER_ACK)
+                == RelayRecovery.RETRY_STABLE_EVENT_ID;
+        assert relayRecovery(RelayCrash.AFTER_ACK_BEFORE_PROGRESS)
+                == RelayRecovery.REPLAY_POSSIBLE_SAME_ID;
+        assert relayRecovery(RelayCrash.AFTER_PROGRESS)
+                == RelayRecovery.ALREADY_COMPLETE;
+
+        RelayHealth relay = relayHealth(12_000, 8_000, 95, 30);
+        assert relay.backlogRows() == 12_000;
+        assert relay.oldestPendingSeconds() == 95;
+        assert relay.freshnessSloBreached();
+    }
+
+    private static void cacheLoaderExplanationScenarios() {
+        CacheExplanation strict = cacheExplanation(
+                false, true, false, 60, 50);
+        assert strict.action() == CacheInterviewAction.LOAD_AND_PUBLISH_IF_OWNER;
+        assert strict.authorityBudgetMillis() == 60;
+        assert strict.publicationAuthorized();
+
+        CacheExplanation stale = cacheExplanation(
+                false, false, true, 0, 50);
+        assert stale.action() == CacheInterviewAction.SERVE_DECLARED_STALE;
+        assert !stale.publicationAuthorized();
+
+        assert cacheExplanation(false, true, false, 40, 50).action()
+                == CacheInterviewAction.REJECT_OR_WAIT;
+    }
+
+    private static void connectionPoolExplanationScenarios() {
+        PoolExplanation waiting = poolExplanation(
+                20, 20, 7, 180, 100, false, false);
+        assert waiting.outcome() == PoolInterviewOutcome.ACQUISITION_TIMEOUT;
+
+        PoolExplanation dirty = poolExplanation(
+                20, 11, 0, 12, 100, true, false);
+        assert dirty.outcome() == PoolInterviewOutcome.ROLLBACK_THEN_RETURN;
+
+        PoolExplanation broken = poolExplanation(
+                20, 11, 0, 12, 100, false, true);
+        assert broken.outcome() == PoolInterviewOutcome.EVICT_PHYSICAL_CONNECTION;
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -7565,7 +7797,11 @@ public final class ConsistencyContracts {
         activityPartitionAndPageScenarios();
         activityHotUserScenarios();
         activityRetentionAndFailureScenarios();
-        System.out.println("PASS 164 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract, CMS traffic arithmetic, CMS publish transaction, CMS read policy, CMS layer collapse, flash-sale admission, atomic reservation, payment-expiry state race, stock-token conservation, notification lifecycle boundaries, transactional inbox dedupe, external email reconciliation, notification retry and backlog policy, activity capacity arithmetic, activity partition and cursor paging, hot-user shard fan-out, activity retention and failure policy");
+        explanationContractScenarios();
+        outboxRelayExplanationScenarios();
+        cacheLoaderExplanationScenarios();
+        connectionPoolExplanationScenarios();
+        System.out.println("PASS 168 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract, CMS traffic arithmetic, CMS publish transaction, CMS read policy, CMS layer collapse, flash-sale admission, atomic reservation, payment-expiry state race, stock-token conservation, notification lifecycle boundaries, transactional inbox dedupe, external email reconciliation, notification retry and backlog policy, activity capacity arithmetic, activity partition and cursor paging, hot-user shard fan-out, activity retention and failure policy, explanation contract lint, outbox relay interview trace, cache-loader interview trace, connection-pool interview trace");
     }
 }
 

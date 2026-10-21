@@ -8872,6 +8872,168 @@ Accessed 2026-10-21.
 253. [PostgreSQL 18 — Hot Standby](https://www.postgresql.org/docs/18/hot-standby.html): WAL-replay conflicts, query cancellation, delay settings and cleanup/bloat trade-offs.
 254. [ClickHouse — Sparse primary indexes](https://clickhouse.com/docs/guides/clickhouse/data-modelling/sparse-primary-indexes): column-oriented files, ordered rows, granules and sparse pruning for analytical projections.
 
+# Section 42 — Explain any subcomponent with a falsifiable contract {#section-42-subcomponent-explanation-contract}
+
+An interview answer becomes useful when every box has a boundary that can be tested. Use seven slots in this order: **input, owned state, mechanism, success guarantee, failure window, stress metric, alternative**. Do not replace a missing guarantee with a product name. “Kafka accepted it,” “the cache returned it,” and “the pool gave me a connection” are different facts from a consumer applying it, an authority confirming freshness, or a transaction committing.
+
+## Example 165 — Reject a vocabulary-only answer before discussing scale {#example-165-explanation-contract-lint}
+
+Suppose the candidate says, “The worker reads the queue and writes the database.” That names technologies but leaves ownership, the acknowledgement boundary, crash behavior and evidence undefined. Turn it into a reviewable contract and fail the explanation if any slot is blank.
+
+```java
+ComponentExplanation worker = new ComponentExplanation(
+        "order event with event_id",
+        "consumer progress and inbox claim; not order truth",
+        "poll, unique inbox insert, apply, then acknowledge",
+        "local inbox and projection committed",
+        "before commit: replay; after commit before ack: duplicate delivery",
+        "oldest unprocessed age and processing-error rate",
+        "CDC projection instead of broker polling");
+assert explanationGaps(worker).isEmpty();
+
+ComponentExplanation vague = new ComponentExplanation(
+        "message", "", "Kafka", "", "", "throughput", "");
+assert explanationGaps(vague).equals(List.of(
+        "owned state", "success guarantee", "failure window", "alternative"));
+```
+
+| Slot | Precise question | Weak answer to challenge |
+|---|---|---|
+| Input | What exact request, event, key and deadline arrive? | “Traffic” |
+| Owned state | What may this component authoritatively mutate? | “The data” |
+| Mechanism | What queue, index, lock, log or protocol does the work? | A vendor name alone |
+| Success | What fact is true when the method returns? | “Exactly once” without scope |
+| Failure | What changes across each durable boundary? | “Retries handle it” |
+| Metric | Which leading signal detects violated freshness or capacity? | Lifetime row count |
+| Alternative | Which requirement change selects another design? | “This is best practice” |
+
+```mermaid
+flowchart TD
+    I["Exact input"] --> O["Owned state"]
+    O --> M["Mechanism"]
+    M --> G["Success guarantee"]
+    G --> F["Before/after failure window"]
+    F --> S["Stress metric"]
+    S --> A["Requirement-driven alternative"]
+```
+
+The order matters. If ownership is unclear, the guarantee is usually overstated. If the success point is unclear, the crash analysis has no boundary. If the metric is only a cumulative count, it may not reveal that current work is stale.
+
+## Example 166 — Trace an outbox relay across the broker acknowledgement {#example-166-outbox-relay-interview-trace}
+
+**Input:** one committed outbox row containing a stable event ID, aggregate key and payload. **Owned state:** claim/progress metadata; the order row remains owned by the transaction that created it. **Mechanism:** either poll eligible rows with bounded locking or stream inserts through CDC, then publish with the aggregate key. **Success:** broker acceptance under the configured acknowledgement policy—not consumer application. **Failure:** a crash before acceptance leaves the row retryable; a crash after acceptance but before progress recording can publish the same event ID again.
+
+```java
+assert relayRecovery(RelayCrash.BEFORE_BROKER_ACK)
+        == RelayRecovery.RETRY_STABLE_EVENT_ID;
+assert relayRecovery(RelayCrash.AFTER_ACK_BEFORE_PROGRESS)
+        == RelayRecovery.REPLAY_POSSIBLE_SAME_ID;
+assert relayRecovery(RelayCrash.AFTER_PROGRESS)
+        == RelayRecovery.ALREADY_COMPLETE;
+
+RelayHealth relay = relayHealth(12_000, 8_000, 95, 30);
+assert relay.backlogRows() == 12_000;
+assert relay.oldestPendingSeconds() == 95;
+assert relay.freshnessSloBreached();
+```
+
+```mermaid
+sequenceDiagram
+    participant R as Relay
+    participant O as Outbox
+    participant B as Broker
+    R->>O: claim committed event E7
+    O-->>R: E7 + aggregate key
+    R->>B: publish E7
+    B-->>R: accepted under ack policy
+    Note over R,O: crash here can replay E7
+    R->>O: record progress for E7
+```
+
+For a polling relay, PostgreSQL `SKIP LOCKED` can reduce contention between workers on a queue-like table, but its inconsistent view is inappropriate for ordinary reads. For a CDC relay, Debezium routes the aggregate ID as the event key and the unique event ID in the emitted record. Neither mechanism removes the consumer’s replay/idempotency obligation.
+
+Use **oldest pending age** as the freshness signal, backed by queue depth, publish error rate and duplicate/replay counts. A million historical rows may be healthy if current rows drain immediately; ten old pending rows can violate the SLO.
+
+## Example 167 — Explain a cache loader without claiming that the lease owns the data {#example-167-cache-loader-interview-trace}
+
+**Input:** a tenant-scoped cache key, freshness policy and remaining deadline. **Owned state:** local in-flight coordination and an owner-token lease; the database owns the mutable business value. **Mechanism:** cache probe, local single-flight, bounded distributed lease, authoritative load, then owner-checked publication. **Success:** the caller receives a value satisfying the declared freshness class. It does not prove every node has that value.
+
+```java
+CacheExplanation strict = cacheExplanation(
+        false, true, false, 60, 50);
+assert strict.action() == CacheInterviewAction.LOAD_AND_PUBLISH_IF_OWNER;
+assert strict.authorityBudgetMillis() == 60;
+
+CacheExplanation stale = cacheExplanation(
+        false, false, true, 0, 50);
+assert stale.action() == CacheInterviewAction.SERVE_DECLARED_STALE;
+assert !stale.publicationAuthorized();
+```
+
+```mermaid
+flowchart TD
+    K["Scoped key + freshness + deadline"] --> C{"Cache probe"}
+    C -->|acceptable hit| H["Return declared freshness"]
+    C -->|miss| L{"Own valid lease?"}
+    L -->|yes| D["Load authority within budget"]
+    D --> P{"Still owner?"}
+    P -->|yes| W["Publish then return"]
+    P -->|no| X["Return result without publication"]
+    L -->|no| B["Wait, stale fallback, or reject"]
+```
+
+A crash before publication leaves the cache unchanged. Lease expiry during the database call means another owner may exist; the first loader may return an immutable result if policy allows, but must not publish mutable state without a generation or authority fence. Watch authority calls/s, miss amplification, fill latency, waiters per key and stale-served age. Choose stale-while-revalidate for immutable or explicitly bounded-stale data; choose a strict authoritative read when staleness is unsafe.
+
+## Example 168 — Separate connection checkout from transaction success {#example-168-pool-interview-trace}
+
+**Input:** a checkout request carrying a deadline and routing/session requirements. **Owned state:** physical connections, lease ownership and the bounded wait queue; the pool does not own the caller’s transaction outcome. **Mechanism:** validate or create a physical connection, reserve it to one borrower, and reset or evict it on return. **Success:** checkout proves only that the borrower owns a usable logical lease at that moment.
+
+```java
+PoolExplanation waiting = poolExplanation(20, 20, 7, 180, 100, false, false);
+assert waiting.outcome() == PoolInterviewOutcome.ACQUISITION_TIMEOUT;
+
+PoolExplanation dirty = poolExplanation(20, 11, 0, 12, 100, true, false);
+assert dirty.outcome() == PoolInterviewOutcome.ROLLBACK_THEN_RETURN;
+
+PoolExplanation broken = poolExplanation(20, 11, 0, 12, 100, false, true);
+assert broken.outcome() == PoolInterviewOutcome.EVICT_PHYSICAL_CONNECTION;
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Waiting: checkout + deadline
+    Waiting --> Borrowed: lease granted
+    Waiting --> TimedOut: budget exhausted
+    Borrowed --> Reusable: clean close
+    Borrowed --> Reset: transaction still open
+    Borrowed --> Evicted: socket/session broken
+    Reset --> Reusable: rollback + baseline
+```
+
+A crash before checkout creates no borrower obligation. After checkout, cancellation or application failure must close the logical lease; an open transaction requires rollback, while a broken physical connection must be evicted. Measure pending borrowers and acquisition latency together with lease duration, connection-creation latency and database saturation. If transaction pooling or multiplexing is proposed as the alternative, state which session features no longer survive between transactions.
+
+## What to say in an interview {#section-42-interview-answer}
+
+Use the memory line **enter, own, work, prove, fail, watch, change**:
+
+- **enter:** name the exact request, event, key and deadline;
+- **own:** separate authoritative state from cached or progress state;
+- **work:** name the data structure, protocol and concurrency boundary;
+- **prove:** say only what successful return establishes;
+- **fail:** walk the crash immediately before and after that point;
+- **watch:** choose a leading freshness/capacity signal, not a vanity total; and
+- **change:** tie the alternative to a changed requirement.
+
+### Primary references for Section 42 {#section-42-primary-references}
+
+Accessed 2026-10-21.
+
+255. [Debezium — Outbox Event Router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html): stable event IDs, aggregate keys, payload routing and insert-only outbox expectations.
+256. [PostgreSQL 18 — `SELECT`](https://www.postgresql.org/docs/18/sql-select.html): row locking and the queue-like, inconsistent-view trade-off of `SKIP LOCKED`.
+257. [Apache Kafka 4.1 — Design](https://kafka.apache.org/41/design/design/): producer acknowledgement choices, committed messages and consumer replay/position boundaries.
+258. [Amazon SQS — Available CloudWatch metrics](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-available-cloudwatch-metrics.html): visible backlog, in-flight work and oldest-unprocessed-message age semantics.
+259. [OpenTelemetry — Messaging client metrics](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-metrics/): separate send, receive, process and acknowledgement operation measurements; these conventions are currently marked Development.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -8879,8 +9041,8 @@ Accessed 2026-10-21.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; lines **1984–2038**, “Read the Java component as six execution stories”; lines **2039–2102**, “Design case A: a multi-tenant publishing CMS”; lines **2103–2169**, “Design case B: flash-sale inventory with one item left”; lines **2170–2209**, “Design case C: reliable notification delivery”; and lines **2210–2253**, “Design case D: a large activity-history service”
-- Deliberate continuation: Section 42 begins at source line **2256** and ends at line **2269**, bounded by the Section 43 heading at line **2270**; it remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; lines **1984–2038**, “Read the Java component as six execution stories”; lines **2039–2102**, “Design case A: a multi-tenant publishing CMS”; lines **2103–2169**, “Design case B: flash-sale inventory with one item left”; lines **2170–2209**, “Design case C: reliable notification delivery”; lines **2210–2253**, “Design case D: a large activity-history service”; and lines **2256–2269**, “How to explain a subcomponent in an interview”
+- Deliberate continuation: Section 43 begins at source line **2270** and ends at line **2328**, bounded by the Section 44 heading at line **2329**; it remains unprocessed.
 
 Validation commands:
 
