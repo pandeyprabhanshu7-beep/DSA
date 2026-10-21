@@ -862,8 +862,8 @@
     }
   ],
   "next_batch": {
-    "source": "Angular_Interview_Mermaid_Workbook.md and Angular_Interview_Workbook.docx",
-    "section": "Final Revision Sheet from Markdown line 1696 / DOCX extracted line 1118",
+    "source": "ai_platform_master_guide.html and ai_platform_engineering_complete_bundle.zip",
+    "section": "Compare confirmed AI-platform sources and bound the first non-duplicate section",
     "status": "QUEUED",
     "estimated_tokens": 9400,
     "estimate_method": "Heuristic only: reserve ~1500 tokens to review bounded Section 44, ~1800 for primary-reference reconciliation, ~3800 for deep examples/Java/HTML, and ~2300 for validation/checkpoint. No weekly/hourly quota telemetry was exposed.",
@@ -878,13 +878,13 @@
     "last_processed_at": "2026-10-21T03:16:53-04:00"
   },
   "angular_intake_checkpoint": {
-    "last_processed_at": "2026-10-14T16:16:21-04:00",
+    "last_processed_at": "2026-10-21T08:11:37-04:00",
     "source_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
     "docx_source_file_id": "file_000000002de88211a76925b978b3406a",
-    "processed": "Q1–Q74 plus rapid-fire items 1-39; latest bounded source ranges are Markdown lines 1660-1694 and DOCX extracted lines 1098-1115, each bounded by the Final Revision Sheet",
-    "status": "PUBLISHED",
+    "processed": "Q1–Q74, rapid-fire items 1-39 and Final Revision Sheet; latest ranges are Markdown lines 1696-1751 and DOCX extracted lines 1118-1177; both sources exhausted",
+    "status": "PROMOTED",
     "validation": "Rapid-fire items 31-39 agree across both source texts and are consolidated as an answer ladder with four connected examples, a request-to-profile trace, invariants, verification drills and derived costs while retaining Q1-Q74 as the deep canonical coverage; deterministic reader generation and exact 648428-character payload equality passed with 79 unique anchors, 267 balanced fences, 59 Mermaid diagrams, inline JavaScript, JSON, fragment targets, relative links, local README source hash, selected-file diff and live 170-marker checks; all nine content-commit remote blob hashes matched and no GitHub status checks were configured; Angular CLI build, TypeScript/template compilation, TestBed/CDK viewport execution, SSR/transfer-cache tests, browser/DevTools profiling and ng update were not performed because the Angular workspace/runtime/browser/package graph are absent",
-    "content_commit": "b177a9133249af386236c4aceec47f8df2b22b5b",
+    "content_commit": "2c153e53206677e14afdc67132289daa44e2b33e",
     "estimated_next_tokens": 7800,
     "estimate_method": "Heuristic for the first bounded JavaScript/HTML/CSS paired-source section plus source resolution, targeted primary-source refresh, consolidation/teaching/HTML and validation/checkpoint reserves; not actual quota percentage"
   },

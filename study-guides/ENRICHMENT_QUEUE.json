@@ -703,13 +703,13 @@
       "domain": "Frontend",
       "canonical_target": "study-guides/frontend/angular/",
       "target_exists": true,
-      "status": "IN_PROGRESS",
+      "status": "PROMOTED",
       "source_names": [
         "Angular_Interview_Mermaid_Workbook.md",
         "Angular_Interview_Workbook.docx"
       ],
-      "last_processed_at": "2026-10-14T16:16:21-04:00",
-      "next_action": "Angular Q1-Q74 and rapid-fire items 1-39 are promoted. The Final Revision Sheet begins at Markdown line 1696 / DOCX extracted line 1118 and remains unprocessed; rotate fairly to the confirmed JavaScript/HTML/CSS source pair before the next Angular pass.",
+      "last_processed_at": "2026-10-21T08:11:37-04:00",
+      "next_action": "Paired Angular sources are exhausted through their Final Revision Sheet; rotate to an accessible unprocessed source in another domain.",
       "priority": 15,
       "processed_sections": [
         "Angular 22 interview baseline: Q1–Q6 (architecture, standalone, bootstrap, AOT, bindings, control flow)",
@@ -753,17 +753,18 @@
         "Rapid-fire bank items 1-10 (retrieval-oriented answer ladder for track/@empty/@let, DestroyRef, readonly signals, immutable updates, DI tokens/root scope and resolver risk; four connected examples, lifecycle trace, invariants, tests and derived costs linked to Q1-Q74)",
         "Rapid-fire bank items 11-20 (retrieval-oriented answer ladder for preloading, CanDeactivate, shareReplay, take/first, debounce/distinct, tap, catchError/finalize and reactive-form/CVA contracts; four connected examples, route-to-form trace, invariants, tests and derived costs linked to Q1-Q74)",
         "Rapid-fire bank items 21-30 (retrieval-oriented answer ladder for interceptor order, hydration mismatch/event replay/incremental hydration, HMR, strict templates, Emulated/ShadowDom, Renderer2 and NgZone; four connected examples, delivery-to-interaction trace, invariants, tests and derived costs linked to Q1-Q74)",
-        "Rapid-fire bank items 31-39 (retrieval-oriented answer ladder for runOutsideAngular, facades, template policy/cost, virtual scrolling, route rendering modes, transfer cache, DevTools and version alignment; four connected examples, request-to-profile trace, invariants, tests and derived costs linked to Q1-Q74)"
+        "Rapid-fire bank items 31-39 (retrieval-oriented answer ladder for runOutsideAngular, facades, template policy/cost, virtual scrolling, route rendering modes, transfer cache, DevTools and version alignment; four connected examples, request-to-profile trace, invariants, tests and derived costs linked to Q1-Q74)",
+        "Final Revision Sheet: trigger-to-policy map, four proof-oriented examples, traces, verification outcomes and 30-second response frame"
       ],
       "source_revision": {
         "source_markdown_sha256": "b1d89bb0461fa6ee0e9aa826a0093700731ca12348169b4aefd6c3d5f96bf42e",
-        "source_markdown_lines": "1660-1694 for rapid-fire items 31-39, bounded by the Final Revision Sheet anchor at line 1696; earlier Q1-Q74 and rapid-fire items 1-30 retained",
-        "source_docx": "Angular_Interview_Workbook.docx extracted lines 1098-1115 for rapid-fire items 31-39, bounded by the Final Revision Sheet at line 1118",
-        "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-14",
+        "source_markdown_lines": "Final Revision Sheet lines 1696-1751; source exhausted",
+        "source_docx": "Angular_Interview_Workbook.docx extracted Final Revision Sheet lines 1118-1177; source exhausted",
+        "retrieval": "Both bounded source texts read in ChatGPT Library 2026-10-21",
         "baseline_main_head": "6c948164fcc9edb34618d0b2c06735a9844f6cdf"
       },
-      "validation": "Rapid-fire items 31-39 were compared in both source texts and consolidated into an answer ladder with four connected examples, a request-to-profile trace, invariants, verification drills and derived costs while linking to the richer Q1-Q74 chapters. Deterministic reader generation and exact 648428-character HTML embedded-Markdown equality passed with 79 unique anchors, 267 balanced fenced blocks and 59 Mermaid diagrams; inline JavaScript, JSON, fragment targets, relative links, local README source hash, selected-file diff and live 170-marker checks passed. All nine content-commit remote blob hashes matched; no GitHub status checks were configured. Angular CLI build, TypeScript/template compilation, TestBed/CDK viewport execution, SSR/transfer-cache tests, browser/DevTools profiling and ng update were not performed because the Angular workspace/runtime/browser/package graph are absent.",
-      "last_successful_commit": "b177a9133249af386236c4aceec47f8df2b22b5b"
+      "validation": "Both Final Revision Sheets were compared and expanded into four examples. Reader validation passed exact 655861-character payload equality, 80 anchors, 276 fences, 63 Mermaid diagrams and parseable reader JavaScript; live placeholders remain 170. Angular compilation, TestBed/CDK, SSR, browser profiling and ng update remain unavailable because no Angular workspace or package graph is present.",
+      "last_successful_commit": "2c153e53206677e14afdc67132289daa44e2b33e"
     },
     {
       "id": "javascript-html-css",
