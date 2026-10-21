@@ -7482,9 +7482,13 @@ public final class ConsistencyContracts {
 
     private enum BoundaryAction {
         INVESTIGATE_NON_QUERY_RESIDENCY,
+        OWNER_AUTHORIZED_PUBLICATION,
         RETURN_WITHOUT_PUBLICATION,
         REQUIRE_FENCED_BUSINESS_WRITE,
         MOVE_SIDE_EFFECT_TO_OUTBOX,
+        TRANSACTIONAL_INTENT_READY,
+        RETIRE_POOL_CONNECTION_ON_RETURN,
+        EVICT_POOL_CONNECTION,
         INVESTIGATE_DATABASE_PROXY_OR_NETWORK
     }
 
@@ -7686,9 +7690,7 @@ public final class ConsistencyContracts {
             throw new IllegalArgumentException("lease diagnosis inputs");
         }
         if (taskMillis <= leaseMillis) {
-            return businessWriteFenced
-                    ? BoundaryAction.REQUIRE_FENCED_BUSINESS_WRITE
-                    : BoundaryAction.RETURN_WITHOUT_PUBLICATION;
+            return BoundaryAction.OWNER_AUTHORIZED_PUBLICATION;
         }
         return businessWriteFenced
                 ? BoundaryAction.REQUIRE_FENCED_BUSINESS_WRITE
@@ -7696,9 +7698,9 @@ public final class ConsistencyContracts {
     }
 
     private static BoundaryAction serializableSideEffectDiagnosis(
-            boolean sideEffectInsideDatabaseTransaction) {
-        return sideEffectInsideDatabaseTransaction
-                ? BoundaryAction.REQUIRE_FENCED_BUSINESS_WRITE
+            boolean intentStoredInsideDatabaseTransaction) {
+        return intentStoredInsideDatabaseTransaction
+                ? BoundaryAction.TRANSACTIONAL_INTENT_READY
                 : BoundaryAction.MOVE_SIDE_EFFECT_TO_OUTBOX;
     }
 
@@ -7709,7 +7711,10 @@ public final class ConsistencyContracts {
         if (connectionInUse && maxLifetimeElapsed && !poolExplicitlyEvictedConnection) {
             return BoundaryAction.INVESTIGATE_DATABASE_PROXY_OR_NETWORK;
         }
-        return BoundaryAction.INVESTIGATE_DATABASE_PROXY_OR_NETWORK;
+        if (poolExplicitlyEvictedConnection) {
+            return BoundaryAction.EVICT_POOL_CONNECTION;
+        }
+        return BoundaryAction.RETIRE_POOL_CONNECTION_ON_RETURN;
     }
 
     private static void explanationContractScenarios() {
@@ -7811,10 +7816,18 @@ public final class ConsistencyContracts {
                 == BoundaryAction.RETURN_WITHOUT_PUBLICATION;
         assert leaseExpiryDiagnosis(6_000, 5_000, true)
                 == BoundaryAction.REQUIRE_FENCED_BUSINESS_WRITE;
+        assert leaseExpiryDiagnosis(4_000, 5_000, false)
+                == BoundaryAction.OWNER_AUTHORIZED_PUBLICATION;
         assert serializableSideEffectDiagnosis(false)
                 == BoundaryAction.MOVE_SIDE_EFFECT_TO_OUTBOX;
+        assert serializableSideEffectDiagnosis(true)
+                == BoundaryAction.TRANSACTIONAL_INTENT_READY;
         assert connectionLifetimeDiagnosis(true, true, false)
                 == BoundaryAction.INVESTIGATE_DATABASE_PROXY_OR_NETWORK;
+        assert connectionLifetimeDiagnosis(false, true, false)
+                == BoundaryAction.RETIRE_POOL_CONNECTION_ON_RETURN;
+        assert connectionLifetimeDiagnosis(true, false, true)
+                == BoundaryAction.EVICT_POOL_CONNECTION;
     }
 
     public static void main(String[] args) {
