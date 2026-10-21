@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="source-sha256" content="637c2957ada128849d2ae7f5b4b240c3d9221425e23edf70ac45f244aa7972d5">
+<title>Spring AI and Python APIs</title>
+<style>
+:root{--bg:#f7f8fb;--paper:#fff;--ink:#172033;--muted:#5c667a;--accent:#335eea;--line:#dfe3ec;--code:#111827;--code-ink:#e5e7eb}
+*{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}
+.layout{display:grid;grid-template-columns:minmax(240px,310px) minmax(0,920px);gap:2rem;max-width:1280px;margin:auto;padding:1rem}
+aside{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:1rem}
+.brand{font-weight:800;margin-bottom:.7rem} input{width:100%;padding:.72rem;border:1px solid var(--line);border-radius:9px;font:inherit}
+#results{list-style:none;padding:0;margin:.7rem 0} #results li{margin:.45rem 0} #results a{text-decoration:none;color:var(--accent);font-size:.92rem}
+#search-status{color:var(--muted);font-size:.82rem;margin:.45rem 0} main{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:clamp(1rem,4vw,3rem)}
+h1,h2,h3,h4{line-height:1.25;scroll-margin-top:1rem} h1{border-bottom:2px solid var(--line);padding-bottom:.35rem} h2{margin-top:2.4rem} a{color:#264fd2}
+table{border-collapse:collapse;width:100%;display:block;overflow-x:auto} th,td{border:1px solid var(--line);padding:.55rem;text-align:left;vertical-align:top}
+pre{background:var(--code);color:var(--code-ink);padding:1rem;border-radius:10px;overflow:auto} code{font:0.9em ui-monospace,SFMono-Regular,Consolas,monospace} :not(pre)>code{background:#edf0f6;padding:.12rem .3rem;border-radius:4px}
+blockquote{margin:1rem 0;padding:.35rem 1rem;border-left:4px solid var(--accent);background:#f0f4ff} img,svg{max-width:100%;height:auto} .mermaid{overflow:auto;text-align:center}
+.toplink{display:inline-block;margin-bottom:1rem;font-size:.9rem} @media(max-width:820px){.layout{display:block;padding:.5rem} aside{position:relative;max-height:none;margin-bottom:.75rem} main{padding:1rem} #results{max-height:12rem;overflow:auto}} @media print{aside{display:none} .layout{display:block} main{border:0}}
+</style>
+</head>
+<body><div class="layout"><aside>
+<div class="brand">Spring AI and Python APIs</div>
+<label for="guide-search">Search this guide</label>
+<input id="guide-search" type="search" placeholder="Try: model adapter, durable branching, release identity" autocomplete="off">
+<div id="search-status">Type to search headings and section text.</div><ul id="results"></ul>
+<a class="toplink" href="#spring-ai-and-python-apis">Back to top</a>
+</aside><main id="content"><h1 id="spring-ai-and-python-apis">Spring AI and Python APIs</h1>
+<p>This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. This pass processes only source Section 1, lines 6–30.</p>
+<h2 id="section-1--choose-the-layer-before-choosing-the-library">Section 1 — Choose the layer before choosing the library</h2>
+<h3 id="start-with-requirements-not-package-names">Start with requirements, not package names</h3>
+<p>Before selecting Spring AI, FastAPI, an orchestration framework, or a model client, write the observable contract:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Question</th>
+<th>Required answer</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>What enters and leaves?</td>
+<td>typed request, typed success, explicit no-answer and dependency-failure outcomes</td>
+</tr>
+<tr class="even">
+<td>Which evidence is authoritative?</td>
+<td>database/search results before model prose; tenant and resource scope enforced before prompt construction</td>
+</tr>
+<tr class="odd">
+<td>Which effects occur?</td>
+<td>read-only model call, retrieval, durable write, tool invocation, or human approval</td>
+</tr>
+<tr class="even">
+<td>What may be retried?</td>
+<td>only idempotent/read operations unless a durable operation key reconciles effects</td>
+</tr>
+<tr class="odd">
+<td>What must survive restart?</td>
+<td>nothing for a simple call; workflow state for branching, delayed or human-reviewed work</td>
+</tr>
+<tr class="even">
+<td>Who owns each layer?</td>
+<td>team/service plus versioned framework, runtime, model revision, and operator</td>
+</tr>
+</tbody>
+</table>
+<p>The minimum useful pipeline is usually a typed boundary, deterministic business/retrieval logic, a model adapter, and an output validator. Add an orchestration layer when it removes repeated integration work or owns durable branching—not merely because the application uses a model.</p>
+<pre class="mermaid"><code>flowchart TB
+  API[&quot;Business API and identity&quot;] --&gt; POL[&quot;Authorization and policy&quot;]
+  POL --&gt; WF[&quot;Workflow: plain code or durable engine&quot;]
+  WF --&gt; RET[&quot;Retrieval adapter&quot;]
+  WF --&gt; MOD[&quot;Model adapter&quot;]
+  WF --&gt; TOOL[&quot;Tool adapter&quot;]
+  RET --&gt; DATA[(&quot;Authorized data&quot;)]
+  MOD --&gt; RUN[&quot;Inference runtime and model artifact&quot;]
+  TOOL --&gt; SYS[&quot;Authorized business system&quot;]
+  WF --&gt; VAL[&quot;Output validator&quot;]</code></pre>
+<p>The diagram is a contract map, not a requirement that every box be a separate service.</p>
+<h3 id="example-1--one-call-classification-api">Example 1 — one-call classification API</h3>
+<p>Requirement: classify a support ticket into one of five allowed categories and return a confidence/abstain outcome. No retrieval, tools, or durable branching.</p>
+<p>Selected layers: HTTP/DTO validation → model adapter → allow-list validator. In Spring, a controller plus <code>ChatModel</code>/<code>ChatClient</code> adapter can be enough. In Python, FastAPI/Pydantic plus one explicit HTTP or SDK adapter can be enough. An agent graph adds persistence and transition states that the requirement never asked for.</p>
+<pre class="mermaid"><code>sequenceDiagram
+  participant C as Client
+  participant A as API boundary
+  participant M as Model adapter
+  C-&gt;&gt;A: ticket text + operation ID
+  A-&gt;&gt;A: authenticate, size-check, redact
+  A-&gt;&gt;M: typed classification prompt
+  M--&gt;&gt;A: candidate category
+  A-&gt;&gt;A: validate allow-list or abstain
+  A--&gt;&gt;C: category | abstain | dependency failure</code></pre>
+<p>Expected outcomes:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Input condition</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>model returns <code>billing</code></td>
+<td>accepted typed category</td>
+</tr>
+<tr class="even">
+<td>model returns <code>finance-admin</code></td>
+<td><code>abstain</code> because it is outside the allow-list</td>
+</tr>
+<tr class="odd">
+<td>provider times out</td>
+<td>dependency failure, not a fabricated category</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-2--tenant-scoped-rag-answer">Example 2 — tenant-scoped RAG answer</h3>
+<p>Requirement: answer only from documents the authenticated user may read and cite every claim. The layer selection changes because retrieval is now an authority boundary.</p>
+<p>Selected layers: API/identity → authorization predicate → retrieval adapter → context packer → model adapter → citation/output validator. A vector database is one possible retrieval implementation; it is not “RAG” by itself. The application must apply tenant/resource filters before candidate text enters the prompt and must reject citations outside the retrieved evidence IDs.</p>
+<p>Trace:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">Step</th>
+<th>Fact established</th>
+<th>Failure behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">1</td>
+<td>token identifies subject and tenant</td>
+<td>reject invalid identity</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2</td>
+<td>policy derives permitted resource scope</td>
+<td>fail closed</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">3</td>
+<td>retrieval returns scoped evidence IDs</td>
+<td>empty evidence becomes <code>NO_EVIDENCE</code></td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">4</td>
+<td>packer preserves question and bounded evidence</td>
+<td>reject over-budget request deterministically</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">5</td>
+<td>model proposes answer and citations</td>
+<td>no direct authority</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">6</td>
+<td>validator proves every cited ID was retrieved</td>
+<td>reject unsupported output</td>
+</tr>
+</tbody>
+</table>
+<p>Choose an orchestration framework only when repeated provider/retriever integrations or trace hooks outweigh its abstraction cost. The authorization predicate remains application-owned even when a framework supplies the retriever.</p>
+<h3 id="example-3--refund-tool-with-human-review">Example 3 — refund tool with human review</h3>
+<p>Requirement: inspect an order, draft a refund, pause for approval above a threshold, execute exactly once, and resume after a restart. This does justify a durable workflow or graph.</p>
+<pre class="mermaid"><code>stateDiagram-v2
+  [*] --&gt; Inspect
+  Inspect --&gt; Propose
+  Propose --&gt; Approve: amount above threshold
+  Propose --&gt; Execute: amount within policy
+  Approve --&gt; Execute: approved
+  Approve --&gt; Rejected: rejected or expired
+  Execute --&gt; Reconcile: timeout or unknown result
+  Reconcile --&gt; Done: operation ID found
+  Execute --&gt; Done: confirmed</code></pre>
+<p>The model may propose arguments; it does not authorize the refund. The tool adapter rechecks account/order scope and policy. Persist the operation ID before calling the payment system, and reconcile an unknown result before retrying. “The framework retries tools” is not a correctness policy.</p>
+<h3 id="example-4--local-model-development-versus-production-hosting">Example 4 — local model development versus production hosting</h3>
+<p>Requirement: prototype locally, then deploy reproducibly. Record four separate identities:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Identity</th>
+<th>Example</th>
+<th>What a mismatch explains</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>client/framework</td>
+<td><code>spring-ai:2.0.1</code> or a pinned Python client</td>
+<td>request/response mapping and retry behavior</td>
+</tr>
+<tr class="even">
+<td>inference runtime/API</td>
+<td>Ollama release or hosted-provider API revision</td>
+<td>supported fields, context/runtime behavior</td>
+</tr>
+<tr class="odd">
+<td>model artifact</td>
+<td>repository plus immutable commit/digest</td>
+<td>tokenizer, weights, license and behavior</td>
+</tr>
+<tr class="even">
+<td>operator/host</td>
+<td>laptop, internal platform, or named cloud account/region</td>
+<td>network, policy, quota, observability and data handling</td>
+</tr>
+</tbody>
+</table>
+<p>“We use Spring AI,” “we use Python,” or “we use Hugging Face” does not identify the inference contract. Hugging Face can host versioned model artifacts and metadata; Ollama can run a local model or expose a cloud API; Spring AI is an application integration abstraction. Pin what you deploy and capture the resolved identities in release evidence.</p>
+<pre class="mermaid"><code>flowchart LR
+  APP[&quot;Application code&quot;] --&gt; CLIENT[&quot;Framework/client version&quot;] --&gt; API[&quot;Runtime/API version&quot;] --&gt; MODEL[&quot;Model revision/digest&quot;]
+  HOST[&quot;Operator, region, policy&quot;] --&gt; API
+  DATA[&quot;Authorized inputs&quot;] --&gt; APP</code></pre>
+<h3 id="when-to-escalate-from-plain-code-to-a-framework">When to escalate from plain code to a framework</h3>
+<p>Use an explicit gate:</p>
+<ol type="1">
+<li>Start with narrow adapters and one end-to-end test.</li>
+<li>Measure duplicated integration code, not imagined future nodes.</li>
+<li>Escalate when there are several repeated integrations, durable branching, restart/resume, or human review.</li>
+<li>Keep business authorization, idempotency, output semantics, and release identity outside opaque framework defaults.</li>
+<li>Re-run contract tests when changing a library, runtime, model revision, or host independently.</li>
+</ol>
+<p>The paired executable exercises encode this selection rule and the four-part release identity:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">java</span> <span class="at">-ea</span> study-guides/backend/spring-ai-python/LayerSelectionContracts.java</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> study-guides/backend/spring-ai-python/layer_selection_contracts.py</span></code></pre></div>
+<h3 id="common-mistakes-and-interview-follow-ups">Common mistakes and interview follow-ups</h3>
+<ul>
+<li><strong>Framework equals model:</strong> ask which process performs inference and which artifact it loaded.</li>
+<li><strong>Schema-valid equals correct:</strong> DTO/Pydantic validation proves shape, not factual support or authorization.</li>
+<li><strong>Async equals nonblocking:</strong> a blocking client inside a Python <code>async def</code> still blocks its worker; Java virtual threads still need downstream capacity limits.</li>
+<li><strong>Provider portability is perfect:</strong> common interfaces do not erase provider-specific tool, streaming, token, safety, or error semantics.</li>
+<li><strong>Agent equals tool call:</strong> one deterministic function call does not require a durable agent loop.</li>
+</ul>
+<p>Interview variations: replace the model provider without changing the business API; move local inference to a managed host; add tenant-scoped retrieval; add a tool with an unknown outcome; explain exactly which new requirement justifies a workflow engine.</p>
+<h3 id="current-primary-references">Current primary references</h3>
+<ul>
+<li><a href="https://docs.spring.io/spring-ai/reference/index.html">Spring AI introduction</a>, <a href="https://docs.spring.io/spring-ai/reference/api/index.html">Model API</a>, and <a href="https://docs.spring.io/spring-ai/reference/api/chatmodel.html">Chat Model API</a> — provider abstractions and model integration boundaries.</li>
+<li><a href="https://docs.spring.io/spring-ai/reference/api/tools.html">Spring AI tool calling</a> — current distinction between model-returned tool calls and application-driven execution.</li>
+<li><a href="https://docs.ollama.com/api/introduction">Ollama API introduction</a> and <a href="https://docs.ollama.com/api/usage">usage metrics</a> — local/cloud runtime distinction and runtime evidence.</li>
+<li><a href="https://huggingface.co/docs/hub/models-the-hub">Hugging Face Model Hub</a> and <a href="https://huggingface.co/docs/hub/model-cards">model cards</a> — versioned model artifacts and accompanying metadata.</li>
+<li><a href="https://fastapi.tiangolo.com/tutorial/body/">FastAPI request bodies</a> and <a href="https://fastapi.tiangolo.com/async/">async guidance</a> — transport/validation and blocking-boundary behavior.</li>
+</ul>
+<h3 id="source-provenance-and-continuation">Source provenance and continuation</h3>
+<p>The selected editable source is <code>atlas_guides/spring_ai_python_api_interview_guide.md</code> from <code>ai_cicd_spring_python_guides_complete.zip</code>, member SHA-256 <code>af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553</code>. This section promotes source lines 6–30 and adds four worked examples, traces, paired executable contracts, escalation criteria, and refreshed primary references. The standalone HTML SHA-256 <code>6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3</code> is byte-identical to the bundle’s generated HTML and is retained as comparison evidence, not copied as a duplicate guide. Section 2, <strong>Python library map: purpose, ownership and trade-offs</strong>, begins at source line 31 and remains queued after fair domain rotation. The 25-section source is not complete.</p>
+</main></div>
+<script id="source-markdown" type="application/octet-stream">IyBTcHJpbmcgQUkgYW5kIFB5dGhvbiBBUElzCgpUaGlzIGlzIHRoZSBjYW5vbmljYWwgaW5jcmVtZW50YWwgZ3VpZGUuIEl0IGNvbXBhcmVzIEphdmEgYW5kIFB5dGhvbiBpbXBsZW1lbnRhdGlvbiBjaG9pY2VzIGJ5IGNvbnRyYWN0IGFuZCBvd25lcnNoaXAgYm91bmRhcnkgcmF0aGVyIHRoYW4gdHJlYXRpbmcgYSBmcmFtZXdvcmssIG1vZGVsLCBydW50aW1lLCBhbmQgaG9zdCBhcyBpbnRlcmNoYW5nZWFibGUuIFRoaXMgcGFzcyBwcm9jZXNzZXMgb25seSBzb3VyY2UgU2VjdGlvbiAxLCBsaW5lcyA24oCTMzAuCgojIyBTZWN0aW9uIDEg4oCUIENob29zZSB0aGUgbGF5ZXIgYmVmb3JlIGNob29zaW5nIHRoZSBsaWJyYXJ5CgojIyMgU3RhcnQgd2l0aCByZXF1aXJlbWVudHMsIG5vdCBwYWNrYWdlIG5hbWVzCgpCZWZvcmUgc2VsZWN0aW5nIFNwcmluZyBBSSwgRmFzdEFQSSwgYW4gb3JjaGVzdHJhdGlvbiBmcmFtZXdvcmssIG9yIGEgbW9kZWwgY2xpZW50LCB3cml0ZSB0aGUgb2JzZXJ2YWJsZSBjb250cmFjdDoKCnwgUXVlc3Rpb24gfCBSZXF1aXJlZCBhbnN3ZXIgfAp8LS0tfC0tLXwKfCBXaGF0IGVudGVycyBhbmQgbGVhdmVzPyB8IHR5cGVkIHJlcXVlc3QsIHR5cGVkIHN1Y2Nlc3MsIGV4cGxpY2l0IG5vLWFuc3dlciBhbmQgZGVwZW5kZW5jeS1mYWlsdXJlIG91dGNvbWVzIHwKfCBXaGljaCBldmlkZW5jZSBpcyBhdXRob3JpdGF0aXZlPyB8IGRhdGFiYXNlL3NlYXJjaCByZXN1bHRzIGJlZm9yZSBtb2RlbCBwcm9zZTsgdGVuYW50IGFuZCByZXNvdXJjZSBzY29wZSBlbmZvcmNlZCBiZWZvcmUgcHJvbXB0IGNvbnN0cnVjdGlvbiB8CnwgV2hpY2ggZWZmZWN0cyBvY2N1cj8gfCByZWFkLW9ubHkgbW9kZWwgY2FsbCwgcmV0cmlldmFsLCBkdXJhYmxlIHdyaXRlLCB0b29sIGludm9jYXRpb24sIG9yIGh1bWFuIGFwcHJvdmFsIHwKfCBXaGF0IG1heSBiZSByZXRyaWVkPyB8IG9ubHkgaWRlbXBvdGVudC9yZWFkIG9wZXJhdGlvbnMgdW5sZXNzIGEgZHVyYWJsZSBvcGVyYXRpb24ga2V5IHJlY29uY2lsZXMgZWZmZWN0cyB8CnwgV2hhdCBtdXN0IHN1cnZpdmUgcmVzdGFydD8gfCBub3RoaW5nIGZvciBhIHNpbXBsZSBjYWxsOyB3b3JrZmxvdyBzdGF0ZSBmb3IgYnJhbmNoaW5nLCBkZWxheWVkIG9yIGh1bWFuLXJldmlld2VkIHdvcmsgfAp8IFdobyBvd25zIGVhY2ggbGF5ZXI/IHwgdGVhbS9zZXJ2aWNlIHBsdXMgdmVyc2lvbmVkIGZyYW1ld29yaywgcnVudGltZSwgbW9kZWwgcmV2aXNpb24sIGFuZCBvcGVyYXRvciB8CgpUaGUgbWluaW11bSB1c2VmdWwgcGlwZWxpbmUgaXMgdXN1YWxseSBhIHR5cGVkIGJvdW5kYXJ5LCBkZXRlcm1pbmlzdGljIGJ1c2luZXNzL3JldHJpZXZhbCBsb2dpYywgYSBtb2RlbCBhZGFwdGVyLCBhbmQgYW4gb3V0cHV0IHZhbGlkYXRvci4gQWRkIGFuIG9yY2hlc3RyYXRpb24gbGF5ZXIgd2hlbiBpdCByZW1vdmVzIHJlcGVhdGVkIGludGVncmF0aW9uIHdvcmsgb3Igb3ducyBkdXJhYmxlIGJyYW5jaGluZ+KAlG5vdCBtZXJlbHkgYmVjYXVzZSB0aGUgYXBwbGljYXRpb24gdXNlcyBhIG1vZGVsLgoKYGBgbWVybWFpZApmbG93Y2hhcnQgVEIKICBBUElbIkJ1c2luZXNzIEFQSSBhbmQgaWRlbnRpdHkiXSAtLT4gUE9MWyJBdXRob3JpemF0aW9uIGFuZCBwb2xpY3kiXQogIFBPTCAtLT4gV0ZbIldvcmtmbG93OiBwbGFpbiBjb2RlIG9yIGR1cmFibGUgZW5naW5lIl0KICBXRiAtLT4gUkVUWyJSZXRyaWV2YWwgYWRhcHRlciJdCiAgV0YgLS0+IE1PRFsiTW9kZWwgYWRhcHRlciJdCiAgV0YgLS0+IFRPT0xbIlRvb2wgYWRhcHRlciJdCiAgUkVUIC0tPiBEQVRBWygiQXV0aG9yaXplZCBkYXRhIildCiAgTU9EIC0tPiBSVU5bIkluZmVyZW5jZSBydW50aW1lIGFuZCBtb2RlbCBhcnRpZmFjdCJdCiAgVE9PTCAtLT4gU1lTWyJBdXRob3JpemVkIGJ1c2luZXNzIHN5c3RlbSJdCiAgV0YgLS0+IFZBTFsiT3V0cHV0IHZhbGlkYXRvciJdCmBgYAoKVGhlIGRpYWdyYW0gaXMgYSBjb250cmFjdCBtYXAsIG5vdCBhIHJlcXVpcmVtZW50IHRoYXQgZXZlcnkgYm94IGJlIGEgc2VwYXJhdGUgc2VydmljZS4KCiMjIyBFeGFtcGxlIDEg4oCUIG9uZS1jYWxsIGNsYXNzaWZpY2F0aW9uIEFQSQoKUmVxdWlyZW1lbnQ6IGNsYXNzaWZ5IGEgc3VwcG9ydCB0aWNrZXQgaW50byBvbmUgb2YgZml2ZSBhbGxvd2VkIGNhdGVnb3JpZXMgYW5kIHJldHVybiBhIGNvbmZpZGVuY2UvYWJzdGFpbiBvdXRjb21lLiBObyByZXRyaWV2YWwsIHRvb2xzLCBvciBkdXJhYmxlIGJyYW5jaGluZy4KClNlbGVjdGVkIGxheWVyczogSFRUUC9EVE8gdmFsaWRhdGlvbiDihpIgbW9kZWwgYWRhcHRlciDihpIgYWxsb3ctbGlzdCB2YWxpZGF0b3IuIEluIFNwcmluZywgYSBjb250cm9sbGVyIHBsdXMgYENoYXRNb2RlbGAvYENoYXRDbGllbnRgIGFkYXB0ZXIgY2FuIGJlIGVub3VnaC4gSW4gUHl0aG9uLCBGYXN0QVBJL1B5ZGFudGljIHBsdXMgb25lIGV4cGxpY2l0IEhUVFAgb3IgU0RLIGFkYXB0ZXIgY2FuIGJlIGVub3VnaC4gQW4gYWdlbnQgZ3JhcGggYWRkcyBwZXJzaXN0ZW5jZSBhbmQgdHJhbnNpdGlvbiBzdGF0ZXMgdGhhdCB0aGUgcmVxdWlyZW1lbnQgbmV2ZXIgYXNrZWQgZm9yLgoKYGBgbWVybWFpZApzZXF1ZW5jZURpYWdyYW0KICBwYXJ0aWNpcGFudCBDIGFzIENsaWVudAogIHBhcnRpY2lwYW50IEEgYXMgQVBJIGJvdW5kYXJ5CiAgcGFydGljaXBhbnQgTSBhcyBNb2RlbCBhZGFwdGVyCiAgQy0+PkE6IHRpY2tldCB0ZXh0ICsgb3BlcmF0aW9uIElECiAgQS0+PkE6IGF1dGhlbnRpY2F0ZSwgc2l6ZS1jaGVjaywgcmVkYWN0CiAgQS0+Pk06IHR5cGVkIGNsYXNzaWZpY2F0aW9uIHByb21wdAogIE0tLT4+QTogY2FuZGlkYXRlIGNhdGVnb3J5CiAgQS0+PkE6IHZhbGlkYXRlIGFsbG93LWxpc3Qgb3IgYWJzdGFpbgogIEEtLT4+QzogY2F0ZWdvcnkgfCBhYnN0YWluIHwgZGVwZW5kZW5jeSBmYWlsdXJlCmBgYAoKRXhwZWN0ZWQgb3V0Y29tZXM6Cgp8IElucHV0IGNvbmRpdGlvbiB8IE91dHB1dCB8CnwtLS18LS0tfAp8IG1vZGVsIHJldHVybnMgYGJpbGxpbmdgIHwgYWNjZXB0ZWQgdHlwZWQgY2F0ZWdvcnkgfAp8IG1vZGVsIHJldHVybnMgYGZpbmFuY2UtYWRtaW5gIHwgYGFic3RhaW5gIGJlY2F1c2UgaXQgaXMgb3V0c2lkZSB0aGUgYWxsb3ctbGlzdCB8CnwgcHJvdmlkZXIgdGltZXMgb3V0IHwgZGVwZW5kZW5jeSBmYWlsdXJlLCBub3QgYSBmYWJyaWNhdGVkIGNhdGVnb3J5IHwKCiMjIyBFeGFtcGxlIDIg4oCUIHRlbmFudC1zY29wZWQgUkFHIGFuc3dlcgoKUmVxdWlyZW1lbnQ6IGFuc3dlciBvbmx5IGZyb20gZG9jdW1lbnRzIHRoZSBhdXRoZW50aWNhdGVkIHVzZXIgbWF5IHJlYWQgYW5kIGNpdGUgZXZlcnkgY2xhaW0uIFRoZSBsYXllciBzZWxlY3Rpb24gY2hhbmdlcyBiZWNhdXNlIHJldHJpZXZhbCBpcyBub3cgYW4gYXV0aG9yaXR5IGJvdW5kYXJ5LgoKU2VsZWN0ZWQgbGF5ZXJzOiBBUEkvaWRlbnRpdHkg4oaSIGF1dGhvcml6YXRpb24gcHJlZGljYXRlIOKGkiByZXRyaWV2YWwgYWRhcHRlciDihpIgY29udGV4dCBwYWNrZXIg4oaSIG1vZGVsIGFkYXB0ZXIg4oaSIGNpdGF0aW9uL291dHB1dCB2YWxpZGF0b3IuIEEgdmVjdG9yIGRhdGFiYXNlIGlzIG9uZSBwb3NzaWJsZSByZXRyaWV2YWwgaW1wbGVtZW50YXRpb247IGl0IGlzIG5vdCDigJxSQUfigJ0gYnkgaXRzZWxmLiBUaGUgYXBwbGljYXRpb24gbXVzdCBhcHBseSB0ZW5hbnQvcmVzb3VyY2UgZmlsdGVycyBiZWZvcmUgY2FuZGlkYXRlIHRleHQgZW50ZXJzIHRoZSBwcm9tcHQgYW5kIG11c3QgcmVqZWN0IGNpdGF0aW9ucyBvdXRzaWRlIHRoZSByZXRyaWV2ZWQgZXZpZGVuY2UgSURzLgoKVHJhY2U6Cgp8IFN0ZXAgfCBGYWN0IGVzdGFibGlzaGVkIHwgRmFpbHVyZSBiZWhhdmlvciB8CnwtLS06fC0tLXwtLS18CnwgMSB8IHRva2VuIGlkZW50aWZpZXMgc3ViamVjdCBhbmQgdGVuYW50IHwgcmVqZWN0IGludmFsaWQgaWRlbnRpdHkgfAp8IDIgfCBwb2xpY3kgZGVyaXZlcyBwZXJtaXR0ZWQgcmVzb3VyY2Ugc2NvcGUgfCBmYWlsIGNsb3NlZCB8CnwgMyB8IHJldHJpZXZhbCByZXR1cm5zIHNjb3BlZCBldmlkZW5jZSBJRHMgfCBlbXB0eSBldmlkZW5jZSBiZWNvbWVzIGBOT19FVklERU5DRWAgfAp8IDQgfCBwYWNrZXIgcHJlc2VydmVzIHF1ZXN0aW9uIGFuZCBib3VuZGVkIGV2aWRlbmNlIHwgcmVqZWN0IG92ZXItYnVkZ2V0IHJlcXVlc3QgZGV0ZXJtaW5pc3RpY2FsbHkgfAp8IDUgfCBtb2RlbCBwcm9wb3NlcyBhbnN3ZXIgYW5kIGNpdGF0aW9ucyB8IG5vIGRpcmVjdCBhdXRob3JpdHkgfAp8IDYgfCB2YWxpZGF0b3IgcHJvdmVzIGV2ZXJ5IGNpdGVkIElEIHdhcyByZXRyaWV2ZWQgfCByZWplY3QgdW5zdXBwb3J0ZWQgb3V0cHV0IHwKCkNob29zZSBhbiBvcmNoZXN0cmF0aW9uIGZyYW1ld29yayBvbmx5IHdoZW4gcmVwZWF0ZWQgcHJvdmlkZXIvcmV0cmlldmVyIGludGVncmF0aW9ucyBvciB0cmFjZSBob29rcyBvdXR3ZWlnaCBpdHMgYWJzdHJhY3Rpb24gY29zdC4gVGhlIGF1dGhvcml6YXRpb24gcHJlZGljYXRlIHJlbWFpbnMgYXBwbGljYXRpb24tb3duZWQgZXZlbiB3aGVuIGEgZnJhbWV3b3JrIHN1cHBsaWVzIHRoZSByZXRyaWV2ZXIuCgojIyMgRXhhbXBsZSAzIOKAlCByZWZ1bmQgdG9vbCB3aXRoIGh1bWFuIHJldmlldwoKUmVxdWlyZW1lbnQ6IGluc3BlY3QgYW4gb3JkZXIsIGRyYWZ0IGEgcmVmdW5kLCBwYXVzZSBmb3IgYXBwcm92YWwgYWJvdmUgYSB0aHJlc2hvbGQsIGV4ZWN1dGUgZXhhY3RseSBvbmNlLCBhbmQgcmVzdW1lIGFmdGVyIGEgcmVzdGFydC4gVGhpcyBkb2VzIGp1c3RpZnkgYSBkdXJhYmxlIHdvcmtmbG93IG9yIGdyYXBoLgoKYGBgbWVybWFpZApzdGF0ZURpYWdyYW0tdjIKICBbKl0gLS0+IEluc3BlY3QKICBJbnNwZWN0IC0tPiBQcm9wb3NlCiAgUHJvcG9zZSAtLT4gQXBwcm92ZTogYW1vdW50IGFib3ZlIHRocmVzaG9sZAogIFByb3Bvc2UgLS0+IEV4ZWN1dGU6IGFtb3VudCB3aXRoaW4gcG9saWN5CiAgQXBwcm92ZSAtLT4gRXhlY3V0ZTogYXBwcm92ZWQKICBBcHByb3ZlIC0tPiBSZWplY3RlZDogcmVqZWN0ZWQgb3IgZXhwaXJlZAogIEV4ZWN1dGUgLS0+IFJlY29uY2lsZTogdGltZW91dCBvciB1bmtub3duIHJlc3VsdAogIFJlY29uY2lsZSAtLT4gRG9uZTogb3BlcmF0aW9uIElEIGZvdW5kCiAgRXhlY3V0ZSAtLT4gRG9uZTogY29uZmlybWVkCmBgYAoKVGhlIG1vZGVsIG1heSBwcm9wb3NlIGFyZ3VtZW50czsgaXQgZG9lcyBub3QgYXV0aG9yaXplIHRoZSByZWZ1bmQuIFRoZSB0b29sIGFkYXB0ZXIgcmVjaGVja3MgYWNjb3VudC9vcmRlciBzY29wZSBhbmQgcG9saWN5LiBQZXJzaXN0IHRoZSBvcGVyYXRpb24gSUQgYmVmb3JlIGNhbGxpbmcgdGhlIHBheW1lbnQgc3lzdGVtLCBhbmQgcmVjb25jaWxlIGFuIHVua25vd24gcmVzdWx0IGJlZm9yZSByZXRyeWluZy4g4oCcVGhlIGZyYW1ld29yayByZXRyaWVzIHRvb2xz4oCdIGlzIG5vdCBhIGNvcnJlY3RuZXNzIHBvbGljeS4KCiMjIyBFeGFtcGxlIDQg4oCUIGxvY2FsIG1vZGVsIGRldmVsb3BtZW50IHZlcnN1cyBwcm9kdWN0aW9uIGhvc3RpbmcKClJlcXVpcmVtZW50OiBwcm90b3R5cGUgbG9jYWxseSwgdGhlbiBkZXBsb3kgcmVwcm9kdWNpYmx5LiBSZWNvcmQgZm91ciBzZXBhcmF0ZSBpZGVudGl0aWVzOgoKfCBJZGVudGl0eSB8IEV4YW1wbGUgfCBXaGF0IGEgbWlzbWF0Y2ggZXhwbGFpbnMgfAp8LS0tfC0tLXwtLS18CnwgY2xpZW50L2ZyYW1ld29yayB8IGBzcHJpbmctYWk6Mi4wLjFgIG9yIGEgcGlubmVkIFB5dGhvbiBjbGllbnQgfCByZXF1ZXN0L3Jlc3BvbnNlIG1hcHBpbmcgYW5kIHJldHJ5IGJlaGF2aW9yIHwKfCBpbmZlcmVuY2UgcnVudGltZS9BUEkgfCBPbGxhbWEgcmVsZWFzZSBvciBob3N0ZWQtcHJvdmlkZXIgQVBJIHJldmlzaW9uIHwgc3VwcG9ydGVkIGZpZWxkcywgY29udGV4dC9ydW50aW1lIGJlaGF2aW9yIHwKfCBtb2RlbCBhcnRpZmFjdCB8IHJlcG9zaXRvcnkgcGx1cyBpbW11dGFibGUgY29tbWl0L2RpZ2VzdCB8IHRva2VuaXplciwgd2VpZ2h0cywgbGljZW5zZSBhbmQgYmVoYXZpb3IgfAp8IG9wZXJhdG9yL2hvc3QgfCBsYXB0b3AsIGludGVybmFsIHBsYXRmb3JtLCBvciBuYW1lZCBjbG91ZCBhY2NvdW50L3JlZ2lvbiB8IG5ldHdvcmssIHBvbGljeSwgcXVvdGEsIG9ic2VydmFiaWxpdHkgYW5kIGRhdGEgaGFuZGxpbmcgfAoK4oCcV2UgdXNlIFNwcmluZyBBSSzigJ0g4oCcd2UgdXNlIFB5dGhvbizigJ0gb3Ig4oCcd2UgdXNlIEh1Z2dpbmcgRmFjZeKAnSBkb2VzIG5vdCBpZGVudGlmeSB0aGUgaW5mZXJlbmNlIGNvbnRyYWN0LiBIdWdnaW5nIEZhY2UgY2FuIGhvc3QgdmVyc2lvbmVkIG1vZGVsIGFydGlmYWN0cyBhbmQgbWV0YWRhdGE7IE9sbGFtYSBjYW4gcnVuIGEgbG9jYWwgbW9kZWwgb3IgZXhwb3NlIGEgY2xvdWQgQVBJOyBTcHJpbmcgQUkgaXMgYW4gYXBwbGljYXRpb24gaW50ZWdyYXRpb24gYWJzdHJhY3Rpb24uIFBpbiB3aGF0IHlvdSBkZXBsb3kgYW5kIGNhcHR1cmUgdGhlIHJlc29sdmVkIGlkZW50aXRpZXMgaW4gcmVsZWFzZSBldmlkZW5jZS4KCmBgYG1lcm1haWQKZmxvd2NoYXJ0IExSCiAgQVBQWyJBcHBsaWNhdGlvbiBjb2RlIl0gLS0+IENMSUVOVFsiRnJhbWV3b3JrL2NsaWVudCB2ZXJzaW9uIl0gLS0+IEFQSVsiUnVudGltZS9BUEkgdmVyc2lvbiJdIC0tPiBNT0RFTFsiTW9kZWwgcmV2aXNpb24vZGlnZXN0Il0KICBIT1NUWyJPcGVyYXRvciwgcmVnaW9uLCBwb2xpY3kiXSAtLT4gQVBJCiAgREFUQVsiQXV0aG9yaXplZCBpbnB1dHMiXSAtLT4gQVBQCmBgYAoKIyMjIFdoZW4gdG8gZXNjYWxhdGUgZnJvbSBwbGFpbiBjb2RlIHRvIGEgZnJhbWV3b3JrCgpVc2UgYW4gZXhwbGljaXQgZ2F0ZToKCjEuIFN0YXJ0IHdpdGggbmFycm93IGFkYXB0ZXJzIGFuZCBvbmUgZW5kLXRvLWVuZCB0ZXN0LgoyLiBNZWFzdXJlIGR1cGxpY2F0ZWQgaW50ZWdyYXRpb24gY29kZSwgbm90IGltYWdpbmVkIGZ1dHVyZSBub2Rlcy4KMy4gRXNjYWxhdGUgd2hlbiB0aGVyZSBhcmUgc2V2ZXJhbCByZXBlYXRlZCBpbnRlZ3JhdGlvbnMsIGR1cmFibGUgYnJhbmNoaW5nLCByZXN0YXJ0L3Jlc3VtZSwgb3IgaHVtYW4gcmV2aWV3Lgo0LiBLZWVwIGJ1c2luZXNzIGF1dGhvcml6YXRpb24sIGlkZW1wb3RlbmN5LCBvdXRwdXQgc2VtYW50aWNzLCBhbmQgcmVsZWFzZSBpZGVudGl0eSBvdXRzaWRlIG9wYXF1ZSBmcmFtZXdvcmsgZGVmYXVsdHMuCjUuIFJlLXJ1biBjb250cmFjdCB0ZXN0cyB3aGVuIGNoYW5naW5nIGEgbGlicmFyeSwgcnVudGltZSwgbW9kZWwgcmV2aXNpb24sIG9yIGhvc3QgaW5kZXBlbmRlbnRseS4KClRoZSBwYWlyZWQgZXhlY3V0YWJsZSBleGVyY2lzZXMgZW5jb2RlIHRoaXMgc2VsZWN0aW9uIHJ1bGUgYW5kIHRoZSBmb3VyLXBhcnQgcmVsZWFzZSBpZGVudGl0eToKCmBgYGJhc2gKamF2YSAtZWEgc3R1ZHktZ3VpZGVzL2JhY2tlbmQvc3ByaW5nLWFpLXB5dGhvbi9MYXllclNlbGVjdGlvbkNvbnRyYWN0cy5qYXZhCnB5dGhvbjMgc3R1ZHktZ3VpZGVzL2JhY2tlbmQvc3ByaW5nLWFpLXB5dGhvbi9sYXllcl9zZWxlY3Rpb25fY29udHJhY3RzLnB5CmBgYAoKIyMjIENvbW1vbiBtaXN0YWtlcyBhbmQgaW50ZXJ2aWV3IGZvbGxvdy11cHMKCi0gKipGcmFtZXdvcmsgZXF1YWxzIG1vZGVsOioqIGFzayB3aGljaCBwcm9jZXNzIHBlcmZvcm1zIGluZmVyZW5jZSBhbmQgd2hpY2ggYXJ0aWZhY3QgaXQgbG9hZGVkLgotICoqU2NoZW1hLXZhbGlkIGVxdWFscyBjb3JyZWN0OioqIERUTy9QeWRhbnRpYyB2YWxpZGF0aW9uIHByb3ZlcyBzaGFwZSwgbm90IGZhY3R1YWwgc3VwcG9ydCBvciBhdXRob3JpemF0aW9uLgotICoqQXN5bmMgZXF1YWxzIG5vbmJsb2NraW5nOioqIGEgYmxvY2tpbmcgY2xpZW50IGluc2lkZSBhIFB5dGhvbiBgYXN5bmMgZGVmYCBzdGlsbCBibG9ja3MgaXRzIHdvcmtlcjsgSmF2YSB2aXJ0dWFsIHRocmVhZHMgc3RpbGwgbmVlZCBkb3duc3RyZWFtIGNhcGFjaXR5IGxpbWl0cy4KLSAqKlByb3ZpZGVyIHBvcnRhYmlsaXR5IGlzIHBlcmZlY3Q6KiogY29tbW9uIGludGVyZmFjZXMgZG8gbm90IGVyYXNlIHByb3ZpZGVyLXNwZWNpZmljIHRvb2wsIHN0cmVhbWluZywgdG9rZW4sIHNhZmV0eSwgb3IgZXJyb3Igc2VtYW50aWNzLgotICoqQWdlbnQgZXF1YWxzIHRvb2wgY2FsbDoqKiBvbmUgZGV0ZXJtaW5pc3RpYyBmdW5jdGlvbiBjYWxsIGRvZXMgbm90IHJlcXVpcmUgYSBkdXJhYmxlIGFnZW50IGxvb3AuCgpJbnRlcnZpZXcgdmFyaWF0aW9uczogcmVwbGFjZSB0aGUgbW9kZWwgcHJvdmlkZXIgd2l0aG91dCBjaGFuZ2luZyB0aGUgYnVzaW5lc3MgQVBJOyBtb3ZlIGxvY2FsIGluZmVyZW5jZSB0byBhIG1hbmFnZWQgaG9zdDsgYWRkIHRlbmFudC1zY29wZWQgcmV0cmlldmFsOyBhZGQgYSB0b29sIHdpdGggYW4gdW5rbm93biBvdXRjb21lOyBleHBsYWluIGV4YWN0bHkgd2hpY2ggbmV3IHJlcXVpcmVtZW50IGp1c3RpZmllcyBhIHdvcmtmbG93IGVuZ2luZS4KCiMjIyBDdXJyZW50IHByaW1hcnkgcmVmZXJlbmNlcwoKLSBbU3ByaW5nIEFJIGludHJvZHVjdGlvbl0oaHR0cHM6Ly9kb2NzLnNwcmluZy5pby9zcHJpbmctYWkvcmVmZXJlbmNlL2luZGV4Lmh0bWwpLCBbTW9kZWwgQVBJXShodHRwczovL2RvY3Muc3ByaW5nLmlvL3NwcmluZy1haS9yZWZlcmVuY2UvYXBpL2luZGV4Lmh0bWwpLCBhbmQgW0NoYXQgTW9kZWwgQVBJXShodHRwczovL2RvY3Muc3ByaW5nLmlvL3NwcmluZy1haS9yZWZlcmVuY2UvYXBpL2NoYXRtb2RlbC5odG1sKSDigJQgcHJvdmlkZXIgYWJzdHJhY3Rpb25zIGFuZCBtb2RlbCBpbnRlZ3JhdGlvbiBib3VuZGFyaWVzLgotIFtTcHJpbmcgQUkgdG9vbCBjYWxsaW5nXShodHRwczovL2RvY3Muc3ByaW5nLmlvL3NwcmluZy1haS9yZWZlcmVuY2UvYXBpL3Rvb2xzLmh0bWwpIOKAlCBjdXJyZW50IGRpc3RpbmN0aW9uIGJldHdlZW4gbW9kZWwtcmV0dXJuZWQgdG9vbCBjYWxscyBhbmQgYXBwbGljYXRpb24tZHJpdmVuIGV4ZWN1dGlvbi4KLSBbT2xsYW1hIEFQSSBpbnRyb2R1Y3Rpb25dKGh0dHBzOi8vZG9jcy5vbGxhbWEuY29tL2FwaS9pbnRyb2R1Y3Rpb24pIGFuZCBbdXNhZ2UgbWV0cmljc10oaHR0cHM6Ly9kb2NzLm9sbGFtYS5jb20vYXBpL3VzYWdlKSDigJQgbG9jYWwvY2xvdWQgcnVudGltZSBkaXN0aW5jdGlvbiBhbmQgcnVudGltZSBldmlkZW5jZS4KLSBbSHVnZ2luZyBGYWNlIE1vZGVsIEh1Yl0oaHR0cHM6Ly9odWdnaW5nZmFjZS5jby9kb2NzL2h1Yi9tb2RlbHMtdGhlLWh1YikgYW5kIFttb2RlbCBjYXJkc10oaHR0cHM6Ly9odWdnaW5nZmFjZS5jby9kb2NzL2h1Yi9tb2RlbC1jYXJkcykg4oCUIHZlcnNpb25lZCBtb2RlbCBhcnRpZmFjdHMgYW5kIGFjY29tcGFueWluZyBtZXRhZGF0YS4KLSBbRmFzdEFQSSByZXF1ZXN0IGJvZGllc10oaHR0cHM6Ly9mYXN0YXBpLnRpYW5nb2xvLmNvbS90dXRvcmlhbC9ib2R5LykgYW5kIFthc3luYyBndWlkYW5jZV0oaHR0cHM6Ly9mYXN0YXBpLnRpYW5nb2xvLmNvbS9hc3luYy8pIOKAlCB0cmFuc3BvcnQvdmFsaWRhdGlvbiBhbmQgYmxvY2tpbmctYm91bmRhcnkgYmVoYXZpb3IuCgojIyMgU291cmNlIHByb3ZlbmFuY2UgYW5kIGNvbnRpbnVhdGlvbgoKVGhlIHNlbGVjdGVkIGVkaXRhYmxlIHNvdXJjZSBpcyBgYXRsYXNfZ3VpZGVzL3NwcmluZ19haV9weXRob25fYXBpX2ludGVydmlld19ndWlkZS5tZGAgZnJvbSBgYWlfY2ljZF9zcHJpbmdfcHl0aG9uX2d1aWRlc19jb21wbGV0ZS56aXBgLCBtZW1iZXIgU0hBLTI1NiBgYWYyNWM0MWQ1NGEzY2ExOGRmYzYwYjZjZjgyODUxNWFiNmFmYjdlMzljZjY0YzdkZjk0ZmU0YTQ0ZWI0YTU1M2AuIFRoaXMgc2VjdGlvbiBwcm9tb3RlcyBzb3VyY2UgbGluZXMgNuKAkzMwIGFuZCBhZGRzIGZvdXIgd29ya2VkIGV4YW1wbGVzLCB0cmFjZXMsIHBhaXJlZCBleGVjdXRhYmxlIGNvbnRyYWN0cywgZXNjYWxhdGlvbiBjcml0ZXJpYSwgYW5kIHJlZnJlc2hlZCBwcmltYXJ5IHJlZmVyZW5jZXMuIFRoZSBzdGFuZGFsb25lIEhUTUwgU0hBLTI1NiBgNjI4OWExOWUwY2U1NTE0YzI1ZDk2ZDQ0ODA2ZDQ3MDYzZTcyNjI0NGI1ZDU1ZDEzNDIyMjM0ZDNlNDk5ZjNhM2AgaXMgYnl0ZS1pZGVudGljYWwgdG8gdGhlIGJ1bmRsZeKAmXMgZ2VuZXJhdGVkIEhUTUwgYW5kIGlzIHJldGFpbmVkIGFzIGNvbXBhcmlzb24gZXZpZGVuY2UsIG5vdCBjb3BpZWQgYXMgYSBkdXBsaWNhdGUgZ3VpZGUuIFNlY3Rpb24gMiwgKipQeXRob24gbGlicmFyeSBtYXA6IHB1cnBvc2UsIG93bmVyc2hpcCBhbmQgdHJhZGUtb2ZmcyoqLCBiZWdpbnMgYXQgc291cmNlIGxpbmUgMzEgYW5kIHJlbWFpbnMgcXVldWVkIGFmdGVyIGZhaXIgZG9tYWluIHJvdGF0aW9uLiBUaGUgMjUtc2VjdGlvbiBzb3VyY2UgaXMgbm90IGNvbXBsZXRlLgo=</script>
+<script id="search-index" type="application/json">[{"level": "1", "id": "spring-ai-and-python-apis", "title": "Spring AI and Python APIs", "text": "This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. This pass processes only source Section 1, lines 6–30."}, {"level": "2", "id": "section-1--choose-the-layer-before-choosing-the-library", "title": "Section 1 — Choose the layer before choosing the library", "text": "Start with requirements, not package names Before selecting Spring AI, FastAPI, an orchestration framework, or a model client, write the observable contract: Question Required answer --- --- What enters and leaves? typed request, typed success, explicit no-answer and dependency-failure outcomes Which evidence is authoritative? database/search results before model prose; tenant and resource scope enforced before prompt construction Which effects occur? read-only model call, retrieval, durable write, tool invocation, or human approval What may be retried? only idempotent/read operations unless a durable operation key reconciles effects What must survive restart? nothing for a simple call; workflow state for branching, delayed or human-reviewed work Who owns each layer? team/service plus versioned framework, runtime, model revision, and operator The minimum useful pipeline is usually a typed boundary, deterministic business/retrieval logic, a model adapter, and an output validator. Add an orchestration layer when it removes repeated integration work or owns durable branching—not merely because the application uses a model. mermaid flowchart TB API \"Business API and identity\" -- POL \"Authorization and policy\" POL -- WF \"Workflow: plain code or durable engine\" WF -- RET \"Retrieval adapter\" WF -- MOD \"Model adapter\" WF -- TOOL \"Tool adapter\" RET -- DATA \"Authorized data\" MOD -- RUN \"Inference runtime and model artifact\" TOOL -- SYS \"Authorized business system\" WF -- VAL \"Output validator\" The diagram is a contract map, not a requirement that every box be a separate service. Example 1 — one-call classification API Requirement: classify a support ticket into one of five allowed categories and return a confidence/abstain outcome. No retrieval, tools, or durable branching. Selected layers: HTTP/DTO validation → model adapter → allow-list validator. In Spring, a controller plus ChatModel / ChatClient adapter can be enough. In Python, FastAPI/Pydantic plus one explicit HTTP or SDK adapter can be enough. An agent graph adds persistence and transition states that the requirement never asked for. mermaid sequenceDiagram participant C as Client participant A as API boundary participant M as Model adapter C- A: ticket text + operation ID A- A: authenticate, size-check, redact A- M: typed classification prompt M-- A: candidate category A- A: validate allow-list or abstain A-- C: category abstain dependency failure Expected outcomes: Input condition Output --- --- model returns billing accepted typed category model returns finance-admin abstain because it is outside the allow-list provider times out dependency failure, not a fabricated category Example 2 — tenant-scoped RAG answer Requirement: answer only from documents the authenticated user may read and cite every claim. The layer selection changes because retrieval is now an authority boundary. Selected layers: API/identity → authorization predicate → retrieval adapter → context packer → model adapter → citation/output validator. A vector database is one possible retrieval implementation; it is not “RAG” by itself. The application must apply tenant/resource filters before candidate text enters the prompt and must reject citations outside the retrieved evidence IDs. Trace: Step Fact established Failure behavior ---: --- --- 1 token identifies subject and tenant reject invalid identity 2 policy derives permitted resource scope fail closed 3 retrieval returns scoped evidence IDs empty evidence becomes NO EVIDENCE 4 packer preserves question and bounded evidence reject over-budget request deterministically 5 model proposes answer and citations no direct authority 6 validator proves every cited ID was retrieved reject unsupported output Choose an orchestration framework only when repeated provider/retriever integrations or trace hooks outweigh its abstraction cost. The authorization predicate remains application-owned even when a framework supplies the retriever. Example 3 — refund tool with human review Requirement: inspect an order, draft a refund, pause for approval above a threshold, execute exactly once, and resume after a restart. This does justify a durable workflow or graph. mermaid stateDiagram-v2 -- Inspect Inspect -- Propose Propose -- Approve: amount above threshold Propose -- Execute: amount within policy Approve -- Execute: approved Approve -- Rejected: rejected or expired Execute -- Reconcile: timeout or unknown result Reconcile -- Done: operation ID found Execute -- Done: confirmed The model may propose arguments; it does not authorize the refund. The tool adapter rechecks account/order scope and policy. Persist the operation ID before calling the payment system, and reconcile an unknown result before retrying. “The framework retries tools” is not a correctness policy. Example 4 — local model development versus production hosting Requirement: prototype locally, then deploy reproducibly. Record four separate identities: Identity Example What a mismatch explains --- --- --- client/framework spring-ai:2.0.1 or a pinned Python client request/response mapping and retry behavior inference runtime/API Ollama release or hosted-provider API revision supported fields, context/runtime behavior model artifact repository plus immutable commit/digest tokenizer, weights, license and behavior operator/host laptop, internal platform, or named cloud account/region network, policy, quota, observability and data handling “We use Spring AI,” “we use Python,” or “we use Hugging Face” does not identify the inference contract. Hugging Face can host versioned model artifacts and metadata; Ollama can run a local model or expose a cloud API; Spring AI is an application integration abstraction. Pin what you deploy and capture the resolved identities in release evidence. mermaid flowchart LR APP \"Application code\" -- CLIENT \"Framework/client version\" -- API \"Runtime/API version\" -- MODEL \"Model revision/digest\" HOST \"Operator, region, policy\" -- API DATA \"Authorized inputs\" -- APP When to escalate from plain code to a framework Use an explicit gate: 1. Start with narrow adapters and one end-to-end test. 2. Measure duplicated integration code, not imagined future nodes. 3. Escalate when there are several repeated integrations, durable branching, restart/resume, or human review. 4. Keep business authorization, idempotency, output semantics, and release identity outside opaque framework defaults. 5. Re-run contract tests when changing a library, runtime, model revision, or host independently. The paired executable exercises encode this selection rule and the four-part release identity: bash java -ea study-guides/backend/spring-ai-python/LayerSelectionContracts.java python3 study-guides/backend/spring-ai-python/layer selection contracts.py Common mistakes and interview follow-ups - Framework equals model: ask which process performs inference and which artifact it loaded. - Schema-valid equals correct: DTO/Pydantic validation proves shape, not factual support or authorization. - Async equals nonblocking: a blocking client inside a Python async def still blocks its worker; Java virtual threads still need downstream capacity limits. - Provider portability is perfect: common interfaces do not erase provider-specific tool, streaming, token, safety, or error semantics. - Agent equals tool call: one deterministic function call does not require a durable agent loop. Interview variations: replace the model provider without changing the business API; move local inference to a managed host; add tenant-scoped retrieval; add a tool with an unknown outcome; explain exactly which new requirement justifies a workflow engine. Current primary references - Spring AI introduction https://docs.spring.io/spring-ai/reference/index.html , Model API https://docs.spring.io/spring-ai/reference/api/index.html , and Chat Model API https://docs.spring.io/spring-ai/reference/api/chatmodel.html — provider abstractions and model integration boundaries. - Spring AI tool calling https://docs.spring.io/spring-ai/reference/api/tools.html — current distinction between model-returned tool calls and application-driven execution. - Ollama API introduction https://docs.ollama.com/api/introduction and usage metrics https://docs.ollama.com/api/usage — local/cloud runtime distinction and runtime evidence. - Hugging Face Model Hub https://huggingface.co/docs/hub/models-the-hub and model cards https://huggingface.co/docs/hub/model-cards — versioned model artifacts and accompanying metadata. - FastAPI request bodies https://fastapi.tiangolo.com/tutorial/body/ and async guidance https://fastapi.tiangolo.com/async/ — transport/validation and blocking-boundary behavior. Source provenance and continuation The selected editable source is atlas guides/spring ai python api interview guide.md from ai cicd spring python guides complete.zip , member SHA-256 af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553 . This section promotes source lines 6–30 and adds four worked examples, traces, paired executable contracts, escalation criteria, and refreshed primary references. The standalone HTML SHA-256 6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3 is byte-identical to the bundle’s generated HTML and is retained as comparison evidence, not copied as a duplicate guide. Section 2, Python library map: purpose, ownership and trade-offs , begins at source line 31 and remains queued after fair domain rotation. The 25-section source is not complete."}]</script>
+<script>
+const input=document.querySelector('#guide-search'),results=document.querySelector('#results'),status=document.querySelector('#search-status');
+const index=JSON.parse(document.querySelector('#search-index').textContent);
+function escapeHtml(value){return value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function runSearch(){const q=input.value.trim().toLocaleLowerCase();results.replaceChildren();if(!q){status.textContent='Type to search headings and section text.';return;}const matches=index.filter(x=>(x.title+' '+x.text).toLocaleLowerCase().includes(q)).slice(0,30);status.textContent=matches.length?`${matches.length} matching sections (first 30 max).`:'No matching section.';for(const item of matches){const li=document.createElement('li'),a=document.createElement('a');a.href='#'+item.id;a.innerHTML=escapeHtml(item.title);li.append(a);results.append(li);}}
+input.addEventListener('input',runSearch);input.addEventListener('keydown',e=>{if(e.key==='Enter'&&results.firstElementChild)results.querySelector('a').click();});
+</script>
+<script type="module">
+try{const{default:mermaid}=await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');document.querySelectorAll('pre.mermaid').forEach(pre=>{const div=document.createElement('div');div.className='mermaid';div.textContent=pre.textContent;pre.replaceWith(div);});mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'neutral'});await mermaid.run({querySelector:'.mermaid'});}catch(error){console.warn('Mermaid unavailable; source diagrams remain readable.',error);}
+</script></body></html>
