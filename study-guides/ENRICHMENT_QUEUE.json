@@ -51,10 +51,10 @@
       "version_id": null,
       "modified_at": "2026-09-17T05:55:54.714170Z",
       "size_bytes": 2535466,
-      "status": "READY",
-      "last_read_at": "2026-10-08T08:33:40-04:00",
+      "status": "IN_PROGRESS",
+      "last_read_at": "2026-10-21T11:18:08-04:00",
       "sha256": "c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31",
-      "selection": "Archive integrity/traversal checks passed; its CI/CD Markdown and nine topic figures were selected for the canonical DevOps guide. AI-platform and Spring/Python contents remain separately queued."
+      "selection": "Archive integrity/traversal checks passed. Its CI/CD source is promoted separately; Spring/Python member atlas_guides/spring_ai_python_api_interview_guide.md (SHA-256 af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553) is the selected editable source and Section 1 is promoted."
     },
     {
       "name": "ai_platform_master_guide.html",
@@ -75,7 +75,10 @@
       "version_id": null,
       "modified_at": "2026-09-17T05:55:54.480720Z",
       "size_bytes": 149762,
-      "status": "DISCOVERED"
+      "status": "READY",
+      "last_read_at": "2026-10-21T11:18:08-04:00",
+      "sha256": "6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3",
+      "selection": "Read and compared; byte-identical to the bundle's generated Spring/Python HTML, so it is not promoted as a duplicate canonical source."
     },
     {
       "name": "ai_platform_engineering_complete_bundle.zip",
@@ -729,14 +732,30 @@
       "id": "spring-ai-python-api",
       "domain": "DevOps/backend",
       "canonical_target": "study-guides/backend/spring-ai-python/",
-      "target_exists": false,
-      "status": "DISCOVERED",
+      "target_exists": true,
+      "status": "IN_PROGRESS",
       "source_names": [
         "ai_cicd_spring_python_guides_complete.zip",
         "spring_ai_python_api_interview_guide.html"
       ],
-      "last_processed_at": null,
-      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "last_processed_at": "2026-10-21T11:18:08-04:00",
+      "processed_sections": [
+        "Section 1: choose the layer before choosing the library — requirements, four selection examples, authority/retry/release boundaries, paired Java/Python contracts and current primary references"
+      ],
+      "source_revision": {
+        "baseline_commit": "3296b794f00a24f206148599d249246d69ed8942",
+        "bundle_library_file_id": "libfile_d6a32648e8408191845065f5dc21ed2a",
+        "bundle_file_id": "file_0000000094548230b875e10e7acf8d33",
+        "bundle_sha256": "c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31",
+        "selected_inner_source": "atlas_guides/spring_ai_python_api_interview_guide.md",
+        "selected_inner_sha256": "af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553",
+        "compared_library_file_id": "libfile_a6efee022fb881919d2e8ff61bd758ed",
+        "compared_html_sha256": "6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3",
+        "canonical_sha256_after": "637c2957ada128849d2ae7f5b4b240c3d9221425e23edf70ac45f244aa7972d5"
+      },
+      "last_successful_commit": "8b056560c0f8f1ff09e9aa689c1e8f5c91a57b35",
+      "validation": "Java 17 source-file launch and Python 3 execution each passed 9 scenario groups. Deterministic reader generation passed exact 10385-byte payload equality, SHA-256 637c2957ada128849d2ae7f5b4b240c3d9221425e23edf70ac45f244aa7972d5, 20 unique IDs, 2 search entries, local links/fragments, 10 balanced fences and 4 Mermaid sources. Standalone javac, framework dependency compilation, live model/provider integration, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
+      "next_action": "Rotate domains fairly. On the next Spring/Python turn, process Section 2, Python library map, source lines 31-56; Sections 3-25 remain queued.",
       "priority": 14
     },
     {
@@ -1071,15 +1090,16 @@
       "Database/caching Section 42: seven-slot component contract, outbox acknowledgement/replay, cache-loader authority/lease ownership and connection-pool checkout/cleanup boundaries",
       "Database/caching Section 43: absolute-rate capacity, index read/write evidence, revision and membership publication, and pool/lease/transaction/network authority boundaries",
       "AI platform Chapter 1: authority boundaries among prompting, RAG, fine-tuning and tool/MCP use",
-      "System-design Blueprint 1: global video streaming contracts, four worked traces, executable Java and failure evidence"
+      "System-design Blueprint 1: global video streaming contracts, four worked traces, executable Java and failure evidence",
+      "Spring AI/Python Section 1: minimal layer selection, four architecture cases, paired executable contracts and release identity"
     ],
-    "processed_section": "top_5_system_design_interview_blueprints.md Blueprint 1, Global Video Streaming Platform, source lines 5-253 (SHA-256 10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03), bounded by Blueprint 2",
-    "validation": "Library revision 1 was read and hashed. Java 17 source-file launch passed 13 scenario groups. Deterministic reader generation passed exact 12850-byte payload equality, SHA-256 28114302e9d515af56b4fbe90761fca019e81246bf388520894dfbbbbc2ad007, 29 unique IDs, 2 search entries, local links/fragments, 14 balanced fences and 4 Mermaid sources. Seven content files were atomically published with an expected-head guard. JSON and git diff checks passed; the live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
-    "estimated_next_tokens": 9000,
-    "estimate_method": "Heuristic only for one bounded DevOps/backend source comparison and enrichment pass with primary-reference, code, reader, validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "c9e6c714e51ec17aaf64acf8c6378601010dacdc",
-    "last_processed_at": "2026-10-21T11:02:39-04:00",
-    "next_batch_decision": "Blueprint 1 is the sole bounded section in this pass. Exact weekly/hourly quota percentages were not exposed. Rotate fairly to DevOps/backend; retain Blueprint 2 lines 254-459 as the next blueprints section."
+    "processed_section": "atlas_guides/spring_ai_python_api_interview_guide.md Section 1, Choose the layer before choosing the library, source lines 6-30 (SHA-256 af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553), bounded by Section 2",
+    "validation": "The bundle and standalone HTML were materialized and hashed; ZIP integrity/traversal checks passed and the standalone HTML was byte-identical to the bundle member. Java 17 source-file launch and Python 3 execution each passed 9 scenario groups. Deterministic reader generation passed exact 10385-byte payload equality, SHA-256 637c2957ada128849d2ae7f5b4b240c3d9221425e23edf70ac45f244aa7972d5, 20 unique IDs, 2 search entries, local links/fragments, 10 balanced fences and 4 Mermaid sources. Eight content files were atomically published with an expected-head guard. JSON and git diff checks passed; the live canonical Java-marker audit remains 170. Standalone javac, framework dependency compilation, live model/provider integration, browser, assistive-technology and rendered Mermaid QA were unavailable.",
+    "estimated_next_tokens": 8200,
+    "estimate_method": "Heuristic only for the first bounded DSA arrays source comparison and enrichment pass with Java, reader, validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "8b056560c0f8f1ff09e9aa689c1e8f5c91a57b35",
+    "last_processed_at": "2026-10-21T11:18:08-04:00",
+    "next_batch_decision": "Section 1 is the sole bounded section in this pass. Exact weekly/hourly quota percentages were not exposed. Frontend confirmed sources are exhausted, so rotate fairly to the first DSA arrays section; retain Spring/Python Section 2 lines 31-56 for the next backend turn."
   }
 }
 
