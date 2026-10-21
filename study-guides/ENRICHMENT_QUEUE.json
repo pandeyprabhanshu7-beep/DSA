@@ -63,7 +63,10 @@
       "version_id": null,
       "modified_at": "2026-09-17T05:55:54.695794Z",
       "size_bytes": 150746,
-      "status": "DISCOVERED"
+      "status": "PROMOTED",
+      "last_read_at": "2026-10-21T09:13:21-04:00",
+      "sha256": "c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a",
+      "selection": "Selected as the expanded 21-chapter canonical source after comparison; Chapter 1 is promoted and later chapters remain queued."
     },
     {
       "name": "spring_ai_python_api_interview_guide.html",
@@ -81,7 +84,10 @@
       "version_id": null,
       "modified_at": "2026-09-16T16:22:16.910779Z",
       "size_bytes": 1596169,
-      "status": "DISCOVERED"
+      "status": "IN_PROGRESS",
+      "last_read_at": "2026-10-21T09:13:21-04:00",
+      "sha256": "78548fdcdb08af668299b9fe1815a4f13c7063b54a34dff487d24c8d9f0e5c43",
+      "selection": "Archive list and RAG/MCP source were read; member 02_rag_mcp.md (SHA-256 45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05) is the editable companion for the selected master. Chapter 1 is promoted."
     },
     {
       "name": "ai_platform_engineering_illustrated.html",
@@ -90,7 +96,10 @@
       "version_id": null,
       "modified_at": "2026-09-16T16:22:16.059506Z",
       "size_bytes": 272443,
-      "status": "DISCOVERED"
+      "status": "READY",
+      "last_read_at": "2026-10-21T09:13:21-04:00",
+      "sha256": "006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9",
+      "selection": "Read and compared; byte-identical to the HTML member in the complete bundle, so it is not promoted as a duplicate canonical guide."
     },
     {
       "name": "database_internals_caching_java_master_guide.md",
@@ -531,16 +540,31 @@
       "id": "ai-platform",
       "domain": "AI",
       "canonical_target": "study-guides/ai/platform/",
-      "target_exists": false,
-      "status": "DISCOVERED",
+      "target_exists": true,
+      "status": "PROMOTED",
       "source_names": [
         "ai_cicd_spring_python_guides_complete.zip",
         "ai_platform_master_guide.html",
         "ai_platform_engineering_complete_bundle.zip",
         "ai_platform_engineering_illustrated.html"
       ],
-      "last_processed_at": null,
-      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "last_processed_at": "2026-10-21T09:13:21-04:00",
+      "processed_sections": [
+        "Chapter 1: prompting versus RAG versus fine-tuning versus tools/MCP — authority requirements, four examples, evidence and mutation traces, executable Java routing contract, failure review and current primary references"
+      ],
+      "source_revision": {
+        "baseline_commit": "cfe2ace7a2b68f1c377e6bd768c20caa228a838a",
+        "selected_library_file_id": "libfile_1c4d3d95d7408191ba154228767f0886",
+        "selected_file_id": "file_00000000493c81f783ae7443074f1c91",
+        "selected_sha256": "c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a",
+        "companion_archive_sha256": "78548fdcdb08af668299b9fe1815a4f13c7063b54a34dff487d24c8d9f0e5c43",
+        "companion_markdown_sha256": "45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05",
+        "compared_illustrated_sha256": "006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9",
+        "canonical_sha256_after": "e37b9b2d7f4f73cceec4ad9a6bb330f3e10fe5b22fe6f68f90b6e69a39fed31e"
+      },
+      "last_successful_commit": "88619d316aea6a9a83391c77f472037f25eba955",
+      "validation": "The three resolved source artifacts were materialized and hashed; ZIP member listing and the bounded RAG/MCP Markdown were inspected, and the illustrated source was byte-identical to its bundle member. Java 17 source-file launch passed 14 scenario groups; standalone javac was unavailable. Deterministic reader generation passed exact 12814-character payload equality, SHA-256 e37b9b2d7f4f73cceec4ad9a6bb330f3e10fe5b22fe6f68f90b6e69a39fed31e, 30 unique IDs, 10 search entries, local links/fragments, 6 balanced fences and 4 Mermaid sources. JSON and git diff checks passed; the live canonical Java-marker audit remains 170. Browser, assistive-technology and rendered Mermaid QA were not executed.",
+      "next_action": "Rotate fairly to another eligible domain; on the next AI-platform pass, process Chapter 2, Model mechanics you need for system design, without creating a duplicate edition.",
       "priority": 9
     },
     {
@@ -926,7 +950,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 44 only, source lines 2329-2402, the end of the confirmed source.",
+    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources and the confirmed database source are processed through their source ends. AI-platform Chapter 1 is promoted; rotate domains fairly, with Chapter 2 retained as the next AI-platform section.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1028,15 +1052,16 @@
       "Database/caching Section 40: lifecycle boundaries, transactional inbox deduplication, external email reconciliation and bounded retry/backlog/freshness policy",
       "Database/caching Section 41: activity capacity arithmetic, tenant/user/time partitioning, tie-safe bucket pagination, hot-user shard fan-out and separate retention/failure/analytics policies",
       "Database/caching Section 42: seven-slot component contract, outbox acknowledgement/replay, cache-loader authority/lease ownership and connection-pool checkout/cleanup boundaries",
-      "Database/caching Section 43: absolute-rate capacity, index read/write evidence, revision and membership publication, and pool/lease/transaction/network authority boundaries"
+      "Database/caching Section 43: absolute-rate capacity, index read/write evidence, revision and membership publication, and pool/lease/transaction/network authority boundaries",
+      "AI platform Chapter 1: authority boundaries among prompting, RAG, fine-tuning and tool/MCP use"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 2270-2328 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 43, Exercises with expected reasoning",
-    "validation": "Exact source lines 2270-2328 were bounded by the Section 44 heading and expanded into four current primary-reference-backed debugging labs for absolute-rate capacity, index read/write evidence, revision and membership publication, and pool/lease/transaction/network authority boundaries. Java 17 source launch passed all 172 deterministic scenario groups. Deterministic reader generation passed exact 575175-character Markdown payload equality, source SHA-256 3b1e36c1455107707026c80cc591c6437de5973c4507afb55a4e5d8dfaaba646, 2279 unique HTML IDs, 364 search entries, fragments, allowed relative links, 373 balanced fences and 176 Mermaid sources. All six content-commit remote blob hashes matched. Standalone javac, production PostgreSQL/Redis/Debezium/Hikari/cache/pool integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
-    "estimated_next_tokens": 9400,
-    "estimate_method": "Heuristic only for bounded Section 44 reading-sequence review, primary-reference reconciliation, examples, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "0f362f7142da619f6e52983e5f043eceaa3bcc0b",
-    "last_processed_at": "2026-10-21T03:16:53-04:00",
-    "next_batch_decision": "Section 43 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 44; resume at source lines 2329-2402, the end of the confirmed source."
+    "processed_section": "ai_platform_master_guide.html Chapter 1, Four things engineers often confuse (SHA-256 c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a), bounded by Chapter 2",
+    "validation": "The three resolved source artifacts were materialized and hashed; ZIP member listing and the bounded RAG/MCP Markdown were inspected, and the illustrated source was byte-identical to its bundle member. Java 17 source-file launch passed 14 scenario groups; standalone javac was unavailable. Deterministic reader generation passed exact 12814-character payload equality, SHA-256 e37b9b2d7f4f73cceec4ad9a6bb330f3e10fe5b22fe6f68f90b6e69a39fed31e, 30 unique IDs, 10 search entries, local links/fragments, 6 balanced fences and 4 Mermaid sources. Seven content files were atomically published with an expected-head guard. JSON and git diff checks passed; the live canonical Java-marker audit remains 170. Browser, assistive-technology and rendered Mermaid QA were not executed.",
+    "estimated_next_tokens": 8800,
+    "estimate_method": "Heuristic only for bounded Chapter 2 source review, current primary-reference reconciliation, examples, executable code, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "88619d316aea6a9a83391c77f472037f25eba955",
+    "last_processed_at": "2026-10-21T09:13:21-04:00",
+    "next_batch_decision": "Chapter 1 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Chapter 2 and rotate domains fairly."
   }
 }
 

@@ -37,10 +37,10 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | spring-boot-ai-journey.zip | 2026-10-06T19:51:18.370213Z | DISCOVERED |
 | cicd_aws_azure_teamcity_jenkins_guide.html | 2026-09-17T05:55:55.269830Z | READY — compared; byte-identical to bundled generated HTML |
 | ai_cicd_spring_python_guides_complete.zip | 2026-09-17T05:55:54.714170Z | READY — CI/CD source promoted; AI-platform and Spring/Python remain queued |
-| ai_platform_master_guide.html | 2026-09-17T05:55:54.695794Z | DISCOVERED |
+| ai_platform_master_guide.html | 2026-09-17T05:55:54.695794Z | PROMOTED — selected 21-chapter source; Chapter 1 processed |
 | spring_ai_python_api_interview_guide.html | 2026-09-17T05:55:54.480720Z | DISCOVERED |
-| ai_platform_engineering_complete_bundle.zip | 2026-09-16T16:22:16.910779Z | DISCOVERED |
-| ai_platform_engineering_illustrated.html | 2026-09-16T16:22:16.059506Z | DISCOVERED |
+| ai_platform_engineering_complete_bundle.zip | 2026-09-16T16:22:16.910779Z | IN PROGRESS — editable RAG/MCP companion selected; Chapter 1 processed |
+| ai_platform_engineering_illustrated.html | 2026-09-16T16:22:16.059506Z | READY — compared; byte-identical to bundled illustrated HTML |
 | database_internals_caching_java_master_guide.md | 2026-09-16T05:20:18.877277Z | PROMOTED — Sections 1–44 lines 62–2402 processed through source end |
 | top_5_system_design_interview_blueprints.md | 2026-09-11T21:27:10.870584Z | DISCOVERED |
 | system_design_fundamentals_deep_research.md | 2026-09-11T21:27:08.096531Z | PROMOTED — canonical fundamentals base |
@@ -81,6 +81,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 - Section 42 now extends that database guide with a seven-slot falsifiable component contract plus outbox-relay, cache-loader and connection-pool ownership/failure traces.
 - Section 43 now extends that database guide with four executable incident-diagnosis labs covering all ten source exercises.
 - AI foundations, RAG and CAG now has one canonical [Markdown/HTML guide](ai/); the broader Mermaid source won the content comparison, while two useful original workbook figures were retained without duplicating its redundant flow diagrams.
+- AI platform engineering now has one incremental canonical [Markdown/HTML guide](ai/platform/). The expanded 21-chapter master won the comparison, the bundle's RAG/MCP Markdown supplies the editable companion, and the separate illustrated HTML is not duplicated because it is byte-identical to the bundle member. Chapter 1 is promoted; Chapter 2 is the next bounded section.
 - CI/CD, Kubernetes and cloud delivery now has one canonical [Markdown/HTML guide](devops/); the bundle supplied its authoritative Markdown and nine figures, while the standalone HTML was verified as an exact generated duplicate rather than promoted separately.
 - Graph/tree/stack editions and matching DOCX documents are grouped into one destination; latest coverage must be chosen after reading.
 - The AI/CI-CD/Spring-Python ZIP may contain Markdown and assets for three separate topics; inspect archive contents before deciding.
@@ -98,7 +99,7 @@ See [pipeline rules](ENHANCEMENT_PIPELINE.md) and [machine-readable queue](ENRIC
 
 Angular Q1–Q74 plus rapid-fire items 1–39 are tracked at [frontend/angular](frontend/angular/). The fourth rapid-fire module was reconciled from both workbooks on 2026-10-14; the Final Revision Sheet remains unprocessed.
 
-JavaScript/HTML/CSS Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The final trigger-map/speaking-template module was reconciled from both workbooks on 2026-10-16, completing this paired-source intake. Database/caching Sections 1–44 are tracked at [databases/caching-java](databases/caching-java/); its confirmed source is exhausted through line 2402. The next bounded intake is Angular's paired-source Final Revision Sheet. The wider collection and Java-placeholder backlog remain incomplete.
+JavaScript/HTML/CSS Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The final trigger-map/speaking-template module was reconciled from both workbooks on 2026-10-16, completing this paired-source intake. Database/caching Sections 1–44 are tracked at [databases/caching-java](databases/caching-java/); its confirmed source is exhausted through line 2402. Angular's paired source is also exhausted. AI-platform Chapter 1 is promoted, and Chapter 2 is its next bounded section after fair domain rotation. The wider collection and Java-placeholder backlog remain incomplete.
 
 
 
