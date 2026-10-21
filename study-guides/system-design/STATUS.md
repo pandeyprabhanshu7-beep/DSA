@@ -1,6 +1,6 @@
 # System Design Enrichment Status
 
-Last updated: 2026-10-08.
+Last updated: 2026-10-21.
 
 ## Fundamentals
 
@@ -38,3 +38,24 @@ Next action:
 1. Resume fundamentals only for a coherent unfinished correction; otherwise rotate to the unpromoted `system-design-blueprints` source.
 2. On the next fundamentals pass, add a full retry/idempotency packet trace and an adversarial timeout-after-commit example.
 3. Continue to keep blueprints as a distinct topic, not a `v2` or duplicate fundamentals edition.
+
+## Interview blueprints
+
+State: **PROMOTED; four source blueprints remain**.
+
+Canonical pair:
+
+- [Markdown](blueprints/guide.md)
+- [mobile-friendly searchable HTML](blueprints/guide.html)
+
+Blueprint 1, **Global video streaming**, promotes source lines 5–253 from `top_5_system_design_interview_blueprints.md` revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. It separates control/media/event planes and deepens the source with four worked traces: CDN capacity/locality, expiring authorized delivery, buffer-aware ABR, and sequence-ordered progress that permits backward seek.
+
+Validation for this promotion:
+
+- Java 17 source-file launch passed the capacity, cache-miss, ABR, progress-ordering and invalid-input scenario groups in `VideoPlaybackContracts.java`.
+- The deterministic reader embeds the exact Markdown payload and exposes a section search index; static ID, fragment, relative-link, JSON, fence and Mermaid-source checks passed.
+- Primary references were refreshed against official Netflix Open Connect, Apple HLS, RFC 8216/RFC 9317, and AWS CloudFront private-content documentation on 2026-10-21.
+- The live literal DSA Java-marker audit is 170 (Graph 51, Stack/Queue 18, Linked List 27, Trees/BST 47, Hashing 27).
+- Standalone `javac`, browser/assistive-technology integration, and rendered Mermaid visual QA were unavailable and are not represented as passes.
+
+Next action: rotate domains fairly. On the next blueprints pass, process source Blueprint 2, **Real-Time Ride-Hailing Service**, lines 254–459. Do not imply the five-blueprint source is complete before Blueprints 2–5 are promoted.

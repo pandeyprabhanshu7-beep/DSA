@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="source-sha256" content="28114302e9d515af56b4fbe90761fca019e81246bf388520894dfbbbbc2ad007">
+<title>System Design Blueprints</title>
+<style>
+:root{--bg:#f7f8fb;--paper:#fff;--ink:#172033;--muted:#5c667a;--accent:#335eea;--line:#dfe3ec;--code:#111827;--code-ink:#e5e7eb}
+*{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}
+.layout{display:grid;grid-template-columns:minmax(240px,310px) minmax(0,920px);gap:2rem;max-width:1280px;margin:auto;padding:1rem}
+aside{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:1rem}
+.brand{font-weight:800;margin-bottom:.7rem} input{width:100%;padding:.72rem;border:1px solid var(--line);border-radius:9px;font:inherit}
+#results{list-style:none;padding:0;margin:.7rem 0} #results li{margin:.45rem 0} #results a{text-decoration:none;color:var(--accent);font-size:.92rem}
+#search-status{color:var(--muted);font-size:.82rem;margin:.45rem 0} main{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:clamp(1rem,4vw,3rem)}
+h1,h2,h3,h4{line-height:1.25;scroll-margin-top:1rem} h1{border-bottom:2px solid var(--line);padding-bottom:.35rem} h2{margin-top:2.4rem} a{color:#264fd2} table{border-collapse:collapse;width:100%;display:block;overflow-x:auto} th,td{border:1px solid var(--line);padding:.55rem;text-align:left;vertical-align:top}
+pre{background:var(--code);color:var(--code-ink);padding:1rem;border-radius:10px;overflow:auto} code{font:0.9em ui-monospace,SFMono-Regular,Consolas,monospace} :not(pre)>code{background:#edf0f6;padding:.12rem .3rem;border-radius:4px}
+blockquote{margin:1rem 0;padding:.35rem 1rem;border-left:4px solid var(--accent);background:#f0f4ff} img,svg{max-width:100%;height:auto} .mermaid{overflow:auto;text-align:center}
+.toplink{display:inline-block;margin-bottom:1rem;font-size:.9rem} mark{background:#fff3a3}
+@media(max-width:820px){.layout{display:block;padding:.5rem} aside{position:relative;max-height:none;margin-bottom:.75rem} main{padding:1rem} #results{max-height:12rem;overflow:auto}}
+@media print{aside{display:none} .layout{display:block} main{border:0}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <div class="brand">System Design Blueprints</div>
+  <label for="guide-search">Search this guide</label>
+  <input id="guide-search" type="search" placeholder="Try: byte hit ratio, entitlement, ABR" autocomplete="off">
+  <div id="search-status">Type to search headings and section text.</div>
+  <ul id="results"></ul>
+  <a class="toplink" href="#system-design-blueprints">Back to top</a>
+</aside>
+<main id="content"><h1 id="system-design-blueprints">System Design Blueprints</h1>
+<p>This is the canonical incremental guide. Each blueprint must make its requirements, arithmetic, ownership boundaries, failure behavior, and verification evidence explicit. This pass processes only source Blueprint 1 (lines 5–253); the ride-hailing blueprint begins the next source section.</p>
+<h2 id="blueprint-1--global-video-streaming">Blueprint 1 — Global video streaming</h2>
+<h3 id="1-frame-the-problem-before-drawing-boxes">1. Frame the problem before drawing boxes</h3>
+<p>The service must let a permitted profile browse, start, pause, seek, switch device, and resume a title with multiple audio/subtitle tracks. A studio path must ingest a pristine master, encode device-compatible renditions, package segments and publish them. The design must keep startup and rebuffering low under regional spikes, survive edge/origin failures, and prevent unauthorized playback.</p>
+<p>State the consistency contract per fact:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Fact</th>
+<th>Required behavior</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>entitlement and regional availability</td>
+<td>fail closed; bounded-stale policy only if explicitly approved</td>
+<td>a stale allow can violate licensing</td>
+</tr>
+<tr class="even">
+<td>manifest/segment grant</td>
+<td>short-lived, scoped to asset/session/region; origin accepts only CDN identity</td>
+<td>a signed URL is bearer authority, not DRM</td>
+</tr>
+<tr class="odd">
+<td>catalog snapshot</td>
+<td>versioned and atomically published</td>
+<td>clients must not mix partial rights/config revisions</td>
+</tr>
+<tr class="even">
+<td>progress</td>
+<td>eventually visible; newest per-session sequence wins</td>
+<td>retries and device networks reorder events; backward seek is valid</td>
+</tr>
+<tr class="odd">
+<td>recommendations/QoE analytics</td>
+<td>eventual and replayable</td>
+<td>loss or duplication should not block playback</td>
+</tr>
+</tbody>
+</table>
+<p>Three planes prevent the most common architecture mistake:</p>
+<pre class="mermaid"><code>flowchart TB
+  C[&quot;Player&quot;] --&gt; CP[&quot;Control plane: identity, rights, session, steering&quot;]
+  C --&gt; DP[&quot;Media plane: manifest and segments via CDN&quot;]
+  C --&gt; EP[&quot;Event plane: progress and QoE&quot;]
+  CP --&gt; META[(&quot;Metadata and rights&quot;)]
+  DP --&gt; EDGE[&quot;Edge cache&quot;] --&gt; SHIELD[&quot;Shield&quot;] --&gt; ORIGIN[(&quot;Packaged media&quot;)]
+  EP --&gt; LOG[(&quot;Durable event log&quot;)] --&gt; VIEW[(&quot;Progress view&quot;)]</code></pre>
+<p>The application API authorizes and steers; it never proxies multi-gigabyte media. That separation makes control-plane CPU and data-plane egress independently scalable.</p>
+<h3 id="2-example-1--capacity-proves-locality-is-the-architecture">2. Example 1 — capacity proves locality is the architecture</h3>
+<p>Use decimal network units and write the unit conversion:</p>
+<p>[ T_{Tbps}=\frac{N_{streams}\times bitrate_{Mbps}}{1{,}000{,}000} ]</p>
+<table>
+<thead>
+<tr class="header">
+<th>Scenario</th>
+<th style="text-align: right;">Inputs</th>
+<th style="text-align: right;">Result</th>
+<th>Design consequence</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>global peak</td>
+<td style="text-align: right;">60M × 5 Mbps</td>
+<td style="text-align: right;">300 Tbps</td>
+<td>ordinary app servers and a few regions cannot be the media path</td>
+</tr>
+<tr class="even">
+<td>large region</td>
+<td style="text-align: right;">1M × 8 Mbps</td>
+<td style="text-align: right;">8 Tbps</td>
+<td>steer by ISP/site health and capacity, not geography alone</td>
+</tr>
+<tr class="odd">
+<td>premiere spike</td>
+<td style="text-align: right;">2M × 6 Mbps</td>
+<td style="text-align: right;">12 Tbps</td>
+<td>pre-position the predicted hot set before release</td>
+</tr>
+<tr class="even">
+<td>origin exposure</td>
+<td style="text-align: right;">100 Tbps viewer traffic, 98.5% byte-hit ratio</td>
+<td style="text-align: right;">1.5 Tbps cache-miss traffic</td>
+<td>a high percentage can still leave enormous origin/shield load</td>
+</tr>
+</tbody>
+</table>
+<p>Request hit ratio is misleading when objects differ greatly in size; operate on byte hit ratio and segment-age cohorts. A shield collapses duplicate fills, while regional/ISP caches localize popular bytes. Netflix's Open Connect material describes appliances placed near viewers and proactive filling; the transferable principle is forecasted placement plus measured fallback, not copying a vendor topology.</p>
+<pre class="mermaid"><code>flowchart LR
+  O[(&quot;Origin&quot;)] --&gt; S[&quot;Origin shield&quot;] --&gt; R[&quot;Regional cache&quot;] --&gt; I[&quot;ISP cache&quot;] --&gt; P[&quot;Player&quot;]
+  P -. &quot;edge down&quot; .-&gt; R
+  R -. &quot;region down&quot; .-&gt; S</code></pre>
+<p>Trace a premiere:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Time</th>
+<th>Event</th>
+<th>Guardrail</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>T−24 h</td>
+<td>planner assigns immutable segment hashes to sites</td>
+<td>never place a title where rights forbid delivery</td>
+</tr>
+<tr class="even">
+<td>T−1 h</td>
+<td>fill jobs verify checksum and storage headroom</td>
+<td>incomplete renditions stay unpublished</td>
+</tr>
+<tr class="odd">
+<td>T+0</td>
+<td>steering selects a healthy, non-saturated site</td>
+<td>capacity token prevents overload amplification</td>
+</tr>
+<tr class="even">
+<td>T+2 min</td>
+<td>one site fails</td>
+<td>retry a different site, lower bitrate if throughput falls</td>
+</tr>
+<tr class="odd">
+<td>T+5 min</td>
+<td>byte misses exceed budget</td>
+<td>shed speculative prefetch and protect shield/origin</td>
+</tr>
+</tbody>
+</table>
+<h3 id="3-example-2--authorization-signed-delivery-and-drm-are-different-controls">3. Example 2 — authorization, signed delivery, and DRM are different controls</h3>
+<p><code>POST /v1/playback-sessions</code> authenticates the account, resolves profile restrictions and region, checks the versioned rights snapshot, chooses compatible media, and returns a short-lived playback grant. A representative response is:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;sessionId&quot;</span><span class="fu">:</span> <span class="st">&quot;ps_7f3&quot;</span><span class="fu">,</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;manifestUrl&quot;</span><span class="fu">:</span> <span class="st">&quot;https://edge.example/t/a17/master.m3u8?grant=...&quot;</span><span class="fu">,</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expiresAt&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-10-21T15:20:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;drm&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;licenseUrl&quot;</span><span class="fu">:</span> <span class="st">&quot;https://license.example/v1/widevine&quot;</span><span class="fu">},</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;cdnCandidates&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;site-a&quot;</span><span class="ot">,</span> <span class="st">&quot;site-b&quot;</span><span class="ot">]</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>The token must cover the intended path/asset, expiry, key identifier and policy claims. CDN/origin clocks need bounded skew and signing-key rotation needs an overlap window. The storage origin must reject public access and accept only the delivery service identity; otherwise a user can bypass the signed edge URL. Signing limits distribution authority, while DRM encrypts media and licenses decryption to an approved device/session—neither substitutes for the other.</p>
+<pre class="mermaid"><code>sequenceDiagram
+  participant P as Player
+  participant A as Playback API
+  participant E as CDN edge
+  participant O as Private origin
+  P-&gt;&gt;A: create session + title/profile/device
+  A--&gt;&gt;P: scoped expiring manifest grant
+  P-&gt;&gt;E: GET manifest/segment + grant
+  E-&gt;&gt;E: verify scope, expiry, key
+  alt cache hit
+    E--&gt;&gt;P: bytes
+  else cache miss
+    E-&gt;&gt;O: authenticated origin fetch
+    O--&gt;&gt;E: immutable bytes
+    E--&gt;&gt;P: bytes
+  end</code></pre>
+<p>Failure tests: an expired grant returns 403 without origin fetch; a valid grant for another asset fails scope validation; direct origin access fails; rotating keys accept both active keys only during the declared overlap; revocation policy states whether an already-issued short grant may live until expiry.</p>
+<h3 id="4-example-3--adaptive-bitrate-is-a-buffer-safety-controller">4. Example 3 — adaptive bitrate is a buffer-safety controller</h3>
+<p>HLS exposes alternative renditions through playlists and ordinary HTTP delivery. The player estimates recent throughput but should not spend the entire estimate: measurement error, shared links and segment-size variance require headroom. A simple teaching policy selects the highest rendition under <code>estimate × safety</code>; when the buffer is below eight seconds it caps safety at 0.55.</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">Estimate</th>
+<th style="text-align: right;">Buffer</th>
+<th style="text-align: right;">Safety</th>
+<th style="text-align: right;">Budget</th>
+<th>Choice from 0.3/1.2/2.5/5 Mbps ladder</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">8 Mbps</td>
+<td style="text-align: right;">20 s</td>
+<td style="text-align: right;">0.75</td>
+<td style="text-align: right;">6 Mbps</td>
+<td>1080p / 5 Mbps</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">4 Mbps</td>
+<td style="text-align: right;">20 s</td>
+<td style="text-align: right;">0.75</td>
+<td style="text-align: right;">3 Mbps</td>
+<td>720p / 2.5 Mbps</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">4 Mbps</td>
+<td style="text-align: right;">3 s</td>
+<td style="text-align: right;">0.55</td>
+<td style="text-align: right;">2.2 Mbps</td>
+<td>480p / 1.2 Mbps</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>stateDiagram-v2
+  [*] --&gt; Conservative: startup or low buffer
+  Conservative --&gt; Stable: buffer recovers
+  Stable --&gt; Higher: sustained headroom
+  Higher --&gt; Conservative: slow segment or error
+  Stable --&gt; Conservative: buffer below floor</code></pre>
+<p>The production controller also accounts for device decode limits, codec/HDR compatibility, segment duration, recent errors and switch hysteresis. Optimize a QoE objective—startup time, rebuffer ratio, failures, sustainable quality and disruptive switches—not maximum pixels. RFC 9317 is useful here because it treats streaming quality as an operational interaction among player, delivery network and access network.</p>
+<h3 id="5-example-4--progress-merging-must-allow-a-backward-seek">5. Example 4 — progress merging must allow a backward seek</h3>
+<p>Do not merge progress with <code>max(position)</code>. A user may deliberately seek backward, and an old retry can carry a larger position than a newer event. Give each playback session a monotonically increasing sequence and use <code>(profileId, titleId, sessionId, sequence)</code> as the ordering fact.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Arrival</th>
+<th>Event <code>(sequence, position)</code></th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>current</td>
+<td><code>(9, 80s)</code></td>
+<td>store 80s</td>
+</tr>
+<tr class="even">
+<td>delayed retry</td>
+<td><code>(8, 95s)</code></td>
+<td>ignore stale sequence</td>
+</tr>
+<tr class="odd">
+<td>user seeks backward</td>
+<td><code>(10, 25s)</code></td>
+<td>store 25s</td>
+</tr>
+<tr class="even">
+<td>duplicate</td>
+<td><code>(10, 25s)</code></td>
+<td>idempotent no-op</td>
+</tr>
+</tbody>
+</table>
+<p>For multiple devices, define the product rule rather than pretending one clock solves intent: commonly, each session is ordered independently and the resume projection selects the latest accepted event time with bounded clock handling. Keep the immutable event log for replay; build a compact projection for reads. Playback must not wait for this pipeline.</p>
+<h3 id="6-media-preparation-and-publication-contract">6. Media preparation and publication contract</h3>
+<ol type="1">
+<li>Store the pristine mezzanine in durable object storage under immutable identity.</li>
+<li>Produce a per-title ladder; one fixed ladder wastes bits on simple content and damages complex content.</li>
+<li>Package aligned HLS/DASH-like segments and manifests, including audio/subtitle variants.</li>
+<li>Verify checksums, duration alignment, decode compatibility and rights metadata.</li>
+<li>Atomically move a versioned publication pointer only after all required artifacts pass.</li>
+<li>Pre-position the hot set; retain origin/shield fallback for the long tail.</li>
+</ol>
+<p>Never overwrite published segment bytes in place. Immutable names make caches and retries safe; a new encode publishes a new revision.</p>
+<h3 id="7-api-storage-and-ownership-map">7. API, storage, and ownership map</h3>
+<pre class="http"><code>GET  /v1/catalog/home?profileId=...
+GET  /v1/titles/{titleId}
+POST /v1/playback-sessions
+GET  /v1/playback-sessions/{sessionId}/manifest
+POST /v1/playback-sessions/{sessionId}/progress</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th>Data</th>
+<th>System of record</th>
+<th>Derived/cached form</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>title, tracks, maturity</td>
+<td>metadata store</td>
+<td>catalog/search projections</td>
+</tr>
+<tr class="even">
+<td>country/plan/time rights</td>
+<td>rights store + versioned snapshots</td>
+<td>playback decision cache bounded by policy</td>
+</tr>
+<tr class="odd">
+<td>mezzanine and encoded segments</td>
+<td>object storage</td>
+<td>shield/edge copies</td>
+</tr>
+<tr class="even">
+<td>session/grant audit</td>
+<td>playback service store</td>
+<td>short-lived session cache</td>
+</tr>
+<tr class="odd">
+<td>progress/QoE</td>
+<td>durable event log</td>
+<td>resume view and analytics</td>
+</tr>
+</tbody>
+</table>
+<p>Multi-GB video never belongs in the metadata database. Segment URLs identify immutable objects; manifests identify a published revision.</p>
+<h3 id="8-failure-matrix-and-evidence">8. Failure matrix and evidence</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Failure</th>
+<th>Expected behavior</th>
+<th>Metric/test</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>edge unavailable</td>
+<td>steer to another healthy site; player may reduce bitrate</td>
+<td>failover time, rebuffer delta</td>
+</tr>
+<tr class="even">
+<td>shield/origin overload</td>
+<td>admission control, request collapse, stale immutable edge bytes</td>
+<td>origin egress and rejected fills</td>
+</tr>
+<tr class="odd">
+<td>rights store unavailable</td>
+<td>fail closed or use explicitly approved bounded snapshot</td>
+<td>denial reason and snapshot age</td>
+</tr>
+<tr class="even">
+<td>progress log delayed</td>
+<td>playback continues; client retries idempotently</td>
+<td>consumer lag and projection freshness</td>
+</tr>
+<tr class="odd">
+<td>signing key rotation</td>
+<td>accept declared overlap, then reject old key</td>
+<td>validation counts by key ID</td>
+</tr>
+<tr class="even">
+<td>bad encode</td>
+<td>publication pointer remains on prior good revision</td>
+<td>canary decode/checksum failures</td>
+</tr>
+</tbody>
+</table>
+<p>Track startup p50/p95, rebuffer percentage, fatal playback failures by device/ISP/title, sustainable bitrate, switch rate, edge saturation, byte hit ratio, shield collapse ratio, origin egress, rights-decision latency and grant denials. Percentiles need sample counts, and all SLOs need a named measurement window.</p>
+<h3 id="9-executable-contract">9. Executable contract</h3>
+<p><a href="VideoPlaybackContracts.java"><code>VideoPlaybackContracts.java</code></a> encodes the four worked examples and boundary failures. Run:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">java</span> <span class="at">-ea</span> study-guides/system-design/blueprints/VideoPlaybackContracts.java</span></code></pre></div>
+<p>The key invariant is subtle: newer progress sequence wins even if its position is smaller.</p>
+<h3 id="10-current-primary-references">10. Current primary references</h3>
+<ul>
+<li><a href="https://openconnect.netflix.com/en/">Netflix Open Connect overview and briefing paper</a> — content localization, embedded appliances and proactive delivery.</li>
+<li><a href="https://developer.apple.com/streaming/">Apple: HTTP Live Streaming</a> and <a href="https://developer.apple.com/documentation/http-live-streaming/hls-authoring-specification-for-apple-devices">HLS Authoring Specification</a> — playlist-based adaptive delivery and authoring constraints.</li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc8216">RFC 8216: HTTP Live Streaming</a> — protocol semantics for playlists and media segments.</li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc9317">RFC 9317: Operational Considerations for Streaming Media</a> — player/network interactions and QoE operations.</li>
+<li><a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PrivateContent.html">AWS CloudFront private content</a> and <a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-signed-urls.html">signed URLs</a> — a concrete primary-source example of restricted origins and expiring signed delivery.</li>
+</ul>
+<h3 id="11-source-provenance-and-continuation">11. Source provenance and continuation</h3>
+<p>The confirmed Library source is <code>top_5_system_design_interview_blueprints.md</code>, revision 1, SHA-256 <code>10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03</code>. This section promotes source lines 5–253 and adds explicit contracts, four worked examples, executable Java, failure tests, and refreshed primary references. Source Blueprint 2, <strong>Real-Time Ride-Hailing Service</strong>, begins at line 254 and remains queued after fair domain rotation. The five-blueprint collection is not complete.</p>
+</main>
+</div>
+<script id="source-markdown" type="application/octet-stream">IyBTeXN0ZW0gRGVzaWduIEJsdWVwcmludHMKClRoaXMgaXMgdGhlIGNhbm9uaWNhbCBpbmNyZW1lbnRhbCBndWlkZS4gRWFjaCBibHVlcHJpbnQgbXVzdCBtYWtlIGl0cyByZXF1aXJlbWVudHMsIGFyaXRobWV0aWMsIG93bmVyc2hpcCBib3VuZGFyaWVzLCBmYWlsdXJlIGJlaGF2aW9yLCBhbmQgdmVyaWZpY2F0aW9uIGV2aWRlbmNlIGV4cGxpY2l0LiBUaGlzIHBhc3MgcHJvY2Vzc2VzIG9ubHkgc291cmNlIEJsdWVwcmludCAxIChsaW5lcyA14oCTMjUzKTsgdGhlIHJpZGUtaGFpbGluZyBibHVlcHJpbnQgYmVnaW5zIHRoZSBuZXh0IHNvdXJjZSBzZWN0aW9uLgoKIyMgQmx1ZXByaW50IDEg4oCUIEdsb2JhbCB2aWRlbyBzdHJlYW1pbmcKCiMjIyAxLiBGcmFtZSB0aGUgcHJvYmxlbSBiZWZvcmUgZHJhd2luZyBib3hlcwoKVGhlIHNlcnZpY2UgbXVzdCBsZXQgYSBwZXJtaXR0ZWQgcHJvZmlsZSBicm93c2UsIHN0YXJ0LCBwYXVzZSwgc2Vlaywgc3dpdGNoIGRldmljZSwgYW5kIHJlc3VtZSBhIHRpdGxlIHdpdGggbXVsdGlwbGUgYXVkaW8vc3VidGl0bGUgdHJhY2tzLiBBIHN0dWRpbyBwYXRoIG11c3QgaW5nZXN0IGEgcHJpc3RpbmUgbWFzdGVyLCBlbmNvZGUgZGV2aWNlLWNvbXBhdGlibGUgcmVuZGl0aW9ucywgcGFja2FnZSBzZWdtZW50cyBhbmQgcHVibGlzaCB0aGVtLiBUaGUgZGVzaWduIG11c3Qga2VlcCBzdGFydHVwIGFuZCByZWJ1ZmZlcmluZyBsb3cgdW5kZXIgcmVnaW9uYWwgc3Bpa2VzLCBzdXJ2aXZlIGVkZ2Uvb3JpZ2luIGZhaWx1cmVzLCBhbmQgcHJldmVudCB1bmF1dGhvcml6ZWQgcGxheWJhY2suCgpTdGF0ZSB0aGUgY29uc2lzdGVuY3kgY29udHJhY3QgcGVyIGZhY3Q6Cgp8IEZhY3QgfCBSZXF1aXJlZCBiZWhhdmlvciB8IFdoeSB8CnwtLS18LS0tfC0tLXwKfCBlbnRpdGxlbWVudCBhbmQgcmVnaW9uYWwgYXZhaWxhYmlsaXR5IHwgZmFpbCBjbG9zZWQ7IGJvdW5kZWQtc3RhbGUgcG9saWN5IG9ubHkgaWYgZXhwbGljaXRseSBhcHByb3ZlZCB8IGEgc3RhbGUgYWxsb3cgY2FuIHZpb2xhdGUgbGljZW5zaW5nIHwKfCBtYW5pZmVzdC9zZWdtZW50IGdyYW50IHwgc2hvcnQtbGl2ZWQsIHNjb3BlZCB0byBhc3NldC9zZXNzaW9uL3JlZ2lvbjsgb3JpZ2luIGFjY2VwdHMgb25seSBDRE4gaWRlbnRpdHkgfCBhIHNpZ25lZCBVUkwgaXMgYmVhcmVyIGF1dGhvcml0eSwgbm90IERSTSB8CnwgY2F0YWxvZyBzbmFwc2hvdCB8IHZlcnNpb25lZCBhbmQgYXRvbWljYWxseSBwdWJsaXNoZWQgfCBjbGllbnRzIG11c3Qgbm90IG1peCBwYXJ0aWFsIHJpZ2h0cy9jb25maWcgcmV2aXNpb25zIHwKfCBwcm9ncmVzcyB8IGV2ZW50dWFsbHkgdmlzaWJsZTsgbmV3ZXN0IHBlci1zZXNzaW9uIHNlcXVlbmNlIHdpbnMgfCByZXRyaWVzIGFuZCBkZXZpY2UgbmV0d29ya3MgcmVvcmRlciBldmVudHM7IGJhY2t3YXJkIHNlZWsgaXMgdmFsaWQgfAp8IHJlY29tbWVuZGF0aW9ucy9Rb0UgYW5hbHl0aWNzIHwgZXZlbnR1YWwgYW5kIHJlcGxheWFibGUgfCBsb3NzIG9yIGR1cGxpY2F0aW9uIHNob3VsZCBub3QgYmxvY2sgcGxheWJhY2sgfAoKVGhyZWUgcGxhbmVzIHByZXZlbnQgdGhlIG1vc3QgY29tbW9uIGFyY2hpdGVjdHVyZSBtaXN0YWtlOgoKYGBgbWVybWFpZApmbG93Y2hhcnQgVEIKICBDWyJQbGF5ZXIiXSAtLT4gQ1BbIkNvbnRyb2wgcGxhbmU6IGlkZW50aXR5LCByaWdodHMsIHNlc3Npb24sIHN0ZWVyaW5nIl0KICBDIC0tPiBEUFsiTWVkaWEgcGxhbmU6IG1hbmlmZXN0IGFuZCBzZWdtZW50cyB2aWEgQ0ROIl0KICBDIC0tPiBFUFsiRXZlbnQgcGxhbmU6IHByb2dyZXNzIGFuZCBRb0UiXQogIENQIC0tPiBNRVRBWygiTWV0YWRhdGEgYW5kIHJpZ2h0cyIpXQogIERQIC0tPiBFREdFWyJFZGdlIGNhY2hlIl0gLS0+IFNISUVMRFsiU2hpZWxkIl0gLS0+IE9SSUdJTlsoIlBhY2thZ2VkIG1lZGlhIildCiAgRVAgLS0+IExPR1soIkR1cmFibGUgZXZlbnQgbG9nIildIC0tPiBWSUVXWygiUHJvZ3Jlc3MgdmlldyIpXQpgYGAKClRoZSBhcHBsaWNhdGlvbiBBUEkgYXV0aG9yaXplcyBhbmQgc3RlZXJzOyBpdCBuZXZlciBwcm94aWVzIG11bHRpLWdpZ2FieXRlIG1lZGlhLiBUaGF0IHNlcGFyYXRpb24gbWFrZXMgY29udHJvbC1wbGFuZSBDUFUgYW5kIGRhdGEtcGxhbmUgZWdyZXNzIGluZGVwZW5kZW50bHkgc2NhbGFibGUuCgojIyMgMi4gRXhhbXBsZSAxIOKAlCBjYXBhY2l0eSBwcm92ZXMgbG9jYWxpdHkgaXMgdGhlIGFyY2hpdGVjdHVyZQoKVXNlIGRlY2ltYWwgbmV0d29yayB1bml0cyBhbmQgd3JpdGUgdGhlIHVuaXQgY29udmVyc2lvbjoKClxbClRfe1RicHN9PVxmcmFje05fe3N0cmVhbXN9XHRpbWVzIGJpdHJhdGVfe01icHN9fXsxeyx9MDAweyx9MDAwfQpcXQoKfCBTY2VuYXJpbyB8IElucHV0cyB8IFJlc3VsdCB8IERlc2lnbiBjb25zZXF1ZW5jZSB8CnwtLS18LS0tOnwtLS06fC0tLXwKfCBnbG9iYWwgcGVhayB8IDYwTSDDlyA1IE1icHMgfCAzMDAgVGJwcyB8IG9yZGluYXJ5IGFwcCBzZXJ2ZXJzIGFuZCBhIGZldyByZWdpb25zIGNhbm5vdCBiZSB0aGUgbWVkaWEgcGF0aCB8CnwgbGFyZ2UgcmVnaW9uIHwgMU0gw5cgOCBNYnBzIHwgOCBUYnBzIHwgc3RlZXIgYnkgSVNQL3NpdGUgaGVhbHRoIGFuZCBjYXBhY2l0eSwgbm90IGdlb2dyYXBoeSBhbG9uZSB8CnwgcHJlbWllcmUgc3Bpa2UgfCAyTSDDlyA2IE1icHMgfCAxMiBUYnBzIHwgcHJlLXBvc2l0aW9uIHRoZSBwcmVkaWN0ZWQgaG90IHNldCBiZWZvcmUgcmVsZWFzZSB8Cnwgb3JpZ2luIGV4cG9zdXJlIHwgMTAwIFRicHMgdmlld2VyIHRyYWZmaWMsIDk4LjUlIGJ5dGUtaGl0IHJhdGlvIHwgMS41IFRicHMgY2FjaGUtbWlzcyB0cmFmZmljIHwgYSBoaWdoIHBlcmNlbnRhZ2UgY2FuIHN0aWxsIGxlYXZlIGVub3Jtb3VzIG9yaWdpbi9zaGllbGQgbG9hZCB8CgpSZXF1ZXN0IGhpdCByYXRpbyBpcyBtaXNsZWFkaW5nIHdoZW4gb2JqZWN0cyBkaWZmZXIgZ3JlYXRseSBpbiBzaXplOyBvcGVyYXRlIG9uIGJ5dGUgaGl0IHJhdGlvIGFuZCBzZWdtZW50LWFnZSBjb2hvcnRzLiBBIHNoaWVsZCBjb2xsYXBzZXMgZHVwbGljYXRlIGZpbGxzLCB3aGlsZSByZWdpb25hbC9JU1AgY2FjaGVzIGxvY2FsaXplIHBvcHVsYXIgYnl0ZXMuIE5ldGZsaXgncyBPcGVuIENvbm5lY3QgbWF0ZXJpYWwgZGVzY3JpYmVzIGFwcGxpYW5jZXMgcGxhY2VkIG5lYXIgdmlld2VycyBhbmQgcHJvYWN0aXZlIGZpbGxpbmc7IHRoZSB0cmFuc2ZlcmFibGUgcHJpbmNpcGxlIGlzIGZvcmVjYXN0ZWQgcGxhY2VtZW50IHBsdXMgbWVhc3VyZWQgZmFsbGJhY2ssIG5vdCBjb3B5aW5nIGEgdmVuZG9yIHRvcG9sb2d5LgoKYGBgbWVybWFpZApmbG93Y2hhcnQgTFIKICBPWygiT3JpZ2luIildIC0tPiBTWyJPcmlnaW4gc2hpZWxkIl0gLS0+IFJbIlJlZ2lvbmFsIGNhY2hlIl0gLS0+IElbIklTUCBjYWNoZSJdIC0tPiBQWyJQbGF5ZXIiXQogIFAgLS4gImVkZ2UgZG93biIgLi0+IFIKICBSIC0uICJyZWdpb24gZG93biIgLi0+IFMKYGBgCgpUcmFjZSBhIHByZW1pZXJlOgoKfCBUaW1lIHwgRXZlbnQgfCBHdWFyZHJhaWwgfAp8LS0tfC0tLXwtLS18CnwgVOKIkjI0IGggfCBwbGFubmVyIGFzc2lnbnMgaW1tdXRhYmxlIHNlZ21lbnQgaGFzaGVzIHRvIHNpdGVzIHwgbmV2ZXIgcGxhY2UgYSB0aXRsZSB3aGVyZSByaWdodHMgZm9yYmlkIGRlbGl2ZXJ5IHwKfCBU4oiSMSBoIHwgZmlsbCBqb2JzIHZlcmlmeSBjaGVja3N1bSBhbmQgc3RvcmFnZSBoZWFkcm9vbSB8IGluY29tcGxldGUgcmVuZGl0aW9ucyBzdGF5IHVucHVibGlzaGVkIHwKfCBUKzAgfCBzdGVlcmluZyBzZWxlY3RzIGEgaGVhbHRoeSwgbm9uLXNhdHVyYXRlZCBzaXRlIHwgY2FwYWNpdHkgdG9rZW4gcHJldmVudHMgb3ZlcmxvYWQgYW1wbGlmaWNhdGlvbiB8CnwgVCsyIG1pbiB8IG9uZSBzaXRlIGZhaWxzIHwgcmV0cnkgYSBkaWZmZXJlbnQgc2l0ZSwgbG93ZXIgYml0cmF0ZSBpZiB0aHJvdWdocHV0IGZhbGxzIHwKfCBUKzUgbWluIHwgYnl0ZSBtaXNzZXMgZXhjZWVkIGJ1ZGdldCB8IHNoZWQgc3BlY3VsYXRpdmUgcHJlZmV0Y2ggYW5kIHByb3RlY3Qgc2hpZWxkL29yaWdpbiB8CgojIyMgMy4gRXhhbXBsZSAyIOKAlCBhdXRob3JpemF0aW9uLCBzaWduZWQgZGVsaXZlcnksIGFuZCBEUk0gYXJlIGRpZmZlcmVudCBjb250cm9scwoKYFBPU1QgL3YxL3BsYXliYWNrLXNlc3Npb25zYCBhdXRoZW50aWNhdGVzIHRoZSBhY2NvdW50LCByZXNvbHZlcyBwcm9maWxlIHJlc3RyaWN0aW9ucyBhbmQgcmVnaW9uLCBjaGVja3MgdGhlIHZlcnNpb25lZCByaWdodHMgc25hcHNob3QsIGNob29zZXMgY29tcGF0aWJsZSBtZWRpYSwgYW5kIHJldHVybnMgYSBzaG9ydC1saXZlZCBwbGF5YmFjayBncmFudC4gQSByZXByZXNlbnRhdGl2ZSByZXNwb25zZSBpczoKCmBgYGpzb24KewogICJzZXNzaW9uSWQiOiAicHNfN2YzIiwKICAibWFuaWZlc3RVcmwiOiAiaHR0cHM6Ly9lZGdlLmV4YW1wbGUvdC9hMTcvbWFzdGVyLm0zdTg/Z3JhbnQ9Li4uIiwKICAiZXhwaXJlc0F0IjogIjIwMjYtMTAtMjFUMTU6MjA6MDBaIiwKICAiZHJtIjogeyJsaWNlbnNlVXJsIjogImh0dHBzOi8vbGljZW5zZS5leGFtcGxlL3YxL3dpZGV2aW5lIn0sCiAgImNkbkNhbmRpZGF0ZXMiOiBbInNpdGUtYSIsICJzaXRlLWIiXQp9CmBgYAoKVGhlIHRva2VuIG11c3QgY292ZXIgdGhlIGludGVuZGVkIHBhdGgvYXNzZXQsIGV4cGlyeSwga2V5IGlkZW50aWZpZXIgYW5kIHBvbGljeSBjbGFpbXMuIENETi9vcmlnaW4gY2xvY2tzIG5lZWQgYm91bmRlZCBza2V3IGFuZCBzaWduaW5nLWtleSByb3RhdGlvbiBuZWVkcyBhbiBvdmVybGFwIHdpbmRvdy4gVGhlIHN0b3JhZ2Ugb3JpZ2luIG11c3QgcmVqZWN0IHB1YmxpYyBhY2Nlc3MgYW5kIGFjY2VwdCBvbmx5IHRoZSBkZWxpdmVyeSBzZXJ2aWNlIGlkZW50aXR5OyBvdGhlcndpc2UgYSB1c2VyIGNhbiBieXBhc3MgdGhlIHNpZ25lZCBlZGdlIFVSTC4gU2lnbmluZyBsaW1pdHMgZGlzdHJpYnV0aW9uIGF1dGhvcml0eSwgd2hpbGUgRFJNIGVuY3J5cHRzIG1lZGlhIGFuZCBsaWNlbnNlcyBkZWNyeXB0aW9uIHRvIGFuIGFwcHJvdmVkIGRldmljZS9zZXNzaW9u4oCUbmVpdGhlciBzdWJzdGl0dXRlcyBmb3IgdGhlIG90aGVyLgoKYGBgbWVybWFpZApzZXF1ZW5jZURpYWdyYW0KICBwYXJ0aWNpcGFudCBQIGFzIFBsYXllcgogIHBhcnRpY2lwYW50IEEgYXMgUGxheWJhY2sgQVBJCiAgcGFydGljaXBhbnQgRSBhcyBDRE4gZWRnZQogIHBhcnRpY2lwYW50IE8gYXMgUHJpdmF0ZSBvcmlnaW4KICBQLT4+QTogY3JlYXRlIHNlc3Npb24gKyB0aXRsZS9wcm9maWxlL2RldmljZQogIEEtLT4+UDogc2NvcGVkIGV4cGlyaW5nIG1hbmlmZXN0IGdyYW50CiAgUC0+PkU6IEdFVCBtYW5pZmVzdC9zZWdtZW50ICsgZ3JhbnQKICBFLT4+RTogdmVyaWZ5IHNjb3BlLCBleHBpcnksIGtleQogIGFsdCBjYWNoZSBoaXQKICAgIEUtLT4+UDogYnl0ZXMKICBlbHNlIGNhY2hlIG1pc3MKICAgIEUtPj5POiBhdXRoZW50aWNhdGVkIG9yaWdpbiBmZXRjaAogICAgTy0tPj5FOiBpbW11dGFibGUgYnl0ZXMKICAgIEUtLT4+UDogYnl0ZXMKICBlbmQKYGBgCgpGYWlsdXJlIHRlc3RzOiBhbiBleHBpcmVkIGdyYW50IHJldHVybnMgNDAzIHdpdGhvdXQgb3JpZ2luIGZldGNoOyBhIHZhbGlkIGdyYW50IGZvciBhbm90aGVyIGFzc2V0IGZhaWxzIHNjb3BlIHZhbGlkYXRpb247IGRpcmVjdCBvcmlnaW4gYWNjZXNzIGZhaWxzOyByb3RhdGluZyBrZXlzIGFjY2VwdCBib3RoIGFjdGl2ZSBrZXlzIG9ubHkgZHVyaW5nIHRoZSBkZWNsYXJlZCBvdmVybGFwOyByZXZvY2F0aW9uIHBvbGljeSBzdGF0ZXMgd2hldGhlciBhbiBhbHJlYWR5LWlzc3VlZCBzaG9ydCBncmFudCBtYXkgbGl2ZSB1bnRpbCBleHBpcnkuCgojIyMgNC4gRXhhbXBsZSAzIOKAlCBhZGFwdGl2ZSBiaXRyYXRlIGlzIGEgYnVmZmVyLXNhZmV0eSBjb250cm9sbGVyCgpITFMgZXhwb3NlcyBhbHRlcm5hdGl2ZSByZW5kaXRpb25zIHRocm91Z2ggcGxheWxpc3RzIGFuZCBvcmRpbmFyeSBIVFRQIGRlbGl2ZXJ5LiBUaGUgcGxheWVyIGVzdGltYXRlcyByZWNlbnQgdGhyb3VnaHB1dCBidXQgc2hvdWxkIG5vdCBzcGVuZCB0aGUgZW50aXJlIGVzdGltYXRlOiBtZWFzdXJlbWVudCBlcnJvciwgc2hhcmVkIGxpbmtzIGFuZCBzZWdtZW50LXNpemUgdmFyaWFuY2UgcmVxdWlyZSBoZWFkcm9vbS4gQSBzaW1wbGUgdGVhY2hpbmcgcG9saWN5IHNlbGVjdHMgdGhlIGhpZ2hlc3QgcmVuZGl0aW9uIHVuZGVyIGBlc3RpbWF0ZSDDlyBzYWZldHlgOyB3aGVuIHRoZSBidWZmZXIgaXMgYmVsb3cgZWlnaHQgc2Vjb25kcyBpdCBjYXBzIHNhZmV0eSBhdCAwLjU1LgoKfCBFc3RpbWF0ZSB8IEJ1ZmZlciB8IFNhZmV0eSB8IEJ1ZGdldCB8IENob2ljZSBmcm9tIDAuMy8xLjIvMi41LzUgTWJwcyBsYWRkZXIgfAp8LS0tOnwtLS06fC0tLTp8LS0tOnwtLS18CnwgOCBNYnBzIHwgMjAgcyB8IDAuNzUgfCA2IE1icHMgfCAxMDgwcCAvIDUgTWJwcyB8CnwgNCBNYnBzIHwgMjAgcyB8IDAuNzUgfCAzIE1icHMgfCA3MjBwIC8gMi41IE1icHMgfAp8IDQgTWJwcyB8IDMgcyB8IDAuNTUgfCAyLjIgTWJwcyB8IDQ4MHAgLyAxLjIgTWJwcyB8CgpgYGBtZXJtYWlkCnN0YXRlRGlhZ3JhbS12MgogIFsqXSAtLT4gQ29uc2VydmF0aXZlOiBzdGFydHVwIG9yIGxvdyBidWZmZXIKICBDb25zZXJ2YXRpdmUgLS0+IFN0YWJsZTogYnVmZmVyIHJlY292ZXJzCiAgU3RhYmxlIC0tPiBIaWdoZXI6IHN1c3RhaW5lZCBoZWFkcm9vbQogIEhpZ2hlciAtLT4gQ29uc2VydmF0aXZlOiBzbG93IHNlZ21lbnQgb3IgZXJyb3IKICBTdGFibGUgLS0+IENvbnNlcnZhdGl2ZTogYnVmZmVyIGJlbG93IGZsb29yCmBgYAoKVGhlIHByb2R1Y3Rpb24gY29udHJvbGxlciBhbHNvIGFjY291bnRzIGZvciBkZXZpY2UgZGVjb2RlIGxpbWl0cywgY29kZWMvSERSIGNvbXBhdGliaWxpdHksIHNlZ21lbnQgZHVyYXRpb24sIHJlY2VudCBlcnJvcnMgYW5kIHN3aXRjaCBoeXN0ZXJlc2lzLiBPcHRpbWl6ZSBhIFFvRSBvYmplY3RpdmXigJRzdGFydHVwIHRpbWUsIHJlYnVmZmVyIHJhdGlvLCBmYWlsdXJlcywgc3VzdGFpbmFibGUgcXVhbGl0eSBhbmQgZGlzcnVwdGl2ZSBzd2l0Y2hlc+KAlG5vdCBtYXhpbXVtIHBpeGVscy4gUkZDIDkzMTcgaXMgdXNlZnVsIGhlcmUgYmVjYXVzZSBpdCB0cmVhdHMgc3RyZWFtaW5nIHF1YWxpdHkgYXMgYW4gb3BlcmF0aW9uYWwgaW50ZXJhY3Rpb24gYW1vbmcgcGxheWVyLCBkZWxpdmVyeSBuZXR3b3JrIGFuZCBhY2Nlc3MgbmV0d29yay4KCiMjIyA1LiBFeGFtcGxlIDQg4oCUIHByb2dyZXNzIG1lcmdpbmcgbXVzdCBhbGxvdyBhIGJhY2t3YXJkIHNlZWsKCkRvIG5vdCBtZXJnZSBwcm9ncmVzcyB3aXRoIGBtYXgocG9zaXRpb24pYC4gQSB1c2VyIG1heSBkZWxpYmVyYXRlbHkgc2VlayBiYWNrd2FyZCwgYW5kIGFuIG9sZCByZXRyeSBjYW4gY2FycnkgYSBsYXJnZXIgcG9zaXRpb24gdGhhbiBhIG5ld2VyIGV2ZW50LiBHaXZlIGVhY2ggcGxheWJhY2sgc2Vzc2lvbiBhIG1vbm90b25pY2FsbHkgaW5jcmVhc2luZyBzZXF1ZW5jZSBhbmQgdXNlIGAocHJvZmlsZUlkLCB0aXRsZUlkLCBzZXNzaW9uSWQsIHNlcXVlbmNlKWAgYXMgdGhlIG9yZGVyaW5nIGZhY3QuCgp8IEFycml2YWwgfCBFdmVudCBgKHNlcXVlbmNlLCBwb3NpdGlvbilgIHwgUmVzdWx0IHwKfC0tLXwtLS18LS0tfAp8IGN1cnJlbnQgfCBgKDksIDgwcylgIHwgc3RvcmUgODBzIHwKfCBkZWxheWVkIHJldHJ5IHwgYCg4LCA5NXMpYCB8IGlnbm9yZSBzdGFsZSBzZXF1ZW5jZSB8CnwgdXNlciBzZWVrcyBiYWNrd2FyZCB8IGAoMTAsIDI1cylgIHwgc3RvcmUgMjVzIHwKfCBkdXBsaWNhdGUgfCBgKDEwLCAyNXMpYCB8IGlkZW1wb3RlbnQgbm8tb3AgfAoKRm9yIG11bHRpcGxlIGRldmljZXMsIGRlZmluZSB0aGUgcHJvZHVjdCBydWxlIHJhdGhlciB0aGFuIHByZXRlbmRpbmcgb25lIGNsb2NrIHNvbHZlcyBpbnRlbnQ6IGNvbW1vbmx5LCBlYWNoIHNlc3Npb24gaXMgb3JkZXJlZCBpbmRlcGVuZGVudGx5IGFuZCB0aGUgcmVzdW1lIHByb2plY3Rpb24gc2VsZWN0cyB0aGUgbGF0ZXN0IGFjY2VwdGVkIGV2ZW50IHRpbWUgd2l0aCBib3VuZGVkIGNsb2NrIGhhbmRsaW5nLiBLZWVwIHRoZSBpbW11dGFibGUgZXZlbnQgbG9nIGZvciByZXBsYXk7IGJ1aWxkIGEgY29tcGFjdCBwcm9qZWN0aW9uIGZvciByZWFkcy4gUGxheWJhY2sgbXVzdCBub3Qgd2FpdCBmb3IgdGhpcyBwaXBlbGluZS4KCiMjIyA2LiBNZWRpYSBwcmVwYXJhdGlvbiBhbmQgcHVibGljYXRpb24gY29udHJhY3QKCjEuIFN0b3JlIHRoZSBwcmlzdGluZSBtZXp6YW5pbmUgaW4gZHVyYWJsZSBvYmplY3Qgc3RvcmFnZSB1bmRlciBpbW11dGFibGUgaWRlbnRpdHkuCjIuIFByb2R1Y2UgYSBwZXItdGl0bGUgbGFkZGVyOyBvbmUgZml4ZWQgbGFkZGVyIHdhc3RlcyBiaXRzIG9uIHNpbXBsZSBjb250ZW50IGFuZCBkYW1hZ2VzIGNvbXBsZXggY29udGVudC4KMy4gUGFja2FnZSBhbGlnbmVkIEhMUy9EQVNILWxpa2Ugc2VnbWVudHMgYW5kIG1hbmlmZXN0cywgaW5jbHVkaW5nIGF1ZGlvL3N1YnRpdGxlIHZhcmlhbnRzLgo0LiBWZXJpZnkgY2hlY2tzdW1zLCBkdXJhdGlvbiBhbGlnbm1lbnQsIGRlY29kZSBjb21wYXRpYmlsaXR5IGFuZCByaWdodHMgbWV0YWRhdGEuCjUuIEF0b21pY2FsbHkgbW92ZSBhIHZlcnNpb25lZCBwdWJsaWNhdGlvbiBwb2ludGVyIG9ubHkgYWZ0ZXIgYWxsIHJlcXVpcmVkIGFydGlmYWN0cyBwYXNzLgo2LiBQcmUtcG9zaXRpb24gdGhlIGhvdCBzZXQ7IHJldGFpbiBvcmlnaW4vc2hpZWxkIGZhbGxiYWNrIGZvciB0aGUgbG9uZyB0YWlsLgoKTmV2ZXIgb3ZlcndyaXRlIHB1Ymxpc2hlZCBzZWdtZW50IGJ5dGVzIGluIHBsYWNlLiBJbW11dGFibGUgbmFtZXMgbWFrZSBjYWNoZXMgYW5kIHJldHJpZXMgc2FmZTsgYSBuZXcgZW5jb2RlIHB1Ymxpc2hlcyBhIG5ldyByZXZpc2lvbi4KCiMjIyA3LiBBUEksIHN0b3JhZ2UsIGFuZCBvd25lcnNoaXAgbWFwCgpgYGBodHRwCkdFVCAgL3YxL2NhdGFsb2cvaG9tZT9wcm9maWxlSWQ9Li4uCkdFVCAgL3YxL3RpdGxlcy97dGl0bGVJZH0KUE9TVCAvdjEvcGxheWJhY2stc2Vzc2lvbnMKR0VUICAvdjEvcGxheWJhY2stc2Vzc2lvbnMve3Nlc3Npb25JZH0vbWFuaWZlc3QKUE9TVCAvdjEvcGxheWJhY2stc2Vzc2lvbnMve3Nlc3Npb25JZH0vcHJvZ3Jlc3MKYGBgCgp8IERhdGEgfCBTeXN0ZW0gb2YgcmVjb3JkIHwgRGVyaXZlZC9jYWNoZWQgZm9ybSB8CnwtLS18LS0tfC0tLXwKfCB0aXRsZSwgdHJhY2tzLCBtYXR1cml0eSB8IG1ldGFkYXRhIHN0b3JlIHwgY2F0YWxvZy9zZWFyY2ggcHJvamVjdGlvbnMgfAp8IGNvdW50cnkvcGxhbi90aW1lIHJpZ2h0cyB8IHJpZ2h0cyBzdG9yZSArIHZlcnNpb25lZCBzbmFwc2hvdHMgfCBwbGF5YmFjayBkZWNpc2lvbiBjYWNoZSBib3VuZGVkIGJ5IHBvbGljeSB8CnwgbWV6emFuaW5lIGFuZCBlbmNvZGVkIHNlZ21lbnRzIHwgb2JqZWN0IHN0b3JhZ2UgfCBzaGllbGQvZWRnZSBjb3BpZXMgfAp8IHNlc3Npb24vZ3JhbnQgYXVkaXQgfCBwbGF5YmFjayBzZXJ2aWNlIHN0b3JlIHwgc2hvcnQtbGl2ZWQgc2Vzc2lvbiBjYWNoZSB8CnwgcHJvZ3Jlc3MvUW9FIHwgZHVyYWJsZSBldmVudCBsb2cgfCByZXN1bWUgdmlldyBhbmQgYW5hbHl0aWNzIHwKCk11bHRpLUdCIHZpZGVvIG5ldmVyIGJlbG9uZ3MgaW4gdGhlIG1ldGFkYXRhIGRhdGFiYXNlLiBTZWdtZW50IFVSTHMgaWRlbnRpZnkgaW1tdXRhYmxlIG9iamVjdHM7IG1hbmlmZXN0cyBpZGVudGlmeSBhIHB1Ymxpc2hlZCByZXZpc2lvbi4KCiMjIyA4LiBGYWlsdXJlIG1hdHJpeCBhbmQgZXZpZGVuY2UKCnwgRmFpbHVyZSB8IEV4cGVjdGVkIGJlaGF2aW9yIHwgTWV0cmljL3Rlc3QgfAp8LS0tfC0tLXwtLS18CnwgZWRnZSB1bmF2YWlsYWJsZSB8IHN0ZWVyIHRvIGFub3RoZXIgaGVhbHRoeSBzaXRlOyBwbGF5ZXIgbWF5IHJlZHVjZSBiaXRyYXRlIHwgZmFpbG92ZXIgdGltZSwgcmVidWZmZXIgZGVsdGEgfAp8IHNoaWVsZC9vcmlnaW4gb3ZlcmxvYWQgfCBhZG1pc3Npb24gY29udHJvbCwgcmVxdWVzdCBjb2xsYXBzZSwgc3RhbGUgaW1tdXRhYmxlIGVkZ2UgYnl0ZXMgfCBvcmlnaW4gZWdyZXNzIGFuZCByZWplY3RlZCBmaWxscyB8CnwgcmlnaHRzIHN0b3JlIHVuYXZhaWxhYmxlIHwgZmFpbCBjbG9zZWQgb3IgdXNlIGV4cGxpY2l0bHkgYXBwcm92ZWQgYm91bmRlZCBzbmFwc2hvdCB8IGRlbmlhbCByZWFzb24gYW5kIHNuYXBzaG90IGFnZSB8CnwgcHJvZ3Jlc3MgbG9nIGRlbGF5ZWQgfCBwbGF5YmFjayBjb250aW51ZXM7IGNsaWVudCByZXRyaWVzIGlkZW1wb3RlbnRseSB8IGNvbnN1bWVyIGxhZyBhbmQgcHJvamVjdGlvbiBmcmVzaG5lc3MgfAp8IHNpZ25pbmcga2V5IHJvdGF0aW9uIHwgYWNjZXB0IGRlY2xhcmVkIG92ZXJsYXAsIHRoZW4gcmVqZWN0IG9sZCBrZXkgfCB2YWxpZGF0aW9uIGNvdW50cyBieSBrZXkgSUQgfAp8IGJhZCBlbmNvZGUgfCBwdWJsaWNhdGlvbiBwb2ludGVyIHJlbWFpbnMgb24gcHJpb3IgZ29vZCByZXZpc2lvbiB8IGNhbmFyeSBkZWNvZGUvY2hlY2tzdW0gZmFpbHVyZXMgfAoKVHJhY2sgc3RhcnR1cCBwNTAvcDk1LCByZWJ1ZmZlciBwZXJjZW50YWdlLCBmYXRhbCBwbGF5YmFjayBmYWlsdXJlcyBieSBkZXZpY2UvSVNQL3RpdGxlLCBzdXN0YWluYWJsZSBiaXRyYXRlLCBzd2l0Y2ggcmF0ZSwgZWRnZSBzYXR1cmF0aW9uLCBieXRlIGhpdCByYXRpbywgc2hpZWxkIGNvbGxhcHNlIHJhdGlvLCBvcmlnaW4gZWdyZXNzLCByaWdodHMtZGVjaXNpb24gbGF0ZW5jeSBhbmQgZ3JhbnQgZGVuaWFscy4gUGVyY2VudGlsZXMgbmVlZCBzYW1wbGUgY291bnRzLCBhbmQgYWxsIFNMT3MgbmVlZCBhIG5hbWVkIG1lYXN1cmVtZW50IHdpbmRvdy4KCiMjIyA5LiBFeGVjdXRhYmxlIGNvbnRyYWN0CgpbYFZpZGVvUGxheWJhY2tDb250cmFjdHMuamF2YWBdKFZpZGVvUGxheWJhY2tDb250cmFjdHMuamF2YSkgZW5jb2RlcyB0aGUgZm91ciB3b3JrZWQgZXhhbXBsZXMgYW5kIGJvdW5kYXJ5IGZhaWx1cmVzLiBSdW46CgpgYGBiYXNoCmphdmEgLWVhIHN0dWR5LWd1aWRlcy9zeXN0ZW0tZGVzaWduL2JsdWVwcmludHMvVmlkZW9QbGF5YmFja0NvbnRyYWN0cy5qYXZhCmBgYAoKVGhlIGtleSBpbnZhcmlhbnQgaXMgc3VidGxlOiBuZXdlciBwcm9ncmVzcyBzZXF1ZW5jZSB3aW5zIGV2ZW4gaWYgaXRzIHBvc2l0aW9uIGlzIHNtYWxsZXIuCgojIyMgMTAuIEN1cnJlbnQgcHJpbWFyeSByZWZlcmVuY2VzCgotIFtOZXRmbGl4IE9wZW4gQ29ubmVjdCBvdmVydmlldyBhbmQgYnJpZWZpbmcgcGFwZXJdKGh0dHBzOi8vb3BlbmNvbm5lY3QubmV0ZmxpeC5jb20vZW4vKSDigJQgY29udGVudCBsb2NhbGl6YXRpb24sIGVtYmVkZGVkIGFwcGxpYW5jZXMgYW5kIHByb2FjdGl2ZSBkZWxpdmVyeS4KLSBbQXBwbGU6IEhUVFAgTGl2ZSBTdHJlYW1pbmddKGh0dHBzOi8vZGV2ZWxvcGVyLmFwcGxlLmNvbS9zdHJlYW1pbmcvKSBhbmQgW0hMUyBBdXRob3JpbmcgU3BlY2lmaWNhdGlvbl0oaHR0cHM6Ly9kZXZlbG9wZXIuYXBwbGUuY29tL2RvY3VtZW50YXRpb24vaHR0cC1saXZlLXN0cmVhbWluZy9obHMtYXV0aG9yaW5nLXNwZWNpZmljYXRpb24tZm9yLWFwcGxlLWRldmljZXMpIOKAlCBwbGF5bGlzdC1iYXNlZCBhZGFwdGl2ZSBkZWxpdmVyeSBhbmQgYXV0aG9yaW5nIGNvbnN0cmFpbnRzLgotIFtSRkMgODIxNjogSFRUUCBMaXZlIFN0cmVhbWluZ10oaHR0cHM6Ly93d3cucmZjLWVkaXRvci5vcmcvcmZjL3JmYzgyMTYpIOKAlCBwcm90b2NvbCBzZW1hbnRpY3MgZm9yIHBsYXlsaXN0cyBhbmQgbWVkaWEgc2VnbWVudHMuCi0gW1JGQyA5MzE3OiBPcGVyYXRpb25hbCBDb25zaWRlcmF0aW9ucyBmb3IgU3RyZWFtaW5nIE1lZGlhXShodHRwczovL3d3dy5yZmMtZWRpdG9yLm9yZy9yZmMvcmZjOTMxNykg4oCUIHBsYXllci9uZXR3b3JrIGludGVyYWN0aW9ucyBhbmQgUW9FIG9wZXJhdGlvbnMuCi0gW0FXUyBDbG91ZEZyb250IHByaXZhdGUgY29udGVudF0oaHR0cHM6Ly9kb2NzLmF3cy5hbWF6b24uY29tL0FtYXpvbkNsb3VkRnJvbnQvbGF0ZXN0L0RldmVsb3Blckd1aWRlL1ByaXZhdGVDb250ZW50Lmh0bWwpIGFuZCBbc2lnbmVkIFVSTHNdKGh0dHBzOi8vZG9jcy5hd3MuYW1hem9uLmNvbS9BbWF6b25DbG91ZEZyb250L2xhdGVzdC9EZXZlbG9wZXJHdWlkZS9wcml2YXRlLWNvbnRlbnQtc2lnbmVkLXVybHMuaHRtbCkg4oCUIGEgY29uY3JldGUgcHJpbWFyeS1zb3VyY2UgZXhhbXBsZSBvZiByZXN0cmljdGVkIG9yaWdpbnMgYW5kIGV4cGlyaW5nIHNpZ25lZCBkZWxpdmVyeS4KCiMjIyAxMS4gU291cmNlIHByb3ZlbmFuY2UgYW5kIGNvbnRpbnVhdGlvbgoKVGhlIGNvbmZpcm1lZCBMaWJyYXJ5IHNvdXJjZSBpcyBgdG9wXzVfc3lzdGVtX2Rlc2lnbl9pbnRlcnZpZXdfYmx1ZXByaW50cy5tZGAsIHJldmlzaW9uIDEsIFNIQS0yNTYgYDEwYzNiODEzOTQ3NGVhNDdmMzVlMWZlZDZjYjE2OWIyNzI4ZGI0ODA3MGYzMjY0ZTFkMjNkZmE3NzZlOWJmMDNgLiBUaGlzIHNlY3Rpb24gcHJvbW90ZXMgc291cmNlIGxpbmVzIDXigJMyNTMgYW5kIGFkZHMgZXhwbGljaXQgY29udHJhY3RzLCBmb3VyIHdvcmtlZCBleGFtcGxlcywgZXhlY3V0YWJsZSBKYXZhLCBmYWlsdXJlIHRlc3RzLCBhbmQgcmVmcmVzaGVkIHByaW1hcnkgcmVmZXJlbmNlcy4gU291cmNlIEJsdWVwcmludCAyLCAqKlJlYWwtVGltZSBSaWRlLUhhaWxpbmcgU2VydmljZSoqLCBiZWdpbnMgYXQgbGluZSAyNTQgYW5kIHJlbWFpbnMgcXVldWVkIGFmdGVyIGZhaXIgZG9tYWluIHJvdGF0aW9uLiBUaGUgZml2ZS1ibHVlcHJpbnQgY29sbGVjdGlvbiBpcyBub3QgY29tcGxldGUuCg==</script>
+<script id="search-index" type="application/json">[{"level": "1", "id": "system-design-blueprints", "title": "System Design Blueprints", "text": "This is the canonical incremental guide. Each blueprint must make its requirements, arithmetic, ownership boundaries, failure behavior, and verification evidence explicit. This pass processes only source Blueprint 1 lines 5–253 ; the ride-hailing blueprint begins the next source section."}, {"level": "2", "id": "blueprint-1--global-video-streaming", "title": "Blueprint 1 — Global video streaming", "text": "1. Frame the problem before drawing boxes The service must let a permitted profile browse, start, pause, seek, switch device, and resume a title with multiple audio/subtitle tracks. A studio path must ingest a pristine master, encode device-compatible renditions, package segments and publish them. The design must keep startup and rebuffering low under regional spikes, survive edge/origin failures, and prevent unauthorized playback. State the consistency contract per fact: Fact Required behavior Why --- --- --- entitlement and regional availability fail closed; bounded-stale policy only if explicitly approved a stale allow can violate licensing manifest/segment grant short-lived, scoped to asset/session/region; origin accepts only CDN identity a signed URL is bearer authority, not DRM catalog snapshot versioned and atomically published clients must not mix partial rights/config revisions progress eventually visible; newest per-session sequence wins retries and device networks reorder events; backward seek is valid recommendations/QoE analytics eventual and replayable loss or duplication should not block playback Three planes prevent the most common architecture mistake: mermaid flowchart TB C \"Player\" -- CP \"Control plane: identity, rights, session, steering\" C -- DP \"Media plane: manifest and segments via CDN\" C -- EP \"Event plane: progress and QoE\" CP -- META \"Metadata and rights\" DP -- EDGE \"Edge cache\" -- SHIELD \"Shield\" -- ORIGIN \"Packaged media\" EP -- LOG \"Durable event log\" -- VIEW \"Progress view\" The application API authorizes and steers; it never proxies multi-gigabyte media. That separation makes control-plane CPU and data-plane egress independently scalable. 2. Example 1 — capacity proves locality is the architecture Use decimal network units and write the unit conversion: \\ T {Tbps}=\\frac{N {streams}\\times bitrate {Mbps}}{1{,}000{,}000} \\ Scenario Inputs Result Design consequence --- ---: ---: --- global peak 60M × 5 Mbps 300 Tbps ordinary app servers and a few regions cannot be the media path large region 1M × 8 Mbps 8 Tbps steer by ISP/site health and capacity, not geography alone premiere spike 2M × 6 Mbps 12 Tbps pre-position the predicted hot set before release origin exposure 100 Tbps viewer traffic, 98.5% byte-hit ratio 1.5 Tbps cache-miss traffic a high percentage can still leave enormous origin/shield load Request hit ratio is misleading when objects differ greatly in size; operate on byte hit ratio and segment-age cohorts. A shield collapses duplicate fills, while regional/ISP caches localize popular bytes. Netflix's Open Connect material describes appliances placed near viewers and proactive filling; the transferable principle is forecasted placement plus measured fallback, not copying a vendor topology. mermaid flowchart LR O \"Origin\" -- S \"Origin shield\" -- R \"Regional cache\" -- I \"ISP cache\" -- P \"Player\" P -. \"edge down\" .- R R -. \"region down\" .- S Trace a premiere: Time Event Guardrail --- --- --- T−24 h planner assigns immutable segment hashes to sites never place a title where rights forbid delivery T−1 h fill jobs verify checksum and storage headroom incomplete renditions stay unpublished T+0 steering selects a healthy, non-saturated site capacity token prevents overload amplification T+2 min one site fails retry a different site, lower bitrate if throughput falls T+5 min byte misses exceed budget shed speculative prefetch and protect shield/origin 3. Example 2 — authorization, signed delivery, and DRM are different controls POST /v1/playback-sessions authenticates the account, resolves profile restrictions and region, checks the versioned rights snapshot, chooses compatible media, and returns a short-lived playback grant. A representative response is: json { \"sessionId\": \"ps 7f3\", \"manifestUrl\": \"https://edge.example/t/a17/master.m3u8?grant=...\", \"expiresAt\": \"2026-10-21T15:20:00Z\", \"drm\": {\"licenseUrl\": \"https://license.example/v1/widevine\"}, \"cdnCandidates\": \"site-a\", \"site-b\" } The token must cover the intended path/asset, expiry, key identifier and policy claims. CDN/origin clocks need bounded skew and signing-key rotation needs an overlap window. The storage origin must reject public access and accept only the delivery service identity; otherwise a user can bypass the signed edge URL. Signing limits distribution authority, while DRM encrypts media and licenses decryption to an approved device/session—neither substitutes for the other. mermaid sequenceDiagram participant P as Player participant A as Playback API participant E as CDN edge participant O as Private origin P- A: create session + title/profile/device A-- P: scoped expiring manifest grant P- E: GET manifest/segment + grant E- E: verify scope, expiry, key alt cache hit E-- P: bytes else cache miss E- O: authenticated origin fetch O-- E: immutable bytes E-- P: bytes end Failure tests: an expired grant returns 403 without origin fetch; a valid grant for another asset fails scope validation; direct origin access fails; rotating keys accept both active keys only during the declared overlap; revocation policy states whether an already-issued short grant may live until expiry. 4. Example 3 — adaptive bitrate is a buffer-safety controller HLS exposes alternative renditions through playlists and ordinary HTTP delivery. The player estimates recent throughput but should not spend the entire estimate: measurement error, shared links and segment-size variance require headroom. A simple teaching policy selects the highest rendition under estimate × safety ; when the buffer is below eight seconds it caps safety at 0.55. Estimate Buffer Safety Budget Choice from 0.3/1.2/2.5/5 Mbps ladder ---: ---: ---: ---: --- 8 Mbps 20 s 0.75 6 Mbps 1080p / 5 Mbps 4 Mbps 20 s 0.75 3 Mbps 720p / 2.5 Mbps 4 Mbps 3 s 0.55 2.2 Mbps 480p / 1.2 Mbps mermaid stateDiagram-v2 -- Conservative: startup or low buffer Conservative -- Stable: buffer recovers Stable -- Higher: sustained headroom Higher -- Conservative: slow segment or error Stable -- Conservative: buffer below floor The production controller also accounts for device decode limits, codec/HDR compatibility, segment duration, recent errors and switch hysteresis. Optimize a QoE objective—startup time, rebuffer ratio, failures, sustainable quality and disruptive switches—not maximum pixels. RFC 9317 is useful here because it treats streaming quality as an operational interaction among player, delivery network and access network. 5. Example 4 — progress merging must allow a backward seek Do not merge progress with max position . A user may deliberately seek backward, and an old retry can carry a larger position than a newer event. Give each playback session a monotonically increasing sequence and use profileId, titleId, sessionId, sequence as the ordering fact. Arrival Event sequence, position Result --- --- --- current 9, 80s store 80s delayed retry 8, 95s ignore stale sequence user seeks backward 10, 25s store 25s duplicate 10, 25s idempotent no-op For multiple devices, define the product rule rather than pretending one clock solves intent: commonly, each session is ordered independently and the resume projection selects the latest accepted event time with bounded clock handling. Keep the immutable event log for replay; build a compact projection for reads. Playback must not wait for this pipeline. 6. Media preparation and publication contract 1. Store the pristine mezzanine in durable object storage under immutable identity. 2. Produce a per-title ladder; one fixed ladder wastes bits on simple content and damages complex content. 3. Package aligned HLS/DASH-like segments and manifests, including audio/subtitle variants. 4. Verify checksums, duration alignment, decode compatibility and rights metadata. 5. Atomically move a versioned publication pointer only after all required artifacts pass. 6. Pre-position the hot set; retain origin/shield fallback for the long tail. Never overwrite published segment bytes in place. Immutable names make caches and retries safe; a new encode publishes a new revision. 7. API, storage, and ownership map http GET /v1/catalog/home?profileId=... GET /v1/titles/{titleId} POST /v1/playback-sessions GET /v1/playback-sessions/{sessionId}/manifest POST /v1/playback-sessions/{sessionId}/progress Data System of record Derived/cached form --- --- --- title, tracks, maturity metadata store catalog/search projections country/plan/time rights rights store + versioned snapshots playback decision cache bounded by policy mezzanine and encoded segments object storage shield/edge copies session/grant audit playback service store short-lived session cache progress/QoE durable event log resume view and analytics Multi-GB video never belongs in the metadata database. Segment URLs identify immutable objects; manifests identify a published revision. 8. Failure matrix and evidence Failure Expected behavior Metric/test --- --- --- edge unavailable steer to another healthy site; player may reduce bitrate failover time, rebuffer delta shield/origin overload admission control, request collapse, stale immutable edge bytes origin egress and rejected fills rights store unavailable fail closed or use explicitly approved bounded snapshot denial reason and snapshot age progress log delayed playback continues; client retries idempotently consumer lag and projection freshness signing key rotation accept declared overlap, then reject old key validation counts by key ID bad encode publication pointer remains on prior good revision canary decode/checksum failures Track startup p50/p95, rebuffer percentage, fatal playback failures by device/ISP/title, sustainable bitrate, switch rate, edge saturation, byte hit ratio, shield collapse ratio, origin egress, rights-decision latency and grant denials. Percentiles need sample counts, and all SLOs need a named measurement window. 9. Executable contract VideoPlaybackContracts.java VideoPlaybackContracts.java encodes the four worked examples and boundary failures. Run: bash java -ea study-guides/system-design/blueprints/VideoPlaybackContracts.java The key invariant is subtle: newer progress sequence wins even if its position is smaller. 10. Current primary references - Netflix Open Connect overview and briefing paper https://openconnect.netflix.com/en/ — content localization, embedded appliances and proactive delivery. - Apple: HTTP Live Streaming https://developer.apple.com/streaming/ and HLS Authoring Specification https://developer.apple.com/documentation/http-live-streaming/hls-authoring-specification-for-apple-devices — playlist-based adaptive delivery and authoring constraints. - RFC 8216: HTTP Live Streaming https://www.rfc-editor.org/rfc/rfc8216 — protocol semantics for playlists and media segments. - RFC 9317: Operational Considerations for Streaming Media https://www.rfc-editor.org/rfc/rfc9317 — player/network interactions and QoE operations. - AWS CloudFront private content https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PrivateContent.html and signed URLs https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-signed-urls.html — a concrete primary-source example of restricted origins and expiring signed delivery. 11. Source provenance and continuation The confirmed Library source is top 5 system design interview blueprints.md , revision 1, SHA-256 10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03 . This section promotes source lines 5–253 and adds explicit contracts, four worked examples, executable Java, failure tests, and refreshed primary references. Source Blueprint 2, Real-Time Ride-Hailing Service , begins at line 254 and remains queued after fair domain rotation. The five-blueprint collection is not complete."}]</script>
+<script>
+const input=document.querySelector('#guide-search'), results=document.querySelector('#results'), status=document.querySelector('#search-status');
+const index=JSON.parse(document.querySelector('#search-index').textContent);
+function escapeHtml(value){return value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function runSearch(){
+  const q=input.value.trim().toLocaleLowerCase(); results.replaceChildren();
+  if(!q){status.textContent='Type to search headings and section text.';return;}
+  const matches=index.filter(x=>(x.title+' '+x.text).toLocaleLowerCase().includes(q)).slice(0,30);
+  status.textContent=matches.length?`${matches.length} matching sections (first 30 max).`:'No matching section.';
+  for(const item of matches){const li=document.createElement('li'),a=document.createElement('a');a.href='#'+item.id;a.innerHTML=escapeHtml(item.title);li.append(a);results.append(li);}
+}
+input.addEventListener('input',runSearch); input.addEventListener('keydown',e=>{if(e.key==='Enter'&&results.firstElementChild)results.querySelector('a').click();});
+</script>
+<script type="module">
+try {
+  const {default: mermaid} = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+  document.querySelectorAll('pre.mermaid').forEach(pre=>{const div=document.createElement('div');div.className='mermaid';div.textContent=pre.textContent;pre.replaceWith(div);});
+  mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'neutral'}); await mermaid.run({querySelector:'.mermaid'});
+} catch(error) { console.warn('Mermaid unavailable; source diagrams remain readable.', error); }
+</script>
+</body>
+</html>
