@@ -593,7 +593,7 @@
       "source_names": [
         "database_internals_caching_java_master_guide.md"
       ],
-      "last_processed_at": "2026-10-21T02:50:36-04:00",
+      "last_processed_at": "2026-10-21T03:16:53-04:00",
       "processed_sections": [
         "Section 1: ACID, BASE, and the misleading SQL/NoSQL split — four executable failure scenarios, WAL/recovery and replica traces, convergent repair, quorum caveat and current primary references",
         "Section 2: B+ trees — page-height derivation, composite range access, clustered/secondary layout, key-width amplification, split mechanics, fill-factor trade-offs and four executable scenarios",
@@ -636,7 +636,8 @@
         "Section 39: flash-sale inventory — hot-SKU admission arithmetic, operation-scoped conditional reservation plus outbox, payment-expiry state races and bounded stock-token conservation",
         "Section 40: reliable notification delivery — explicit lifecycle boundaries, transactional inbox deduplication, external email unknown-outcome reconciliation and bounded retry/backlog/freshness policy",
         "Section 41: large activity-history service — capacity arithmetic, tenant/user/time partitioning, tie-safe bucket pagination, hot-user shard fan-out and separate retention/failure/analytics policies",
-        "Section 42: subcomponent interview explanation — seven-slot contract lint, outbox acknowledgement trace, cache-loader ownership and connection-pool checkout/cleanup boundaries"
+        "Section 42: subcomponent interview explanation — seven-slot contract lint, outbox acknowledgement trace, cache-loader ownership and connection-pool checkout/cleanup boundaries",
+        "Section 43: debugging exercises — absolute-rate capacity, index read/write evidence, revision and membership publication, and pool/lease/transaction/network authority boundaries"
       ],
       "source_revision": {
         "baseline_commit": "e8961ba3f7208a18faa548925ae1b3fa6d21f3c8",
@@ -644,12 +645,12 @@
         "selected_file_id": "file_00000000dadc81f59cf6b82ca990a48a",
         "selected_version_id": "1",
         "selected_sha256": "ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a",
-        "processed_lines": "62-2269",
-        "canonical_sha256_after": "5ffb4dac0308f28db07c0119e60dba52b6585368761c5aded137aaff6bf54aa9"
+        "processed_lines": "62-2328",
+        "canonical_sha256_after": "3b1e36c1455107707026c80cc591c6437de5973c4507afb55a4e5d8dfaaba646"
       },
-      "content_commit": "9db319119fc4a720207d48b74141a43a268559d4",
-      "validation": "Exact source lines 2256-2269 were bounded by the Section 43 heading and expanded into four current primary-reference-backed interview-explanation labs for a seven-slot falsifiable contract, outbox acknowledgement/replay, cache-loader authority/lease ownership and connection-pool checkout/cleanup boundaries. Java 17 source launch passed all 168 deterministic scenario groups. Deterministic reader generation passed exact 562901-character Markdown payload equality, source SHA-256 5ffb4dac0308f28db07c0119e60dba52b6585368761c5aded137aaff6bf54aa9, 2230 unique HTML IDs, 357 search entries, fragments, allowed relative links, 365 balanced fences and 172 Mermaid sources. All six content-commit remote blob hashes matched. Standalone javac, production PostgreSQL/Kafka/Debezium/cache/pool integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
-      "next_action": "Process exactly Section 43, source lines 2270-2328, bounded by the Section 44 heading at line 2329.",
+      "content_commit": "17c887a3822954f1ad9cc0a3f11253f0ec21bee2",
+      "validation": "Exact source lines 2270-2328 were bounded by the Section 44 heading and expanded into four current primary-reference-backed debugging labs for absolute-rate capacity, index read/write evidence, revision and membership publication, and pool/lease/transaction/network authority boundaries. Java 17 source launch passed all 172 deterministic scenario groups. Deterministic reader generation passed exact 575175-character Markdown payload equality, source SHA-256 3b1e36c1455107707026c80cc591c6437de5973c4507afb55a4e5d8dfaaba646, 2279 unique HTML IDs, 364 search entries, fragments, allowed relative links, 373 balanced fences and 176 Mermaid sources. All six content-commit remote blob hashes matched. Standalone javac, production PostgreSQL/Redis/Debezium/Hikari/cache/pool integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
+      "next_action": "Process exactly Section 44, source lines 2329-2402, the end of the confirmed source.",
       "priority": 12
     },
     {
@@ -923,7 +924,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 43 only, source lines 2270-2328, bounded by the Section 44 heading at line 2329.",
+    "next_action": "Core advanced-tree sections 1-10 and both paired frontend sources are processed. Continue the confirmed database source with Section 44 only, source lines 2329-2402, the end of the confirmed source.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1024,15 +1025,16 @@
       "Database/caching Section 39: hot-SKU admission arithmetic, operation-scoped conditional reservation plus outbox, payment-expiry state races and bounded stock-token conservation",
       "Database/caching Section 40: lifecycle boundaries, transactional inbox deduplication, external email reconciliation and bounded retry/backlog/freshness policy",
       "Database/caching Section 41: activity capacity arithmetic, tenant/user/time partitioning, tie-safe bucket pagination, hot-user shard fan-out and separate retention/failure/analytics policies",
-      "Database/caching Section 42: seven-slot component contract, outbox acknowledgement/replay, cache-loader authority/lease ownership and connection-pool checkout/cleanup boundaries"
+      "Database/caching Section 42: seven-slot component contract, outbox acknowledgement/replay, cache-loader authority/lease ownership and connection-pool checkout/cleanup boundaries",
+      "Database/caching Section 43: absolute-rate capacity, index read/write evidence, revision and membership publication, and pool/lease/transaction/network authority boundaries"
     ],
-    "processed_section": "database_internals_caching_java_master_guide.md lines 2256-2269 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 42, How to explain a subcomponent in an interview",
-    "validation": "Exact source lines 2256-2269 were bounded by the Section 43 heading and expanded into four current primary-reference-backed interview-explanation labs for a seven-slot falsifiable contract, outbox acknowledgement/replay, cache-loader authority/lease ownership and connection-pool checkout/cleanup boundaries. Java 17 source launch passed all 168 deterministic scenario groups. Deterministic reader generation passed exact 562901-character Markdown payload equality, source SHA-256 5ffb4dac0308f28db07c0119e60dba52b6585368761c5aded137aaff6bf54aa9, 2230 unique HTML IDs, 357 search entries, fragments, allowed relative links, 365 balanced fences and 172 Mermaid sources. All six content-commit remote blob hashes matched. Standalone javac, production PostgreSQL/Kafka/Debezium/cache/pool integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
-    "estimated_next_tokens": 9800,
-    "estimate_method": "Heuristic only for bounded Section 43 exercise review, primary-reference reconciliation, examples, executable Java, reader synchronization and validation; not account-quota telemetry.",
-    "last_successful_commit": "9db319119fc4a720207d48b74141a43a268559d4",
-    "last_processed_at": "2026-10-21T02:50:36-04:00",
-    "next_batch_decision": "Section 42 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 43; resume at source lines 2270-2328, bounded by the Section 44 heading at line 2329."
+    "processed_section": "database_internals_caching_java_master_guide.md lines 2270-2328 (SHA-256 ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a): Section 43, Exercises with expected reasoning",
+    "validation": "Exact source lines 2270-2328 were bounded by the Section 44 heading and expanded into four current primary-reference-backed debugging labs for absolute-rate capacity, index read/write evidence, revision and membership publication, and pool/lease/transaction/network authority boundaries. Java 17 source launch passed all 172 deterministic scenario groups. Deterministic reader generation passed exact 575175-character Markdown payload equality, source SHA-256 3b1e36c1455107707026c80cc591c6437de5973c4507afb55a4e5d8dfaaba646, 2279 unique HTML IDs, 364 search entries, fragments, allowed relative links, 373 balanced fences and 176 Mermaid sources. All six content-commit remote blob hashes matched. Standalone javac, production PostgreSQL/Redis/Debezium/Hikari/cache/pool integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
+    "estimated_next_tokens": 9400,
+    "estimate_method": "Heuristic only for bounded Section 44 reading-sequence review, primary-reference reconciliation, examples, executable Java, reader synchronization and validation; not account-quota telemetry.",
+    "last_successful_commit": "17c887a3822954f1ad9cc0a3f11253f0ec21bee2",
+    "last_processed_at": "2026-10-21T03:16:53-04:00",
+    "next_batch_decision": "Section 43 is the sole bounded section in this pass. Weekly/hourly quota percentages were not exposed, so stop before Section 44; resume at source lines 2329-2402, the end of the confirmed source."
   }
 }
 
