@@ -16,7 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-38. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-41. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -7215,6 +7215,188 @@ public final class ConsistencyContracts {
         assert retryAction(1, false, true) == RetryAction.RECONCILIATION_REVIEW;
     }
 
+    private record ActivityCapacity(
+            double averageEventsPerSecond,
+            long tenXPeakPerSecond,
+            long logicalBytesPerDay,
+            long logicalBytesForRetention) {}
+
+    private record HistoryPartitionKey(
+            String tenantId,
+            String userId,
+            String dayBucket) {}
+
+    private record ActivityCursor(
+            String dayBucket,
+            long eventTimeMillis,
+            String eventId) {}
+
+    private record HistoryPagePlan(
+            int fromCurrentBucket,
+            int fromPreviousBucket,
+            int returned,
+            ActivityCursor nextCursor) {}
+
+    private record HotUserPlan(
+            long eventsPerWindow,
+            long targetEventsPerPartition,
+            int shardCount,
+            int readFanOut,
+            boolean requiresKWayMerge) {}
+
+    private enum ActivityOrderPolicy {
+        EVENT_TIME_THEN_ID,
+        INGESTION_ORDER
+    }
+
+    private record ActivityFailurePlan(
+            boolean duplicateSuppressedByEventId,
+            boolean resumeFromCommittedProgress,
+            ActivityOrderPolicy ordering,
+            boolean crossRegionAcknowledgementCanLag) {}
+
+    private record ActivityRetentionPlan(
+            int onlineDays,
+            int expiredBuckets,
+            boolean bulkPartitionRemoval,
+            boolean standbyQueryMayBeCanceled) {}
+
+    private static ActivityCapacity activityCapacity(
+            long eventsPerDay,
+            long bytesPerEvent,
+            int retentionDays) {
+        if (eventsPerDay < 0 || bytesPerEvent < 0 || retentionDays < 0) {
+            throw new IllegalArgumentException("activity capacity inputs");
+        }
+        double average = eventsPerDay / 86_400.0;
+        return new ActivityCapacity(
+                average,
+                Math.round(average * 10),
+                Math.multiplyExact(eventsPerDay, bytesPerEvent),
+                Math.multiplyExact(
+                        Math.multiplyExact(eventsPerDay, bytesPerEvent),
+                        retentionDays));
+    }
+
+    private static HistoryPagePlan historyPagePlan(
+            int currentBucketEvents,
+            int previousBucketEvents,
+            int pageSize,
+            ActivityCursor lastReturned) {
+        if (currentBucketEvents < 0 || previousBucketEvents < 0 || pageSize < 0) {
+            throw new IllegalArgumentException("history page inputs");
+        }
+        int current = Math.min(currentBucketEvents, pageSize);
+        int previous = Math.min(previousBucketEvents, pageSize - current);
+        return new HistoryPagePlan(
+                current,
+                previous,
+                current + previous,
+                current + previous == pageSize ? lastReturned : null);
+    }
+
+    private static int compareNewestFirst(ActivityCursor left, ActivityCursor right) {
+        int time = Long.compare(right.eventTimeMillis(), left.eventTimeMillis());
+        return time != 0 ? time : right.eventId().compareTo(left.eventId());
+    }
+
+    private static HotUserPlan hotUserPlan(
+            long eventsPerWindow,
+            long targetEventsPerPartition) {
+        if (eventsPerWindow < 0 || targetEventsPerPartition <= 0) {
+            throw new IllegalArgumentException("hot-user inputs");
+        }
+        long shards = (eventsPerWindow + targetEventsPerPartition - 1)
+                / targetEventsPerPartition;
+        int shardCount = Math.toIntExact(Math.max(1, shards));
+        return new HotUserPlan(
+                eventsPerWindow,
+                targetEventsPerPartition,
+                shardCount,
+                shardCount,
+                shardCount > 1);
+    }
+
+    private static ActivityFailurePlan activityFailurePlan(
+            boolean stableEventId,
+            boolean committedProgress,
+            ActivityOrderPolicy ordering,
+            boolean crossRegionSynchronous) {
+        return new ActivityFailurePlan(
+                stableEventId,
+                committedProgress,
+                ordering,
+                !crossRegionSynchronous);
+    }
+
+    private static ActivityRetentionPlan activityRetentionPlan(
+            int onlineDays,
+            int expiredBuckets,
+            boolean partitionedByTime,
+            boolean reportingOnHotStandby) {
+        if (onlineDays < 0 || expiredBuckets < 0) {
+            throw new IllegalArgumentException("retention inputs");
+        }
+        return new ActivityRetentionPlan(
+                onlineDays,
+                expiredBuckets,
+                partitionedByTime && expiredBuckets > 0,
+                reportingOnHotStandby);
+    }
+
+    private static void activityCapacityScenarios() {
+        ActivityCapacity capacity = activityCapacity(100_000_000, 500, 30);
+        assert Math.abs(capacity.averageEventsPerSecond() - 1_157.407) < 0.001;
+        assert capacity.tenXPeakPerSecond() == 11_574;
+        assert capacity.logicalBytesPerDay() == 50_000_000_000L;
+        assert capacity.logicalBytesForRetention() == 1_500_000_000_000L;
+    }
+
+    private static void activityPartitionAndPageScenarios() {
+        HistoryPartitionKey userDay = new HistoryPartitionKey(
+                "tenant-7", "user-42", "2026-10-21");
+        HistoryPartitionKey otherUser = new HistoryPartitionKey(
+                "tenant-7", "user-43", "2026-10-21");
+        assert !userDay.equals(otherUser);
+
+        ActivityCursor tieA = new ActivityCursor(
+                "2026-10-20", 1_760_000_000_000L, "evt-b");
+        ActivityCursor tieB = new ActivityCursor(
+                "2026-10-20", 1_760_000_000_000L, "evt-a");
+        assert compareNewestFirst(tieA, tieB) < 0;
+
+        HistoryPagePlan page = historyPagePlan(7, 18, 20, tieB);
+        assert page.fromCurrentBucket() == 7;
+        assert page.fromPreviousBucket() == 13;
+        assert page.returned() == 20;
+        assert page.nextCursor().equals(tieB);
+    }
+
+    private static void activityHotUserScenarios() {
+        HotUserPlan normal = hotUserPlan(500_000, 1_000_000);
+        assert normal.shardCount() == 1;
+        assert !normal.requiresKWayMerge();
+
+        HotUserPlan hot = hotUserPlan(3_600_000, 1_000_000);
+        assert hot.shardCount() == 4;
+        assert hot.readFanOut() == 4;
+        assert hot.requiresKWayMerge();
+    }
+
+    private static void activityRetentionAndFailureScenarios() {
+        ActivityFailurePlan replay = activityFailurePlan(
+                true, true, ActivityOrderPolicy.EVENT_TIME_THEN_ID, false);
+        assert replay.duplicateSuppressedByEventId();
+        assert replay.resumeFromCommittedProgress();
+        assert replay.ordering() == ActivityOrderPolicy.EVENT_TIME_THEN_ID;
+        assert replay.crossRegionAcknowledgementCanLag();
+
+        ActivityRetentionPlan retention = activityRetentionPlan(
+                30, 1, true, true);
+        assert retention.bulkPartitionRemoval();
+        assert retention.standbyQueryMayBeCanceled();
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -7379,7 +7561,11 @@ public final class ConsistencyContracts {
         notificationInboxScenarios();
         notificationExternalOutcomeScenarios();
         notificationRetryCapacityScenarios();
-        System.out.println("PASS 160 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract, CMS traffic arithmetic, CMS publish transaction, CMS read policy, CMS layer collapse, flash-sale admission, atomic reservation, payment-expiry state race, stock-token conservation, notification lifecycle boundaries, transactional inbox dedupe, external email reconciliation, notification retry and backlog policy");
+        activityCapacityScenarios();
+        activityPartitionAndPageScenarios();
+        activityHotUserScenarios();
+        activityRetentionAndFailureScenarios();
+        System.out.println("PASS 164 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract, CMS traffic arithmetic, CMS publish transaction, CMS read policy, CMS layer collapse, flash-sale admission, atomic reservation, payment-expiry state race, stock-token conservation, notification lifecycle boundaries, transactional inbox dedupe, external email reconciliation, notification retry and backlog policy, activity capacity arithmetic, activity partition and cursor paging, hot-user shard fan-out, activity retention and failure policy");
     }
 }
 

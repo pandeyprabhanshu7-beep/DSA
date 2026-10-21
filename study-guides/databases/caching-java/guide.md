@@ -8713,6 +8713,165 @@ Accessed 2026-10-21.
 248. [Amazon SES — Event publishing](https://docs.aws.amazon.com/ses/latest/dg/monitor-sending-activity-using-notifications.html): distinct send, delivery, bounce, complaint and related provider events.
 249. [Amazon Builders' Library — Timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/): bounded retries, backoff and jitter under overload.
 
+# Section 41 — Design case D: a large activity-history service {#section-41-activity-history-service}
+
+Start from the online access pattern, not from a database label. The API needs the newest activity for one tenant-scoped user and bounded time-range browsing; global feature analytics do not belong on that path. Assume 100 million events/day, 500 bytes/event before indexes and replicas, a 10× peak, and 30 days of online retention.
+
+## Example 161 — Separate logical capacity arithmetic from physical storage {#example-161-activity-capacity-arithmetic}
+
+Average ingest is about 1,157.4 events/s and a 10× peak is about 11,574/s. Logical payload is 50 GB/day and 1.5 TB for 30 days in decimal units. Those are not disk or monthly-cost estimates: replication, indexes, versions or tombstones, compression, compaction headroom, backups and regional copies must be measured separately.
+
+```java
+ActivityCapacity capacity = activityCapacity(100_000_000, 500, 30);
+assert Math.abs(capacity.averageEventsPerSecond() - 1_157.407) < 0.001;
+assert capacity.tenXPeakPerSecond() == 11_574;
+assert capacity.logicalBytesPerDay() == 50_000_000_000L;
+assert capacity.logicalBytesForRetention() == 1_500_000_000_000L;
+```
+
+```mermaid
+flowchart TD
+    E["100M events/day × 500 B"] --> L["50 GB/day logical"]
+    L --> R["1.5 TB / 30 days logical"]
+    R --> P["Replication + indexes + versions"]
+    P --> C["Compression benefit"]
+    P --> H["Compaction + backup headroom"]
+    C --> M["Measured physical capacity"]
+    H --> M
+```
+
+Do the same separation for throughput: daily average sizes the baseline, but the 10× arrival peak, skew by tenant/user, retry traffic and retention cleanup determine admission and partition pressure.
+
+## Example 162 — Use a query-shaped partition and a stable cursor {#example-162-activity-partition-and-cursor}
+
+A candidate wide-column key is `(tenant_id, user_id, day_bucket)` with clustering order `(event_time, event_id) DESC`. The day bounds partition growth, tenant scope prevents cross-tenant collisions, and `event_id` both breaks timestamp ties and gives ingestion a stable deduplication identity. Cassandra’s compound key syntax distinguishes the partition key from ordered clustering columns; it does not make arbitrary cross-partition queries cheap.
+
+```sql
+CREATE TABLE activity_by_user_day (
+    tenant_id text,
+    user_id text,
+    day_bucket date,
+    event_time timestamp,
+    event_id uuid,
+    feature text,
+    payload blob,
+    PRIMARY KEY ((tenant_id, user_id, day_bucket), event_time, event_id)
+) WITH CLUSTERING ORDER BY (event_time DESC, event_id DESC);
+```
+
+For a 20-row page with seven events today and eighteen yesterday, read today first, keep seven, then read thirteen from yesterday. Return the final tuple and bucket traversal position; an offset alone is not stable when new events arrive.
+
+```java
+ActivityCursor tieA = new ActivityCursor(
+        "2026-10-20", 1_760_000_000_000L, "evt-b");
+ActivityCursor tieB = new ActivityCursor(
+        "2026-10-20", 1_760_000_000_000L, "evt-a");
+assert compareNewestFirst(tieA, tieB) < 0;
+
+HistoryPagePlan page = historyPagePlan(7, 18, 20, tieB);
+assert page.fromCurrentBucket() == 7;
+assert page.fromPreviousBucket() == 13;
+assert page.nextCursor().equals(tieB);
+```
+
+```mermaid
+sequenceDiagram
+    participant A as History API
+    participant T as Today bucket
+    participant Y as Yesterday bucket
+    A->>T: newest 20 after cursor
+    T-->>A: 7 events
+    A->>Y: newest 13
+    Y-->>A: 13 events
+    A-->>A: merge by event_time,event_id
+    A-->>A: emit 20 + bucket-aware cursor
+```
+
+Define pagination semantics explicitly. A live feed can admit late arrivals between pages and may shift what comes next. A snapshot export must pin a high-water mark or snapshot token so every page observes one declared boundary.
+
+## Example 163 — Detect the hot-user exception and pay for read fan-out deliberately {#example-163-activity-hot-user-sharding}
+
+Daily buckets are safe only if the hottest user fits the chosen partition-size and write-throughput envelope. If one user generates 3.6 million events/hour and the operational target is at most one million events per physical partition, add four deterministic shard suffixes inside the hour bucket. The write is spread; a user read now fans out to four ordered streams and performs a k-way merge.
+
+```java
+HotUserPlan normal = hotUserPlan(500_000, 1_000_000);
+assert normal.shardCount() == 1;
+assert !normal.requiresKWayMerge();
+
+HotUserPlan hot = hotUserPlan(3_600_000, 1_000_000);
+assert hot.shardCount() == 4;
+assert hot.readFanOut() == 4;
+assert hot.requiresKWayMerge();
+```
+
+```mermaid
+flowchart TD
+    W["Hot user's events"] --> H{"Stable shard hash"}
+    H --> S0["Hour / shard 0"]
+    H --> S1["Hour / shard 1"]
+    H --> S2["Hour / shard 2"]
+    H --> S3["Hour / shard 3"]
+    S0 --> K["Bounded k-way newest-first merge"]
+    S1 --> K
+    S2 --> K
+    S3 --> K
+```
+
+The cursor must retain progress for each participating shard or encode a snapshot/high-water boundary plus the last global tuple. More shards reduce hot-partition pressure but increase queries, heap work, tail latency and cursor state. Benchmark the relational candidate too: partitioned PostgreSQL with a matching `(tenant_id, user_id, event_time DESC, event_id DESC)` index may already meet the measured envelope.
+
+## Example 164 — Make retention, replay, ordering and analytical projection separate policies {#example-164-activity-retention-failure-policy}
+
+Stable event IDs make broker replay idempotent. A worker resumes from committed processing progress after a crash. For out-of-order arrivals, choose either event time plus ID or ingestion order and explain the user-visible difference. Cross-region replication has lag and failure modes, so an acknowledgement policy must state the accepted recovery-point objective instead of assuming every replica is current.
+
+```java
+ActivityFailurePlan replay = activityFailurePlan(
+        true, true, ActivityOrderPolicy.EVENT_TIME_THEN_ID, false);
+assert replay.duplicateSuppressedByEventId();
+assert replay.resumeFromCommittedProgress();
+assert replay.crossRegionAcknowledgementCanLag();
+
+ActivityRetentionPlan retention = activityRetentionPlan(30, 1, true, true);
+assert retention.bulkPartitionRemoval();
+assert retention.standbyQueryMayBeCanceled();
+```
+
+```mermaid
+flowchart TD
+    B["Durable user-keyed stream"] --> I["Idempotent online projection"]
+    B --> A["Analytical projection"]
+    I --> O["Per-user ordered buckets"]
+    A --> C["Columnar feature/time aggregates"]
+    O --> R["30-day bucket retirement"]
+    R --> Q{"Engine policy"}
+    Q -->|partition detach/drop| D["Bulk metadata operation"]
+    Q -->|TTL/tombstones| T["Budget cleanup/compaction"]
+```
+
+Do not scan every user partition for “most active feature.” Maintain a separate analytical projection shaped for feature/time/count queries. A columnar store reads only the required columns and prunes ordered granules; that is a different access path, not a reason to force the online history API into an analytical schema.
+
+Retention is also an operational event. Time partitions can make bulk retirement much cheaper than row-by-row deletion, but PostgreSQL detach/drop operations still have lock requirements. TTL or tombstone expiry in LSM-style engines creates cleanup/compaction work. Spread expiry where appropriate and observe pending compaction, disk headroom and oldest retained bucket.
+
+If long reports run on a PostgreSQL hot standby, WAL replay can conflict with locks or vacuum cleanup and cancel the query after the configured standby delay. Monitor replay lag and `pg_stat_database_conflicts`; a replica is not an unlimited, consequence-free reporting server.
+
+## What to say in an interview {#section-41-interview-answer}
+
+Use the memory line **measure, bucket, fan out, project**:
+
+- **measure:** calculate average, peak and logical bytes before applying physical multipliers;
+- **bucket:** make tenant/user/time the online partition and use a tie-safe cursor;
+- **fan out:** shard only proven hot users and name the k-way read/cursor cost; and
+- **project:** separate idempotent online history, retention work and global analytics, with explicit failover and ordering semantics.
+
+### Primary references for Section 41 {#section-41-primary-references}
+
+Accessed 2026-10-21.
+
+250. [Apache Cassandra — `CREATE TABLE`](https://cassandra.apache.org/doc/latest/cassandra/reference/cql-commands/create-table.html): composite partition keys, clustering columns and declared clustering order.
+251. [Apache Kafka 4.1 — Design](https://kafka.apache.org/41/design/design/): partition-key ordering, committed offsets, replay and external-system coordination boundaries.
+252. [PostgreSQL 18 — Table Partitioning](https://www.postgresql.org/docs/18/ddl-partitioning.html): range partitioning, pruning and the lock/maintenance trade-offs of detach or drop retention.
+253. [PostgreSQL 18 — Hot Standby](https://www.postgresql.org/docs/18/hot-standby.html): WAL-replay conflicts, query cancellation, delay settings and cleanup/bloat trade-offs.
+254. [ClickHouse — Sparse primary indexes](https://clickhouse.com/docs/guides/clickhouse/data-modelling/sparse-primary-indexes): column-oriented files, ordered rows, granules and sparse pruning for analytical projections.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -8720,8 +8879,8 @@ Accessed 2026-10-21.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; lines **1984–2038**, “Read the Java component as six execution stories”; lines **2039–2102**, “Design case A: a multi-tenant publishing CMS”; lines **2103–2169**, “Design case B: flash-sale inventory with one item left”; and lines **2170–2209**, “Design case C: reliable notification delivery”
-- Deliberate continuation: Section 41 begins at source line **2210** and ends at line **2253** before the Phase 9 heading at line **2254**; it remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; lines **1984–2038**, “Read the Java component as six execution stories”; lines **2039–2102**, “Design case A: a multi-tenant publishing CMS”; lines **2103–2169**, “Design case B: flash-sale inventory with one item left”; lines **2170–2209**, “Design case C: reliable notification delivery”; and lines **2210–2253**, “Design case D: a large activity-history service”
+- Deliberate continuation: Section 42 begins at source line **2256** and ends at line **2269**, bounded by the Section 43 heading at line **2270**; it remains unprocessed.
 
 Validation commands:
 
