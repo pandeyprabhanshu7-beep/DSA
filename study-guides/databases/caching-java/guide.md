@@ -8196,6 +8196,184 @@ Accessed 2026-10-20.
 234. [Resilience4j — Bulkhead](https://resilience4j.readme.io/docs/bulkhead): bounded concurrent calls and maximum wait duration for protecting database loads.
 235. [Micrometer — Naming meters](https://docs.micrometer.io/micrometer/reference/concepts/naming.html): portable lowercase dot-separated meter naming conventions.
 
+# Section 38 — Design case A: a multi-tenant publishing CMS {#section-38-multi-tenant-publishing-cms}
+
+This case joins the earlier storage, cache, transaction and security contracts into one design. Editors create drafts and publish immutable revisions; anonymous readers browse current public content; explicit revision previews must be immediate but permission checked; and search may lag without changing whether publication committed. The important split is **mutable authority, immutable bytes, and asynchronous projections**.
+
+## Example 149 — Start with bandwidth and separate the two cache hit ratios {#example-149-cms-traffic-arithmetic}
+
+Assume 20,000 public reads/s, mean article payload 30 KB, 20 application instances, a 90% CDN hit rate and a 95% Redis hit rate for immutable revision bodies.
+
+| Stage | Calculation | Result |
+|---|---:|---:|
+| Uncached response bandwidth | `20,000 × 30,000 bytes` | 600 MB/s before compression/overhead |
+| Requests reaching origin | `20,000 × (1 - 0.90)` | 2,000/s |
+| Revision-body loads | `2,000 × (1 - 0.95)` | 100/s |
+| Pointer/authorization checks | not covered by the body hit rate | as many as 2,000/s |
+
+```java
+CmsTrafficPlan plan = cmsTrafficPlan(20_000, 30_000, 0.90, 0.95);
+assert plan.uncachedBytesPerSecond() == 600_000_000;
+assert plan.originReadsPerSecond() == 2_000;
+assert plan.revisionBodyLoadsPerSecond() == 100;
+assert plan.pointerChecksPerSecond() == 2_000;
+```
+
+Do not multiply unrelated hit ratios and claim the database sees only 100 reads/s. The revision cache avoids repeated body retrieval, while `article.published_revision`, tenant eligibility and revocation are separate authority lookups. They need their own cache, consistency and invalidation contract.
+
+```mermaid
+flowchart TD
+    R["20,000 public reads/s"] --> C{"CDN 90% hit"}
+    C -->|"18,000/s"| E["Edge responses"]
+    C -->|"2,000/s"| A["Origin authority check"]
+    A --> B{"Revision cache 95% hit"}
+    B -->|"1,900/s"| H["Cached immutable body"]
+    B -->|"100/s"| S["Backing-store body load"]
+```
+
+The first capacity question is therefore edge locality and response bandwidth, not metadata sharding. At 10× QPS, CDN policy and hot-object protection dominate; at 10× tenants with the same QPS, partition placement and tenant isolation may dominate. Dataset growth and request growth are different forces.
+
+## Example 150 — Publish the pointer and outbox record in one transaction {#example-150-cms-publish-transaction}
+
+Use separate tables for the mutable decision and immutable bytes:
+
+```sql
+article(tenant_id, id, published_revision, version)
+article_revision(tenant_id, article_id, revision, body, created_at)
+outbox(event_id, tenant_id, article_id, version, event_type, payload)
+```
+
+The publish transaction first verifies that the selected revision belongs to the same tenant and is eligible. It then performs an optimistic pointer update such as `UPDATE article SET published_revision = ?, version = version + 1 WHERE tenant_id = ? AND id = ? AND version = ? RETURNING version`. Exactly one matching row means success; zero rows means conflict or invisibility, not permission to overwrite. PostgreSQL documents that the `WHERE` condition selects updated rows and `RETURNING` exposes values from rows actually updated.
+
+```java
+CmsPublishStory success = cmsPublishStory(7, 7, true, 11, 11);
+assert success.outcome() == CmsPublishOutcome.PUBLISHED;
+assert success.pointerChanged() && success.outboxInserted();
+assert success.newVersion() == 12;
+
+CmsPublishStory conflict = cmsPublishStory(7, 7, true, 12, 11);
+assert conflict.outcome() == CmsPublishOutcome.VERSION_CONFLICT;
+assert !conflict.pointerChanged() && !conflict.outboxInserted();
+
+CmsPublishStory crossTenant = cmsPublishStory(7, 8, true, 11, 11);
+assert crossTenant.outcome() == CmsPublishOutcome.WRONG_TENANT;
+```
+
+Insert the outbox row in the same database transaction as the pointer update. A relay may deliver later or more than once, so consumers deduplicate by event ID and reject older aggregate versions. Debezium's outbox router can use aggregate identity as the event key and route the committed payload without inventing a second publication decision.
+
+```mermaid
+sequenceDiagram
+    participant E as Editor API
+    participant D as SQL transaction
+    participant O as Outbox relay
+    participant X as Search and purge consumers
+    E->>D: verify tenant + revision eligibility
+    E->>D: conditional pointer UPDATE by version
+    alt one row updated
+        E->>D: INSERT outbox event
+        D-->>E: COMMIT new version
+        O->>D: read committed event
+        O->>X: deliver at least once
+    else zero rows updated
+        D-->>E: conflict or not visible; rollback
+    end
+```
+
+PostgreSQL row-level security can provide defense in depth: when enabled, normal reads and writes require an applicable policy, with default deny when no policy applies. Application authorization is still required; table ownership or `BYPASSRLS` can bypass policy enforcement and must not be used as the ordinary request role.
+
+## Example 151 — Current public reads and explicit editor previews need different policies {#example-151-cms-read-and-cache-policy}
+
+The public route resolves the current eligible revision and then retrieves immutable bytes under a key such as `tenant:article:revision`. The editor preview route receives an explicit committed revision ID, checks tenant and editor authorization, and reads that immutable revision directly. It does not wait for the current-pointer cache or search projection.
+
+```java
+CmsReadStory publicRead = cmsReadStory(true, false, true, true);
+assert publicRead.authorizationChecked() && publicRead.pointerResolved();
+assert publicRead.sharedCacheAllowed();
+assert publicRead.cacheControl().contains("s-maxage=300");
+
+CmsReadStory editorPreview = cmsReadStory(false, true, true, true);
+assert editorPreview.authorizationChecked();
+assert !editorPreview.pointerResolved();
+assert editorPreview.immutableRevisionRead();
+assert !editorPreview.sharedCacheAllowed();
+
+CmsReadStory revoked = cmsReadStory(false, true, false, true);
+assert !revoked.immutableRevisionRead();
+assert revoked.cacheControl().equals("private, no-store");
+```
+
+RFC 9111 forbids a shared cache from reusing an authenticated response unless an explicit directive permits it, and `Vary` only separates variants named by the response. For this design, anonymous public content can use an audited public policy; authenticated previews default to `private, no-store`. Do not forward `Authorization` while omitting it from a CDN cache key and still rely on it for access control—CloudFront explicitly warns that this can serve one cached response to authorized and unauthorized viewers. Also keep a CDN minimum TTL at zero for private paths, because a positive configured minimum can override restrictive origin directives.
+
+```mermaid
+flowchart TD
+    Q{"Request class"} -->|"Anonymous current"| P["Resolve public pointer + eligibility"]
+    P --> I["Fetch immutable revision"]
+    I --> C["Audited public shared-cache policy"]
+    Q -->|"Editor explicit revision"| A["Check tenant + editor permission"]
+    A -->|allowed| V["Fetch committed revision directly"]
+    V --> N["private, no-store"]
+    A -->|revoked or denied| D["Deny before returning cached bytes"]
+```
+
+Revocation applies to the decision to reveal bytes, not only to storage. Keeping immutable content cached is acceptable only if every protected retrieval rechecks the mutable access decision before returning it.
+
+## Example 152 — Rehearse CDN collapse and revision-cache collapse independently {#example-152-cms-layer-collapse}
+
+The two cache layers fail at different magnitudes. With the normal assumptions, origin demand is 2,000/s and body-load demand is 100/s. Redis loss raises potential body loads toward 2,000/s. CDN loss raises origin demand toward 20,000/s even when Redis remains healthy. One shared “cache unavailable” alert hides which protection is needed.
+
+```java
+CmsCollapsePlan healthy = cmsCollapsePlan(
+        20_000, true, 0.90, true, 0.95, 4_000, 500);
+assert healthy.originDemand() == 2_000;
+assert healthy.potentialBodyLoadDemand() == 100;
+
+CmsCollapsePlan redisDown = cmsCollapsePlan(
+        20_000, true, 0.90, false, 0.95, 4_000, 500);
+assert redisDown.potentialBodyLoadDemand() == 2_000;
+assert redisDown.databaseLoadsAdmitted() == 500;
+assert redisDown.databaseGateActive();
+
+CmsCollapsePlan cdnDown = cmsCollapsePlan(
+        20_000, false, 0.90, true, 0.95, 4_000, 500);
+assert cdnDown.originDemand() == 20_000;
+assert cdnDown.originAdmitted() == 4_000;
+assert cdnDown.originGateActive();
+```
+
+```mermaid
+flowchart TD
+    T["Public demand"] --> O{"CDN healthy?"}
+    O -->|yes| H["Origin sees misses only"]
+    O -->|no| G["Origin admission gate"]
+    H --> R{"Revision cache healthy?"}
+    G --> R
+    R -->|yes| M["Body misses use DB budget"]
+    R -->|no| B["All admitted reads seek DB budget"]
+    M --> F["Bounded load or explicit failure"]
+    B --> F
+```
+
+When outbox delivery is delayed, the publication transaction remains authoritative even if search and purge lag. Expose projection lag and a clear publication state instead of reporting that the publish failed. Consumers must be idempotent, and pointer/purge events must carry a version so delayed events cannot restore an older decision.
+
+## What to say in an interview {#section-38-interview-answer}
+
+Use the memory line **edge, authority, revision, projection**:
+
+- **edge:** absorb reusable public bandwidth close to readers;
+- **authority:** resolve tenant access and the mutable published pointer;
+- **revision:** cache immutable content under a versioned tenant key; and
+- **projection:** publish search and purge changes from the transactional outbox with idempotent, version-aware consumers.
+
+### Primary references for Section 38 {#section-38-primary-references}
+
+Accessed 2026-10-20.
+
+236. [RFC 9111 — HTTP Caching](https://www.rfc-editor.org/rfc/rfc9111): shared-cache storage/reuse rules for authenticated requests, `private`, `public`, `s-maxage`, freshness and `Vary`.
+237. [Amazon CloudFront — HTTP 401 and Authorization](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/http-401-unauthorized.html) and [cache policy configuration](https://docs.aws.amazon.com/cloudfront/latest/APIReference/API_CachePolicyConfig.html): authorization-header cache-key hazards and minimum-TTL overrides.
+238. [PostgreSQL 18 — UPDATE](https://www.postgresql.org/docs/18/sql-update.html): conditional row updates, affected-row count and `RETURNING` semantics for optimistic publication.
+239. [PostgreSQL 18 — Row Security Policies](https://www.postgresql.org/docs/18/ddl-rowsecurity.html): per-row policy enforcement, default deny and bypass caveats.
+240. [Debezium — Outbox Event Router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html): aggregate-key routing, event identity and payload handling for committed outbox records.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -8203,8 +8381,8 @@ Accessed 2026-10-20.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; and lines **1984–2038**, “Read the Java component as six execution stories”
-- Deliberate continuation: Section 38 starts at source line **2039** and is bounded by the Section 39 heading at line **2103**; it remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; lines **1984–2038**, “Read the Java component as six execution stories”; and lines **2039–2102**, “Design case A: a multi-tenant publishing CMS”
+- Deliberate continuation: Section 39 starts at source line **2103** and is bounded by the Section 40 heading at line **2170**; it remains unprocessed.
 
 Validation commands:
 

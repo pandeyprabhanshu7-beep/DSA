@@ -16,7 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Executable teaching models for guide Sections 1-37. Run with assertions enabled. */
+/** Executable teaching models for guide Sections 1-38. Run with assertions enabled. */
 public final class ConsistencyContracts {
     private ConsistencyContracts() {}
 
@@ -6666,6 +6666,180 @@ public final class ConsistencyContracts {
         assert !unauthorized.publishAccepted() && unauthorized.mustReloadAuthority();
     }
 
+    private record CmsTrafficPlan(
+            long uncachedBytesPerSecond,
+            long originReadsPerSecond,
+            long revisionBodyLoadsPerSecond,
+            long pointerChecksPerSecond) {}
+
+    private enum CmsPublishOutcome {
+        PUBLISHED,
+        VERSION_CONFLICT,
+        WRONG_TENANT,
+        INELIGIBLE_REVISION
+    }
+
+    private record CmsPublishStory(
+            CmsPublishOutcome outcome,
+            boolean pointerChanged,
+            boolean outboxInserted,
+            long newVersion) {}
+
+    private record CmsReadStory(
+            boolean authorizationChecked,
+            boolean pointerResolved,
+            boolean immutableRevisionRead,
+            boolean sharedCacheAllowed,
+            String cacheControl) {}
+
+    private record CmsCollapsePlan(
+            long originDemand,
+            long originAdmitted,
+            long potentialBodyLoadDemand,
+            long databaseLoadsAdmitted,
+            boolean originGateActive,
+            boolean databaseGateActive) {}
+
+    private static CmsTrafficPlan cmsTrafficPlan(
+            long publicReadsPerSecond,
+            long meanBytes,
+            double cdnHitRate,
+            double revisionHitRate) {
+        long origin = Math.round(publicReadsPerSecond * (1.0 - cdnHitRate));
+        long bodyLoads = Math.round(origin * (1.0 - revisionHitRate));
+        return new CmsTrafficPlan(
+                Math.multiplyExact(publicReadsPerSecond, meanBytes),
+                origin,
+                bodyLoads,
+                origin);
+    }
+
+    private static CmsPublishStory cmsPublishStory(
+            long articleTenant,
+            long revisionTenant,
+            boolean revisionEligible,
+            long currentVersion,
+            long expectedVersion) {
+        if (articleTenant != revisionTenant) {
+            return new CmsPublishStory(
+                    CmsPublishOutcome.WRONG_TENANT, false, false, currentVersion);
+        }
+        if (!revisionEligible) {
+            return new CmsPublishStory(
+                    CmsPublishOutcome.INELIGIBLE_REVISION, false, false, currentVersion);
+        }
+        if (currentVersion != expectedVersion) {
+            return new CmsPublishStory(
+                    CmsPublishOutcome.VERSION_CONFLICT, false, false, currentVersion);
+        }
+        return new CmsPublishStory(
+                CmsPublishOutcome.PUBLISHED, true, true, currentVersion + 1);
+    }
+
+    private static CmsReadStory cmsReadStory(
+            boolean anonymousPublicRoute,
+            boolean explicitRevision,
+            boolean authorized,
+            boolean revisionExists) {
+        if (!authorized || !revisionExists) {
+            return new CmsReadStory(
+                    true, !explicitRevision, false, false, "private, no-store");
+        }
+        if (anonymousPublicRoute && !explicitRevision) {
+            return new CmsReadStory(
+                    true, true, true, true,
+                    "public, max-age=60, s-maxage=300");
+        }
+        return new CmsReadStory(
+                true, !explicitRevision, true, false, "private, no-store");
+    }
+
+    private static CmsCollapsePlan cmsCollapsePlan(
+            long publicReadsPerSecond,
+            boolean cdnAvailable,
+            double cdnHitRate,
+            boolean revisionCacheAvailable,
+            double revisionHitRate,
+            long originBudget,
+            long databaseBudget) {
+        long originDemand = cdnAvailable
+                ? Math.round(publicReadsPerSecond * (1.0 - cdnHitRate))
+                : publicReadsPerSecond;
+        long originAdmitted = Math.min(originDemand, originBudget);
+        long bodyDemand = revisionCacheAvailable
+                ? Math.round(originDemand * (1.0 - revisionHitRate))
+                : originDemand;
+        long databaseAdmitted = Math.min(bodyDemand, databaseBudget);
+        return new CmsCollapsePlan(
+                originDemand,
+                originAdmitted,
+                bodyDemand,
+                databaseAdmitted,
+                originDemand > originBudget,
+                bodyDemand > databaseBudget);
+    }
+
+    private static void cmsTrafficArithmeticScenarios() {
+        CmsTrafficPlan plan = cmsTrafficPlan(20_000, 30_000, 0.90, 0.95);
+        assert plan.uncachedBytesPerSecond() == 600_000_000;
+        assert plan.originReadsPerSecond() == 2_000;
+        assert plan.revisionBodyLoadsPerSecond() == 100;
+        assert plan.pointerChecksPerSecond() == 2_000;
+    }
+
+    private static void cmsPublishTransactionScenarios() {
+        CmsPublishStory success = cmsPublishStory(7, 7, true, 11, 11);
+        assert success.outcome() == CmsPublishOutcome.PUBLISHED;
+        assert success.pointerChanged() && success.outboxInserted();
+        assert success.newVersion() == 12;
+
+        CmsPublishStory conflict = cmsPublishStory(7, 7, true, 12, 11);
+        assert conflict.outcome() == CmsPublishOutcome.VERSION_CONFLICT;
+        assert !conflict.pointerChanged() && !conflict.outboxInserted();
+
+        CmsPublishStory crossTenant = cmsPublishStory(7, 8, true, 11, 11);
+        assert crossTenant.outcome() == CmsPublishOutcome.WRONG_TENANT;
+        assert !crossTenant.pointerChanged() && !crossTenant.outboxInserted();
+    }
+
+    private static void cmsReadPolicyScenarios() {
+        CmsReadStory publicRead = cmsReadStory(true, false, true, true);
+        assert publicRead.authorizationChecked() && publicRead.pointerResolved();
+        assert publicRead.sharedCacheAllowed();
+        assert publicRead.cacheControl().contains("s-maxage=300");
+
+        CmsReadStory editorPreview = cmsReadStory(false, true, true, true);
+        assert editorPreview.authorizationChecked();
+        assert !editorPreview.pointerResolved();
+        assert editorPreview.immutableRevisionRead();
+        assert !editorPreview.sharedCacheAllowed();
+
+        CmsReadStory revoked = cmsReadStory(false, true, false, true);
+        assert revoked.authorizationChecked() && !revoked.immutableRevisionRead();
+        assert revoked.cacheControl().equals("private, no-store");
+    }
+
+    private static void cmsLayerCollapseScenarios() {
+        CmsCollapsePlan healthy = cmsCollapsePlan(
+                20_000, true, 0.90, true, 0.95, 4_000, 500);
+        assert healthy.originDemand() == 2_000;
+        assert healthy.potentialBodyLoadDemand() == 100;
+        assert !healthy.originGateActive() && !healthy.databaseGateActive();
+
+        CmsCollapsePlan redisDown = cmsCollapsePlan(
+                20_000, true, 0.90, false, 0.95, 4_000, 500);
+        assert redisDown.originDemand() == 2_000;
+        assert redisDown.potentialBodyLoadDemand() == 2_000;
+        assert redisDown.databaseLoadsAdmitted() == 500;
+        assert redisDown.databaseGateActive();
+
+        CmsCollapsePlan cdnDown = cmsCollapsePlan(
+                20_000, false, 0.90, true, 0.95, 4_000, 500);
+        assert cdnDown.originDemand() == 20_000;
+        assert cdnDown.originAdmitted() == 4_000;
+        assert cdnDown.originGateActive();
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -6818,7 +6992,11 @@ public final class ConsistencyContracts {
         cacheStoryHealthyMissScenarios();
         cacheStoryFailureBoundaryScenarios();
         cacheStoryExpiredLeaseScenarios();
-        System.out.println("PASS 148 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract");
+        cmsTrafficArithmeticScenarios();
+        cmsPublishTransactionScenarios();
+        cmsReadPolicyScenarios();
+        cmsLayerCollapseScenarios();
+        System.out.println("PASS 152 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract, CMS traffic arithmetic, CMS publish transaction, CMS read policy, CMS layer collapse");
     }
 }
 
