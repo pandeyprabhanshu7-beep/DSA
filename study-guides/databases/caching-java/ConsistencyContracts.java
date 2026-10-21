@@ -6840,6 +6840,212 @@ public final class ConsistencyContracts {
         assert cdnDown.originGateActive();
     }
 
+    private record FlashSaleAdmission(
+            long attempts,
+            long remainingUnits,
+            long databaseAttemptBudget,
+            long admitted,
+            long rejected,
+            boolean stockSerializationPoint) {}
+
+    private enum ReservationOutcome {
+        RESERVED,
+        SOLD_OUT,
+        IDEMPOTENT_REPLAY,
+        IDEMPOTENCY_CONFLICT,
+        INVALID_QUANTITY
+    }
+
+    private record ReservationAttempt(
+            ReservationOutcome outcome,
+            long newAvailable,
+            boolean reservationInserted,
+            boolean outboxInserted) {}
+
+    private enum ReservationState {
+        RESERVED,
+        CONFIRMED,
+        RELEASED,
+        REFUND_PENDING,
+        REFUNDED
+    }
+
+    private record ReservationTransition(
+            ReservationState before,
+            ReservationState next,
+            boolean restoreInventory,
+            boolean compensationRequired) {}
+
+    private record StockTokenPlan(
+            long authoritativeStock,
+            long totalAllocated,
+            long unallocated,
+            boolean conservesStock) {}
+
+    private static FlashSaleAdmission flashSaleAdmission(
+            long attempts,
+            long remainingUnits,
+            long databaseAttemptBudget) {
+        if (attempts < 0 || remainingUnits < 0 || databaseAttemptBudget < 0) {
+            throw new IllegalArgumentException("flash-sale admission inputs");
+        }
+        long admitted = Math.min(
+                attempts, Math.min(remainingUnits, databaseAttemptBudget));
+        return new FlashSaleAdmission(
+                attempts,
+                remainingUnits,
+                databaseAttemptBudget,
+                admitted,
+                attempts - admitted,
+                true);
+    }
+
+    private static ReservationAttempt flashSaleReserve(
+            long available,
+            long quantity,
+            boolean operationAlreadyCommitted,
+            boolean requestHashMatches) {
+        if (available < 0) {
+            throw new IllegalArgumentException("negative available stock");
+        }
+        if (quantity <= 0) {
+            return new ReservationAttempt(
+                    ReservationOutcome.INVALID_QUANTITY,
+                    available,
+                    false,
+                    false);
+        }
+        if (operationAlreadyCommitted) {
+            return new ReservationAttempt(
+                    requestHashMatches
+                            ? ReservationOutcome.IDEMPOTENT_REPLAY
+                            : ReservationOutcome.IDEMPOTENCY_CONFLICT,
+                    available,
+                    false,
+                    false);
+        }
+        if (available < quantity) {
+            return new ReservationAttempt(
+                    ReservationOutcome.SOLD_OUT,
+                    available,
+                    false,
+                    false);
+        }
+        return new ReservationAttempt(
+                ReservationOutcome.RESERVED,
+                available - quantity,
+                true,
+                true);
+    }
+
+    private static ReservationTransition flashSaleTransition(
+            ReservationState before,
+            boolean paymentAccepted,
+            boolean expiryWon) {
+        if (before == ReservationState.RESERVED && expiryWon) {
+            return new ReservationTransition(
+                    before, ReservationState.RELEASED, true, paymentAccepted);
+        }
+        if (before == ReservationState.RESERVED && paymentAccepted) {
+            return new ReservationTransition(
+                    before, ReservationState.CONFIRMED, false, false);
+        }
+        if (before == ReservationState.RELEASED && paymentAccepted) {
+            return new ReservationTransition(
+                    before, ReservationState.REFUND_PENDING, false, true);
+        }
+        return new ReservationTransition(before, before, false, false);
+    }
+
+    private static StockTokenPlan stockTokenPlan(
+            long authoritativeStock,
+            long... allocations) {
+        if (authoritativeStock < 0) {
+            throw new IllegalArgumentException("negative authoritative stock");
+        }
+        long allocated = 0;
+        for (long allocation : allocations) {
+            if (allocation < 0) {
+                throw new IllegalArgumentException("negative token allocation");
+            }
+            allocated = Math.addExact(allocated, allocation);
+        }
+        boolean safe = allocated <= authoritativeStock;
+        return new StockTokenPlan(
+                authoritativeStock,
+                allocated,
+                safe ? authoritativeStock - allocated : 0,
+                safe);
+    }
+
+    private static void flashSaleAdmissionScenarios() {
+        FlashSaleAdmission burst =
+                flashSaleAdmission(50_000, 1_000, 2_000);
+        assert burst.admitted() == 1_000;
+        assert burst.rejected() == 49_000;
+        assert burst.stockSerializationPoint();
+
+        FlashSaleAdmission soldOut =
+                flashSaleAdmission(50_000, 0, 2_000);
+        assert soldOut.admitted() == 0;
+        assert soldOut.rejected() == 50_000;
+    }
+
+    private static void flashSaleAtomicReservationScenarios() {
+        ReservationAttempt winner =
+                flashSaleReserve(1, 1, false, true);
+        assert winner.outcome() == ReservationOutcome.RESERVED;
+        assert winner.newAvailable() == 0;
+        assert winner.reservationInserted() && winner.outboxInserted();
+
+        ReservationAttempt loser =
+                flashSaleReserve(0, 1, false, true);
+        assert loser.outcome() == ReservationOutcome.SOLD_OUT;
+        assert !loser.reservationInserted() && !loser.outboxInserted();
+
+        ReservationAttempt replay =
+                flashSaleReserve(0, 1, true, true);
+        assert replay.outcome() == ReservationOutcome.IDEMPOTENT_REPLAY;
+
+        ReservationAttempt conflict =
+                flashSaleReserve(0, 1, true, false);
+        assert conflict.outcome() == ReservationOutcome.IDEMPOTENCY_CONFLICT;
+    }
+
+    private static void flashSalePaymentExpiryScenarios() {
+        ReservationTransition confirmed = flashSaleTransition(
+                ReservationState.RESERVED, true, false);
+        assert confirmed.next() == ReservationState.CONFIRMED;
+        assert !confirmed.restoreInventory();
+
+        ReservationTransition expired = flashSaleTransition(
+                ReservationState.RESERVED, false, true);
+        assert expired.next() == ReservationState.RELEASED;
+        assert expired.restoreInventory();
+
+        ReservationTransition repeatedExpiry = flashSaleTransition(
+                ReservationState.RELEASED, false, true);
+        assert repeatedExpiry.next() == ReservationState.RELEASED;
+        assert !repeatedExpiry.restoreInventory();
+
+        ReservationTransition latePayment = flashSaleTransition(
+                ReservationState.RELEASED, true, false);
+        assert latePayment.next() == ReservationState.REFUND_PENDING;
+        assert latePayment.compensationRequired();
+    }
+
+    private static void flashSaleTokenConservationScenarios() {
+        StockTokenPlan safe = stockTokenPlan(1_000, 400, 350, 200);
+        assert safe.totalAllocated() == 950;
+        assert safe.unallocated() == 50;
+        assert safe.conservesStock();
+
+        StockTokenPlan oversubscribed =
+                stockTokenPlan(1_000, 400, 350, 300);
+        assert oversubscribed.totalAllocated() == 1_050;
+        assert !oversubscribed.conservesStock();
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -6996,7 +7202,11 @@ public final class ConsistencyContracts {
         cmsPublishTransactionScenarios();
         cmsReadPolicyScenarios();
         cmsLayerCollapseScenarios();
-        System.out.println("PASS 152 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract, CMS traffic arithmetic, CMS publish transaction, CMS read policy, CMS layer collapse");
+        flashSaleAdmissionScenarios();
+        flashSaleAtomicReservationScenarios();
+        flashSalePaymentExpiryScenarios();
+        flashSaleTokenConservationScenarios();
+        System.out.println("PASS 156 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract, CMS traffic arithmetic, CMS publish transaction, CMS read policy, CMS layer collapse, flash-sale admission, atomic reservation, payment-expiry state race, stock-token conservation");
     }
 }
 

@@ -8374,6 +8374,189 @@ Accessed 2026-10-20.
 239. [PostgreSQL 18 — Row Security Policies](https://www.postgresql.org/docs/18/ddl-rowsecurity.html): per-row policy enforcement, default deny and bypass caveats.
 240. [Debezium — Outbox Event Router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html): aggregate-key routing, event identity and payload handling for committed outbox records.
 
+# Section 39 — Design case B: flash-sale inventory with one item left {#section-39-flash-sale-inventory}
+
+A flash sale is not primarily a cache problem. It is a contention and ownership problem around one scarce, mutable fact. The safety invariant is **confirmed reservations never exceed stock**. A cached display count may be approximate, but a confirmation must cross one authoritative atomic boundary. Assume one SKU receives 50,000 attempts/s while only 1,000 units remain.
+
+## Example 153 — Admit work before the one hot row {#example-153-flash-sale-admission-arithmetic}
+
+An index locates the inventory row; it does not make conflicting updates independent. If the database budget allows 2,000 reservation attempts/s, admitting all 50,000 requests merely moves a 48,000-request/s queue to the most expensive layer. Admission should shed excess work before SQL, while the database condition remains the final stock authority.
+
+| Stage | Calculation | Result |
+|---|---:|---:|
+| Incoming attempts | given | 50,000/s |
+| Remaining units | given | 1,000 |
+| Database attempt budget | measured/configured | 2,000/s |
+| Useful admission ceiling | `min(50,000, 2,000, 1,000)` | 1,000 attempts in this stock window |
+| Early rejection | `50,000 - 1,000` | 49,000 attempts |
+
+```java
+FlashSaleAdmission burst = flashSaleAdmission(50_000, 1_000, 2_000);
+assert burst.admitted() == 1_000;
+assert burst.rejected() == 49_000;
+assert burst.stockSerializationPoint();
+
+FlashSaleAdmission soldOut = flashSaleAdmission(50_000, 0, 2_000);
+assert soldOut.admitted() == 0;
+```
+
+The rate limiter is load protection, not proof of availability. A request admitted at the edge can still lose to an earlier transaction. Conversely, a stale “sold out” cache must not become the durable business decision unless that false-negative trade-off is explicit.
+
+```mermaid
+flowchart TD
+    A["50,000 attempts/s"] --> G{"Per-SKU admission"}
+    G -->|"bounded candidates"| S["Reservation service"]
+    G -->|"excess"| R["Fast retryable rejection"]
+    S --> D["Atomic inventory transaction"]
+    D --> C["Confirmed reservation or sold out"]
+    D --> V["Eventually refreshed display count"]
+```
+
+Sharding by SKU helps many independent products, but every request for this one SKU still meets the same logical counter. Capacity planning must distinguish broad catalog throughput from hot-key throughput.
+
+## Example 154 — Claim one operation, conditionally decrement, and write the reservation plus outbox together {#example-154-flash-sale-atomic-reservation}
+
+Use an operation scope such as `(tenant_id, operation_id)` with the request hash and recorded result. A repeated key with the same hash replays the committed result; the same key with a different hash is an error. Validate quantity and authorization before claiming the operation.
+
+The stock-changing statement is conditional and exposes only rows actually updated:
+
+```sql
+WITH changed AS (
+    UPDATE inventory
+       SET available = available - :quantity
+     WHERE sku = :sku
+       AND available >= :quantity
+ RETURNING sku, available
+)
+INSERT INTO reservation(id, sku, quantity, status, expires_at, operation_id)
+SELECT :reservation_id, sku, :quantity, 'RESERVED', :expires_at, :operation_id
+  FROM changed
+RETURNING id;
+```
+
+In the same transaction, insert the operation result and an outbox event only when the reservation exists. Zero returned rows means sold out; it is not permission to decrement elsewhere. PostgreSQL `RETURNING` derives its result from rows actually changed. Under Read Committed, an updater that waits for another writer can re-evaluate its search condition against the committed row, so the losing buyer can correctly update zero rows.
+
+```java
+ReservationAttempt winner = flashSaleReserve(1, 1, false, true);
+assert winner.outcome() == ReservationOutcome.RESERVED;
+assert winner.newAvailable() == 0;
+assert winner.reservationInserted() && winner.outboxInserted();
+
+ReservationAttempt loser = flashSaleReserve(0, 1, false, true);
+assert loser.outcome() == ReservationOutcome.SOLD_OUT;
+assert !loser.reservationInserted() && !loser.outboxInserted();
+
+ReservationAttempt replay = flashSaleReserve(0, 1, true, true);
+assert replay.outcome() == ReservationOutcome.IDEMPOTENT_REPLAY;
+```
+
+```mermaid
+sequenceDiagram
+    participant A as Buyer A
+    participant B as Buyer B
+    participant D as PostgreSQL row
+    A->>D: UPDATE where available >= 1
+    B->>D: same conditional UPDATE; waits
+    D-->>A: one row; insert reservation + outbox; commit
+    D-->>B: recheck committed row; zero rows
+    B-->>B: record or return sold out
+```
+
+Do not commit the decrement without the reservation, and do not publish the business event as a separate dual write. The outbox event ID supports consumer deduplication; it does not replace the operation key that protects the purchase command.
+
+## Example 155 — Let confirmation and expiry race on reservation state, not wall-clock guesses {#example-155-flash-sale-payment-expiry-race}
+
+Payment can take seconds, so holding an inventory-row lock and JDBC connection for the entire provider call creates a fragile distributed transaction without making the provider atomic with SQL. Commit a time-limited `RESERVED` row first, then call the provider with its own idempotency key. Stripe documents that an idempotency key permits safe retries and rejects reuse with different parameters.
+
+Confirmation and expiry must serialize a state transition:
+
+```sql
+UPDATE reservation
+   SET status = 'RELEASED'
+ WHERE id = :id AND status = 'RESERVED'
+RETURNING quantity;
+```
+
+Only the worker receiving a returned row restores inventory, in the same transaction as the `RELEASED` transition and outbox event. A repeated expiry changes zero rows and adds no stock. Confirmation similarly updates only `RESERVED`; if payment succeeds after release already won, enter an explicit compensation/refund workflow rather than resurrecting the old reservation.
+
+```java
+ReservationTransition confirmed = flashSaleTransition(
+        ReservationState.RESERVED, true, false);
+assert confirmed.next() == ReservationState.CONFIRMED;
+assert !confirmed.restoreInventory();
+
+ReservationTransition expired = flashSaleTransition(
+        ReservationState.RESERVED, false, true);
+assert expired.next() == ReservationState.RELEASED;
+assert expired.restoreInventory();
+
+ReservationTransition latePayment = flashSaleTransition(
+        ReservationState.RELEASED, true, false);
+assert latePayment.next() == ReservationState.REFUND_PENDING;
+assert !latePayment.restoreInventory();
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> RESERVED
+    RESERVED --> CONFIRMED: payment wins conditional transition
+    RESERVED --> RELEASED: expiry wins conditional transition
+    RELEASED --> RELEASED: repeated expiry; no restock
+    RELEASED --> REFUND_PENDING: late payment observed
+    REFUND_PENDING --> REFUNDED: idempotent refund confirmed
+```
+
+Provider acknowledgement, database confirmation and customer response are three different observations. Persist provider identifiers and reconciliation state so an unknown network outcome can be queried instead of guessed.
+
+## Example 156 — Preallocate bounded tokens only with explicit conservation and recovery {#example-156-flash-sale-token-conservation}
+
+When one SQL row is measurably the bottleneck, stock can be preallocated into spendable tokens owned by partitions. For 1,000 units, allocations of 400, 350 and 200 leave 50 units unallocated; the conserved upper bound is still 1,000. An allocation of 400, 350 and 300 is invalid even if every partition is individually healthy.
+
+```java
+StockTokenPlan safe = stockTokenPlan(1_000, 400, 350, 200);
+assert safe.totalAllocated() == 950;
+assert safe.unallocated() == 50;
+assert safe.conservesStock();
+
+StockTokenPlan oversubscribed = stockTokenPlan(1_000, 400, 350, 300);
+assert oversubscribed.totalAllocated() == 1_050;
+assert !oversubscribed.conservesStock();
+```
+
+```mermaid
+flowchart TD
+    I["1,000 authoritative units"] --> L["Allocation ledger"]
+    L --> A["Owner A: 400 tokens"]
+    L --> B["Owner B: 350 tokens"]
+    L --> C["Owner C: 200 tokens"]
+    L --> U["Unallocated: 50"]
+    A --> R["Local reservations spend unique tokens"]
+    B --> R
+    C --> R
+    R --> Q{"Owner failed?"}
+    Q -->|yes| F["Fence owner; reconcile spent tokens; recover remainder"]
+```
+
+Failover requires fencing the old owner before unused tokens are reassigned, plus a durable ledger that distinguishes allocated, spent, returned and indeterminate tokens. A distributed Redis lock alone adds another authority and lease-failure protocol while the stock update still needs to be safe. Start with the conditional SQL transition; adopt token allocation only after evidence shows that hot-row throughput, rather than upstream admission or downstream payment, is the limiting resource.
+
+## What to say in an interview {#section-39-interview-answer}
+
+Use the memory line **admit, decrement, transition, conserve**:
+
+- **admit:** shed hot-SKU excess before consuming SQL connections;
+- **decrement:** claim the operation and conditionally change stock with the reservation and outbox in one transaction;
+- **transition:** confirm or release exactly once by competing on reservation state, with idempotent payment and compensation; and
+- **conserve:** if stock is tokenized, prove that all spendable tokens plus unallocated stock never exceed the authoritative total, including failover.
+
+### Primary references for Section 39 {#section-39-primary-references}
+
+Accessed 2026-10-20.
+
+241. [PostgreSQL 18 — `UPDATE`](https://www.postgresql.org/docs/18/sql-update.html): conditional updates and `RETURNING` values from rows actually changed.
+242. [PostgreSQL 18 — Transaction Isolation](https://www.postgresql.org/docs/18/transaction-iso.html) and [Explicit Locking](https://www.postgresql.org/docs/18/explicit-locking.html): Read Committed predicate re-evaluation, row-update conflicts and transaction-scoped locking behavior.
+243. [Stripe — Idempotent requests](https://docs.stripe.com/api/idempotent_requests): safe request retries, stable keys and parameter-mismatch protection for external payment operations.
+244. [Debezium — Outbox Event Router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html): reliable state/event exchange, unique event identifiers and aggregate-key routing for committed outbox rows.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -8381,8 +8564,8 @@ Accessed 2026-10-20.
 - Backing file ID: `file_00000000dadc81f59cf6b82ca990a48a`
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
-- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; lines **1984–2038**, “Read the Java component as six execution stories”; and lines **2039–2102**, “Design case A: a multi-tenant publishing CMS”
-- Deliberate continuation: Section 39 starts at source line **2103** and is bounded by the Section 40 heading at line **2170**; it remains unprocessed.
+- Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; lines **1984–2038**, “Read the Java component as six execution stories”; lines **2039–2102**, “Design case A: a multi-tenant publishing CMS”; and lines **2103–2169**, “Design case B: flash-sale inventory with one item left”
+- Deliberate continuation: Section 40 starts at source line **2170**; it remains unprocessed.
 
 Validation commands:
 
