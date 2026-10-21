@@ -7492,6 +7492,40 @@ public final class ConsistencyContracts {
         INVESTIGATE_DATABASE_PROXY_OR_NETWORK
     }
 
+    private record StudyRehearsal(boolean storage, boolean correctness,
+            boolean connections, boolean design) {
+        boolean ready() { return storage && correctness && connections && design; }
+    }
+
+    private static boolean storageSessionReady(boolean split, boolean versions,
+            boolean index, boolean metadata) {
+        return split && versions && index && metadata;
+    }
+
+    private static boolean correctnessSessionReady(boolean lostUpdate, boolean versionFix,
+            boolean writeSkew, boolean crossRowFix, long article, long draft, long revocation) {
+        if (article < 0 || draft < 0 || revocation < 0) throw new IllegalArgumentException("stale budget");
+        return lostUpdate && versionFix && writeSkew && crossRowFix
+                && article >= draft && revocation == 0;
+    }
+
+    private static boolean connectionSessionReady(List<String> cold, List<String> reused,
+            long checkoutMillis, long handshakeMillis, long queryMillis) {
+        Objects.requireNonNull(cold); Objects.requireNonNull(reused);
+        if (checkoutMillis < 0 || handshakeMillis < 0 || queryMillis < 0) {
+            throw new IllegalArgumentException("connection clocks");
+        }
+        return cold.containsAll(List.of("TCP", "TLS", "AUTH"))
+                && !reused.contains("TCP") && !reused.contains("TLS")
+                && reused.contains("LEASE");
+    }
+
+    private static boolean designSessionReady(boolean requirements, boolean success,
+            boolean timeout, boolean duplicate, boolean tenX, boolean cacheDown,
+            boolean deletionReview) {
+        return requirements && success && timeout && duplicate && tenX && cacheDown && deletionReview;
+    }
+
     private static List<String> explanationGaps(ComponentExplanation explanation) {
         Objects.requireNonNull(explanation, "explanation");
         List<String> gaps = new ArrayList<>();
@@ -7830,6 +7864,33 @@ public final class ConsistencyContracts {
                 == BoundaryAction.EVICT_POOL_CONNECTION;
     }
 
+    private static void practicalStorageSessionScenarios() {
+        assert storageSessionReady(true, true, true, true);
+        assert !storageSessionReady(true, true, true, false);
+    }
+
+    private static void practicalCorrectnessSessionScenarios() {
+        assert correctnessSessionReady(true, true, true, true, 60, 5, 0);
+        assert !correctnessSessionReady(true, true, false, false, 60, 5, 0);
+        assert !correctnessSessionReady(true, true, true, true, 60, 5, 1);
+    }
+
+    private static void practicalConnectionSessionScenarios() {
+        assert connectionSessionReady(
+                List.of("POOL", "DRIVER", "DNS", "TCP", "TLS", "AUTH", "SESSION"),
+                List.of("POOL", "LEASE", "QUERY"), 180, 95, 12);
+        assert !connectionSessionReady(
+                List.of("POOL", "TCP", "TLS", "AUTH"),
+                List.of("POOL", "TCP", "LEASE"), 4, 0, 12);
+    }
+
+    private static void practicalDesignSessionScenarios() {
+        StudyRehearsal complete = new StudyRehearsal(true, true, true,
+                designSessionReady(true, true, true, true, true, true, true));
+        assert complete.ready();
+        assert !designSessionReady(true, true, false, true, true, true, true);
+    }
+
     public static void main(String[] args) {
         if (!ConsistencyContracts.class.desiredAssertionStatus()) {
             throw new IllegalStateException("run with -ea");
@@ -8006,7 +8067,11 @@ public final class ConsistencyContracts {
         indexEvidenceExerciseScenarios();
         publicationLifecycleExerciseScenarios();
         authorityBoundaryExerciseScenarios();
-        System.out.println("PASS 172 scenario groups: atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract, CMS traffic arithmetic, CMS publish transaction, CMS read policy, CMS layer collapse, flash-sale admission, atomic reservation, payment-expiry state race, stock-token conservation, notification lifecycle boundaries, transactional inbox dedupe, external email reconciliation, notification retry and backlog policy, activity capacity arithmetic, activity partition and cursor paging, hot-user shard fan-out, activity retention and failure policy, explanation contract lint, outbox relay interview trace, cache-loader interview trace, connection-pool interview trace, absolute-rate exercise, index-evidence exercise, publication-lifecycle exercise, authority-boundary exercise");
+        practicalStorageSessionScenarios();
+        practicalCorrectnessSessionScenarios();
+        practicalConnectionSessionScenarios();
+        practicalDesignSessionScenarios();
+        System.out.println("PASS 176 scenario groups: practical rehearsal sequence, atomicity, idempotency, replica routing, convergence, capacity, composite range, secondary bytes, leaf split, tiny B+ insert propagation, linked-leaf range scan, secondary lookup plan, index-only visibility, LSM recovery, snapshot reads, tombstones, amplification, three-place visibility, compaction merge safety, Bloom probe budget, compaction debt budget, endpoint composite index, endpoint plan shapes, endpoint plan evidence, endpoint keyset pagination, column selection, vector batches, granule pruning, CDC projection, statement snapshots, write skew, lost updates, serialization retry, two-session non-repeatable read, write-skew retry lab, guard-row serialization and retry, deadlock ordering and retry, topology estimate, admission, two-level invalidation, cache-key scope, cache-aside race, read-through outcomes, write-through repair, write-behind replay, exact LRU, LFU with aging, FIFO, full 2Q, eviction-policy trace lab, LFU phase-change lab, 2Q ghost-reload lab, CMS scan-pollution lab, stampede arithmetic, local single-flight, fill lease ownership, bounded fallback, negative-cache semantics, Bloom bit membership, Bloom sizing, Bloom lifecycle safety, TTL jitter, cold-start warming, soft/hard TTL, outage protection, pool-boundary budget, logical connection lease, explicit database routing, pooling-mode deadline, connection startup cost, connection churn, pool concurrency gate, connection ownership, Hikari controls, timeout stack, workload pool sizing, pool telemetry, JDBC driver selection, DataSource acquisition, JDBC layer stack, PostgreSQL handshake variants, PostgreSQL chronology, PostgreSQL framing, PostgreSQL identity assurance, pool trace correlation, PostgreSQL socket attempts, TLS identity policy, SCRAM negotiation, session baseline placement, MySQL handshake order, MySQL plugin negotiation, caching_sha2_password paths, MySQL session contract, pgJDBC query mode, extended-query cycle, parameter/identifier boundary, fetch and lifecycle, immutable revision keys, authorization-first cache reads, publication visibility, production timeout budget, cache-envelope parsing, owner-checked publication, cache-aside coordination, Redis cooldown and DB bulkhead, mutable-row outbox transaction, durable relay recovery, monotonic cache events, stale-reader fencing, fault-test oracles, lease fault injection, write-skew harness, unknown-commit recovery, database recovery runbook, cache recovery runbook, pool exhaustion diagnosis, certificate and credential rotation, senior visibility and storage review, senior cache safety review, senior pool timeout and health review, senior protocol and outcome review, production storage acceptance, production cache acceptance, production connectivity and security acceptance, production release and recovery acceptance, database read pipeline, slotted-page relocation, buffer-layer ownership, MVCC and protocol materialization, committed edit transaction, WAL crash boundary, lost edit response, checkpoint versus vacuum diagnosis, cache lease-expiry race, generation-fenced value publication, generation-fenced negative publication, fleet miss-load budget, connection residency arithmetic, pool queue stability, layered pool queues, pool configuration and ambiguous outcome, SSLRequest bytes, simple-query framing, handshake admission, protocol security contract, first-probe envelope semantics, owner-safe miss coalescing, Redis/database failure boundaries, expired-lease data contract, CMS traffic arithmetic, CMS publish transaction, CMS read policy, CMS layer collapse, flash-sale admission, atomic reservation, payment-expiry state race, stock-token conservation, notification lifecycle boundaries, transactional inbox dedupe, external email reconciliation, notification retry and backlog policy, activity capacity arithmetic, activity partition and cursor paging, hot-user shard fan-out, activity retention and failure policy, explanation contract lint, outbox relay interview trace, cache-loader interview trace, connection-pool interview trace, absolute-rate exercise, index-evidence exercise, publication-lifecycle exercise, authority-boundary exercise");
     }
 }
 

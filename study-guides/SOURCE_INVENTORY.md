@@ -15,7 +15,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | ai-platform | AI | DISCOVERED | `study-guides/ai/platform/` | ai_cicd_spring_python_guides_complete.zip<br>ai_platform_master_guide.html<br>ai_platform_engineering_complete_bundle.zip<br>ai_platform_engineering_illustrated.html |
 | system-design-fundamentals | System design/data | PROMOTED | `study-guides/system-design/fundamentals/` | system_design_fundamentals_deep_research.md<br>system_design_fundamentals.md |
 | system-design-blueprints | System design/data | DISCOVERED | `study-guides/system-design/blueprints/` | top_5_system_design_interview_blueprints.md |
-| database-caching-java | System design/data | IN_PROGRESS | [`study-guides/databases/caching-java/`](databases/caching-java/) | database_internals_caching_java_master_guide.md |
+| database-caching-java | System design/data | PROMOTED | [`study-guides/databases/caching-java/`](databases/caching-java/) | database_internals_caching_java_master_guide.md |
 | cicd-cloud-kubernetes | DevOps/backend | PROMOTED | `study-guides/devops/cicd/` | cicd_aws_azure_teamcity_jenkins_guide.html<br>ai_cicd_spring_python_guides_complete.zip |
 | spring-ai-python-api | DevOps/backend | DISCOVERED | `study-guides/backend/spring-ai-python/` | ai_cicd_spring_python_guides_complete.zip<br>spring_ai_python_api_interview_guide.html |
 | angular | Frontend | IN_PROGRESS | `study-guides/frontend/angular/` | Angular_Interview_Mermaid_Workbook.md<br>Angular_Interview_Workbook.docx |
@@ -41,7 +41,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | spring_ai_python_api_interview_guide.html | 2026-09-17T05:55:54.480720Z | DISCOVERED |
 | ai_platform_engineering_complete_bundle.zip | 2026-09-16T16:22:16.910779Z | DISCOVERED |
 | ai_platform_engineering_illustrated.html | 2026-09-16T16:22:16.059506Z | DISCOVERED |
-| database_internals_caching_java_master_guide.md | 2026-09-16T05:20:18.877277Z | IN PROGRESS — Sections 1–43 lines 62–2328 promoted; Section 44 is lines 2329–2402 |
+| database_internals_caching_java_master_guide.md | 2026-09-16T05:20:18.877277Z | PROMOTED — Sections 1–44 lines 62–2402 processed through source end |
 | top_5_system_design_interview_blueprints.md | 2026-09-11T21:27:10.870584Z | DISCOVERED |
 | system_design_fundamentals_deep_research.md | 2026-09-11T21:27:08.096531Z | PROMOTED — canonical fundamentals base |
 | system_design_fundamentals.md | 2026-09-11T04:57:16.259594Z | READY — compared; distinct case studies reserved for blueprints |
@@ -98,7 +98,7 @@ See [pipeline rules](ENHANCEMENT_PIPELINE.md) and [machine-readable queue](ENRIC
 
 Angular Q1–Q74 plus rapid-fire items 1–39 are tracked at [frontend/angular](frontend/angular/). The fourth rapid-fire module was reconciled from both workbooks on 2026-10-14; the Final Revision Sheet remains unprocessed.
 
-JavaScript/HTML/CSS Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The final trigger-map/speaking-template module was reconciled from both workbooks on 2026-10-16, completing this paired-source intake. Database/caching Sections 1–43 are tracked at [databases/caching-java](databases/caching-java/); its next bounded section is Section 44, source lines 2329–2402, the end of the confirmed source. The wider collection and Java-placeholder backlog remain incomplete.
+JavaScript/HTML/CSS Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The final trigger-map/speaking-template module was reconciled from both workbooks on 2026-10-16, completing this paired-source intake. Database/caching Sections 1–44 are tracked at [databases/caching-java](databases/caching-java/); its confirmed source is exhausted through line 2402. The next bounded intake is Angular's paired-source Final Revision Sheet. The wider collection and Java-placeholder backlog remain incomplete.
 
 
 

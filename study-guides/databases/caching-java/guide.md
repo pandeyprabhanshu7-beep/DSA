@@ -9207,6 +9207,123 @@ Accessed 2026-10-21.
 267. [Redis — Bloom filters](https://redis.io/docs/latest/develop/data-types/probabilistic/bloom-filter/): probabilistic membership behavior and insertion/check operations.
 268. [Amazon SQS — Available CloudWatch metrics](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-available-cloudwatch-metrics.html): visible backlog, in-flight work and oldest-message age semantics.
 
+# Section 44 — A practical reading and implementation sequence {#section-44-practical-sequence}
+
+This final source section is a **rehearsal plan**, not another catalog. Each session must leave evidence: a hand trace, executable assertion, measured boundary, or falsifiable design decision.
+
+## Requirements and invariants {#section-44-requirements-and-invariants}
+
+- Reconstruct a mechanism from pages or versions before naming a product.
+- Reproduce an anomaly before applying a remedy; never claim one remedy solves a different anomaly.
+- Give each cached data class its own authority and stale budget.
+- Measure pool checkout separately from query execution and distinguish a reused lease from a new physical session.
+- Rehearse success, timeout and duplicate delivery at baseline, at 10× load and with cache unavailable.
+- Remove components that cannot name a bottleneck or guarantee; simplicity still needs transaction, visibility and recovery boundaries.
+
+## Example 173 — Storage session: derive, trace, explain {#example-173-storage-session}
+
+Insert `25` into full leaf `[10,20,30,40]` with capacity four and the right-child-minimum separator convention: left `[10,20]`, right `[25,30,40]`, separator `25`. Then reconstruct key `A` at snapshot `104` from `{memtable: tombstone@105, L0: value-v3@103, L1: value-v1@90}`. The future tombstone is invisible, so `value-v3` wins; at snapshot `105`, the tombstone wins.
+
+For `GET /tenants/{t}/customers/{c}/orders?before=(created_at,id)`, begin with `(tenant_id, customer_id, created_at DESC, order_id DESC)`. Equality scope precedes ordered range and the unique tie-breaker stabilizes the cursor. Confirm with `EXPLAIN (ANALYZE, BUFFERS)` and explain every separator, sequence, tombstone, column and cursor field.
+
+```mermaid
+flowchart TD
+  A["Concrete request"] --> B["Trace pages or versions"]
+  B --> C["State invariant"]
+  C --> D["Choose access path"]
+  D --> E["Verify plan or assertion"]
+  E --> F["Explain metadata"]
+```
+
+## Example 174 — Correctness session: two anomalies, three stale budgets {#example-174-correctness-session}
+
+Reproduce a lost update: two transactions read `balance=100`, then write `110` and `120`; the last write erases the other increment. Repair it with an atomic increment or `UPDATE ... WHERE version=?`, verifying that one conflicting writer affects zero rows. Next reproduce write skew: two doctors each observe two on call and each removes itself. The single-row version check does not protect the cross-row invariant. Use Serializable with whole-transaction retry, or lock a shared invariant row.
+
+| Data class | Example maximum stale age | Reason |
+|---|---:|---|
+| Public article at immutable revision | 60 s | Old content is tolerable; revision identity prevents mixing |
+| Draft preview | 5 s | Editor feedback must be prompt; authorize before cache use |
+| Access revocation | 0 s | A stale allow decision violates authority |
+
+Re-run stale-resurrection and negative-fill races with explicit times and revisions. A lease coordinates loaders; a generation fence decides whether a result may publish.
+
+```mermaid
+flowchart TD
+  A["Two-session counterexample"] --> B{"Invariant scope"}
+  B -->|"One row"| C["Atomic or versioned write"]
+  B -->|"Several rows"| D["Serializable retry or guard lock"]
+  C --> E["Re-run schedule"]
+  D --> E
+  E --> F["Declare stale budget"]
+```
+
+## Example 175 — JVM-to-database session: three clocks {#example-175-connection-session}
+
+A cold PostgreSQL connection can traverse pool creation, driver selection, DNS, TCP, TLS, startup, authentication and session baseline. An ordinary Hikari checkout reuses that physical session; it does **not** repeat TCP/TLS/authentication. A later query can still fail because a socket, proxy, server, deadline or transaction failed.
+
+| Observation | Clock | Owner |
+|---|---|---|
+| Thread waits 180 ms before receiving `Connection` | checkout | Hikari budget and pool residency |
+| New physical session needs 95 ms | handshake | driver, network, TLS, auth, server |
+| SQL executes for 12 ms after checkout | query | plan, locks, statement deadline, transaction |
+
+With a 100 ms checkout budget, the first observation is an acquisition failure even though the query would be fast. Increasing query timeout cannot repair it.
+
+```mermaid
+sequenceDiagram
+  participant App
+  participant Pool as Hikari
+  participant Driver
+  participant DB as PostgreSQL
+  App->>Pool: getConnection()
+  alt idle physical session
+    Pool-->>App: logical lease
+  else create physical session
+    Pool->>Driver: connect
+    Driver->>DB: TCP + TLS + auth + startup
+    DB-->>Pool: ready
+    Pool-->>App: logical lease
+  end
+  App->>DB: query / transaction
+  DB-->>App: result or failure
+```
+
+## Example 176 — End-to-end session: stress, fail, subtract {#example-176-design-session}
+
+Use the publishing CMS from Section 38. Write invariants first: tenant isolation, immutable revisions, one authoritative published pointer, bounded editor freshness and idempotent publication. Trace one operation ID through success, timeout after commit and duplicate retry. Reconcile an unknown result by reading authoritative state; timeout never proves rollback.
+
+Repeat at 10× traffic and with Redis unavailable. At 10×, admission and database headroom may bind. Without Redis, authorization and the pointer still come from authority; fallback must be rate-limited and fit the database budget. Cache improves latency and load but never becomes publication truth.
+
+Finally delete components that cannot justify themselves. A queue earns its place through durable asynchronous work; a lock through a named invariant; a second database through availability, locality or workload isolation; a local cache through measured benefit plus safe invalidation.
+
+```mermaid
+flowchart TD
+  A["Requirements and invariants"] --> B["Baseline design"]
+  B --> C["Success timeout duplicate"]
+  C --> D["10x and cache-down"]
+  D --> E{"Component earns place?"}
+  E -->|Yes| F["Keep with metric and recovery"]
+  E -->|No| G["Remove and re-test"]
+```
+
+### Completion evidence {#section-44-completion-evidence}
+
+1. Page trace, version table, query-shaped index and metadata explanations.
+2. Two anomaly schedules, distinct remedies and three stale budgets.
+3. Cold/reused paths with separate checkout, handshake and query clocks.
+4. Baseline, 10×, cache-down, timeout and duplicate traces, then a deletion review.
+
+### Primary references for Section 44 {#section-44-primary-references}
+
+Accessed 2026-10-21.
+
+269. [PostgreSQL 18 — Multicolumn indexes](https://www.postgresql.org/docs/current/indexes-multicolumn.html): equality-prefix and later-column constraints and over-wide-index costs.
+270. [PostgreSQL 18 — Transaction isolation](https://www.postgresql.org/docs/current/transaction-iso.html): exact visibility and anomaly semantics.
+271. [PostgreSQL 18 — Serialization failure handling](https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html): retry the complete transaction after SQLSTATE `40001`.
+272. [HikariCP — Configuration reference](https://github.com/brettwooldridge/HikariCP#frequently-used): checkout timeout, pool sizing and physical lifetime controls.
+273. [IETF RFC 9111 — HTTP Caching](https://www.rfc-editor.org/rfc/rfc9111): freshness is data policy, not a universal cache property.
+274. [Redis — Distributed locks](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/): owner-token release and lease limitations.
+
 ## Source provenance and verification
 
 - Confirmed Library source: `database_internals_caching_java_master_guide.md`
@@ -9215,7 +9332,8 @@ Accessed 2026-10-21.
 - Version: `1`
 - Whole-file SHA-256: `ec8a88daa8b9d26be7c7817f20e8d0e1c8f0ef1697c5bbf8cd7cb1e4a703f34a`
 - Processed bounded ranges: source lines **62–133**, “ACID, BASE, and the misleading SQL/NoSQL split”; lines **134–176**, “B+ trees: pages, fan-out, and write cost”; lines **177–230**, “LSM trees: moving write cost into compaction”; lines **231–286**, “Row-oriented versus column-oriented storage”; lines **287–356**, “Isolation: exact anomalies and engine-specific differences”; lines **357–396**, “Local, distributed, and two-level caches”; lines **397–493**, “Four read/write strategies”; lines **494–556**, “Eviction internals: LRU, LFU, FIFO and 2Q”; lines **557–588**, “Cache stampede: coordinate fills, bound fallback”; lines **589–615**, “Cache penetration: absent keys and Bloom filters”; lines **616–637**, “Cache avalanche: TTL jitter, cold starts and outage protection”; lines **638–687**, “Architecture: pool objects are not network proxies”; lines **688–718**, “What a physical connection costs”; lines **719–768**, “HikariCP controls and pool metrics”; lines **769–774**, “JDBC is an API, not a network protocol”; lines **775–819**, “Full chronological PostgreSQL trace”; lines **820–906**, “Stage-by-stage mechanics”; lines **907–941**, “MySQL has a different authentication order”; lines **942–974**, “From connection to prepared query”; lines **975–1090**, “Explicit production contract”; lines **1091–1340**, “Complete Java cache-aside component”; lines **1341–1364**, “If you cache mutable rows instead”; lines **1365–1409**, “Fault-injection and integration test matrix”; lines **1410–1427**, “Recovery runbooks”; lines **1428–1442**, “Senior-engineer review questions”; lines **1443–1456**, “Production-readiness checklist”; lines **1457–1532**, “Follow a single database read all the way to a row”; lines **1533–1595**, “Follow one committed edit and three crash points”; lines **1596–1643**, “B+ tree dry run: insert, split, range query and secondary lookup”; lines **1644–1690**, “LSM dry run: the same key exists in three places”; lines **1691–1760**, “Design an index for an actual slow endpoint”; lines **1761–1816**, “Isolation laboratory with two sessions”; lines **1817–1863**, “Eviction dry runs: identical requests, different survivors”; lines **1864–1909**, “Cache concurrency lab: three races and a precise contract”; lines **1910–1945**, “Connection pooling with real queue arithmetic”; lines **1946–1983**, “Protocol walkthrough with actual framing examples”; lines **1984–2038**, “Read the Java component as six execution stories”; lines **2039–2102**, “Design case A: a multi-tenant publishing CMS”; lines **2103–2169**, “Design case B: flash-sale inventory with one item left”; lines **2170–2209**, “Design case C: reliable notification delivery”; lines **2210–2253**, “Design case D: a large activity-history service”; lines **2256–2269**, “How to explain a subcomponent in an interview”; and lines **2270–2328**, “Exercises with expected reasoning”
-- Deliberate continuation: Section 44 begins at source line **2329** and runs through line **2402**, the end of the confirmed source; it remains unprocessed.
+- Final processed range: lines **2329–2402**, “A practical reading and implementation sequence,” the end of the confirmed source.
+- Source completion: all confirmed lines **62–2402** are processed. This exhausts this source only; it does not complete the wider intake or enrichment backlog.
 
 Validation commands:
 
