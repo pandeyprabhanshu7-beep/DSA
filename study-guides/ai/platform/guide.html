@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="source-sha256" content="e37b9b2d7f4f73cceec4ad9a6bb330f3e10fe5b22fe6f68f90b6e69a39fed31e">
+<title>AI Platform Engineering</title>
+<style>
+:root{--bg:#f7f8fb;--paper:#fff;--ink:#172033;--muted:#5c667a;--accent:#335eea;--line:#dfe3ec;--code:#111827;--code-ink:#e5e7eb}
+*{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}
+.layout{display:grid;grid-template-columns:minmax(240px,310px) minmax(0,920px);gap:2rem;max-width:1280px;margin:auto;padding:1rem}
+aside{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:1rem}
+.brand{font-weight:800;margin-bottom:.7rem} input{width:100%;padding:.72rem;border:1px solid var(--line);border-radius:9px;font:inherit}
+#results{list-style:none;padding:0;margin:.7rem 0} #results li{margin:.45rem 0} #results a{text-decoration:none;color:var(--accent);font-size:.92rem}
+#search-status{color:var(--muted);font-size:.82rem;margin:.45rem 0} main{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:clamp(1rem,4vw,3rem)}
+h1,h2,h3,h4{line-height:1.25;scroll-margin-top:1rem} h1{border-bottom:2px solid var(--line);padding-bottom:.35rem} h2{margin-top:2.4rem} a{color:#264fd2} table{border-collapse:collapse;width:100%;display:block;overflow-x:auto} th,td{border:1px solid var(--line);padding:.55rem;text-align:left;vertical-align:top}
+pre{background:var(--code);color:var(--code-ink);padding:1rem;border-radius:10px;overflow:auto} code{font:0.9em ui-monospace,SFMono-Regular,Consolas,monospace} :not(pre)>code{background:#edf0f6;padding:.12rem .3rem;border-radius:4px}
+blockquote{margin:1rem 0;padding:.35rem 1rem;border-left:4px solid var(--accent);background:#f0f4ff} img,svg{max-width:100%;height:auto} .mermaid{overflow:auto;text-align:center}
+.toplink{display:inline-block;margin-bottom:1rem;font-size:.9rem} mark{background:#fff3a3}
+@media(max-width:820px){.layout{display:block;padding:.5rem} aside{position:relative;max-height:none;margin-bottom:.75rem} main{padding:1rem} #results{max-height:12rem;overflow:auto}}
+@media print{aside{display:none} .layout{display:block} main{border:0}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <div class="brand">AI Platform Engineering</div>
+  <label for="guide-search">Search this guide</label>
+  <input id="guide-search" type="search" placeholder="Try: authority, fine-tuning, idempotency" autocomplete="off">
+  <div id="search-status">Type to search headings and section text.</div>
+  <ul id="results"></ul>
+  <a class="toplink" href="#ai-platform-engineering">Back to top</a>
+</aside>
+<main id="content"><h1 id="ai-platform-engineering">AI Platform Engineering</h1>
+<blockquote>
+<p>Canonical incremental guide. This pass processes only source Chapter 1, “Four things engineers often confuse.” Later source chapters remain queued.</p>
+</blockquote>
+<h2 id="1-choose-prompting-rag-fine-tuning-and-tools-by-authority">1. Choose prompting, RAG, fine-tuning, and tools by authority</h2>
+<p>The mechanisms are complementary. The useful first question is not “Which AI technique is newest?” but <strong>“What must change, and which system is authoritative for that change?”</strong></p>
+<table>
+<thead>
+<tr class="header">
+<th>Mechanism</th>
+<th>What changes</th>
+<th>Use it for</th>
+<th>It does <strong>not</strong> grant</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Prompting</td>
+<td>Instructions and request context</td>
+<td>A one-off task, output shape, constraints, or a baseline before optimization</td>
+<td>Current private facts, durable learning, or permission</td>
+</tr>
+<tr class="even">
+<td>Retrieval-augmented generation (RAG)</td>
+<td>Evidence selected at request time</td>
+<td>Approved documents, policies, source code, catalog facts, and citations</td>
+<td>Correct retrieval, correct reasoning, or authorization</td>
+</tr>
+<tr class="odd">
+<td>Fine-tuning</td>
+<td>Model behavior through training</td>
+<td>Repeated, stable behavior whose success can be evaluated on held-out examples</td>
+<td>A reliable database of changing facts</td>
+</tr>
+<tr class="even">
+<td>Tool calling / MCP</td>
+<td>Access to an external capability</td>
+<td>Live state, deterministic computation, and controlled actions</td>
+<td>Blanket authority to invoke every exposed operation</td>
+</tr>
+</tbody>
+</table>
+<p>The original RAG work describes generation that combines parametric memory with retrieved non-parametric memory. That history matters, but a production definition should stay broader: retrieval may be lexical, vector, SQL, graph-based, or hybrid. A vector database is an implementation choice, not the definition of RAG.</p>
+<p>MCP standardizes how an AI application and capability server exchange tools, resources, and other context. In the current <code>2026-07-28</code> specification, the protocol core is stateless; the surrounding application can still keep state. A server exposing a tool does not make the model the network or authorization boundary. The host/client remains responsible for policy, consent, credentials, result handling, and audit.</p>
+<pre class="mermaid"><code>flowchart TD
+    N[&quot;Need or failure&quot;] --&gt; A{&quot;What is authoritative?&quot;}
+    A --&gt;|&quot;Invocation instructions&quot;| P[&quot;Prompt&quot;]
+    A --&gt;|&quot;Approved changing evidence&quot;| R[&quot;RAG&quot;]
+    A --&gt;|&quot;Stable repeated behavior&quot;| F[&quot;Fine-tuning&quot;]
+    A --&gt;|&quot;Live state or action&quot;| T[&quot;Tool / MCP&quot;]</code></pre>
+<h3 id="requirements-and-invariants">Requirements and invariants</h3>
+<ol type="1">
+<li><strong>Facts have an authority.</strong> Current enterprise facts come from an approved source revision or a live system, not from model weights.</li>
+<li><strong>Evidence is typed.</strong> A passage and a live tool result carry different provenance and freshness semantics.</li>
+<li><strong>Retrieval precedes generation, authorization precedes disclosure.</strong> Filter by caller/tenant before evidence enters model context; do not retrieve broadly and redact later.</li>
+<li><strong>Training changes behavior, not the source of truth.</strong> Fine-tuning may improve a stable task, but frequently changing facts remain external.</li>
+<li><strong>Capability is not permission.</strong> Tool discovery and model selection never replace server-side authorization, host policy, or user confirmation.</li>
+<li><strong>Side effects are explicit.</strong> Classify read-only and mutating calls; use least privilege, bounded inputs, idempotency keys, and postcondition checks for mutations.</li>
+<li><strong>Unsupported claims fail closed.</strong> If required evidence is missing, stale, conflicting, or unauthorized, abstain or return a typed partial result.</li>
+</ol>
+<h2 id="example-1--rollback-instructions-plus-live-health">Example 1 — rollback instructions plus live health</h2>
+<p>An employee asks: <strong>“How do I roll back payments, and is the deployment healthy now?”</strong></p>
+<p>This is two questions with two authorities:</p>
+<ul>
+<li>The rollback procedure comes from the latest approved runbook revision accessible to the employee. Use RAG and cite the exact revision and section.</li>
+<li>Current health comes from a read-only deployment-status capability. Use a tool, authenticated for the employee's scope, and timestamp the observation.</li>
+</ul>
+<p>Do not use a six-month-old “3/3 replicas ready” example embedded in the runbook as current status. Do not let the status tool invent rollback steps. Join the results only after preserving their separate provenance.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant U as Employee
+    participant H as Authorized host
+    participant K as Knowledge store
+    participant S as Status service
+    U-&gt;&gt;H: Procedure + current health?
+    H-&gt;&gt;K: Retrieve allowed published revision
+    K--&gt;&gt;H: Runbook r7, section Rollback
+    H-&gt;&gt;S: Read deployment health
+    S--&gt;&gt;H: 3/3 ready at 14:02Z
+    H--&gt;&gt;U: Cited procedure + timestamped state</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th>Step</th>
+<th>Evidence</th>
+<th>Required validation</th>
+<th>Failure response</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>Caller and tenant</td>
+<td>Identity and scope are present</td>
+<td>Reject before retrieval/tool use</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>Runbook r7</td>
+<td>Published, authorized, not superseded</td>
+<td>Abstain from procedure</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>Status observation</td>
+<td>Correct environment and freshness bound</td>
+<td>Mark health unknown/stale</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>Generated answer</td>
+<td>Every operational claim maps to evidence</td>
+<td>Remove unsupported claim</td>
+</tr>
+</tbody>
+</table>
+<p>A useful evidence envelope keeps the authorities distinguishable:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;DOCUMENT&quot;</span><span class="fu">,</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;authority&quot;</span><span class="fu">:</span> <span class="st">&quot;kb://runbooks/payments&quot;</span><span class="fu">,</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;subject&quot;</span><span class="fu">:</span> <span class="st">&quot;payments/prod&quot;</span><span class="fu">,</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;revision&quot;</span><span class="fu">:</span> <span class="st">&quot;7&quot;</span><span class="fu">,</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;observedAt&quot;</span><span class="fu">:</span> <span class="st">&quot;2026-10-21T13:02:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;freshUntil&quot;</span><span class="fu">:</span> <span class="kw">null</span><span class="fu">,</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;citation&quot;</span><span class="fu">:</span> <span class="st">&quot;Rollback §2&quot;</span><span class="fu">,</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;authorizationScope&quot;</span><span class="fu">:</span> <span class="st">&quot;payments-operator:read&quot;</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>The live result uses <code>kind: "LIVE_STATE"</code>, a status-service authority, an observation timestamp, and a short freshness deadline. It should not pretend to have a document revision.</p>
+<h2 id="example-2--stable-invoice-classification">Example 2 — stable invoice classification</h2>
+<p>Suppose an accounts-payable team maps invoice text into a fixed schema and twelve stable categories.</p>
+<ol type="1">
+<li>Start with a prompt and an output schema. This is the cheapest test of task clarity.</li>
+<li>Build an evaluation set before changing the model. Measure schema validity, per-class precision/recall, abstention, and human-review rate.</li>
+<li>Retrieve current vendor or policy facts when classification depends on them. Those facts do not belong in weights.</li>
+<li>Consider fine-tuning only after the task, labels, examples, and grader are stable and the prompt baseline misses the target consistently.</li>
+</ol>
+<table>
+<thead>
+<tr class="header">
+<th>Case</th>
+<th style="text-align: right;">Prompt</th>
+<th style="text-align: right;">RAG</th>
+<th style="text-align: right;">Fine-tune</th>
+<th style="text-align: right;">Tool</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Put supplied invoice fields into JSON</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">Not initially</td>
+<td style="text-align: right;">Deterministic schema validator</td>
+</tr>
+<tr class="even">
+<td>Decide category using today's vendor policy</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">Maybe for behavior</td>
+<td style="text-align: right;">Policy lookup may be deterministic</td>
+</tr>
+<tr class="odd">
+<td>Apply a stable nuanced taxonomy at high volume</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">If facts are external</td>
+<td style="text-align: right;">Candidate after evals</td>
+<td style="text-align: right;">Validator/review queue</td>
+</tr>
+<tr class="even">
+<td>Post the approved invoice</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">Maybe</td>
+<td style="text-align: right;">Irrelevant to permission</td>
+<td style="text-align: right;">Mutating finance tool with confirmation</td>
+</tr>
+</tbody>
+</table>
+<p>Fine-tuning is an optimization step, not an escape from unclear requirements. A model can emit syntactically valid JSON and still choose the wrong category; the evaluator must test business meaning.</p>
+<h2 id="example-3--employee-policy-answer">Example 3 — employee policy answer</h2>
+<p>Question: <strong>“How much parental leave do I have?”</strong></p>
+<p>The prompt can require a concise cited answer. RAG can retrieve the current policy, but retrieval must be filtered by country, employment class, effective date, and caller permissions. A payroll/HR tool may be required for the employee's eligibility or accrued balance. Fine-tuning cannot safely memorize either value.</p>
+<pre class="mermaid"><code>flowchart TD
+    Q[&quot;Employee question&quot;] --&gt; C[&quot;Resolve identity and policy dimensions&quot;]
+    C --&gt; R[&quot;Retrieve authorized policy revision&quot;]
+    C --&gt; L[&quot;Read employee-specific eligibility&quot;]
+    R --&gt; V[&quot;Validate dates, scope, and citations&quot;]
+    L --&gt; V
+    V --&gt;|&quot;complete evidence&quot;| A[&quot;Answer&quot;]
+    V --&gt;|&quot;missing or conflicting&quot;| X[&quot;Abstain / HR handoff&quot;]</code></pre>
+<p>Trace a conflict instead of smoothing it away:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Observation</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Policy r12 says 16 weeks and is effective 2026-10-01</td>
+<td>Candidate policy fact</td>
+</tr>
+<tr class="even">
+<td>Employee record says country <code>CA</code>; policy r12 applies only to <code>US</code></td>
+<td>Reject r12 for this caller</td>
+</tr>
+<tr class="odd">
+<td>No published CA revision is retrieved</td>
+<td>Do not answer with 16 weeks</td>
+</tr>
+<tr class="even">
+<td>HR directory supplies a verified handoff</td>
+<td>Return “unable to determine” plus the handoff</td>
+</tr>
+</tbody>
+</table>
+<h2 id="example-4--a-side-effectful-deployment-tool">Example 4 — a side-effectful deployment tool</h2>
+<p>A model proposes <code>rollback(service="payments", environment="prod", revision="sha256:…")</code>. MCP can describe and transport that capability. It does not authorize the change.</p>
+<p>Before invocation, the host and server should enforce:</p>
+<ul>
+<li>authenticated principal, exact environment scope, and server-side authorization;</li>
+<li>a trusted tool definition and constrained arguments;</li>
+<li>a visible summary of impact plus explicit confirmation where policy requires it;</li>
+<li>a single-use or time-bounded approval bound to the exact arguments;</li>
+<li>an idempotency key and operation record;</li>
+<li>a postcondition read showing the deployed immutable revision;</li>
+<li>audit data that separates proposer, approver, caller, and executor.</li>
+</ul>
+<pre class="mermaid"><code>stateDiagram-v2
+    [*] --&gt; Proposed
+    Proposed --&gt; Rejected: policy or input failure
+    Proposed --&gt; Confirmed: exact action approved
+    Confirmed --&gt; Executing: authorized call + idempotency key
+    Executing --&gt; Reconciled: success or known prior result
+    Executing --&gt; Unknown: timeout / lost response
+    Unknown --&gt; Reconciled: query operation record
+    Reconciled --&gt; Verified: read postcondition
+    Rejected --&gt; [*]
+    Verified --&gt; [*]</code></pre>
+<p>A timeout is not proof that the rollback failed. Retry only with the same idempotency key, or query the operation record first. Never generate a fresh operation identity for an ambiguous prior attempt.</p>
+<h2 id="executable-routing-contract">Executable routing contract</h2>
+<p><a href="EvidenceRouting.java"><code>EvidenceRouting.java</code></a> turns the distinctions into a small Java 17 contract. Its output is intentionally a plan, not an answer: it selects evidence mechanisms, records safeguards, and rejects unsafe mutations before any model or external service is called.</p>
+<p>Run it from this directory:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">java</span> <span class="at">-ea</span> EvidenceRouting.java</span></code></pre></div>
+<p>The four scenario groups assert:</p>
+<ol type="1">
+<li>approved procedure plus live state routes to RAG and a read-only tool;</li>
+<li>stable extraction starts with prompting and adds fine-tuning only when requested;</li>
+<li>current policy uses RAG and does not mistake fine-tuning for freshness;</li>
+<li>a production mutation requires authorization, confirmation, and an idempotency key.</li>
+</ol>
+<h2 id="failure-oriented-review">Failure-oriented review</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Tempting shortcut</th>
+<th>Broken assumption</th>
+<th>Repair</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>“The model probably knows the policy”</td>
+<td>Weights are current and authoritative</td>
+<td>Retrieve a published revision and cite it</td>
+</tr>
+<tr class="even">
+<td>“Vector search means RAG”</td>
+<td>One retrieval algorithm defines the system</td>
+<td>Specify authority, filtering, retrieval, evidence, and generation</td>
+</tr>
+<tr class="odd">
+<td>“Fine-tune with the handbook”</td>
+<td>Training is a reliable mutable database</td>
+<td>Keep facts external; tune stable behavior only after evals</td>
+</tr>
+<tr class="even">
+<td>“The tool is listed, so it is allowed”</td>
+<td>Discovery equals authorization</td>
+<td>Enforce host policy, consent, and server authorization</td>
+</tr>
+<tr class="odd">
+<td>“The tool timed out, so retry”</td>
+<td>No response means no side effect</td>
+<td>Reconcile by idempotency key and operation record</td>
+</tr>
+<tr class="even">
+<td>“JSON is valid, so the answer is correct”</td>
+<td>Syntax proves semantics</td>
+<td>Validate claims, citations, business rules, and postconditions</td>
+</tr>
+</tbody>
+</table>
+<h2 id="primary-references">Primary references</h2>
+<ul>
+<li>Lewis et al., <a href="https://arxiv.org/abs/2005.11401">Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks</a> (2020).</li>
+<li>Model Context Protocol, <a href="https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture">Architecture overview</a> and <a href="https://modelcontextprotocol.io/specification/2026-07-28">2026-07-28 specification</a>.</li>
+<li>Model Context Protocol, <a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools">Tools</a> and <a href="https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/authorization">authorization guidance</a>.</li>
+<li>OpenAI, <a href="https://developers.openai.com/api/docs/guides/model-optimization">Model optimization</a> and <a href="https://developers.openai.com/api/docs/guides/supervised-fine-tuning">supervised fine-tuning</a>. Product availability is time-sensitive; the architectural rule here is provider-independent.</li>
+<li>NIST, <a href="https://doi.org/10.6028/NIST.AI.600-1">AI RMF Generative AI Profile</a> (2024).</li>
+</ul>
+<h2 id="source-provenance-and-continuation">Source provenance and continuation</h2>
+<ul>
+<li>Selected source: <code>ai_platform_master_guide.html</code>, SHA-256 <code>c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a</code>, expanded 21-chapter standalone edition.</li>
+<li>Companion editable source: bundle member <code>02_rag_mcp.md</code>, SHA-256 <code>45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05</code>.</li>
+<li>Compared source: <code>ai_platform_engineering_illustrated.html</code>, SHA-256 <code>006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9</code>; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.</li>
+<li>Processed range: Chapter 1 only, from <code>Four things engineers often confuse</code> through the worked question, bounded by Chapter 2.</li>
+<li>Next bounded section: Chapter 2, <code>Model mechanics you need for system design</code>.</li>
+</ul>
+</main>
+</div>
+<script id="source-markdown" type="application/octet-stream">IyBBSSBQbGF0Zm9ybSBFbmdpbmVlcmluZwoKPiBDYW5vbmljYWwgaW5jcmVtZW50YWwgZ3VpZGUuIFRoaXMgcGFzcyBwcm9jZXNzZXMgb25seSBzb3VyY2UgQ2hhcHRlciAxLCDigJxGb3VyIHRoaW5ncyBlbmdpbmVlcnMgb2Z0ZW4gY29uZnVzZS7igJ0gTGF0ZXIgc291cmNlIGNoYXB0ZXJzIHJlbWFpbiBxdWV1ZWQuCgojIyAxLiBDaG9vc2UgcHJvbXB0aW5nLCBSQUcsIGZpbmUtdHVuaW5nLCBhbmQgdG9vbHMgYnkgYXV0aG9yaXR5CgpUaGUgbWVjaGFuaXNtcyBhcmUgY29tcGxlbWVudGFyeS4gVGhlIHVzZWZ1bCBmaXJzdCBxdWVzdGlvbiBpcyBub3Qg4oCcV2hpY2ggQUkgdGVjaG5pcXVlIGlzIG5ld2VzdD/igJ0gYnV0ICoq4oCcV2hhdCBtdXN0IGNoYW5nZSwgYW5kIHdoaWNoIHN5c3RlbSBpcyBhdXRob3JpdGF0aXZlIGZvciB0aGF0IGNoYW5nZT/igJ0qKgoKfCBNZWNoYW5pc20gfCBXaGF0IGNoYW5nZXMgfCBVc2UgaXQgZm9yIHwgSXQgZG9lcyAqKm5vdCoqIGdyYW50IHwKfC0tLXwtLS18LS0tfC0tLXwKfCBQcm9tcHRpbmcgfCBJbnN0cnVjdGlvbnMgYW5kIHJlcXVlc3QgY29udGV4dCB8IEEgb25lLW9mZiB0YXNrLCBvdXRwdXQgc2hhcGUsIGNvbnN0cmFpbnRzLCBvciBhIGJhc2VsaW5lIGJlZm9yZSBvcHRpbWl6YXRpb24gfCBDdXJyZW50IHByaXZhdGUgZmFjdHMsIGR1cmFibGUgbGVhcm5pbmcsIG9yIHBlcm1pc3Npb24gfAp8IFJldHJpZXZhbC1hdWdtZW50ZWQgZ2VuZXJhdGlvbiAoUkFHKSB8IEV2aWRlbmNlIHNlbGVjdGVkIGF0IHJlcXVlc3QgdGltZSB8IEFwcHJvdmVkIGRvY3VtZW50cywgcG9saWNpZXMsIHNvdXJjZSBjb2RlLCBjYXRhbG9nIGZhY3RzLCBhbmQgY2l0YXRpb25zIHwgQ29ycmVjdCByZXRyaWV2YWwsIGNvcnJlY3QgcmVhc29uaW5nLCBvciBhdXRob3JpemF0aW9uIHwKfCBGaW5lLXR1bmluZyB8IE1vZGVsIGJlaGF2aW9yIHRocm91Z2ggdHJhaW5pbmcgfCBSZXBlYXRlZCwgc3RhYmxlIGJlaGF2aW9yIHdob3NlIHN1Y2Nlc3MgY2FuIGJlIGV2YWx1YXRlZCBvbiBoZWxkLW91dCBleGFtcGxlcyB8IEEgcmVsaWFibGUgZGF0YWJhc2Ugb2YgY2hhbmdpbmcgZmFjdHMgfAp8IFRvb2wgY2FsbGluZyAvIE1DUCB8IEFjY2VzcyB0byBhbiBleHRlcm5hbCBjYXBhYmlsaXR5IHwgTGl2ZSBzdGF0ZSwgZGV0ZXJtaW5pc3RpYyBjb21wdXRhdGlvbiwgYW5kIGNvbnRyb2xsZWQgYWN0aW9ucyB8IEJsYW5rZXQgYXV0aG9yaXR5IHRvIGludm9rZSBldmVyeSBleHBvc2VkIG9wZXJhdGlvbiB8CgpUaGUgb3JpZ2luYWwgUkFHIHdvcmsgZGVzY3JpYmVzIGdlbmVyYXRpb24gdGhhdCBjb21iaW5lcyBwYXJhbWV0cmljIG1lbW9yeSB3aXRoIHJldHJpZXZlZCBub24tcGFyYW1ldHJpYyBtZW1vcnkuIFRoYXQgaGlzdG9yeSBtYXR0ZXJzLCBidXQgYSBwcm9kdWN0aW9uIGRlZmluaXRpb24gc2hvdWxkIHN0YXkgYnJvYWRlcjogcmV0cmlldmFsIG1heSBiZSBsZXhpY2FsLCB2ZWN0b3IsIFNRTCwgZ3JhcGgtYmFzZWQsIG9yIGh5YnJpZC4gQSB2ZWN0b3IgZGF0YWJhc2UgaXMgYW4gaW1wbGVtZW50YXRpb24gY2hvaWNlLCBub3QgdGhlIGRlZmluaXRpb24gb2YgUkFHLgoKTUNQIHN0YW5kYXJkaXplcyBob3cgYW4gQUkgYXBwbGljYXRpb24gYW5kIGNhcGFiaWxpdHkgc2VydmVyIGV4Y2hhbmdlIHRvb2xzLCByZXNvdXJjZXMsIGFuZCBvdGhlciBjb250ZXh0LiBJbiB0aGUgY3VycmVudCBgMjAyNi0wNy0yOGAgc3BlY2lmaWNhdGlvbiwgdGhlIHByb3RvY29sIGNvcmUgaXMgc3RhdGVsZXNzOyB0aGUgc3Vycm91bmRpbmcgYXBwbGljYXRpb24gY2FuIHN0aWxsIGtlZXAgc3RhdGUuIEEgc2VydmVyIGV4cG9zaW5nIGEgdG9vbCBkb2VzIG5vdCBtYWtlIHRoZSBtb2RlbCB0aGUgbmV0d29yayBvciBhdXRob3JpemF0aW9uIGJvdW5kYXJ5LiBUaGUgaG9zdC9jbGllbnQgcmVtYWlucyByZXNwb25zaWJsZSBmb3IgcG9saWN5LCBjb25zZW50LCBjcmVkZW50aWFscywgcmVzdWx0IGhhbmRsaW5nLCBhbmQgYXVkaXQuCgpgYGBtZXJtYWlkCmZsb3djaGFydCBURAogICAgTlsiTmVlZCBvciBmYWlsdXJlIl0gLS0+IEF7IldoYXQgaXMgYXV0aG9yaXRhdGl2ZT8ifQogICAgQSAtLT58Ikludm9jYXRpb24gaW5zdHJ1Y3Rpb25zInwgUFsiUHJvbXB0Il0KICAgIEEgLS0+fCJBcHByb3ZlZCBjaGFuZ2luZyBldmlkZW5jZSJ8IFJbIlJBRyJdCiAgICBBIC0tPnwiU3RhYmxlIHJlcGVhdGVkIGJlaGF2aW9yInwgRlsiRmluZS10dW5pbmciXQogICAgQSAtLT58IkxpdmUgc3RhdGUgb3IgYWN0aW9uInwgVFsiVG9vbCAvIE1DUCJdCmBgYAoKIyMjIFJlcXVpcmVtZW50cyBhbmQgaW52YXJpYW50cwoKMS4gKipGYWN0cyBoYXZlIGFuIGF1dGhvcml0eS4qKiBDdXJyZW50IGVudGVycHJpc2UgZmFjdHMgY29tZSBmcm9tIGFuIGFwcHJvdmVkIHNvdXJjZSByZXZpc2lvbiBvciBhIGxpdmUgc3lzdGVtLCBub3QgZnJvbSBtb2RlbCB3ZWlnaHRzLgoyLiAqKkV2aWRlbmNlIGlzIHR5cGVkLioqIEEgcGFzc2FnZSBhbmQgYSBsaXZlIHRvb2wgcmVzdWx0IGNhcnJ5IGRpZmZlcmVudCBwcm92ZW5hbmNlIGFuZCBmcmVzaG5lc3Mgc2VtYW50aWNzLgozLiAqKlJldHJpZXZhbCBwcmVjZWRlcyBnZW5lcmF0aW9uLCBhdXRob3JpemF0aW9uIHByZWNlZGVzIGRpc2Nsb3N1cmUuKiogRmlsdGVyIGJ5IGNhbGxlci90ZW5hbnQgYmVmb3JlIGV2aWRlbmNlIGVudGVycyBtb2RlbCBjb250ZXh0OyBkbyBub3QgcmV0cmlldmUgYnJvYWRseSBhbmQgcmVkYWN0IGxhdGVyLgo0LiAqKlRyYWluaW5nIGNoYW5nZXMgYmVoYXZpb3IsIG5vdCB0aGUgc291cmNlIG9mIHRydXRoLioqIEZpbmUtdHVuaW5nIG1heSBpbXByb3ZlIGEgc3RhYmxlIHRhc2ssIGJ1dCBmcmVxdWVudGx5IGNoYW5naW5nIGZhY3RzIHJlbWFpbiBleHRlcm5hbC4KNS4gKipDYXBhYmlsaXR5IGlzIG5vdCBwZXJtaXNzaW9uLioqIFRvb2wgZGlzY292ZXJ5IGFuZCBtb2RlbCBzZWxlY3Rpb24gbmV2ZXIgcmVwbGFjZSBzZXJ2ZXItc2lkZSBhdXRob3JpemF0aW9uLCBob3N0IHBvbGljeSwgb3IgdXNlciBjb25maXJtYXRpb24uCjYuICoqU2lkZSBlZmZlY3RzIGFyZSBleHBsaWNpdC4qKiBDbGFzc2lmeSByZWFkLW9ubHkgYW5kIG11dGF0aW5nIGNhbGxzOyB1c2UgbGVhc3QgcHJpdmlsZWdlLCBib3VuZGVkIGlucHV0cywgaWRlbXBvdGVuY3kga2V5cywgYW5kIHBvc3Rjb25kaXRpb24gY2hlY2tzIGZvciBtdXRhdGlvbnMuCjcuICoqVW5zdXBwb3J0ZWQgY2xhaW1zIGZhaWwgY2xvc2VkLioqIElmIHJlcXVpcmVkIGV2aWRlbmNlIGlzIG1pc3NpbmcsIHN0YWxlLCBjb25mbGljdGluZywgb3IgdW5hdXRob3JpemVkLCBhYnN0YWluIG9yIHJldHVybiBhIHR5cGVkIHBhcnRpYWwgcmVzdWx0LgoKIyMgRXhhbXBsZSAxIOKAlCByb2xsYmFjayBpbnN0cnVjdGlvbnMgcGx1cyBsaXZlIGhlYWx0aAoKQW4gZW1wbG95ZWUgYXNrczogKirigJxIb3cgZG8gSSByb2xsIGJhY2sgcGF5bWVudHMsIGFuZCBpcyB0aGUgZGVwbG95bWVudCBoZWFsdGh5IG5vdz/igJ0qKgoKVGhpcyBpcyB0d28gcXVlc3Rpb25zIHdpdGggdHdvIGF1dGhvcml0aWVzOgoKLSBUaGUgcm9sbGJhY2sgcHJvY2VkdXJlIGNvbWVzIGZyb20gdGhlIGxhdGVzdCBhcHByb3ZlZCBydW5ib29rIHJldmlzaW9uIGFjY2Vzc2libGUgdG8gdGhlIGVtcGxveWVlLiBVc2UgUkFHIGFuZCBjaXRlIHRoZSBleGFjdCByZXZpc2lvbiBhbmQgc2VjdGlvbi4KLSBDdXJyZW50IGhlYWx0aCBjb21lcyBmcm9tIGEgcmVhZC1vbmx5IGRlcGxveW1lbnQtc3RhdHVzIGNhcGFiaWxpdHkuIFVzZSBhIHRvb2wsIGF1dGhlbnRpY2F0ZWQgZm9yIHRoZSBlbXBsb3llZSdzIHNjb3BlLCBhbmQgdGltZXN0YW1wIHRoZSBvYnNlcnZhdGlvbi4KCkRvIG5vdCB1c2UgYSBzaXgtbW9udGgtb2xkIOKAnDMvMyByZXBsaWNhcyByZWFkeeKAnSBleGFtcGxlIGVtYmVkZGVkIGluIHRoZSBydW5ib29rIGFzIGN1cnJlbnQgc3RhdHVzLiBEbyBub3QgbGV0IHRoZSBzdGF0dXMgdG9vbCBpbnZlbnQgcm9sbGJhY2sgc3RlcHMuIEpvaW4gdGhlIHJlc3VsdHMgb25seSBhZnRlciBwcmVzZXJ2aW5nIHRoZWlyIHNlcGFyYXRlIHByb3ZlbmFuY2UuCgpgYGBtZXJtYWlkCnNlcXVlbmNlRGlhZ3JhbQogICAgcGFydGljaXBhbnQgVSBhcyBFbXBsb3llZQogICAgcGFydGljaXBhbnQgSCBhcyBBdXRob3JpemVkIGhvc3QKICAgIHBhcnRpY2lwYW50IEsgYXMgS25vd2xlZGdlIHN0b3JlCiAgICBwYXJ0aWNpcGFudCBTIGFzIFN0YXR1cyBzZXJ2aWNlCiAgICBVLT4+SDogUHJvY2VkdXJlICsgY3VycmVudCBoZWFsdGg/CiAgICBILT4+SzogUmV0cmlldmUgYWxsb3dlZCBwdWJsaXNoZWQgcmV2aXNpb24KICAgIEstLT4+SDogUnVuYm9vayByNywgc2VjdGlvbiBSb2xsYmFjawogICAgSC0+PlM6IFJlYWQgZGVwbG95bWVudCBoZWFsdGgKICAgIFMtLT4+SDogMy8zIHJlYWR5IGF0IDE0OjAyWgogICAgSC0tPj5VOiBDaXRlZCBwcm9jZWR1cmUgKyB0aW1lc3RhbXBlZCBzdGF0ZQpgYGAKCnwgU3RlcCB8IEV2aWRlbmNlIHwgUmVxdWlyZWQgdmFsaWRhdGlvbiB8IEZhaWx1cmUgcmVzcG9uc2UgfAp8LS0tfC0tLXwtLS18LS0tfAp8IDEgfCBDYWxsZXIgYW5kIHRlbmFudCB8IElkZW50aXR5IGFuZCBzY29wZSBhcmUgcHJlc2VudCB8IFJlamVjdCBiZWZvcmUgcmV0cmlldmFsL3Rvb2wgdXNlIHwKfCAyIHwgUnVuYm9vayByNyB8IFB1Ymxpc2hlZCwgYXV0aG9yaXplZCwgbm90IHN1cGVyc2VkZWQgfCBBYnN0YWluIGZyb20gcHJvY2VkdXJlIHwKfCAzIHwgU3RhdHVzIG9ic2VydmF0aW9uIHwgQ29ycmVjdCBlbnZpcm9ubWVudCBhbmQgZnJlc2huZXNzIGJvdW5kIHwgTWFyayBoZWFsdGggdW5rbm93bi9zdGFsZSB8CnwgNCB8IEdlbmVyYXRlZCBhbnN3ZXIgfCBFdmVyeSBvcGVyYXRpb25hbCBjbGFpbSBtYXBzIHRvIGV2aWRlbmNlIHwgUmVtb3ZlIHVuc3VwcG9ydGVkIGNsYWltIHwKCkEgdXNlZnVsIGV2aWRlbmNlIGVudmVsb3BlIGtlZXBzIHRoZSBhdXRob3JpdGllcyBkaXN0aW5ndWlzaGFibGU6CgpgYGBqc29uCnsKICAia2luZCI6ICJET0NVTUVOVCIsCiAgImF1dGhvcml0eSI6ICJrYjovL3J1bmJvb2tzL3BheW1lbnRzIiwKICAic3ViamVjdCI6ICJwYXltZW50cy9wcm9kIiwKICAicmV2aXNpb24iOiAiNyIsCiAgIm9ic2VydmVkQXQiOiAiMjAyNi0xMC0yMVQxMzowMjowMFoiLAogICJmcmVzaFVudGlsIjogbnVsbCwKICAiY2l0YXRpb24iOiAiUm9sbGJhY2sgwqcyIiwKICAiYXV0aG9yaXphdGlvblNjb3BlIjogInBheW1lbnRzLW9wZXJhdG9yOnJlYWQiCn0KYGBgCgpUaGUgbGl2ZSByZXN1bHQgdXNlcyBga2luZDogIkxJVkVfU1RBVEUiYCwgYSBzdGF0dXMtc2VydmljZSBhdXRob3JpdHksIGFuIG9ic2VydmF0aW9uIHRpbWVzdGFtcCwgYW5kIGEgc2hvcnQgZnJlc2huZXNzIGRlYWRsaW5lLiBJdCBzaG91bGQgbm90IHByZXRlbmQgdG8gaGF2ZSBhIGRvY3VtZW50IHJldmlzaW9uLgoKIyMgRXhhbXBsZSAyIOKAlCBzdGFibGUgaW52b2ljZSBjbGFzc2lmaWNhdGlvbgoKU3VwcG9zZSBhbiBhY2NvdW50cy1wYXlhYmxlIHRlYW0gbWFwcyBpbnZvaWNlIHRleHQgaW50byBhIGZpeGVkIHNjaGVtYSBhbmQgdHdlbHZlIHN0YWJsZSBjYXRlZ29yaWVzLgoKMS4gU3RhcnQgd2l0aCBhIHByb21wdCBhbmQgYW4gb3V0cHV0IHNjaGVtYS4gVGhpcyBpcyB0aGUgY2hlYXBlc3QgdGVzdCBvZiB0YXNrIGNsYXJpdHkuCjIuIEJ1aWxkIGFuIGV2YWx1YXRpb24gc2V0IGJlZm9yZSBjaGFuZ2luZyB0aGUgbW9kZWwuIE1lYXN1cmUgc2NoZW1hIHZhbGlkaXR5LCBwZXItY2xhc3MgcHJlY2lzaW9uL3JlY2FsbCwgYWJzdGVudGlvbiwgYW5kIGh1bWFuLXJldmlldyByYXRlLgozLiBSZXRyaWV2ZSBjdXJyZW50IHZlbmRvciBvciBwb2xpY3kgZmFjdHMgd2hlbiBjbGFzc2lmaWNhdGlvbiBkZXBlbmRzIG9uIHRoZW0uIFRob3NlIGZhY3RzIGRvIG5vdCBiZWxvbmcgaW4gd2VpZ2h0cy4KNC4gQ29uc2lkZXIgZmluZS10dW5pbmcgb25seSBhZnRlciB0aGUgdGFzaywgbGFiZWxzLCBleGFtcGxlcywgYW5kIGdyYWRlciBhcmUgc3RhYmxlIGFuZCB0aGUgcHJvbXB0IGJhc2VsaW5lIG1pc3NlcyB0aGUgdGFyZ2V0IGNvbnNpc3RlbnRseS4KCnwgQ2FzZSB8IFByb21wdCB8IFJBRyB8IEZpbmUtdHVuZSB8IFRvb2wgfAp8LS0tfC0tLTp8LS0tOnwtLS06fC0tLTp8CnwgUHV0IHN1cHBsaWVkIGludm9pY2UgZmllbGRzIGludG8gSlNPTiB8IFllcyB8IE5vIHwgTm90IGluaXRpYWxseSB8IERldGVybWluaXN0aWMgc2NoZW1hIHZhbGlkYXRvciB8CnwgRGVjaWRlIGNhdGVnb3J5IHVzaW5nIHRvZGF5J3MgdmVuZG9yIHBvbGljeSB8IFllcyB8IFllcyB8IE1heWJlIGZvciBiZWhhdmlvciB8IFBvbGljeSBsb29rdXAgbWF5IGJlIGRldGVybWluaXN0aWMgfAp8IEFwcGx5IGEgc3RhYmxlIG51YW5jZWQgdGF4b25vbXkgYXQgaGlnaCB2b2x1bWUgfCBZZXMgfCBJZiBmYWN0cyBhcmUgZXh0ZXJuYWwgfCBDYW5kaWRhdGUgYWZ0ZXIgZXZhbHMgfCBWYWxpZGF0b3IvcmV2aWV3IHF1ZXVlIHwKfCBQb3N0IHRoZSBhcHByb3ZlZCBpbnZvaWNlIHwgWWVzIHwgTWF5YmUgfCBJcnJlbGV2YW50IHRvIHBlcm1pc3Npb24gfCBNdXRhdGluZyBmaW5hbmNlIHRvb2wgd2l0aCBjb25maXJtYXRpb24gfAoKRmluZS10dW5pbmcgaXMgYW4gb3B0aW1pemF0aW9uIHN0ZXAsIG5vdCBhbiBlc2NhcGUgZnJvbSB1bmNsZWFyIHJlcXVpcmVtZW50cy4gQSBtb2RlbCBjYW4gZW1pdCBzeW50YWN0aWNhbGx5IHZhbGlkIEpTT04gYW5kIHN0aWxsIGNob29zZSB0aGUgd3JvbmcgY2F0ZWdvcnk7IHRoZSBldmFsdWF0b3IgbXVzdCB0ZXN0IGJ1c2luZXNzIG1lYW5pbmcuCgojIyBFeGFtcGxlIDMg4oCUIGVtcGxveWVlIHBvbGljeSBhbnN3ZXIKClF1ZXN0aW9uOiAqKuKAnEhvdyBtdWNoIHBhcmVudGFsIGxlYXZlIGRvIEkgaGF2ZT/igJ0qKgoKVGhlIHByb21wdCBjYW4gcmVxdWlyZSBhIGNvbmNpc2UgY2l0ZWQgYW5zd2VyLiBSQUcgY2FuIHJldHJpZXZlIHRoZSBjdXJyZW50IHBvbGljeSwgYnV0IHJldHJpZXZhbCBtdXN0IGJlIGZpbHRlcmVkIGJ5IGNvdW50cnksIGVtcGxveW1lbnQgY2xhc3MsIGVmZmVjdGl2ZSBkYXRlLCBhbmQgY2FsbGVyIHBlcm1pc3Npb25zLiBBIHBheXJvbGwvSFIgdG9vbCBtYXkgYmUgcmVxdWlyZWQgZm9yIHRoZSBlbXBsb3llZSdzIGVsaWdpYmlsaXR5IG9yIGFjY3J1ZWQgYmFsYW5jZS4gRmluZS10dW5pbmcgY2Fubm90IHNhZmVseSBtZW1vcml6ZSBlaXRoZXIgdmFsdWUuCgpgYGBtZXJtYWlkCmZsb3djaGFydCBURAogICAgUVsiRW1wbG95ZWUgcXVlc3Rpb24iXSAtLT4gQ1siUmVzb2x2ZSBpZGVudGl0eSBhbmQgcG9saWN5IGRpbWVuc2lvbnMiXQogICAgQyAtLT4gUlsiUmV0cmlldmUgYXV0aG9yaXplZCBwb2xpY3kgcmV2aXNpb24iXQogICAgQyAtLT4gTFsiUmVhZCBlbXBsb3llZS1zcGVjaWZpYyBlbGlnaWJpbGl0eSJdCiAgICBSIC0tPiBWWyJWYWxpZGF0ZSBkYXRlcywgc2NvcGUsIGFuZCBjaXRhdGlvbnMiXQogICAgTCAtLT4gVgogICAgViAtLT58ImNvbXBsZXRlIGV2aWRlbmNlInwgQVsiQW5zd2VyIl0KICAgIFYgLS0+fCJtaXNzaW5nIG9yIGNvbmZsaWN0aW5nInwgWFsiQWJzdGFpbiAvIEhSIGhhbmRvZmYiXQpgYGAKClRyYWNlIGEgY29uZmxpY3QgaW5zdGVhZCBvZiBzbW9vdGhpbmcgaXQgYXdheToKCnwgT2JzZXJ2YXRpb24gfCBEZWNpc2lvbiB8CnwtLS18LS0tfAp8IFBvbGljeSByMTIgc2F5cyAxNiB3ZWVrcyBhbmQgaXMgZWZmZWN0aXZlIDIwMjYtMTAtMDEgfCBDYW5kaWRhdGUgcG9saWN5IGZhY3QgfAp8IEVtcGxveWVlIHJlY29yZCBzYXlzIGNvdW50cnkgYENBYDsgcG9saWN5IHIxMiBhcHBsaWVzIG9ubHkgdG8gYFVTYCB8IFJlamVjdCByMTIgZm9yIHRoaXMgY2FsbGVyIHwKfCBObyBwdWJsaXNoZWQgQ0EgcmV2aXNpb24gaXMgcmV0cmlldmVkIHwgRG8gbm90IGFuc3dlciB3aXRoIDE2IHdlZWtzIHwKfCBIUiBkaXJlY3Rvcnkgc3VwcGxpZXMgYSB2ZXJpZmllZCBoYW5kb2ZmIHwgUmV0dXJuIOKAnHVuYWJsZSB0byBkZXRlcm1pbmXigJ0gcGx1cyB0aGUgaGFuZG9mZiB8CgojIyBFeGFtcGxlIDQg4oCUIGEgc2lkZS1lZmZlY3RmdWwgZGVwbG95bWVudCB0b29sCgpBIG1vZGVsIHByb3Bvc2VzIGByb2xsYmFjayhzZXJ2aWNlPSJwYXltZW50cyIsIGVudmlyb25tZW50PSJwcm9kIiwgcmV2aXNpb249InNoYTI1NjrigKYiKWAuIE1DUCBjYW4gZGVzY3JpYmUgYW5kIHRyYW5zcG9ydCB0aGF0IGNhcGFiaWxpdHkuIEl0IGRvZXMgbm90IGF1dGhvcml6ZSB0aGUgY2hhbmdlLgoKQmVmb3JlIGludm9jYXRpb24sIHRoZSBob3N0IGFuZCBzZXJ2ZXIgc2hvdWxkIGVuZm9yY2U6CgotIGF1dGhlbnRpY2F0ZWQgcHJpbmNpcGFsLCBleGFjdCBlbnZpcm9ubWVudCBzY29wZSwgYW5kIHNlcnZlci1zaWRlIGF1dGhvcml6YXRpb247Ci0gYSB0cnVzdGVkIHRvb2wgZGVmaW5pdGlvbiBhbmQgY29uc3RyYWluZWQgYXJndW1lbnRzOwotIGEgdmlzaWJsZSBzdW1tYXJ5IG9mIGltcGFjdCBwbHVzIGV4cGxpY2l0IGNvbmZpcm1hdGlvbiB3aGVyZSBwb2xpY3kgcmVxdWlyZXMgaXQ7Ci0gYSBzaW5nbGUtdXNlIG9yIHRpbWUtYm91bmRlZCBhcHByb3ZhbCBib3VuZCB0byB0aGUgZXhhY3QgYXJndW1lbnRzOwotIGFuIGlkZW1wb3RlbmN5IGtleSBhbmQgb3BlcmF0aW9uIHJlY29yZDsKLSBhIHBvc3Rjb25kaXRpb24gcmVhZCBzaG93aW5nIHRoZSBkZXBsb3llZCBpbW11dGFibGUgcmV2aXNpb247Ci0gYXVkaXQgZGF0YSB0aGF0IHNlcGFyYXRlcyBwcm9wb3NlciwgYXBwcm92ZXIsIGNhbGxlciwgYW5kIGV4ZWN1dG9yLgoKYGBgbWVybWFpZApzdGF0ZURpYWdyYW0tdjIKICAgIFsqXSAtLT4gUHJvcG9zZWQKICAgIFByb3Bvc2VkIC0tPiBSZWplY3RlZDogcG9saWN5IG9yIGlucHV0IGZhaWx1cmUKICAgIFByb3Bvc2VkIC0tPiBDb25maXJtZWQ6IGV4YWN0IGFjdGlvbiBhcHByb3ZlZAogICAgQ29uZmlybWVkIC0tPiBFeGVjdXRpbmc6IGF1dGhvcml6ZWQgY2FsbCArIGlkZW1wb3RlbmN5IGtleQogICAgRXhlY3V0aW5nIC0tPiBSZWNvbmNpbGVkOiBzdWNjZXNzIG9yIGtub3duIHByaW9yIHJlc3VsdAogICAgRXhlY3V0aW5nIC0tPiBVbmtub3duOiB0aW1lb3V0IC8gbG9zdCByZXNwb25zZQogICAgVW5rbm93biAtLT4gUmVjb25jaWxlZDogcXVlcnkgb3BlcmF0aW9uIHJlY29yZAogICAgUmVjb25jaWxlZCAtLT4gVmVyaWZpZWQ6IHJlYWQgcG9zdGNvbmRpdGlvbgogICAgUmVqZWN0ZWQgLS0+IFsqXQogICAgVmVyaWZpZWQgLS0+IFsqXQpgYGAKCkEgdGltZW91dCBpcyBub3QgcHJvb2YgdGhhdCB0aGUgcm9sbGJhY2sgZmFpbGVkLiBSZXRyeSBvbmx5IHdpdGggdGhlIHNhbWUgaWRlbXBvdGVuY3kga2V5LCBvciBxdWVyeSB0aGUgb3BlcmF0aW9uIHJlY29yZCBmaXJzdC4gTmV2ZXIgZ2VuZXJhdGUgYSBmcmVzaCBvcGVyYXRpb24gaWRlbnRpdHkgZm9yIGFuIGFtYmlndW91cyBwcmlvciBhdHRlbXB0LgoKIyMgRXhlY3V0YWJsZSByb3V0aW5nIGNvbnRyYWN0CgpbYEV2aWRlbmNlUm91dGluZy5qYXZhYF0oRXZpZGVuY2VSb3V0aW5nLmphdmEpIHR1cm5zIHRoZSBkaXN0aW5jdGlvbnMgaW50byBhIHNtYWxsIEphdmEgMTcgY29udHJhY3QuIEl0cyBvdXRwdXQgaXMgaW50ZW50aW9uYWxseSBhIHBsYW4sIG5vdCBhbiBhbnN3ZXI6IGl0IHNlbGVjdHMgZXZpZGVuY2UgbWVjaGFuaXNtcywgcmVjb3JkcyBzYWZlZ3VhcmRzLCBhbmQgcmVqZWN0cyB1bnNhZmUgbXV0YXRpb25zIGJlZm9yZSBhbnkgbW9kZWwgb3IgZXh0ZXJuYWwgc2VydmljZSBpcyBjYWxsZWQuCgpSdW4gaXQgZnJvbSB0aGlzIGRpcmVjdG9yeToKCmBgYGJhc2gKamF2YSAtZWEgRXZpZGVuY2VSb3V0aW5nLmphdmEKYGBgCgpUaGUgZm91ciBzY2VuYXJpbyBncm91cHMgYXNzZXJ0OgoKMS4gYXBwcm92ZWQgcHJvY2VkdXJlIHBsdXMgbGl2ZSBzdGF0ZSByb3V0ZXMgdG8gUkFHIGFuZCBhIHJlYWQtb25seSB0b29sOwoyLiBzdGFibGUgZXh0cmFjdGlvbiBzdGFydHMgd2l0aCBwcm9tcHRpbmcgYW5kIGFkZHMgZmluZS10dW5pbmcgb25seSB3aGVuIHJlcXVlc3RlZDsKMy4gY3VycmVudCBwb2xpY3kgdXNlcyBSQUcgYW5kIGRvZXMgbm90IG1pc3Rha2UgZmluZS10dW5pbmcgZm9yIGZyZXNobmVzczsKNC4gYSBwcm9kdWN0aW9uIG11dGF0aW9uIHJlcXVpcmVzIGF1dGhvcml6YXRpb24sIGNvbmZpcm1hdGlvbiwgYW5kIGFuIGlkZW1wb3RlbmN5IGtleS4KCiMjIEZhaWx1cmUtb3JpZW50ZWQgcmV2aWV3Cgp8IFRlbXB0aW5nIHNob3J0Y3V0IHwgQnJva2VuIGFzc3VtcHRpb24gfCBSZXBhaXIgfAp8LS0tfC0tLXwtLS18Cnwg4oCcVGhlIG1vZGVsIHByb2JhYmx5IGtub3dzIHRoZSBwb2xpY3nigJ0gfCBXZWlnaHRzIGFyZSBjdXJyZW50IGFuZCBhdXRob3JpdGF0aXZlIHwgUmV0cmlldmUgYSBwdWJsaXNoZWQgcmV2aXNpb24gYW5kIGNpdGUgaXQgfAp8IOKAnFZlY3RvciBzZWFyY2ggbWVhbnMgUkFH4oCdIHwgT25lIHJldHJpZXZhbCBhbGdvcml0aG0gZGVmaW5lcyB0aGUgc3lzdGVtIHwgU3BlY2lmeSBhdXRob3JpdHksIGZpbHRlcmluZywgcmV0cmlldmFsLCBldmlkZW5jZSwgYW5kIGdlbmVyYXRpb24gfAp8IOKAnEZpbmUtdHVuZSB3aXRoIHRoZSBoYW5kYm9va+KAnSB8IFRyYWluaW5nIGlzIGEgcmVsaWFibGUgbXV0YWJsZSBkYXRhYmFzZSB8IEtlZXAgZmFjdHMgZXh0ZXJuYWw7IHR1bmUgc3RhYmxlIGJlaGF2aW9yIG9ubHkgYWZ0ZXIgZXZhbHMgfAp8IOKAnFRoZSB0b29sIGlzIGxpc3RlZCwgc28gaXQgaXMgYWxsb3dlZOKAnSB8IERpc2NvdmVyeSBlcXVhbHMgYXV0aG9yaXphdGlvbiB8IEVuZm9yY2UgaG9zdCBwb2xpY3ksIGNvbnNlbnQsIGFuZCBzZXJ2ZXIgYXV0aG9yaXphdGlvbiB8Cnwg4oCcVGhlIHRvb2wgdGltZWQgb3V0LCBzbyByZXRyeeKAnSB8IE5vIHJlc3BvbnNlIG1lYW5zIG5vIHNpZGUgZWZmZWN0IHwgUmVjb25jaWxlIGJ5IGlkZW1wb3RlbmN5IGtleSBhbmQgb3BlcmF0aW9uIHJlY29yZCB8Cnwg4oCcSlNPTiBpcyB2YWxpZCwgc28gdGhlIGFuc3dlciBpcyBjb3JyZWN04oCdIHwgU3ludGF4IHByb3ZlcyBzZW1hbnRpY3MgfCBWYWxpZGF0ZSBjbGFpbXMsIGNpdGF0aW9ucywgYnVzaW5lc3MgcnVsZXMsIGFuZCBwb3N0Y29uZGl0aW9ucyB8CgojIyBQcmltYXJ5IHJlZmVyZW5jZXMKCi0gTGV3aXMgZXQgYWwuLCBbUmV0cmlldmFsLUF1Z21lbnRlZCBHZW5lcmF0aW9uIGZvciBLbm93bGVkZ2UtSW50ZW5zaXZlIE5MUCBUYXNrc10oaHR0cHM6Ly9hcnhpdi5vcmcvYWJzLzIwMDUuMTE0MDEpICgyMDIwKS4KLSBNb2RlbCBDb250ZXh0IFByb3RvY29sLCBbQXJjaGl0ZWN0dXJlIG92ZXJ2aWV3XShodHRwczovL21vZGVsY29udGV4dHByb3RvY29sLmlvL2RvY3MvMjAyNi0wNy0yOC9sZWFybi9hcmNoaXRlY3R1cmUpIGFuZCBbMjAyNi0wNy0yOCBzcGVjaWZpY2F0aW9uXShodHRwczovL21vZGVsY29udGV4dHByb3RvY29sLmlvL3NwZWNpZmljYXRpb24vMjAyNi0wNy0yOCkuCi0gTW9kZWwgQ29udGV4dCBQcm90b2NvbCwgW1Rvb2xzXShodHRwczovL21vZGVsY29udGV4dHByb3RvY29sLmlvL3NwZWNpZmljYXRpb24vMjAyNi0wNy0yOC9zZXJ2ZXIvdG9vbHMpIGFuZCBbYXV0aG9yaXphdGlvbiBndWlkYW5jZV0oaHR0cHM6Ly9tb2RlbGNvbnRleHRwcm90b2NvbC5pby9kb2NzLzIwMjYtMDctMjgvdHV0b3JpYWxzL3NlY3VyaXR5L2F1dGhvcml6YXRpb24pLgotIE9wZW5BSSwgW01vZGVsIG9wdGltaXphdGlvbl0oaHR0cHM6Ly9kZXZlbG9wZXJzLm9wZW5haS5jb20vYXBpL2RvY3MvZ3VpZGVzL21vZGVsLW9wdGltaXphdGlvbikgYW5kIFtzdXBlcnZpc2VkIGZpbmUtdHVuaW5nXShodHRwczovL2RldmVsb3BlcnMub3BlbmFpLmNvbS9hcGkvZG9jcy9ndWlkZXMvc3VwZXJ2aXNlZC1maW5lLXR1bmluZykuIFByb2R1Y3QgYXZhaWxhYmlsaXR5IGlzIHRpbWUtc2Vuc2l0aXZlOyB0aGUgYXJjaGl0ZWN0dXJhbCBydWxlIGhlcmUgaXMgcHJvdmlkZXItaW5kZXBlbmRlbnQuCi0gTklTVCwgW0FJIFJNRiBHZW5lcmF0aXZlIEFJIFByb2ZpbGVdKGh0dHBzOi8vZG9pLm9yZy8xMC42MDI4L05JU1QuQUkuNjAwLTEpICgyMDI0KS4KCiMjIFNvdXJjZSBwcm92ZW5hbmNlIGFuZCBjb250aW51YXRpb24KCi0gU2VsZWN0ZWQgc291cmNlOiBgYWlfcGxhdGZvcm1fbWFzdGVyX2d1aWRlLmh0bWxgLCBTSEEtMjU2IGBjMGQyM2MzYTliNjRkODhlOGFkNTI3MjA0MDJiMTYyYzEyNDI4Mzk1OGFhN2FkMGFmZTIyOGY5YTRiYzJiMjRhYCwgZXhwYW5kZWQgMjEtY2hhcHRlciBzdGFuZGFsb25lIGVkaXRpb24uCi0gQ29tcGFuaW9uIGVkaXRhYmxlIHNvdXJjZTogYnVuZGxlIG1lbWJlciBgMDJfcmFnX21jcC5tZGAsIFNIQS0yNTYgYDQ1ODk2YjUyODNjYTkyZTcxMmY3Y2IzZGIwNzViMGYwNzZlZGZhZWZmMzRkOTEyN2NkODY3NTIwZmY1ZGZhMDVgLgotIENvbXBhcmVkIHNvdXJjZTogYGFpX3BsYXRmb3JtX2VuZ2luZWVyaW5nX2lsbHVzdHJhdGVkLmh0bWxgLCBTSEEtMjU2IGAwMDZhYWJhN2JmYWY5Nzg4NDlhNWZlMWRmNmE4ZTlmNjExYzBkOTlhODA2ZWY2YzNhMDVjM2VlYjIxMDFiZWI5YDsgaXQgaXMgYnl0ZS1pZGVudGljYWwgdG8gdGhlIEhUTUwgaW5zaWRlIHRoZSBidW5kbGUgYW5kIGlzIG5vdCBwcm9tb3RlZCBhcyBhIGR1cGxpY2F0ZSBndWlkZS4KLSBQcm9jZXNzZWQgcmFuZ2U6IENoYXB0ZXIgMSBvbmx5LCBmcm9tIGBGb3VyIHRoaW5ncyBlbmdpbmVlcnMgb2Z0ZW4gY29uZnVzZWAgdGhyb3VnaCB0aGUgd29ya2VkIHF1ZXN0aW9uLCBib3VuZGVkIGJ5IENoYXB0ZXIgMi4KLSBOZXh0IGJvdW5kZWQgc2VjdGlvbjogQ2hhcHRlciAyLCBgTW9kZWwgbWVjaGFuaWNzIHlvdSBuZWVkIGZvciBzeXN0ZW0gZGVzaWduYC4KCg==</script>
+<script id="search-index" type="application/json">[{"level": "1", "id": "ai-platform-engineering", "title": "AI Platform Engineering", "text": "Canonical incremental guide. This pass processes only source Chapter 1, “Four things engineers often confuse.” Later source chapters remain queued."}, {"level": "2", "id": "1-choose-prompting-rag-fine-tuning-and-tools-by-authority", "title": "1. Choose prompting, RAG, fine-tuning, and tools by authority", "text": "The mechanisms are complementary. The useful first question is not “Which AI technique is newest?” but “What must change, and which system is authoritative for that change?” Mechanism What changes Use it for It does not grant --- --- --- --- Prompting Instructions and request context A one-off task, output shape, constraints, or a baseline before optimization Current private facts, durable learning, or permission Retrieval-augmented generation RAG Evidence selected at request time Approved documents, policies, source code, catalog facts, and citations Correct retrieval, correct reasoning, or authorization Fine-tuning Model behavior through training Repeated, stable behavior whose success can be evaluated on held-out examples A reliable database of changing facts Tool calling / MCP Access to an external capability Live state, deterministic computation, and controlled actions Blanket authority to invoke every exposed operation The original RAG work describes generation that combines parametric memory with retrieved non-parametric memory. That history matters, but a production definition should stay broader: retrieval may be lexical, vector, SQL, graph-based, or hybrid. A vector database is an implementation choice, not the definition of RAG. MCP standardizes how an AI application and capability server exchange tools, resources, and other context. In the current 2026-07-28 specification, the protocol core is stateless; the surrounding application can still keep state. A server exposing a tool does not make the model the network or authorization boundary. The host/client remains responsible for policy, consent, credentials, result handling, and audit. mermaid flowchart TD N \"Need or failure\" -- A{\"What is authoritative?\"} A -- \"Invocation instructions\" P \"Prompt\" A -- \"Approved changing evidence\" R \"RAG\" A -- \"Stable repeated behavior\" F \"Fine-tuning\" A -- \"Live state or action\" T \"Tool / MCP\" Requirements and invariants 1. Facts have an authority. Current enterprise facts come from an approved source revision or a live system, not from model weights. 2. Evidence is typed. A passage and a live tool result carry different provenance and freshness semantics. 3. Retrieval precedes generation, authorization precedes disclosure. Filter by caller/tenant before evidence enters model context; do not retrieve broadly and redact later. 4. Training changes behavior, not the source of truth. Fine-tuning may improve a stable task, but frequently changing facts remain external. 5. Capability is not permission. Tool discovery and model selection never replace server-side authorization, host policy, or user confirmation. 6. Side effects are explicit. Classify read-only and mutating calls; use least privilege, bounded inputs, idempotency keys, and postcondition checks for mutations. 7. Unsupported claims fail closed. If required evidence is missing, stale, conflicting, or unauthorized, abstain or return a typed partial result."}, {"level": "2", "id": "example-1--rollback-instructions-plus-live-health", "title": "Example 1 — rollback instructions plus live health", "text": "An employee asks: “How do I roll back payments, and is the deployment healthy now?” This is two questions with two authorities: - The rollback procedure comes from the latest approved runbook revision accessible to the employee. Use RAG and cite the exact revision and section. - Current health comes from a read-only deployment-status capability. Use a tool, authenticated for the employee's scope, and timestamp the observation. Do not use a six-month-old “3/3 replicas ready” example embedded in the runbook as current status. Do not let the status tool invent rollback steps. Join the results only after preserving their separate provenance. mermaid sequenceDiagram participant U as Employee participant H as Authorized host participant K as Knowledge store participant S as Status service U- H: Procedure + current health? H- K: Retrieve allowed published revision K-- H: Runbook r7, section Rollback H- S: Read deployment health S-- H: 3/3 ready at 14:02Z H-- U: Cited procedure + timestamped state Step Evidence Required validation Failure response --- --- --- --- 1 Caller and tenant Identity and scope are present Reject before retrieval/tool use 2 Runbook r7 Published, authorized, not superseded Abstain from procedure 3 Status observation Correct environment and freshness bound Mark health unknown/stale 4 Generated answer Every operational claim maps to evidence Remove unsupported claim A useful evidence envelope keeps the authorities distinguishable: json { \"kind\": \"DOCUMENT\", \"authority\": \"kb://runbooks/payments\", \"subject\": \"payments/prod\", \"revision\": \"7\", \"observedAt\": \"2026-10-21T13:02:00Z\", \"freshUntil\": null, \"citation\": \"Rollback §2\", \"authorizationScope\": \"payments-operator:read\" } The live result uses kind: \"LIVE STATE\" , a status-service authority, an observation timestamp, and a short freshness deadline. It should not pretend to have a document revision."}, {"level": "2", "id": "example-2--stable-invoice-classification", "title": "Example 2 — stable invoice classification", "text": "Suppose an accounts-payable team maps invoice text into a fixed schema and twelve stable categories. 1. Start with a prompt and an output schema. This is the cheapest test of task clarity. 2. Build an evaluation set before changing the model. Measure schema validity, per-class precision/recall, abstention, and human-review rate. 3. Retrieve current vendor or policy facts when classification depends on them. Those facts do not belong in weights. 4. Consider fine-tuning only after the task, labels, examples, and grader are stable and the prompt baseline misses the target consistently. Case Prompt RAG Fine-tune Tool --- ---: ---: ---: ---: Put supplied invoice fields into JSON Yes No Not initially Deterministic schema validator Decide category using today's vendor policy Yes Yes Maybe for behavior Policy lookup may be deterministic Apply a stable nuanced taxonomy at high volume Yes If facts are external Candidate after evals Validator/review queue Post the approved invoice Yes Maybe Irrelevant to permission Mutating finance tool with confirmation Fine-tuning is an optimization step, not an escape from unclear requirements. A model can emit syntactically valid JSON and still choose the wrong category; the evaluator must test business meaning."}, {"level": "2", "id": "example-3--employee-policy-answer", "title": "Example 3 — employee policy answer", "text": "Question: “How much parental leave do I have?” The prompt can require a concise cited answer. RAG can retrieve the current policy, but retrieval must be filtered by country, employment class, effective date, and caller permissions. A payroll/HR tool may be required for the employee's eligibility or accrued balance. Fine-tuning cannot safely memorize either value. mermaid flowchart TD Q \"Employee question\" -- C \"Resolve identity and policy dimensions\" C -- R \"Retrieve authorized policy revision\" C -- L \"Read employee-specific eligibility\" R -- V \"Validate dates, scope, and citations\" L -- V V -- \"complete evidence\" A \"Answer\" V -- \"missing or conflicting\" X \"Abstain / HR handoff\" Trace a conflict instead of smoothing it away: Observation Decision --- --- Policy r12 says 16 weeks and is effective 2026-10-01 Candidate policy fact Employee record says country CA ; policy r12 applies only to US Reject r12 for this caller No published CA revision is retrieved Do not answer with 16 weeks HR directory supplies a verified handoff Return “unable to determine” plus the handoff"}, {"level": "2", "id": "example-4--a-side-effectful-deployment-tool", "title": "Example 4 — a side-effectful deployment tool", "text": "A model proposes rollback service=\"payments\", environment=\"prod\", revision=\"sha256:…\" . MCP can describe and transport that capability. It does not authorize the change. Before invocation, the host and server should enforce: - authenticated principal, exact environment scope, and server-side authorization; - a trusted tool definition and constrained arguments; - a visible summary of impact plus explicit confirmation where policy requires it; - a single-use or time-bounded approval bound to the exact arguments; - an idempotency key and operation record; - a postcondition read showing the deployed immutable revision; - audit data that separates proposer, approver, caller, and executor. mermaid stateDiagram-v2 -- Proposed Proposed -- Rejected: policy or input failure Proposed -- Confirmed: exact action approved Confirmed -- Executing: authorized call + idempotency key Executing -- Reconciled: success or known prior result Executing -- Unknown: timeout / lost response Unknown -- Reconciled: query operation record Reconciled -- Verified: read postcondition Rejected -- Verified -- A timeout is not proof that the rollback failed. Retry only with the same idempotency key, or query the operation record first. Never generate a fresh operation identity for an ambiguous prior attempt."}, {"level": "2", "id": "executable-routing-contract", "title": "Executable routing contract", "text": "EvidenceRouting.java EvidenceRouting.java turns the distinctions into a small Java 17 contract. Its output is intentionally a plan, not an answer: it selects evidence mechanisms, records safeguards, and rejects unsafe mutations before any model or external service is called. Run it from this directory: bash java -ea EvidenceRouting.java The four scenario groups assert: 1. approved procedure plus live state routes to RAG and a read-only tool; 2. stable extraction starts with prompting and adds fine-tuning only when requested; 3. current policy uses RAG and does not mistake fine-tuning for freshness; 4. a production mutation requires authorization, confirmation, and an idempotency key."}, {"level": "2", "id": "failure-oriented-review", "title": "Failure-oriented review", "text": "Tempting shortcut Broken assumption Repair --- --- --- “The model probably knows the policy” Weights are current and authoritative Retrieve a published revision and cite it “Vector search means RAG” One retrieval algorithm defines the system Specify authority, filtering, retrieval, evidence, and generation “Fine-tune with the handbook” Training is a reliable mutable database Keep facts external; tune stable behavior only after evals “The tool is listed, so it is allowed” Discovery equals authorization Enforce host policy, consent, and server authorization “The tool timed out, so retry” No response means no side effect Reconcile by idempotency key and operation record “JSON is valid, so the answer is correct” Syntax proves semantics Validate claims, citations, business rules, and postconditions"}, {"level": "2", "id": "primary-references", "title": "Primary references", "text": "- Lewis et al., Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks https://arxiv.org/abs/2005.11401 2020 . - Model Context Protocol, Architecture overview https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture and 2026-07-28 specification https://modelcontextprotocol.io/specification/2026-07-28 . - Model Context Protocol, Tools https://modelcontextprotocol.io/specification/2026-07-28/server/tools and authorization guidance https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/authorization . - OpenAI, Model optimization https://developers.openai.com/api/docs/guides/model-optimization and supervised fine-tuning https://developers.openai.com/api/docs/guides/supervised-fine-tuning . Product availability is time-sensitive; the architectural rule here is provider-independent. - NIST, AI RMF Generative AI Profile https://doi.org/10.6028/NIST.AI.600-1 2024 ."}, {"level": "2", "id": "source-provenance-and-continuation", "title": "Source provenance and continuation", "text": "- Selected source: ai platform master guide.html , SHA-256 c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a , expanded 21-chapter standalone edition. - Companion editable source: bundle member 02 rag mcp.md , SHA-256 45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05 . - Compared source: ai platform engineering illustrated.html , SHA-256 006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9 ; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide. - Processed range: Chapter 1 only, from Four things engineers often confuse through the worked question, bounded by Chapter 2. - Next bounded section: Chapter 2, Model mechanics you need for system design ."}]</script>
+<script>
+const input=document.querySelector('#guide-search'), results=document.querySelector('#results'), status=document.querySelector('#search-status');
+const index=JSON.parse(document.querySelector('#search-index').textContent);
+function escapeHtml(value){return value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function runSearch(){
+  const q=input.value.trim().toLocaleLowerCase(); results.replaceChildren();
+  if(!q){status.textContent='Type to search headings and section text.';return;}
+  const matches=index.filter(x=>(x.title+' '+x.text).toLocaleLowerCase().includes(q)).slice(0,30);
+  status.textContent=matches.length?`${matches.length} matching sections (first 30 max).`:'No matching section.';
+  for(const item of matches){const li=document.createElement('li'),a=document.createElement('a');a.href='#'+item.id;a.innerHTML=escapeHtml(item.title);li.append(a);results.append(li);}
+}
+input.addEventListener('input',runSearch); input.addEventListener('keydown',e=>{if(e.key==='Enter'&&results.firstElementChild)results.querySelector('a').click();});
+</script>
+<script type="module">
+try {
+  const {default: mermaid} = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+  document.querySelectorAll('pre.mermaid').forEach(pre=>{const div=document.createElement('div');div.className='mermaid';div.textContent=pre.textContent;pre.replaceWith(div);});
+  mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'neutral'}); await mermaid.run({querySelector:'.mermaid'});
+} catch(error) { console.warn('Mermaid unavailable; source diagrams remain readable.', error); }
+</script>
+</body>
+</html>

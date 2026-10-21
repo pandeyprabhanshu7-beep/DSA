@@ -1,6 +1,24 @@
 # AI Enrichment Status
 
-Last updated: 2026-10-08.
+Last updated: 2026-10-21.
+
+## AI platform engineering
+
+State: **PROMOTED incrementally; Chapter 1 complete**.
+
+Canonical pair:
+
+- [Markdown](platform/guide.md)
+- [mobile-friendly searchable HTML](platform/guide.html)
+
+Source comparison:
+
+- Selected the expanded 21-chapter `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`.
+- Used bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`, as the editable companion source.
+- Compared `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not a competing canonical edition.
+- Processed only Chapter 1, bounded by the Chapter 2 heading. It now includes four authority-selection examples, evidence and mutation traces, invariants, failure review, current primary references, and a Java 17 routing contract.
+
+Next bounded section: Chapter 2, **Model mechanics you need for system design**.
 
 ## AI foundations, RAG and CAG
 
@@ -27,6 +45,7 @@ Validation is recorded in the enrichment queue and the promotion commit.
 
 Next action:
 
-1. Rotate to the unpromoted CI/CD, Jenkins, TeamCity and cloud source.
-2. On the next AI pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment.
-3. Keep project source code in the existing Spring Boot AI repositories; this repository holds learning documentation only.
+1. Rotate fairly after this AI-platform pass.
+2. On the next AI-platform pass, process Chapter 2 only.
+3. On a later AI-foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment.
+4. Keep project source code in the existing Spring Boot AI repositories; this repository holds learning documentation only.

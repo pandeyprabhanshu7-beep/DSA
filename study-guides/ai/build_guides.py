@@ -13,8 +13,22 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-SOURCE = ROOT / "foundations-rag-cag" / "guide.md"
-TARGET = ROOT / "foundations-rag-cag" / "guide.html"
+GUIDES = (
+    (
+        ROOT / "foundations-rag-cag" / "guide.md",
+        ROOT / "foundations-rag-cag" / "guide.html",
+        "AI, RAG, CAG and Deep Learning",
+        "AI, RAG, CAG and Deep Learning",
+        "Try: embeddings, hybrid retrieval, cache key",
+    ),
+    (
+        ROOT / "platform" / "guide.md",
+        ROOT / "platform" / "guide.html",
+        "AI Platform Engineering",
+        "AI Platform Engineering",
+        "Try: authority, fine-tuning, idempotency",
+    ),
+)
 
 
 def render_markdown(markdown_text: str) -> str:
@@ -73,8 +87,8 @@ def search_index(markdown_text: str, rendered: str) -> list[dict[str, str]]:
     return index
 
 
-def build() -> None:
-    markdown_bytes = SOURCE.read_bytes()
+def build_one(source: Path, target: Path, title: str, brand: str, placeholder: str) -> None:
+    markdown_bytes = source.read_bytes()
     markdown_text = markdown_bytes.decode("utf-8")
     rendered = render_markdown(markdown_text)
     index = search_index(markdown_text, rendered)
@@ -88,7 +102,7 @@ def build() -> None:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="source-sha256" content="{digest}">
-<title>AI, RAG, CAG and Deep Learning</title>
+<title>{html.escape(title)}</title>
 <style>
 :root{{--bg:#f7f8fb;--paper:#fff;--ink:#172033;--muted:#5c667a;--accent:#335eea;--line:#dfe3ec;--code:#111827;--code-ink:#e5e7eb}}
 *{{box-sizing:border-box}} html{{scroll-behavior:smooth}} body{{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}}
@@ -108,9 +122,9 @@ blockquote{{margin:1rem 0;padding:.35rem 1rem;border-left:4px solid var(--accent
 <body>
 <div class="layout">
 <aside>
-  <div class="brand">AI, RAG, CAG and Deep Learning</div>
+  <div class="brand">{html.escape(brand)}</div>
   <label for="guide-search">Search this guide</label>
-  <input id="guide-search" type="search" placeholder="Try: embeddings, hybrid retrieval, cache key" autocomplete="off">
+  <input id="guide-search" type="search" placeholder="{html.escape(placeholder)}" autocomplete="off">
   <div id="search-status">Type to search headings and section text.</div>
   <ul id="results"></ul>
   <a class="toplink" href="#{index[0]['id']}">Back to top</a>
@@ -142,8 +156,13 @@ try {{
 </body>
 </html>
 """
-    TARGET.write_text(page, encoding="utf-8")
-    print(f"built {TARGET.relative_to(ROOT)} from {SOURCE.relative_to(ROOT)} sha256={digest}")
+    target.write_text(page, encoding="utf-8")
+    print(f"built {target.relative_to(ROOT)} from {source.relative_to(ROOT)} sha256={digest}")
+
+
+def build() -> None:
+    for source, target, title, brand, placeholder in GUIDES:
+        build_one(source, target, title, brand, placeholder)
 
 
 if __name__ == "__main__":
