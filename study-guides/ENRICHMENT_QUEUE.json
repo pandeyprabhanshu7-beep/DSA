@@ -633,10 +633,10 @@
         "file_id": "file_00000000214481fdb368917e2f9d55f1",
         "version_id": "1",
         "source_sha256": "10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03",
-        "canonical_sha256_after": "5713e3f921f63100a0deaadff93867d1bf9d1d5d33c771bc3e34bf26fa34a1f9"
+        "canonical_sha256_after": "b367778debc725fe565bda5de46a51e24b0af1f3732298fe8761002fa5985069"
       },
       "last_successful_commit": "52b74aec5de27405970a959530562c05f427cf46",
-      "validation": "The confirmed Library revision was read at exact source lines 254-459 and bounded before Blueprint 3. Java 17 source-file launch passed 13 video and 22 ride-hailing scenario groups. Deterministic reader generation passed exact 26170-byte payload equality, SHA-256 5713e3f921f63100a0deaadff93867d1bf9d1d5d33c771bc3e34bf26fa34a1f9, 50 unique IDs, 3 search entries, local links/fragments, 28 balanced fence markers, 8 Mermaid sources and deterministic rebuild identity. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
+      "validation": "The confirmed Library revision was read at exact source lines 254-459 and bounded before Blueprint 3. Java 17 source-file launch passed 13 video and 22 ride-hailing scenario groups. Deterministic reader generation passed exact 26094-byte payload equality, SHA-256 b367778debc725fe565bda5de46a51e24b0af1f3732298fe8761002fa5985069, 50 unique IDs, 3 search entries, local links/fragments, 28 balanced fence markers, 8 Mermaid sources and deterministic rebuild identity. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
       "next_action": "Rotate fairly to DevOps/backend Spring AI/Python Section 2, source lines 31-56. On the next blueprints turn, process Blueprint 3 beginning at source line 460; Blueprints 3-5 remain queued.",
       "priority": 11
     },
@@ -1109,7 +1109,7 @@
       "System-design Blueprint 2: ride-hailing freshness, cell expansion, ordered location, atomic assignment, reconnect and payment contracts"
     ],
     "processed_section": "System-design Blueprint 2, Real-Time Ride-Hailing Service: confirmed Library revision 1 lines 254-459 (SHA-256 10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03), bounded by Blueprint 3",
-    "validation": "The exact bounded source was read and expanded into measurable requirements, four worked traces, four diagrams and an executable Java 17 contract. Video and ride-hailing source-file launches passed 13 and 22 scenario groups. Deterministic reader generation passed exact 26170-byte Markdown recovery, SHA-256 5713e3f921f63100a0deaadff93867d1bf9d1d5d33c771bc3e34bf26fa34a1f9, 50 unique IDs, 3 search entries, local fragments, 28 balanced fence markers, 8 Mermaid sources and deterministic rebuild identity. Seven content files were atomically published with an expected-head guard. JSON and git diff checks passed; the live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
+    "validation": "The exact bounded source was read and expanded into measurable requirements, four worked traces, four diagrams and an executable Java 17 contract. Video and ride-hailing source-file launches passed 13 and 22 scenario groups. Deterministic reader generation passed exact 26094-byte Markdown recovery, SHA-256 b367778debc725fe565bda5de46a51e24b0af1f3732298fe8761002fa5985069, 50 unique IDs, 3 search entries, local fragments, 28 balanced fence markers, 8 Mermaid sources and deterministic rebuild identity. Seven content files were atomically published with an expected-head guard. JSON and git diff checks passed; the live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
     "estimated_next_tokens": 8200,
     "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 2 pass with source review, research, examples, paired code, reader, validation and checkpoint reserves; not account-quota telemetry.",
     "last_successful_commit": "52b74aec5de27405970a959530562c05f427cf46",
