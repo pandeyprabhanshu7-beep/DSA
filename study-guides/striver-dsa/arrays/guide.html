@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="source-sha256" content="bad9f4c2618d36c90e060049d669c44a8768db345475c62ce1381a91ef295ea2"><title>Arrays — FAANG Deep Study Guide</title>
+<style>
+:root{--bg:#f6f8fc;--paper:#fff;--ink:#152033;--muted:#607087;--accent:#3157d5;--line:#dce2ec;--code:#111827;--code-ink:#e5e7eb}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}
+.layout{display:grid;grid-template-columns:minmax(240px,310px) minmax(0,920px);gap:2rem;max-width:1280px;margin:auto;padding:1rem}aside{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:1rem}
+.brand{font-weight:800;margin-bottom:.7rem}input{width:100%;padding:.72rem;border:1px solid var(--line);border-radius:9px;font:inherit}#results{list-style:none;padding:0;margin:.7rem 0}#results li{margin:.45rem 0}#results a{text-decoration:none;color:var(--accent);font-size:.92rem}#search-status{color:var(--muted);font-size:.82rem;margin:.45rem 0}
+main{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:clamp(1rem,4vw,3rem)}h1,h2,h3{line-height:1.25;scroll-margin-top:1rem}h1{border-bottom:2px solid var(--line);padding-bottom:.35rem}h2{margin-top:2.4rem}a{color:#264fd2}table{border-collapse:collapse;width:100%;display:block;overflow-x:auto}th,td{border:1px solid var(--line);padding:.55rem;text-align:left;vertical-align:top}pre{background:var(--code);color:var(--code-ink);padding:1rem;border-radius:10px;overflow:auto}code{font:.9em ui-monospace,SFMono-Regular,Consolas,monospace}:not(pre)>code{background:#edf0f6;padding:.12rem .3rem;border-radius:4px}blockquote{margin:1rem 0;padding:.35rem 1rem;border-left:4px solid var(--accent);background:#f0f4ff}.mermaid{overflow:auto;text-align:center}
+@media(max-width:820px){.layout{display:block;padding:.5rem}aside{position:relative;max-height:none;margin-bottom:.75rem}main{padding:1rem}#results{max-height:12rem;overflow:auto}}@media print{aside{display:none}.layout{display:block}main{border:0}}
+</style></head><body><div class="layout"><aside><div class="brand">Arrays Deep Study Guide</div><label for="guide-search">Search this guide</label><input id="guide-search" type="search" placeholder="Try: invariant, subarray, overflow" autocomplete="off"><div id="search-status">Type to search headings and section text.</div><ul id="results"></ul><a href="#arrays--faang-deep-study-guide">Back to top</a></aside><main id="content"><h1 id="arrays--faang-deep-study-guide">Arrays — FAANG Deep Study Guide</h1>
+<blockquote>
+<p><strong>Incremental status:</strong> Section 1 is processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates the same section. Later source sections remain queued.</p>
+</blockquote>
+<h2 id="study-index">Study index</h2>
+<ul>
+<li><a href="#1-array-mental-model-and-invariants">1. Array mental model and invariants</a>
+<ul>
+<li><a href="#requirement-contract">Requirement contract</a></li>
+<li><a href="#example-1--reference-identity-is-not-value-equality">Example 1 — reference identity is not value equality</a></li>
+<li><a href="#example-2--subarray-subsequence-and-subset">Example 2 — subarray, subsequence, and subset</a></li>
+<li><a href="#example-3--stable-in-place-compaction">Example 3 — stable in-place compaction</a></li>
+<li><a href="#example-4--prefix-sums-without-overflow">Example 4 — prefix sums without overflow</a></li>
+<li><a href="#interview-checklist">Interview checklist</a></li>
+<li><a href="#references-and-provenance">References and provenance</a></li>
+</ul></li>
+</ul>
+<h2 id="1-array-mental-model-and-invariants">1. Array mental model and invariants</h2>
+<p>An array problem is usually not testing whether you can write a loop. It is testing whether you can state what each index means, which region is already correct, and which mutations are allowed. In Java, an array is an object with a fixed length and mutable component variables. An array variable stores a reference, so assignment copies the reference rather than the components.</p>
+<h3 id="requirement-contract">Requirement contract</h3>
+<p>Before choosing a pattern, make these decisions explicit:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Question</th>
+<th>Precise contract</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>What is fixed?</td>
+<td>The Java array object's <code>length</code>; not necessarily its component values</td>
+<td>Prevents treating an array like a growable list</td>
+</tr>
+<tr class="even">
+<td>What is mutable?</td>
+<td>Components unless the problem forbids input mutation</td>
+<td>Separates in-place solutions from copy-producing solutions</td>
+</tr>
+<tr class="odd">
+<td>What is the output?</td>
+<td>Values, indices, a count, or the same mutated object</td>
+<td>Prevents returning the right values in the wrong form</td>
+</tr>
+<tr class="even">
+<td>What does “contiguous” mean?</td>
+<td>Every index from <code>left</code> through <code>right</code> is included</td>
+<td>Distinguishes a subarray from a subsequence</td>
+</tr>
+<tr class="odd">
+<td>What order is required?</td>
+<td>Stable order, arbitrary order, sorted order, or none</td>
+<td>Determines whether swaps are legal</td>
+</tr>
+<tr class="even">
+<td>What space is allowed?</td>
+<td>Count auxiliary storage separately from input/output storage</td>
+<td>Avoids calling an <code>O(n)</code> copy “in place”</td>
+</tr>
+<tr class="odd">
+<td>Can arithmetic overflow?</td>
+<td>Promote before addition when the mathematical range can exceed <code>int</code></td>
+<td>Keeps a correct algorithm from producing incorrect Java values</td>
+</tr>
+</tbody>
+</table>
+<p>The core invariant template is:</p>
+<blockquote>
+<p>At the start of each iteration, name the processed region, state exactly what is true there, and identify the unread region. The iteration must preserve the statement while shrinking the unread region.</p>
+</blockquote>
+<pre class="mermaid"><code>flowchart TD
+    A[Read contract] --&gt; B{Input mutation allowed?}
+    B --&gt;|No| C[Copy or separate output]
+    B --&gt;|Yes| D{Relative order required?}
+    D --&gt;|Yes| E[Stable write pointer]
+    D --&gt;|No| F[Swap or partition]
+    C --&gt; G[State invariant]
+    E --&gt; G
+    F --&gt; G
+    G --&gt; H[Prove boundaries and complexity]</code></pre>
+<h3 id="example-1--reference-identity-is-not-value-equality">Example 1 — reference identity is not value equality</h3>
+<p>Given <code>int[] a = {4, 1, 7}</code>, execute <code>int[] alias = a; alias[1] = 9;</code>.</p>
+<p><strong>Result:</strong> both variables refer to the same array object, so <code>a</code> is now <code>[4, 9, 7]</code>. By contrast, <code>Arrays.copyOf(a, a.length)</code> creates a distinct array with initially equal component values.</p>
+<pre class="mermaid"><code>flowchart LR
+    A[variable a] --&gt; X[Array object: 4, 9, 7]
+    B[variable alias] --&gt; X
+    C[variable copy] --&gt; Y[Different array: 4, 9, 7]</code></pre>
+<p>Trace:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">Step</th>
+<th style="text-align: right;"><code>a == alias</code></th>
+<th style="text-align: right;"><code>a == copy</code></th>
+<th style="text-align: right;"><code>a[1]</code></th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">After assignment</td>
+<td style="text-align: right;">true</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">1</td>
+<td><code>alias</code> received the reference</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">After <code>alias[1] = 9</code></td>
+<td style="text-align: right;">true</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">9</td>
+<td>Mutation is visible through either alias</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">After <code>copyOf</code></td>
+<td style="text-align: right;">true</td>
+<td style="text-align: right;">false</td>
+<td style="text-align: right;">9</td>
+<td>The new object has equal values but different identity</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">After <code>copy[1] = 5</code></td>
+<td style="text-align: right;">true</td>
+<td style="text-align: right;">false</td>
+<td style="text-align: right;">9</td>
+<td>Copy mutation does not affect <code>a</code></td>
+</tr>
+</tbody>
+</table>
+<p>Interview consequence: clarify whether “do not modify the input” forbids component mutation. Rebinding a local parameter does not mutate the caller's array, but changing a component does.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span><span class="op">[]</span> original <span class="op">=</span> <span class="op">{</span><span class="dv">4</span><span class="op">,</span> <span class="dv">1</span><span class="op">,</span> <span class="dv">7</span><span class="op">};</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span><span class="op">[]</span> alias <span class="op">=</span> original<span class="op">;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>alias<span class="op">[</span><span class="dv">1</span><span class="op">]</span> <span class="op">=</span> <span class="dv">9</span><span class="op">;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span><span class="op">[]</span> copy <span class="op">=</span> java<span class="op">.</span><span class="fu">util</span><span class="op">.</span><span class="fu">Arrays</span><span class="op">.</span><span class="fu">copyOf</span><span class="op">(</span>original<span class="op">,</span> original<span class="op">.</span><span class="fu">length</span><span class="op">);</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>copy<span class="op">[</span><span class="dv">1</span><span class="op">]</span> <span class="op">=</span> <span class="dv">5</span><span class="op">;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co">// original is [4, 9, 7]; copy is [4, 5, 7]</span></span></code></pre></div>
+<h3 id="example-2--subarray-subsequence-and-subset">Example 2 — subarray, subsequence, and subset</h3>
+<p>For <code>a = [3, -1, 4, 2]</code>, these terms impose different constraints:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Candidate</th>
+<th>Classification</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>[-1, 4]</code></td>
+<td>Subarray, subsequence, and subset selection</td>
+<td>Uses the contiguous interval <code>[1, 2]</code></td>
+</tr>
+<tr class="even">
+<td><code>[3, 4, 2]</code></td>
+<td>Subsequence and subset selection, not subarray</td>
+<td>Preserves order but skips index 1</td>
+</tr>
+<tr class="odd">
+<td><code>[4, 3]</code></td>
+<td>Subset selection only</td>
+<td>Selected values exist, but original order is reversed</td>
+</tr>
+<tr class="even">
+<td><code>[3, 3]</code></td>
+<td>None for this input</td>
+<td>A value occurrence cannot be reused unless the input contains it twice</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart TD
+    S[Subset selection: choose occurrences] --&gt; Q[Subsequence: preserve index order]
+    Q --&gt; A[Subarray: preserve order and contiguity]</code></pre>
+<p>For length <code>n</code>:</p>
+<ul>
+<li>non-empty subarrays: <code>n(n + 1) / 2</code>;</li>
+<li>subsequences: <code>2^n</code> including the empty subsequence;</li>
+<li>value subsets need multiplicity rules when duplicates exist, so “set” language can lose index identity.</li>
+</ul>
+<p>Memory trick: <strong>array = interval, sequence = ordered picks, subset = picks without an order promise</strong>.</p>
+<h3 id="example-3--stable-in-place-compaction">Example 3 — stable in-place compaction</h3>
+<p>Move zeros to the end of <code>[0, 3, 0, 3, 8]</code> while preserving the relative order of nonzero values.</p>
+<p>Use <code>read</code> to scan every component and <code>write</code> to identify the next accepted position.</p>
+<p>Invariant before processing index <code>read</code>:</p>
+<ol type="1">
+<li><code>a[0..write)</code> contains exactly the nonzero values from original <code>a[0..read)</code>, in original order.</li>
+<li><code>write &lt;= read</code>.</li>
+<li><code>a[read..n)</code> has not been inspected.</li>
+</ol>
+<p>Trace:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;"><code>read</code></th>
+<th style="text-align: right;">value</th>
+<th>action</th>
+<th style="text-align: right;"><code>write</code> after</th>
+<th>array after action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td>skip</td>
+<td style="text-align: right;">0</td>
+<td><code>[0, 3, 0, 3, 8]</code></td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">3</td>
+<td>write at 0</td>
+<td style="text-align: right;">1</td>
+<td><code>[3, 3, 0, 3, 8]</code></td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">0</td>
+<td>skip</td>
+<td style="text-align: right;">1</td>
+<td><code>[3, 3, 0, 3, 8]</code></td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">3</td>
+<td>write at 1</td>
+<td style="text-align: right;">2</td>
+<td><code>[3, 3, 0, 3, 8]</code></td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">8</td>
+<td>write at 2</td>
+<td style="text-align: right;">3</td>
+<td><code>[3, 3, 8, 3, 8]</code></td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">fill</td>
+<td style="text-align: right;">—</td>
+<td>zero <code>[3..5)</code></td>
+<td style="text-align: right;">3</td>
+<td><code>[3, 3, 8, 0, 0]</code></td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart LR
+    P[Accepted prefix: 3, 3, 8] --&gt; Z[Fill region: 0, 0]
+    U[Unread region] -. shrinks each step .-&gt; P</code></pre>
+<div class="sourceCode" id="cb6"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> <span class="fu">stableMoveZeroes</span><span class="op">(</span><span class="dt">int</span><span class="op">[]</span> a<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> write <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> value <span class="op">:</span> a<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>value <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> a<span class="op">[</span>write<span class="op">++]</span> <span class="op">=</span> value<span class="op">;</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>write <span class="op">&lt;</span> a<span class="op">.</span><span class="fu">length</span><span class="op">)</span> a<span class="op">[</span>write<span class="op">++]</span> <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p><strong>Correctness:</strong> every accepted value is appended once and in scan order, so the prefix is stable. When scanning ends, it contains all nonzero values. Filling the remaining suffix with zeros preserves the required length and yields the target partition.</p>
+<p><strong>Complexity:</strong> <code>O(n)</code> time, <code>O(1)</code> auxiliary space. This minimizes conceptual complexity; an optional guarded assignment can reduce redundant writes but should not weaken the invariant.</p>
+<h3 id="example-4--prefix-sums-without-overflow">Example 4 — prefix sums without overflow</h3>
+<p>For <code>a = [1_500_000_000, 1_500_000_000, -1_500_000_000]</code>, the mathematical prefix sums are <code>[0, 1_500_000_000, 3_000_000_000, 1_500_000_000]</code>. The second running total exceeds <code>Integer.MAX_VALUE</code>, so an <code>int</code> prefix silently wraps.</p>
+<p>Contract for half-open ranges: <code>rangeSum(left, right)</code> returns the sum of <code>a[left..right)</code>.</p>
+<pre class="mermaid"><code>flowchart LR
+    P0[prefix 0 = 0] --&gt; P1[prefix 1 = 1.5B]
+    P1 --&gt; P2[prefix 2 = 3.0B]
+    P2 --&gt; P3[prefix 3 = 1.5B]
+    P0 -. range 0 to 2 .-&gt; P2</code></pre>
+<p>Trace:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">Index consumed</th>
+<th style="text-align: right;">Value</th>
+<th style="text-align: right;"><code>long</code> prefix</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0</td>
+<td>Empty prefix</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1,500,000,000</td>
+<td style="text-align: right;">1,500,000,000</td>
+<td><code>a[0..1)</code></td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">1,500,000,000</td>
+<td style="text-align: right;">3,000,000,000</td>
+<td><code>a[0..2)</code></td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">-1,500,000,000</td>
+<td style="text-align: right;">1,500,000,000</td>
+<td><code>a[0..3)</code></td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb8"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">long</span><span class="op">[]</span> <span class="fu">prefixSums</span><span class="op">(</span><span class="dt">int</span><span class="op">[]</span> a<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span><span class="op">[]</span> prefix <span class="op">=</span> <span class="kw">new</span> <span class="dt">long</span><span class="op">[</span>a<span class="op">.</span><span class="fu">length</span> <span class="op">+</span> <span class="dv">1</span><span class="op">];</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> a<span class="op">.</span><span class="fu">length</span><span class="op">;</span> i<span class="op">++)</span> <span class="op">{</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        prefix<span class="op">[</span>i <span class="op">+</span> <span class="dv">1</span><span class="op">]</span> <span class="op">=</span> prefix<span class="op">[</span>i<span class="op">]</span> <span class="op">+</span> a<span class="op">[</span>i<span class="op">];</span> <span class="co">// long + int -&gt; long</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> prefix<span class="op">;</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">long</span> <span class="fu">rangeSum</span><span class="op">(</span><span class="dt">long</span><span class="op">[]</span> prefix<span class="op">,</span> <span class="dt">int</span> left<span class="op">,</span> <span class="dt">int</span> right<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>left <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">||</span> left <span class="op">&gt;</span> right <span class="op">||</span> right <span class="op">&gt;=</span> prefix<span class="op">.</span><span class="fu">length</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">throw</span> <span class="kw">new</span> <span class="bu">IndexOutOfBoundsException</span><span class="op">(</span><span class="st">&quot;invalid half-open range&quot;</span><span class="op">);</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> prefix<span class="op">[</span>right<span class="op">]</span> <span class="op">-</span> prefix<span class="op">[</span>left<span class="op">];</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Invariant after consuming <code>i</code> components: <code>prefix[i]</code> equals the mathematical sum of original <code>a[0..i)</code>. Therefore subtracting two prefixes cancels the shared left portion. Build time and space are <code>O(n)</code>; each validated range query is <code>O(1)</code>.</p>
+<h3 id="interview-checklist">Interview checklist</h3>
+<ol type="1">
+<li>Restate mutation, output, ordering, and range conventions.</li>
+<li>Name indices by role (<code>read</code>, <code>write</code>, <code>left</code>, <code>right</code>) rather than letters without meaning.</li>
+<li>State the invariant before coding.</li>
+<li>Trace empty, singleton, all-accepted, none-accepted, duplicate, and extreme-value cases.</li>
+<li>Promote arithmetic before it can overflow.</li>
+<li>Distinguish auxiliary space from returned output space.</li>
+<li>State whether a range is closed <code>[l, r]</code> or half-open <code>[l, r)</code>.</li>
+<li>Test aliasing expectations when the input is mutable.</li>
+</ol>
+<h3 id="references-and-provenance">References and provenance</h3>
+<ul>
+<li><a href="https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html">Java Language Specification, Java SE 17, Chapter 10: Arrays</a> — arrays as objects, fixed component count, zero-based indices, and component types.</li>
+<li><a href="https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html">Java Language Specification, Java SE 17, Chapter 4: Types, Values, and Variables</a> — primitive values versus reference values and array reference semantics.</li>
+<li><a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Arrays.html">Java SE 17 <code>java.util.Arrays</code></a> — copying, filling, comparison, sorting, and searching utilities.</li>
+</ul>
+<p>Source intake:</p>
+<ul>
+<li><code>DSA_Arrays_FAANG_Mermaid_Question_Workbook.md</code>, SHA-256 <code>735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda</code>, Section 1 lines 141–182. Selected as the editable structural source.</li>
+<li><code>DSA_Arrays_FAANG_Question_Workbook_Expanded.docx</code>, SHA-256 <code>2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e</code>, equivalent Section 1 extracted lines 65–108. Compared as a corroborating companion; its 116-page rendering was visually inspected rather than copied as a duplicate guide.</li>
+</ul>
+<p>The source section supplied the topic boundary and seed concepts. The requirement contract, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 2, “Pattern-Recognition Decision Tree,” is the next Arrays source boundary, not part of this promotion.</p>
+</main></div>
+<script id="source-markdown" type="application/octet-stream">IyBBcnJheXMg4oCUIEZBQU5HIERlZXAgU3R1ZHkgR3VpZGUKCj4gKipJbmNyZW1lbnRhbCBzdGF0dXM6KiogU2VjdGlvbiAxIGlzIHByb2Nlc3NlZC4gVGhlIGNhbm9uaWNhbCBNYXJrZG93biB3b3JrYm9vayBpcyB0aGUgc3RydWN0dXJhbCBzb3VyY2U7IGl0cyBleHBhbmRlZCBXb3JkIGNvbXBhbmlvbiB3YXMgY29tcGFyZWQgYW5kIGNvcnJvYm9yYXRlcyB0aGUgc2FtZSBzZWN0aW9uLiBMYXRlciBzb3VyY2Ugc2VjdGlvbnMgcmVtYWluIHF1ZXVlZC4KCiMjIFN0dWR5IGluZGV4CgotIFsxLiBBcnJheSBtZW50YWwgbW9kZWwgYW5kIGludmFyaWFudHNdKCMxLWFycmF5LW1lbnRhbC1tb2RlbC1hbmQtaW52YXJpYW50cykKICAtIFtSZXF1aXJlbWVudCBjb250cmFjdF0oI3JlcXVpcmVtZW50LWNvbnRyYWN0KQogIC0gW0V4YW1wbGUgMSDigJQgcmVmZXJlbmNlIGlkZW50aXR5IGlzIG5vdCB2YWx1ZSBlcXVhbGl0eV0oI2V4YW1wbGUtMS0tcmVmZXJlbmNlLWlkZW50aXR5LWlzLW5vdC12YWx1ZS1lcXVhbGl0eSkKICAtIFtFeGFtcGxlIDIg4oCUIHN1YmFycmF5LCBzdWJzZXF1ZW5jZSwgYW5kIHN1YnNldF0oI2V4YW1wbGUtMi0tc3ViYXJyYXktc3Vic2VxdWVuY2UtYW5kLXN1YnNldCkKICAtIFtFeGFtcGxlIDMg4oCUIHN0YWJsZSBpbi1wbGFjZSBjb21wYWN0aW9uXSgjZXhhbXBsZS0zLS1zdGFibGUtaW4tcGxhY2UtY29tcGFjdGlvbikKICAtIFtFeGFtcGxlIDQg4oCUIHByZWZpeCBzdW1zIHdpdGhvdXQgb3ZlcmZsb3ddKCNleGFtcGxlLTQtLXByZWZpeC1zdW1zLXdpdGhvdXQtb3ZlcmZsb3cpCiAgLSBbSW50ZXJ2aWV3IGNoZWNrbGlzdF0oI2ludGVydmlldy1jaGVja2xpc3QpCiAgLSBbUmVmZXJlbmNlcyBhbmQgcHJvdmVuYW5jZV0oI3JlZmVyZW5jZXMtYW5kLXByb3ZlbmFuY2UpCgojIyAxLiBBcnJheSBtZW50YWwgbW9kZWwgYW5kIGludmFyaWFudHMKCkFuIGFycmF5IHByb2JsZW0gaXMgdXN1YWxseSBub3QgdGVzdGluZyB3aGV0aGVyIHlvdSBjYW4gd3JpdGUgYSBsb29wLiBJdCBpcyB0ZXN0aW5nIHdoZXRoZXIgeW91IGNhbiBzdGF0ZSB3aGF0IGVhY2ggaW5kZXggbWVhbnMsIHdoaWNoIHJlZ2lvbiBpcyBhbHJlYWR5IGNvcnJlY3QsIGFuZCB3aGljaCBtdXRhdGlvbnMgYXJlIGFsbG93ZWQuIEluIEphdmEsIGFuIGFycmF5IGlzIGFuIG9iamVjdCB3aXRoIGEgZml4ZWQgbGVuZ3RoIGFuZCBtdXRhYmxlIGNvbXBvbmVudCB2YXJpYWJsZXMuIEFuIGFycmF5IHZhcmlhYmxlIHN0b3JlcyBhIHJlZmVyZW5jZSwgc28gYXNzaWdubWVudCBjb3BpZXMgdGhlIHJlZmVyZW5jZSByYXRoZXIgdGhhbiB0aGUgY29tcG9uZW50cy4KCiMjIyBSZXF1aXJlbWVudCBjb250cmFjdAoKQmVmb3JlIGNob29zaW5nIGEgcGF0dGVybiwgbWFrZSB0aGVzZSBkZWNpc2lvbnMgZXhwbGljaXQ6Cgp8IFF1ZXN0aW9uIHwgUHJlY2lzZSBjb250cmFjdCB8IFdoeSBpdCBtYXR0ZXJzIHwKfC0tLXwtLS18LS0tfAp8IFdoYXQgaXMgZml4ZWQ/IHwgVGhlIEphdmEgYXJyYXkgb2JqZWN0J3MgYGxlbmd0aGA7IG5vdCBuZWNlc3NhcmlseSBpdHMgY29tcG9uZW50IHZhbHVlcyB8IFByZXZlbnRzIHRyZWF0aW5nIGFuIGFycmF5IGxpa2UgYSBncm93YWJsZSBsaXN0IHwKfCBXaGF0IGlzIG11dGFibGU/IHwgQ29tcG9uZW50cyB1bmxlc3MgdGhlIHByb2JsZW0gZm9yYmlkcyBpbnB1dCBtdXRhdGlvbiB8IFNlcGFyYXRlcyBpbi1wbGFjZSBzb2x1dGlvbnMgZnJvbSBjb3B5LXByb2R1Y2luZyBzb2x1dGlvbnMgfAp8IFdoYXQgaXMgdGhlIG91dHB1dD8gfCBWYWx1ZXMsIGluZGljZXMsIGEgY291bnQsIG9yIHRoZSBzYW1lIG11dGF0ZWQgb2JqZWN0IHwgUHJldmVudHMgcmV0dXJuaW5nIHRoZSByaWdodCB2YWx1ZXMgaW4gdGhlIHdyb25nIGZvcm0gfAp8IFdoYXQgZG9lcyDigJxjb250aWd1b3Vz4oCdIG1lYW4/IHwgRXZlcnkgaW5kZXggZnJvbSBgbGVmdGAgdGhyb3VnaCBgcmlnaHRgIGlzIGluY2x1ZGVkIHwgRGlzdGluZ3Vpc2hlcyBhIHN1YmFycmF5IGZyb20gYSBzdWJzZXF1ZW5jZSB8CnwgV2hhdCBvcmRlciBpcyByZXF1aXJlZD8gfCBTdGFibGUgb3JkZXIsIGFyYml0cmFyeSBvcmRlciwgc29ydGVkIG9yZGVyLCBvciBub25lIHwgRGV0ZXJtaW5lcyB3aGV0aGVyIHN3YXBzIGFyZSBsZWdhbCB8CnwgV2hhdCBzcGFjZSBpcyBhbGxvd2VkPyB8IENvdW50IGF1eGlsaWFyeSBzdG9yYWdlIHNlcGFyYXRlbHkgZnJvbSBpbnB1dC9vdXRwdXQgc3RvcmFnZSB8IEF2b2lkcyBjYWxsaW5nIGFuIGBPKG4pYCBjb3B5IOKAnGluIHBsYWNl4oCdIHwKfCBDYW4gYXJpdGhtZXRpYyBvdmVyZmxvdz8gfCBQcm9tb3RlIGJlZm9yZSBhZGRpdGlvbiB3aGVuIHRoZSBtYXRoZW1hdGljYWwgcmFuZ2UgY2FuIGV4Y2VlZCBgaW50YCB8IEtlZXBzIGEgY29ycmVjdCBhbGdvcml0aG0gZnJvbSBwcm9kdWNpbmcgaW5jb3JyZWN0IEphdmEgdmFsdWVzIHwKClRoZSBjb3JlIGludmFyaWFudCB0ZW1wbGF0ZSBpczoKCj4gQXQgdGhlIHN0YXJ0IG9mIGVhY2ggaXRlcmF0aW9uLCBuYW1lIHRoZSBwcm9jZXNzZWQgcmVnaW9uLCBzdGF0ZSBleGFjdGx5IHdoYXQgaXMgdHJ1ZSB0aGVyZSwgYW5kIGlkZW50aWZ5IHRoZSB1bnJlYWQgcmVnaW9uLiBUaGUgaXRlcmF0aW9uIG11c3QgcHJlc2VydmUgdGhlIHN0YXRlbWVudCB3aGlsZSBzaHJpbmtpbmcgdGhlIHVucmVhZCByZWdpb24uCgpgYGBtZXJtYWlkCmZsb3djaGFydCBURAogICAgQVtSZWFkIGNvbnRyYWN0XSAtLT4gQntJbnB1dCBtdXRhdGlvbiBhbGxvd2VkP30KICAgIEIgLS0+fE5vfCBDW0NvcHkgb3Igc2VwYXJhdGUgb3V0cHV0XQogICAgQiAtLT58WWVzfCBEe1JlbGF0aXZlIG9yZGVyIHJlcXVpcmVkP30KICAgIEQgLS0+fFllc3wgRVtTdGFibGUgd3JpdGUgcG9pbnRlcl0KICAgIEQgLS0+fE5vfCBGW1N3YXAgb3IgcGFydGl0aW9uXQogICAgQyAtLT4gR1tTdGF0ZSBpbnZhcmlhbnRdCiAgICBFIC0tPiBHCiAgICBGIC0tPiBHCiAgICBHIC0tPiBIW1Byb3ZlIGJvdW5kYXJpZXMgYW5kIGNvbXBsZXhpdHldCmBgYAoKIyMjIEV4YW1wbGUgMSDigJQgcmVmZXJlbmNlIGlkZW50aXR5IGlzIG5vdCB2YWx1ZSBlcXVhbGl0eQoKR2l2ZW4gYGludFtdIGEgPSB7NCwgMSwgN31gLCBleGVjdXRlIGBpbnRbXSBhbGlhcyA9IGE7IGFsaWFzWzFdID0gOTtgLgoKKipSZXN1bHQ6KiogYm90aCB2YXJpYWJsZXMgcmVmZXIgdG8gdGhlIHNhbWUgYXJyYXkgb2JqZWN0LCBzbyBgYWAgaXMgbm93IGBbNCwgOSwgN11gLiBCeSBjb250cmFzdCwgYEFycmF5cy5jb3B5T2YoYSwgYS5sZW5ndGgpYCBjcmVhdGVzIGEgZGlzdGluY3QgYXJyYXkgd2l0aCBpbml0aWFsbHkgZXF1YWwgY29tcG9uZW50IHZhbHVlcy4KCmBgYG1lcm1haWQKZmxvd2NoYXJ0IExSCiAgICBBW3ZhcmlhYmxlIGFdIC0tPiBYW0FycmF5IG9iamVjdDogNCwgOSwgN10KICAgIEJbdmFyaWFibGUgYWxpYXNdIC0tPiBYCiAgICBDW3ZhcmlhYmxlIGNvcHldIC0tPiBZW0RpZmZlcmVudCBhcnJheTogNCwgOSwgN10KYGBgCgpUcmFjZToKCnwgU3RlcCB8IGBhID09IGFsaWFzYCB8IGBhID09IGNvcHlgIHwgYGFbMV1gIHwgTWVhbmluZyB8CnwtLS06fC0tLTp8LS0tOnwtLS06fC0tLXwKfCBBZnRlciBhc3NpZ25tZW50IHwgdHJ1ZSB8IOKAlCB8IDEgfCBgYWxpYXNgIHJlY2VpdmVkIHRoZSByZWZlcmVuY2UgfAp8IEFmdGVyIGBhbGlhc1sxXSA9IDlgIHwgdHJ1ZSB8IOKAlCB8IDkgfCBNdXRhdGlvbiBpcyB2aXNpYmxlIHRocm91Z2ggZWl0aGVyIGFsaWFzIHwKfCBBZnRlciBgY29weU9mYCB8IHRydWUgfCBmYWxzZSB8IDkgfCBUaGUgbmV3IG9iamVjdCBoYXMgZXF1YWwgdmFsdWVzIGJ1dCBkaWZmZXJlbnQgaWRlbnRpdHkgfAp8IEFmdGVyIGBjb3B5WzFdID0gNWAgfCB0cnVlIHwgZmFsc2UgfCA5IHwgQ29weSBtdXRhdGlvbiBkb2VzIG5vdCBhZmZlY3QgYGFgIHwKCkludGVydmlldyBjb25zZXF1ZW5jZTogY2xhcmlmeSB3aGV0aGVyIOKAnGRvIG5vdCBtb2RpZnkgdGhlIGlucHV04oCdIGZvcmJpZHMgY29tcG9uZW50IG11dGF0aW9uLiBSZWJpbmRpbmcgYSBsb2NhbCBwYXJhbWV0ZXIgZG9lcyBub3QgbXV0YXRlIHRoZSBjYWxsZXIncyBhcnJheSwgYnV0IGNoYW5naW5nIGEgY29tcG9uZW50IGRvZXMuCgpgYGBqYXZhCmludFtdIG9yaWdpbmFsID0gezQsIDEsIDd9OwppbnRbXSBhbGlhcyA9IG9yaWdpbmFsOwphbGlhc1sxXSA9IDk7CmludFtdIGNvcHkgPSBqYXZhLnV0aWwuQXJyYXlzLmNvcHlPZihvcmlnaW5hbCwgb3JpZ2luYWwubGVuZ3RoKTsKY29weVsxXSA9IDU7Ci8vIG9yaWdpbmFsIGlzIFs0LCA5LCA3XTsgY29weSBpcyBbNCwgNSwgN10KYGBgCgojIyMgRXhhbXBsZSAyIOKAlCBzdWJhcnJheSwgc3Vic2VxdWVuY2UsIGFuZCBzdWJzZXQKCkZvciBgYSA9IFszLCAtMSwgNCwgMl1gLCB0aGVzZSB0ZXJtcyBpbXBvc2UgZGlmZmVyZW50IGNvbnN0cmFpbnRzOgoKfCBDYW5kaWRhdGUgfCBDbGFzc2lmaWNhdGlvbiB8IFJlYXNvbiB8CnwtLS18LS0tfC0tLXwKfCBgWy0xLCA0XWAgfCBTdWJhcnJheSwgc3Vic2VxdWVuY2UsIGFuZCBzdWJzZXQgc2VsZWN0aW9uIHwgVXNlcyB0aGUgY29udGlndW91cyBpbnRlcnZhbCBgWzEsIDJdYCB8CnwgYFszLCA0LCAyXWAgfCBTdWJzZXF1ZW5jZSBhbmQgc3Vic2V0IHNlbGVjdGlvbiwgbm90IHN1YmFycmF5IHwgUHJlc2VydmVzIG9yZGVyIGJ1dCBza2lwcyBpbmRleCAxIHwKfCBgWzQsIDNdYCB8IFN1YnNldCBzZWxlY3Rpb24gb25seSB8IFNlbGVjdGVkIHZhbHVlcyBleGlzdCwgYnV0IG9yaWdpbmFsIG9yZGVyIGlzIHJldmVyc2VkIHwKfCBgWzMsIDNdYCB8IE5vbmUgZm9yIHRoaXMgaW5wdXQgfCBBIHZhbHVlIG9jY3VycmVuY2UgY2Fubm90IGJlIHJldXNlZCB1bmxlc3MgdGhlIGlucHV0IGNvbnRhaW5zIGl0IHR3aWNlIHwKCmBgYG1lcm1haWQKZmxvd2NoYXJ0IFRECiAgICBTW1N1YnNldCBzZWxlY3Rpb246IGNob29zZSBvY2N1cnJlbmNlc10gLS0+IFFbU3Vic2VxdWVuY2U6IHByZXNlcnZlIGluZGV4IG9yZGVyXQogICAgUSAtLT4gQVtTdWJhcnJheTogcHJlc2VydmUgb3JkZXIgYW5kIGNvbnRpZ3VpdHldCmBgYAoKRm9yIGxlbmd0aCBgbmA6CgotIG5vbi1lbXB0eSBzdWJhcnJheXM6IGBuKG4gKyAxKSAvIDJgOwotIHN1YnNlcXVlbmNlczogYDJebmAgaW5jbHVkaW5nIHRoZSBlbXB0eSBzdWJzZXF1ZW5jZTsKLSB2YWx1ZSBzdWJzZXRzIG5lZWQgbXVsdGlwbGljaXR5IHJ1bGVzIHdoZW4gZHVwbGljYXRlcyBleGlzdCwgc28g4oCcc2V04oCdIGxhbmd1YWdlIGNhbiBsb3NlIGluZGV4IGlkZW50aXR5LgoKTWVtb3J5IHRyaWNrOiAqKmFycmF5ID0gaW50ZXJ2YWwsIHNlcXVlbmNlID0gb3JkZXJlZCBwaWNrcywgc3Vic2V0ID0gcGlja3Mgd2l0aG91dCBhbiBvcmRlciBwcm9taXNlKiouCgojIyMgRXhhbXBsZSAzIOKAlCBzdGFibGUgaW4tcGxhY2UgY29tcGFjdGlvbgoKTW92ZSB6ZXJvcyB0byB0aGUgZW5kIG9mIGBbMCwgMywgMCwgMywgOF1gIHdoaWxlIHByZXNlcnZpbmcgdGhlIHJlbGF0aXZlIG9yZGVyIG9mIG5vbnplcm8gdmFsdWVzLgoKVXNlIGByZWFkYCB0byBzY2FuIGV2ZXJ5IGNvbXBvbmVudCBhbmQgYHdyaXRlYCB0byBpZGVudGlmeSB0aGUgbmV4dCBhY2NlcHRlZCBwb3NpdGlvbi4KCkludmFyaWFudCBiZWZvcmUgcHJvY2Vzc2luZyBpbmRleCBgcmVhZGA6CgoxLiBgYVswLi53cml0ZSlgIGNvbnRhaW5zIGV4YWN0bHkgdGhlIG5vbnplcm8gdmFsdWVzIGZyb20gb3JpZ2luYWwgYGFbMC4ucmVhZClgLCBpbiBvcmlnaW5hbCBvcmRlci4KMi4gYHdyaXRlIDw9IHJlYWRgLgozLiBgYVtyZWFkLi5uKWAgaGFzIG5vdCBiZWVuIGluc3BlY3RlZC4KClRyYWNlOgoKfCBgcmVhZGAgfCB2YWx1ZSB8IGFjdGlvbiB8IGB3cml0ZWAgYWZ0ZXIgfCBhcnJheSBhZnRlciBhY3Rpb24gfAp8LS0tOnwtLS06fC0tLXwtLS06fC0tLXwKfCAwIHwgMCB8IHNraXAgfCAwIHwgYFswLCAzLCAwLCAzLCA4XWAgfAp8IDEgfCAzIHwgd3JpdGUgYXQgMCB8IDEgfCBgWzMsIDMsIDAsIDMsIDhdYCB8CnwgMiB8IDAgfCBza2lwIHwgMSB8IGBbMywgMywgMCwgMywgOF1gIHwKfCAzIHwgMyB8IHdyaXRlIGF0IDEgfCAyIHwgYFszLCAzLCAwLCAzLCA4XWAgfAp8IDQgfCA4IHwgd3JpdGUgYXQgMiB8IDMgfCBgWzMsIDMsIDgsIDMsIDhdYCB8CnwgZmlsbCB8IOKAlCB8IHplcm8gYFszLi41KWAgfCAzIHwgYFszLCAzLCA4LCAwLCAwXWAgfAoKYGBgbWVybWFpZApmbG93Y2hhcnQgTFIKICAgIFBbQWNjZXB0ZWQgcHJlZml4OiAzLCAzLCA4XSAtLT4gWltGaWxsIHJlZ2lvbjogMCwgMF0KICAgIFVbVW5yZWFkIHJlZ2lvbl0gLS4gc2hyaW5rcyBlYWNoIHN0ZXAgLi0+IFAKYGBgCgpgYGBqYXZhCnN0YXRpYyB2b2lkIHN0YWJsZU1vdmVaZXJvZXMoaW50W10gYSkgewogICAgaW50IHdyaXRlID0gMDsKICAgIGZvciAoaW50IHZhbHVlIDogYSkgewogICAgICAgIGlmICh2YWx1ZSAhPSAwKSBhW3dyaXRlKytdID0gdmFsdWU7CiAgICB9CiAgICB3aGlsZSAod3JpdGUgPCBhLmxlbmd0aCkgYVt3cml0ZSsrXSA9IDA7Cn0KYGBgCgoqKkNvcnJlY3RuZXNzOioqIGV2ZXJ5IGFjY2VwdGVkIHZhbHVlIGlzIGFwcGVuZGVkIG9uY2UgYW5kIGluIHNjYW4gb3JkZXIsIHNvIHRoZSBwcmVmaXggaXMgc3RhYmxlLiBXaGVuIHNjYW5uaW5nIGVuZHMsIGl0IGNvbnRhaW5zIGFsbCBub256ZXJvIHZhbHVlcy4gRmlsbGluZyB0aGUgcmVtYWluaW5nIHN1ZmZpeCB3aXRoIHplcm9zIHByZXNlcnZlcyB0aGUgcmVxdWlyZWQgbGVuZ3RoIGFuZCB5aWVsZHMgdGhlIHRhcmdldCBwYXJ0aXRpb24uCgoqKkNvbXBsZXhpdHk6KiogYE8obilgIHRpbWUsIGBPKDEpYCBhdXhpbGlhcnkgc3BhY2UuIFRoaXMgbWluaW1pemVzIGNvbmNlcHR1YWwgY29tcGxleGl0eTsgYW4gb3B0aW9uYWwgZ3VhcmRlZCBhc3NpZ25tZW50IGNhbiByZWR1Y2UgcmVkdW5kYW50IHdyaXRlcyBidXQgc2hvdWxkIG5vdCB3ZWFrZW4gdGhlIGludmFyaWFudC4KCiMjIyBFeGFtcGxlIDQg4oCUIHByZWZpeCBzdW1zIHdpdGhvdXQgb3ZlcmZsb3cKCkZvciBgYSA9IFsxXzUwMF8wMDBfMDAwLCAxXzUwMF8wMDBfMDAwLCAtMV81MDBfMDAwXzAwMF1gLCB0aGUgbWF0aGVtYXRpY2FsIHByZWZpeCBzdW1zIGFyZSBgWzAsIDFfNTAwXzAwMF8wMDAsIDNfMDAwXzAwMF8wMDAsIDFfNTAwXzAwMF8wMDBdYC4gVGhlIHNlY29uZCBydW5uaW5nIHRvdGFsIGV4Y2VlZHMgYEludGVnZXIuTUFYX1ZBTFVFYCwgc28gYW4gYGludGAgcHJlZml4IHNpbGVudGx5IHdyYXBzLgoKQ29udHJhY3QgZm9yIGhhbGYtb3BlbiByYW5nZXM6IGByYW5nZVN1bShsZWZ0LCByaWdodClgIHJldHVybnMgdGhlIHN1bSBvZiBgYVtsZWZ0Li5yaWdodClgLgoKYGBgbWVybWFpZApmbG93Y2hhcnQgTFIKICAgIFAwW3ByZWZpeCAwID0gMF0gLS0+IFAxW3ByZWZpeCAxID0gMS41Ql0KICAgIFAxIC0tPiBQMltwcmVmaXggMiA9IDMuMEJdCiAgICBQMiAtLT4gUDNbcHJlZml4IDMgPSAxLjVCXQogICAgUDAgLS4gcmFuZ2UgMCB0byAyIC4tPiBQMgpgYGAKClRyYWNlOgoKfCBJbmRleCBjb25zdW1lZCB8IFZhbHVlIHwgYGxvbmdgIHByZWZpeCB8IE1lYW5pbmcgfAp8LS0tOnwtLS06fC0tLTp8LS0tfAp8IDAgfCDigJQgfCAwIHwgRW1wdHkgcHJlZml4IHwKfCAxIHwgMSw1MDAsMDAwLDAwMCB8IDEsNTAwLDAwMCwwMDAgfCBgYVswLi4xKWAgfAp8IDIgfCAxLDUwMCwwMDAsMDAwIHwgMywwMDAsMDAwLDAwMCB8IGBhWzAuLjIpYCB8CnwgMyB8IC0xLDUwMCwwMDAsMDAwIHwgMSw1MDAsMDAwLDAwMCB8IGBhWzAuLjMpYCB8CgpgYGBqYXZhCnN0YXRpYyBsb25nW10gcHJlZml4U3VtcyhpbnRbXSBhKSB7CiAgICBsb25nW10gcHJlZml4ID0gbmV3IGxvbmdbYS5sZW5ndGggKyAxXTsKICAgIGZvciAoaW50IGkgPSAwOyBpIDwgYS5sZW5ndGg7IGkrKykgewogICAgICAgIHByZWZpeFtpICsgMV0gPSBwcmVmaXhbaV0gKyBhW2ldOyAvLyBsb25nICsgaW50IC0+IGxvbmcKICAgIH0KICAgIHJldHVybiBwcmVmaXg7Cn0KCnN0YXRpYyBsb25nIHJhbmdlU3VtKGxvbmdbXSBwcmVmaXgsIGludCBsZWZ0LCBpbnQgcmlnaHQpIHsKICAgIGlmIChsZWZ0IDwgMCB8fCBsZWZ0ID4gcmlnaHQgfHwgcmlnaHQgPj0gcHJlZml4Lmxlbmd0aCkgewogICAgICAgIHRocm93IG5ldyBJbmRleE91dE9mQm91bmRzRXhjZXB0aW9uKCJpbnZhbGlkIGhhbGYtb3BlbiByYW5nZSIpOwogICAgfQogICAgcmV0dXJuIHByZWZpeFtyaWdodF0gLSBwcmVmaXhbbGVmdF07Cn0KYGBgCgpJbnZhcmlhbnQgYWZ0ZXIgY29uc3VtaW5nIGBpYCBjb21wb25lbnRzOiBgcHJlZml4W2ldYCBlcXVhbHMgdGhlIG1hdGhlbWF0aWNhbCBzdW0gb2Ygb3JpZ2luYWwgYGFbMC4uaSlgLiBUaGVyZWZvcmUgc3VidHJhY3RpbmcgdHdvIHByZWZpeGVzIGNhbmNlbHMgdGhlIHNoYXJlZCBsZWZ0IHBvcnRpb24uIEJ1aWxkIHRpbWUgYW5kIHNwYWNlIGFyZSBgTyhuKWA7IGVhY2ggdmFsaWRhdGVkIHJhbmdlIHF1ZXJ5IGlzIGBPKDEpYC4KCiMjIyBJbnRlcnZpZXcgY2hlY2tsaXN0CgoxLiBSZXN0YXRlIG11dGF0aW9uLCBvdXRwdXQsIG9yZGVyaW5nLCBhbmQgcmFuZ2UgY29udmVudGlvbnMuCjIuIE5hbWUgaW5kaWNlcyBieSByb2xlIChgcmVhZGAsIGB3cml0ZWAsIGBsZWZ0YCwgYHJpZ2h0YCkgcmF0aGVyIHRoYW4gbGV0dGVycyB3aXRob3V0IG1lYW5pbmcuCjMuIFN0YXRlIHRoZSBpbnZhcmlhbnQgYmVmb3JlIGNvZGluZy4KNC4gVHJhY2UgZW1wdHksIHNpbmdsZXRvbiwgYWxsLWFjY2VwdGVkLCBub25lLWFjY2VwdGVkLCBkdXBsaWNhdGUsIGFuZCBleHRyZW1lLXZhbHVlIGNhc2VzLgo1LiBQcm9tb3RlIGFyaXRobWV0aWMgYmVmb3JlIGl0IGNhbiBvdmVyZmxvdy4KNi4gRGlzdGluZ3Vpc2ggYXV4aWxpYXJ5IHNwYWNlIGZyb20gcmV0dXJuZWQgb3V0cHV0IHNwYWNlLgo3LiBTdGF0ZSB3aGV0aGVyIGEgcmFuZ2UgaXMgY2xvc2VkIGBbbCwgcl1gIG9yIGhhbGYtb3BlbiBgW2wsIHIpYC4KOC4gVGVzdCBhbGlhc2luZyBleHBlY3RhdGlvbnMgd2hlbiB0aGUgaW5wdXQgaXMgbXV0YWJsZS4KCiMjIyBSZWZlcmVuY2VzIGFuZCBwcm92ZW5hbmNlCgotIFtKYXZhIExhbmd1YWdlIFNwZWNpZmljYXRpb24sIEphdmEgU0UgMTcsIENoYXB0ZXIgMTA6IEFycmF5c10oaHR0cHM6Ly9kb2NzLm9yYWNsZS5jb20vamF2YXNlL3NwZWNzL2pscy9zZTE3L2h0bWwvamxzLTEwLmh0bWwpIOKAlCBhcnJheXMgYXMgb2JqZWN0cywgZml4ZWQgY29tcG9uZW50IGNvdW50LCB6ZXJvLWJhc2VkIGluZGljZXMsIGFuZCBjb21wb25lbnQgdHlwZXMuCi0gW0phdmEgTGFuZ3VhZ2UgU3BlY2lmaWNhdGlvbiwgSmF2YSBTRSAxNywgQ2hhcHRlciA0OiBUeXBlcywgVmFsdWVzLCBhbmQgVmFyaWFibGVzXShodHRwczovL2RvY3Mub3JhY2xlLmNvbS9qYXZhc2Uvc3BlY3MvamxzL3NlMTcvaHRtbC9qbHMtNC5odG1sKSDigJQgcHJpbWl0aXZlIHZhbHVlcyB2ZXJzdXMgcmVmZXJlbmNlIHZhbHVlcyBhbmQgYXJyYXkgcmVmZXJlbmNlIHNlbWFudGljcy4KLSBbSmF2YSBTRSAxNyBgamF2YS51dGlsLkFycmF5c2BdKGh0dHBzOi8vZG9jcy5vcmFjbGUuY29tL2VuL2phdmEvamF2YXNlLzE3L2RvY3MvYXBpL2phdmEuYmFzZS9qYXZhL3V0aWwvQXJyYXlzLmh0bWwpIOKAlCBjb3B5aW5nLCBmaWxsaW5nLCBjb21wYXJpc29uLCBzb3J0aW5nLCBhbmQgc2VhcmNoaW5nIHV0aWxpdGllcy4KClNvdXJjZSBpbnRha2U6CgotIGBEU0FfQXJyYXlzX0ZBQU5HX01lcm1haWRfUXVlc3Rpb25fV29ya2Jvb2subWRgLCBTSEEtMjU2IGA3MzVhMWQ1ZjkyMWU0OGExYmNhMzQ2NTk1MWVlMzdlYmJmM2E1OTQ2MjcyZTIzMDc5ZjEwNWYzMzA1ZmFmY2RhYCwgU2VjdGlvbiAxIGxpbmVzIDE0MeKAkzE4Mi4gU2VsZWN0ZWQgYXMgdGhlIGVkaXRhYmxlIHN0cnVjdHVyYWwgc291cmNlLgotIGBEU0FfQXJyYXlzX0ZBQU5HX1F1ZXN0aW9uX1dvcmtib29rX0V4cGFuZGVkLmRvY3hgLCBTSEEtMjU2IGAyNDAyZjQ1ZDE3NDIzYjY4OWIzNGZmMDNlNTVlYWE2YjUyYzg3MjBmZTZjN2M0ZTE2MmNiOTYyZWY1ZDhkMzhlYCwgZXF1aXZhbGVudCBTZWN0aW9uIDEgZXh0cmFjdGVkIGxpbmVzIDY14oCTMTA4LiBDb21wYXJlZCBhcyBhIGNvcnJvYm9yYXRpbmcgY29tcGFuaW9uOyBpdHMgMTE2LXBhZ2UgcmVuZGVyaW5nIHdhcyB2aXN1YWxseSBpbnNwZWN0ZWQgcmF0aGVyIHRoYW4gY29waWVkIGFzIGEgZHVwbGljYXRlIGd1aWRlLgoKVGhlIHNvdXJjZSBzZWN0aW9uIHN1cHBsaWVkIHRoZSB0b3BpYyBib3VuZGFyeSBhbmQgc2VlZCBjb25jZXB0cy4gVGhlIHJlcXVpcmVtZW50IGNvbnRyYWN0LCB3b3JrZWQgZXhhbXBsZXMsIHRyYWNlcywgZXhlY3V0YWJsZSBKYXZhLCBwcm9vZnMsIGRpYWdyYW1zLCBhbmQgdmFsaWRhdGlvbiBzdHJ1Y3R1cmUgaGVyZSBhcmUgbmV3bHkgYXV0aG9yZWQgc3R1ZHktZ3VpZGUgbWF0ZXJpYWwuIFNlY3Rpb24gMiwg4oCcUGF0dGVybi1SZWNvZ25pdGlvbiBEZWNpc2lvbiBUcmVlLOKAnSBpcyB0aGUgbmV4dCBBcnJheXMgc291cmNlIGJvdW5kYXJ5LCBub3QgcGFydCBvZiB0aGlzIHByb21vdGlvbi4K</script><script id="search-index" type="application/json">[{"level": "1", "id": "arrays--faang-deep-study-guide", "title": "Arrays — FAANG Deep Study Guide", "text": "Incremental status: Section 1 is processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates the same section. Later source sections remain queued."}, {"level": "2", "id": "study-index", "title": "Study index", "text": "- 1. Array mental model and invariants 1-array-mental-model-and-invariants - Requirement contract requirement-contract - Example 1 — reference identity is not value equality example-1--reference-identity-is-not-value-equality - Example 2 — subarray, subsequence, and subset example-2--subarray-subsequence-and-subset - Example 3 — stable in-place compaction example-3--stable-in-place-compaction - Example 4 — prefix sums without overflow example-4--prefix-sums-without-overflow - Interview checklist interview-checklist - References and provenance references-and-provenance"}, {"level": "2", "id": "1-array-mental-model-and-invariants", "title": "1. Array mental model and invariants", "text": "An array problem is usually not testing whether you can write a loop. It is testing whether you can state what each index means, which region is already correct, and which mutations are allowed. In Java, an array is an object with a fixed length and mutable component variables. An array variable stores a reference, so assignment copies the reference rather than the components."}, {"level": "3", "id": "requirement-contract", "title": "Requirement contract", "text": "Before choosing a pattern, make these decisions explicit: Question Precise contract Why it matters --- --- --- What is fixed? The Java array object's length ; not necessarily its component values Prevents treating an array like a growable list What is mutable? Components unless the problem forbids input mutation Separates in-place solutions from copy-producing solutions What is the output? Values, indices, a count, or the same mutated object Prevents returning the right values in the wrong form What does “contiguous” mean? Every index from left through right is included Distinguishes a subarray from a subsequence What order is required? Stable order, arbitrary order, sorted order, or none Determines whether swaps are legal What space is allowed? Count auxiliary storage separately from input/output storage Avoids calling an O n copy “in place” Can arithmetic overflow? Promote before addition when the mathematical range can exceed int Keeps a correct algorithm from producing incorrect Java values The core invariant template is: At the start of each iteration, name the processed region, state exactly what is true there, and identify the unread region. The iteration must preserve the statement while shrinking the unread region. mermaid flowchart TD A Read contract -- B{Input mutation allowed?} B -- No C Copy or separate output B -- Yes D{Relative order required?} D -- Yes E Stable write pointer D -- No F Swap or partition C -- G State invariant E -- G F -- G G -- H Prove boundaries and complexity"}, {"level": "3", "id": "example-1--reference-identity-is-not-value-equality", "title": "Example 1 — reference identity is not value equality", "text": "Given int a = {4, 1, 7} , execute int alias = a; alias 1 = 9; . Result: both variables refer to the same array object, so a is now 4, 9, 7 . By contrast, Arrays.copyOf a, a.length creates a distinct array with initially equal component values. mermaid flowchart LR A variable a -- X Array object: 4, 9, 7 B variable alias -- X C variable copy -- Y Different array: 4, 9, 7 Trace: Step a == alias a == copy a 1 Meaning ---: ---: ---: ---: --- After assignment true — 1 alias received the reference After alias 1 = 9 true — 9 Mutation is visible through either alias After copyOf true false 9 The new object has equal values but different identity After copy 1 = 5 true false 9 Copy mutation does not affect a Interview consequence: clarify whether “do not modify the input” forbids component mutation. Rebinding a local parameter does not mutate the caller's array, but changing a component does. java int original = {4, 1, 7}; int alias = original; alias 1 = 9; int copy = java.util.Arrays.copyOf original, original.length ; copy 1 = 5; // original is 4, 9, 7 ; copy is 4, 5, 7"}, {"level": "3", "id": "example-2--subarray-subsequence-and-subset", "title": "Example 2 — subarray, subsequence, and subset", "text": "For a = 3, -1, 4, 2 , these terms impose different constraints: Candidate Classification Reason --- --- --- -1, 4 Subarray, subsequence, and subset selection Uses the contiguous interval 1, 2 3, 4, 2 Subsequence and subset selection, not subarray Preserves order but skips index 1 4, 3 Subset selection only Selected values exist, but original order is reversed 3, 3 None for this input A value occurrence cannot be reused unless the input contains it twice mermaid flowchart TD S Subset selection: choose occurrences -- Q Subsequence: preserve index order Q -- A Subarray: preserve order and contiguity For length n : - non-empty subarrays: n n + 1 / 2 ; - subsequences: 2^n including the empty subsequence; - value subsets need multiplicity rules when duplicates exist, so “set” language can lose index identity. Memory trick: array = interval, sequence = ordered picks, subset = picks without an order promise ."}, {"level": "3", "id": "example-3--stable-in-place-compaction", "title": "Example 3 — stable in-place compaction", "text": "Move zeros to the end of 0, 3, 0, 3, 8 while preserving the relative order of nonzero values. Use read to scan every component and write to identify the next accepted position. Invariant before processing index read : 1. a 0..write contains exactly the nonzero values from original a 0..read , in original order. 2. write <= read . 3. a read..n has not been inspected. Trace: read value action write after array after action ---: ---: --- ---: --- 0 0 skip 0 0, 3, 0, 3, 8 1 3 write at 0 1 3, 3, 0, 3, 8 2 0 skip 1 3, 3, 0, 3, 8 3 3 write at 1 2 3, 3, 0, 3, 8 4 8 write at 2 3 3, 3, 8, 3, 8 fill — zero 3..5 3 3, 3, 8, 0, 0 mermaid flowchart LR P Accepted prefix: 3, 3, 8 -- Z Fill region: 0, 0 U Unread region -. shrinks each step .- P java static void stableMoveZeroes int a { int write = 0; for int value : a { if value != 0 a write++ = value; } while write < a.length a write++ = 0; } Correctness: every accepted value is appended once and in scan order, so the prefix is stable. When scanning ends, it contains all nonzero values. Filling the remaining suffix with zeros preserves the required length and yields the target partition. Complexity: O n time, O 1 auxiliary space. This minimizes conceptual complexity; an optional guarded assignment can reduce redundant writes but should not weaken the invariant."}, {"level": "3", "id": "example-4--prefix-sums-without-overflow", "title": "Example 4 — prefix sums without overflow", "text": "For a = 1 500 000 000, 1 500 000 000, -1 500 000 000 , the mathematical prefix sums are 0, 1 500 000 000, 3 000 000 000, 1 500 000 000 . The second running total exceeds Integer.MAX VALUE , so an int prefix silently wraps. Contract for half-open ranges: rangeSum left, right returns the sum of a left..right . mermaid flowchart LR P0 prefix 0 = 0 -- P1 prefix 1 = 1.5B P1 -- P2 prefix 2 = 3.0B P2 -- P3 prefix 3 = 1.5B P0 -. range 0 to 2 .- P2 Trace: Index consumed Value long prefix Meaning ---: ---: ---: --- 0 — 0 Empty prefix 1 1,500,000,000 1,500,000,000 a 0..1 2 1,500,000,000 3,000,000,000 a 0..2 3 -1,500,000,000 1,500,000,000 a 0..3 java static long prefixSums int a { long prefix = new long a.length + 1 ; for int i = 0; i < a.length; i++ { prefix i + 1 = prefix i + a i ; // long + int - long } return prefix; } static long rangeSum long prefix, int left, int right { if left < 0 left right right = prefix.length { throw new IndexOutOfBoundsException \"invalid half-open range\" ; } return prefix right - prefix left ; } Invariant after consuming i components: prefix i equals the mathematical sum of original a 0..i . Therefore subtracting two prefixes cancels the shared left portion. Build time and space are O n ; each validated range query is O 1 ."}, {"level": "3", "id": "interview-checklist", "title": "Interview checklist", "text": "1. Restate mutation, output, ordering, and range conventions. 2. Name indices by role read , write , left , right rather than letters without meaning. 3. State the invariant before coding. 4. Trace empty, singleton, all-accepted, none-accepted, duplicate, and extreme-value cases. 5. Promote arithmetic before it can overflow. 6. Distinguish auxiliary space from returned output space. 7. State whether a range is closed l, r or half-open l, r . 8. Test aliasing expectations when the input is mutable."}, {"level": "3", "id": "references-and-provenance", "title": "References and provenance", "text": "- Java Language Specification, Java SE 17, Chapter 10: Arrays https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html — arrays as objects, fixed component count, zero-based indices, and component types. - Java Language Specification, Java SE 17, Chapter 4: Types, Values, and Variables https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html — primitive values versus reference values and array reference semantics. - Java SE 17 java.util.Arrays https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Arrays.html — copying, filling, comparison, sorting, and searching utilities. Source intake: - DSA Arrays FAANG Mermaid Question Workbook.md , SHA-256 735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda , Section 1 lines 141–182. Selected as the editable structural source. - DSA Arrays FAANG Question Workbook Expanded.docx , SHA-256 2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e , equivalent Section 1 extracted lines 65–108. Compared as a corroborating companion; its 116-page rendering was visually inspected rather than copied as a duplicate guide. The source section supplied the topic boundary and seed concepts. The requirement contract, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 2, “Pattern-Recognition Decision Tree,” is the next Arrays source boundary, not part of this promotion."}]</script>
+<script>const input=document.querySelector('#guide-search'),results=document.querySelector('#results'),status=document.querySelector('#search-status'),index=JSON.parse(document.querySelector('#search-index').textContent);function esc(v){return v.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}function search(){const q=input.value.trim().toLowerCase();results.replaceChildren();if(!q){status.textContent='Type to search headings and section text.';return}const found=index.filter(x=>(x.title+' '+x.text).toLowerCase().includes(q)).slice(0,30);status.textContent=found.length?`${found.length} matching sections.`:'No matching section.';for(const x of found){const li=document.createElement('li'),a=document.createElement('a');a.href='#'+x.id;a.innerHTML=esc(x.title);li.append(a);results.append(li)}}input.addEventListener('input',search);</script>
+<script type="module">try{const{default:mermaid}=await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');document.querySelectorAll('pre.mermaid').forEach(pre=>{const div=document.createElement('div');div.className='mermaid';div.textContent=pre.textContent;pre.replaceWith(div)});mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'neutral'});await mermaid.run({querySelector:'.mermaid'})}catch(error){console.warn('Mermaid unavailable; source remains readable.',error)}</script></body></html>

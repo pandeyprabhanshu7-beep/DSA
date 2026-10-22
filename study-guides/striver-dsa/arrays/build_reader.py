@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""Build deterministic, searchable HTML from the canonical Arrays Markdown."""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import html
+import json
+import re
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+SOURCE = ROOT / "guide.md"
+TARGET = ROOT / "guide.html"
+
+
+def render_markdown(markdown_text: str) -> str:
+    return subprocess.run(
+        ["pandoc", "--from=gfm", "--to=html5", "--wrap=none"],
+        input=markdown_text,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout
+
+
+def source_headings(markdown_text: str) -> list[tuple[re.Match[str], int, int]]:
+    headings = []
+    in_fence = False
+    offset = 0
+    for line in markdown_text.splitlines(keepends=True):
+        if re.match(r"^\s*(```|~~~)", line):
+            in_fence = not in_fence
+        elif not in_fence:
+            match = re.match(r"^(#{1,3})\s+(.+?)\s*$", line.rstrip("\r\n"))
+            if match:
+                headings.append((match, offset, offset + len(line)))
+        offset += len(line)
+    return headings
+
+
+def search_index(markdown_text: str, rendered: str) -> list[dict[str, str]]:
+    rendered_headings = re.findall(r'<h([123]) id="([^"]+)">(.*?)</h\1>', rendered, re.DOTALL)
+    markdown_headings = source_headings(markdown_text)
+    if len(rendered_headings) != len(markdown_headings):
+        raise RuntimeError(f"heading mismatch: rendered={len(rendered_headings)} markdown={len(markdown_headings)}")
+    index = []
+    for position, (rendered_heading, source_heading) in enumerate(zip(rendered_headings, markdown_headings, strict=True)):
+        level, anchor, rendered_title = rendered_heading
+        _, _, source_end = source_heading
+        end = markdown_headings[position + 1][1] if position + 1 < len(markdown_headings) else len(markdown_text)
+        title = html.unescape(re.sub(r"<[^>]+>", "", rendered_title))
+        body = re.sub(r"[`*_>#|\[\]()]", " ", markdown_text[source_end:end])
+        index.append({"level": level, "id": anchor, "title": title, "text": re.sub(r"\s+", " ", body).strip()})
+    return index
+
+
+def build() -> None:
+    markdown_bytes = SOURCE.read_bytes()
+    markdown_text = markdown_bytes.decode("utf-8")
+    rendered = render_markdown(markdown_text)
+    index = search_index(markdown_text, rendered)
+    payload = base64.b64encode(markdown_bytes).decode("ascii")
+    digest = hashlib.sha256(markdown_bytes).hexdigest()
+    index_json = json.dumps(index, ensure_ascii=False).replace("</", "<\\/")
+    page = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="source-sha256" content="{digest}"><title>Arrays — FAANG Deep Study Guide</title>
+<style>
+:root{{--bg:#f6f8fc;--paper:#fff;--ink:#152033;--muted:#607087;--accent:#3157d5;--line:#dce2ec;--code:#111827;--code-ink:#e5e7eb}}
+*{{box-sizing:border-box}}html{{scroll-behavior:smooth}}body{{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}}
+.layout{{display:grid;grid-template-columns:minmax(240px,310px) minmax(0,920px);gap:2rem;max-width:1280px;margin:auto;padding:1rem}}aside{{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:1rem}}
+.brand{{font-weight:800;margin-bottom:.7rem}}input{{width:100%;padding:.72rem;border:1px solid var(--line);border-radius:9px;font:inherit}}#results{{list-style:none;padding:0;margin:.7rem 0}}#results li{{margin:.45rem 0}}#results a{{text-decoration:none;color:var(--accent);font-size:.92rem}}#search-status{{color:var(--muted);font-size:.82rem;margin:.45rem 0}}
+main{{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:clamp(1rem,4vw,3rem)}}h1,h2,h3{{line-height:1.25;scroll-margin-top:1rem}}h1{{border-bottom:2px solid var(--line);padding-bottom:.35rem}}h2{{margin-top:2.4rem}}a{{color:#264fd2}}table{{border-collapse:collapse;width:100%;display:block;overflow-x:auto}}th,td{{border:1px solid var(--line);padding:.55rem;text-align:left;vertical-align:top}}pre{{background:var(--code);color:var(--code-ink);padding:1rem;border-radius:10px;overflow:auto}}code{{font:.9em ui-monospace,SFMono-Regular,Consolas,monospace}}:not(pre)>code{{background:#edf0f6;padding:.12rem .3rem;border-radius:4px}}blockquote{{margin:1rem 0;padding:.35rem 1rem;border-left:4px solid var(--accent);background:#f0f4ff}}.mermaid{{overflow:auto;text-align:center}}
+@media(max-width:820px){{.layout{{display:block;padding:.5rem}}aside{{position:relative;max-height:none;margin-bottom:.75rem}}main{{padding:1rem}}#results{{max-height:12rem;overflow:auto}}}}@media print{{aside{{display:none}}.layout{{display:block}}main{{border:0}}}}
+</style></head><body><div class="layout"><aside><div class="brand">Arrays Deep Study Guide</div><label for="guide-search">Search this guide</label><input id="guide-search" type="search" placeholder="Try: invariant, subarray, overflow" autocomplete="off"><div id="search-status">Type to search headings and section text.</div><ul id="results"></ul><a href="#{index[0]['id']}">Back to top</a></aside><main id="content">{rendered}</main></div>
+<script id="source-markdown" type="application/octet-stream">{payload}</script><script id="search-index" type="application/json">{index_json}</script>
+<script>const input=document.querySelector('#guide-search'),results=document.querySelector('#results'),status=document.querySelector('#search-status'),index=JSON.parse(document.querySelector('#search-index').textContent);function esc(v){{return v.replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]));}}function search(){{const q=input.value.trim().toLowerCase();results.replaceChildren();if(!q){{status.textContent='Type to search headings and section text.';return}}const found=index.filter(x=>(x.title+' '+x.text).toLowerCase().includes(q)).slice(0,30);status.textContent=found.length?`${{found.length}} matching sections.`:'No matching section.';for(const x of found){{const li=document.createElement('li'),a=document.createElement('a');a.href='#'+x.id;a.innerHTML=esc(x.title);li.append(a);results.append(li)}}}}input.addEventListener('input',search);</script>
+<script type="module">try{{const{{default:mermaid}}=await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');document.querySelectorAll('pre.mermaid').forEach(pre=>{{const div=document.createElement('div');div.className='mermaid';div.textContent=pre.textContent;pre.replaceWith(div)}});mermaid.initialize({{startOnLoad:false,securityLevel:'strict',theme:'neutral'}});await mermaid.run({{querySelector:'.mermaid'}})}}catch(error){{console.warn('Mermaid unavailable; source remains readable.',error)}}</script></body></html>"""
+    TARGET.write_text(page, encoding="utf-8")
+    print(f"built {TARGET.name} sha256={digest} headings={len(index)}")
+
+
+if __name__ == "__main__":
+    build()

@@ -11,6 +11,7 @@ Canonical interview-study guides live here. Each topic keeps one latest Markdown
 | Trees & BST | [Guide](trees-bst/markdown/Striver_Trees_BST_FINAL_Deep_Dive.md) | [Reader](trees-bst/html/index.html) | traversal reasoning, recursion, BST and tree interview patterns |
 | HashMap & Hashing | [Guide](hashmap-hashing/markdown/HashMap_Hashing_FINAL_Deep_Dive.md) | [Reader](hashmap-hashing/html/index.html) | frequency, lookup, prefix-state and hashing patterns |
 | Graph DSA | [Guide](graph-dsa/markdown/Striver_Graph_DSA_FINAL_Deep_Dive.md) | [Reader](graph-dsa/html/index.html) | traversal, topo, shortest paths, MST/DSU, SCC and low-link |
+| Arrays | [Guide](arrays/guide.md) | [Reader](arrays/guide.html) | array contracts, invariants, sequence taxonomy, stable compaction and overflow-safe prefixes |
 
 Graph also contains a focused [Bellman–Ford Markdown deep dive](graph-dsa/markdown/bellman-ford-deep-dive.md) with a matching [HTML reader](graph-dsa/html/bellman-ford-deep-dive.html).
 
@@ -33,5 +34,7 @@ The HTML readers provide responsive layouts, searchable section navigation, tabl
 - Do not create historical duplicates such as `V2`, `V3`, `FINAL-2`, or `ULTIMATE`.
 - A focused subtopic deep dive is acceptable only when it adds substantial material and its Markdown/HTML pair is maintained intentionally.
 - Preserve source attribution boundaries: external references validate algorithms and claims; added examples, memory tricks, proofs, diagrams, and interview notes are labeled as study-guide material.
+
+The Arrays guide is incremental: source Section 1 is promoted and later sections remain queued.
 
 See [STATUS.md](STATUS.md) for promotion and deep-enrichment progress.
