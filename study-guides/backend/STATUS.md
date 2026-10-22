@@ -1,10 +1,10 @@
 # Backend Enrichment Status
 
-Last updated: 2026-10-21.
+Last updated: 2026-10-22.
 
 ## Spring AI and Python APIs
 
-State: **IN PROGRESS; Section 1 promoted**.
+State: **IN PROGRESS; Sections 1–2 promoted**.
 
 Canonical pair:
 
@@ -20,12 +20,13 @@ Source comparison:
 Completed section:
 
 1. **Choose the layer before choosing the library** (source lines 6–30) — requirements and ownership boundaries, four selection examples, request/release traces, minimal Java/Python contracts, current primary references, and explicit framework-escalation tests.
+2. **Python library map: purpose, ownership and trade-offs** (source lines 31–56) — all 17 source projects retained as a responsibility map; four selection proofs for a classical baseline, pinned local model, bounded asynchronous API and replay-safe durable graph; paired Java/Python contracts; and refreshed primary references.
 
 Validation:
 
-- Java 17 source-file launch and Python standard-library execution passed the same selection and identity scenarios.
-- Deterministic reader generation passed exact Markdown recovery, unique IDs, internal fragments, local links, search-index targets, balanced fences, Mermaid-source counts, JSON parsing, and idempotent rebuild checks.
+- Java 17 source-file launch passed 9 layer-selection plus 16 library-selection scenario groups; Python 3 passed the corresponding 9 plus 15 groups.
+- Deterministic reader generation passed exact 23,716-byte Markdown recovery, SHA-256 `384a45323cdee287d87170595abdcf022cf1706c65e98eaf16ca38029fea22e2`, 61 unique IDs, 3 search entries, 28 balanced fence markers, 9 Mermaid sources, internal fragments, local links, JSON parsing, reader JavaScript parsing and idempotent rebuild identity.
 - The live literal DSA Java-marker audit remains 170.
 - Framework dependency compilation, live model/provider calls, browser/accessibility integration, and rendered Mermaid QA were unavailable and are not represented as passes.
 
-Next action: rotate domains fairly. On the next Spring/Python turn, process Section 2, **Python library map: purpose, ownership and trade-offs**, source lines 31–56. Do not imply the 25-section source is complete.
+Next action: rotate domains fairly to Arrays Section 2, source lines 183–229. On the next Spring/Python turn, process Section 3, **Java library map and how it differs**, beginning at source line 57. Do not imply the 25-section source is complete.
