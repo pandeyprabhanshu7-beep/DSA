@@ -1,10 +1,10 @@
 # AI Enrichment Status
 
-Last updated: 2026-10-21.
+Last updated: 2026-10-22.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapter 1 complete**.
+State: **PROMOTED incrementally; Chapters 1–2 complete**.
 
 Canonical pair:
 
@@ -17,8 +17,10 @@ Source comparison:
 - Used bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`, as the editable companion source.
 - Compared `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not a competing canonical edition.
 - Processed only Chapter 1, bounded by the Chapter 2 heading. It now includes four authority-selection examples, evidence and mutation traces, invariants, failure review, current primary references, and a Java 17 routing contract.
+- Compared Chapter 2 in the master and bundled editable companion; their token, embedding, and generation material agrees, so no duplicate guide was created.
+- Deepened Chapter 2 with four model-mechanics examples, token and migration traces, four diagrams, current primary references, and an executable Java 17 contract for context admission, embedding compatibility, guarded cosine similarity, decoding metadata, and semantic output acceptance.
 
-Next bounded section: Chapter 2, **Model mechanics you need for system design**.
+Next bounded section: Chapter 3, **Embeddings and retrieval engineering**.
 
 ## AI foundations, RAG and CAG
 
