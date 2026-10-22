@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "8b056560c0f8f1ff09e9aa689c1e8f5c91a57b35",
+  "last_successful_commit": "7dfdf4ba0dbac514bd94b14170a64e05f51723d6",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -862,11 +862,11 @@
     }
   ],
   "next_batch": {
-    "source": "DSA_Arrays_FAANG_Mermaid_Question_Workbook.md and DSA_Arrays_FAANG_Question_Workbook_Expanded.docx",
-    "section": "First substantive paired arrays section after exact-source comparison",
+    "source": "ai_platform_master_guide.html with ai_platform_engineering_complete_bundle.zip companion",
+    "section": "Chapter 2: Model mechanics you need for system design",
     "status": "QUEUED",
-    "estimated_tokens": 8200,
-    "estimate_method": "Heuristic only for one bounded DSA arrays paired-source comparison and enrichment pass with source, code, reader, validation and checkpoint reserves. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 8800,
+    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 2 pass with source review, research, examples, code, reader, validation and checkpoint reserves. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
@@ -878,7 +878,8 @@
     "ai_platform": "Three source artifacts were materialized and hashed; the expanded 21-chapter master was selected, bundle member 02_rag_mcp.md was retained as the editable companion, and the separate illustrated HTML was byte-identical to the bundle member. Chapter 1 was expanded into four authority-selection examples, requirements, traces, a Java 17 contract and current primary references. Source-file launch passed 14 scenario groups; the deterministic reader passed exact 12814-character payload equality, SHA-256 e37b9b2d7f4f73cceec4ad9a6bb330f3e10fe5b22fe6f68f90b6e69a39fed31e, 30 unique IDs, 10 search entries, local links/fragments, 6 balanced fences and 4 Mermaid sources. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
     "system_design_blueprints": "Library revision 1 was read and hashed; Blueprint 1 source lines 5-253 were expanded into explicit plane and consistency contracts plus four worked traces. Java 17 source-file launch passed 13 scenario groups. Deterministic reader generation passed exact 12850-byte payload equality, SHA-256 28114302e9d515af56b4fbe90761fca019e81246bf388520894dfbbbbc2ad007, 29 unique IDs, 2 search entries, local links/fragments, 14 balanced fences and 4 Mermaid sources. Seven content files were published atomically with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable; the live canonical Java-marker audit remains 170.",
     "spring_ai_python": "The selected ZIP passed integrity and path-traversal checks. Its editable atlas_guides/spring_ai_python_api_interview_guide.md member has SHA-256 af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553; its generated HTML has SHA-256 6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3 and is byte-identical to the standalone HTML, so no duplicate edition was promoted. Section 1 source lines 6-30 was expanded into requirements, four worked layer-selection examples, traces, four Mermaid diagrams and paired Java/Python contracts. Java 17 and Python each passed 9 scenario groups. Deterministic reader generation passed exact 10385-byte payload equality, SHA-256 637c2957ada128849d2ae7f5b4b240c3d9221425e23edf70ac45f244aa7972d5, 20 unique IDs, 2 search entries, local links/fragments, 10 balanced fence markers, 4 Mermaid sources and deterministic HTML SHA-256 ef7c74c68c4ee05007ca9158c7c697b975e06487411f6c4c9ac7bf0c0cc5d5c1. Standalone javac, framework dependency compilation, live model/provider integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-    "last_processed_at": "2026-10-21T11:18:08-04:00"
+    "arrays": "The paired arrays workbooks were materialized and hashed. Their first substantive section agrees, so the editable Markdown was selected and the DOCX retained as corroboration rather than duplicated. Java 17 source launch passed 17 scenario groups. Deterministic reader generation passed exact 10554-byte Markdown recovery, SHA-256 bad9f4c2618d36c90e060049d669c44a8768db345475c62ce1381a91ef295ea2, 46 unique IDs, 10 search entries, fragments, 8 balanced fences, 5 Mermaid sources, parseable inline JavaScript and deterministic rebuild identity. Seven content files were atomically published with an expected-head guard. The DOCX's 116 rendered pages were visually inspected. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+    "last_processed_at": "2026-10-22T13:17:55-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-21T08:11:37-04:00",
@@ -967,6 +968,23 @@
     "next_section": "Section 2, Python library map and when each tool belongs, source lines 31-56; retain after fair rotation to DSA arrays",
     "estimated_next_tokens": 8200,
     "estimate_method": "Heuristic only for one bounded DSA arrays paired-source pass; no reliable quota percentages were exposed"
+  },
+  "dsa_arrays_intake_checkpoint": {
+    "last_processed_at": "2026-10-22T13:17:55-04:00",
+    "selected_markdown_library_file_id": "libfile_ec0215b953208191b254acfc4fc39f1a",
+    "selected_markdown_file_id": "file_00000000a05881fdb093fccba59318e6",
+    "selected_markdown_sha256": "735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda",
+    "corroborating_docx_library_file_id": "libfile_7956d8107f2081919f2bf02bb4e620ec",
+    "corroborating_docx_file_id": "file_00000000672882118a9ca69f00c30be7",
+    "corroborating_docx_sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
+    "canonical_markdown_sha256": "bad9f4c2618d36c90e060049d669c44a8768db345475c62ce1381a91ef295ea2",
+    "processed": "Section 1, Array Mental Model and Invariants: Markdown lines 141-182 and DOCX extracted lines 65-108, bounded by Section 2",
+    "status": "IN_PROGRESS",
+    "validation": "Java 17 source-file launch passed 17 scenario groups. Deterministic reader generation passed exact 10554-byte Markdown recovery, 46 unique IDs, 10 search entries, links/fragments, 8 balanced fences, 5 Mermaid sources, parseable inline JavaScript and deterministic rebuild identity. Seven content files were published atomically with an expected-head guard. All 116 rendered DOCX pages were visually inspected. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
+    "content_commit": "7dfdf4ba0dbac514bd94b14170a64e05f51723d6",
+    "next_section": "Section 2, Pattern-Recognition Decision Tree, Markdown lines 183-229 / DOCX extracted lines 93-135; process after fair domain rotation",
+    "estimated_next_tokens": 8800,
+    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 2 pass; no reliable quota percentages were exposed"
   }
 }
 

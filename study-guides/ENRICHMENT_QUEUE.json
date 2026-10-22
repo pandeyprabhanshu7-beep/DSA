@@ -269,7 +269,10 @@
       "version_id": null,
       "modified_at": "2026-09-08T00:10:00.740223Z",
       "size_bytes": 229697,
-      "status": "DISCOVERED"
+      "status": "IN_PROGRESS",
+      "last_read_at": "2026-10-22T13:17:55-04:00",
+      "sha256": "735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda",
+      "selection": "Selected as the editable structural source; Section 1 lines 141-182 compared and promoted, bounded by Section 2 at line 183."
     },
     {
       "name": "Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
@@ -341,7 +344,10 @@
       "version_id": "1",
       "modified_at": "2026-09-03T01:55:56.718502Z",
       "size_bytes": 125274,
-      "status": "DISCOVERED"
+      "status": "IN_PROGRESS",
+      "last_read_at": "2026-10-22T13:17:55-04:00",
+      "sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
+      "selection": "Compared as the corroborating companion; equivalent Section 1 extracted lines 65-108 agrees with the Markdown source. All 116 rendered pages were visually inspected; no duplicate guide was created."
     },
     {
       "name": "AI_RAG_CAG_Deep_Learning_Developer_Guide.docx",
@@ -490,14 +496,18 @@
       "id": "dsa-arrays",
       "domain": "DSA",
       "canonical_target": "study-guides/striver-dsa/arrays/",
-      "target_exists": false,
-      "status": "DISCOVERED",
+      "target_exists": true,
+      "status": "IN_PROGRESS",
       "source_names": [
         "DSA_Arrays_FAANG_Mermaid_Question_Workbook.md",
         "DSA_Arrays_FAANG_Question_Workbook_Expanded.docx"
       ],
-      "last_processed_at": null,
-      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
+      "last_processed_at": "2026-10-22T13:17:55-04:00",
+      "processed_sections": [
+        "Section 1: Array Mental Model and Invariants — Markdown lines 141-182 / DOCX extracted lines 65-108"
+      ],
+      "last_successful_commit": "7dfdf4ba0dbac514bd94b14170a64e05f51723d6",
+      "next_action": "After fair domain rotation, deepen Section 2: Pattern-Recognition Decision Tree, Markdown lines 183-229 / DOCX extracted lines 93-135.",
       "priority": 6
     },
     {
@@ -986,7 +996,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources and the confirmed database source are processed through their source ends. AI-platform Chapter 1 is promoted; rotate domains fairly, with Chapter 2 retained as the next AI-platform section.",
+    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources and the confirmed database source are processed through their source ends. Arrays Section 1 is promoted; rotate to AI-platform Chapter 2 before returning to Arrays Section 2.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1091,15 +1101,16 @@
       "Database/caching Section 43: absolute-rate capacity, index read/write evidence, revision and membership publication, and pool/lease/transaction/network authority boundaries",
       "AI platform Chapter 1: authority boundaries among prompting, RAG, fine-tuning and tool/MCP use",
       "System-design Blueprint 1: global video streaming contracts, four worked traces, executable Java and failure evidence",
-      "Spring AI/Python Section 1: minimal layer selection, four architecture cases, paired executable contracts and release identity"
+      "Spring AI/Python Section 1: minimal layer selection, four architecture cases, paired executable contracts and release identity",
+      "DSA Arrays Section 1: array identity, sequence taxonomy, stable in-place compaction and overflow-safe prefix sums"
     ],
-    "processed_section": "atlas_guides/spring_ai_python_api_interview_guide.md Section 1, Choose the layer before choosing the library, source lines 6-30 (SHA-256 af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553), bounded by Section 2",
-    "validation": "The bundle and standalone HTML were materialized and hashed; ZIP integrity/traversal checks passed and the standalone HTML was byte-identical to the bundle member. Java 17 source-file launch and Python 3 execution each passed 9 scenario groups. Deterministic reader generation passed exact 10385-byte payload equality, SHA-256 637c2957ada128849d2ae7f5b4b240c3d9221425e23edf70ac45f244aa7972d5, 20 unique IDs, 2 search entries, local links/fragments, 10 balanced fences and 4 Mermaid sources. Eight content files were atomically published with an expected-head guard. JSON and git diff checks passed; the live canonical Java-marker audit remains 170. Standalone javac, framework dependency compilation, live model/provider integration, browser, assistive-technology and rendered Mermaid QA were unavailable.",
-    "estimated_next_tokens": 8200,
-    "estimate_method": "Heuristic only for the first bounded DSA arrays source comparison and enrichment pass with Java, reader, validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "8b056560c0f8f1ff09e9aa689c1e8f5c91a57b35",
-    "last_processed_at": "2026-10-21T11:18:08-04:00",
-    "next_batch_decision": "Section 1 is the sole bounded section in this pass. Exact weekly/hourly quota percentages were not exposed. Frontend confirmed sources are exhausted, so rotate fairly to the first DSA arrays section; retain Spring/Python Section 2 lines 31-56 for the next backend turn."
+    "processed_section": "DSA Arrays Section 1, Array Mental Model and Invariants: selected Markdown lines 141-182 (SHA-256 735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda), corroborated by DOCX extracted lines 65-108 (SHA-256 2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e), bounded by Section 2",
+    "validation": "Both paired sources were materialized and hashed; their Section 1 substance agrees, the editable Markdown was selected, and all 116 DOCX pages were visually inspected. Java 17 source-file launch passed 17 scenario groups. Deterministic reader generation passed exact 10554-byte Markdown recovery, SHA-256 bad9f4c2618d36c90e060049d669c44a8768db345475c62ce1381a91ef295ea2, 46 unique IDs, 10 search entries, local fragments, 8 balanced fences, 5 Mermaid sources, parseable inline JavaScript and deterministic rebuild identity. Seven content files were atomically published with an expected-head guard. JSON and git diff checks passed; the live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
+    "estimated_next_tokens": 8800,
+    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 2 pass with source review, research, examples, code, reader, validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "7dfdf4ba0dbac514bd94b14170a64e05f51723d6",
+    "last_processed_at": "2026-10-22T13:17:55-04:00",
+    "next_batch_decision": "Arrays Section 1 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to AI-platform Chapter 2 next; Arrays Section 2 lines 183-229 remains queued."
   }
 }
 

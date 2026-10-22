@@ -9,7 +9,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | dsa-stack-queue | DSA | PROMOTED | `study-guides/striver-dsa/stack-queue/` | Take_U_Forward_Stack_Queue_Complete_Deep_Guide_v2.md<br>Take_U_Forward_Stack_Queue_Mermaid_Guide.md<br>Take_U_Forward_Stack_Queue_Java_Deep_Workbook.docx<br>Stack_Queue_FAANG_Question_Workbook_Expanded.docx |
 | dsa-linked-list | DSA | PROMOTED | `study-guides/striver-dsa/linked-list/` | Repository source or earlier analysis; locate as needed |
 | dsa-hashing | DSA | PROMOTED | `study-guides/striver-dsa/hashmap-hashing/` | Repository source or earlier analysis; locate as needed |
-| dsa-arrays | DSA | DISCOVERED | `study-guides/striver-dsa/arrays/` | DSA_Arrays_FAANG_Mermaid_Question_Workbook.md<br>DSA_Arrays_FAANG_Question_Workbook_Expanded.docx |
+| dsa-arrays | DSA | IN_PROGRESS | [`study-guides/striver-dsa/arrays/`](striver-dsa/arrays/) | DSA_Arrays_FAANG_Mermaid_Question_Workbook.md<br>DSA_Arrays_FAANG_Question_Workbook_Expanded.docx |
 | advanced-trees | DSA | IN_PROGRESS | `study-guides/local-project-notes/advanced-trees/` | Uploaded `untitled.zip` Advanced_Trees_FAANG_Mermaid_Study_Guide.md (sections 3–10 promoted)<br>Tree_Advanced_FAANG_Study_Guide.docx<br>advanced_trees_interview_guide.md |
 | ai-foundations-rag-cag | AI | PROMOTED | `study-guides/ai/foundations-rag-cag/` | AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md<br>AI_RAG_CAG_Deep_Learning_Developer_Guide.docx |
 | ai-platform | AI | DISCOVERED | `study-guides/ai/platform/` | ai_cicd_spring_python_guides_complete.zip<br>ai_platform_master_guide.html<br>ai_platform_engineering_complete_bundle.zip<br>ai_platform_engineering_illustrated.html |
@@ -56,7 +56,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | Angular_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.775386Z | PROMOTED — Q1–Q74, rapid-fire items 1–39 and Final Revision Sheet processed through source end at line 1751 |
 | JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.753196Z | PROMOTED — Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet compared/promoted through source end at line 2041 |
 | DSA_Tree_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.743385Z | DISCOVERED |
-| DSA_Arrays_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.740223Z | DISCOVERED |
+| DSA_Arrays_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.740223Z | IN PROGRESS — selected editable source; Section 1 lines 141–182 promoted |
 | Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md | 2026-09-07T23:36:35.951649Z | DISCOVERED |
 | Take_U_Forward_Stack_Queue_Mermaid_Guide.md | 2026-09-07T18:00:03.911417Z | DISCOVERED |
 | GITHUB_PUSH_COMMANDS.md | 2026-09-07T17:39:56.663357Z | DISCOVERED |
@@ -64,7 +64,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | enterprise-rag-assistant.zip | 2026-09-07T17:39:49.442548Z | DISCOVERED |
 | Take_U_Forward_Stack_Queue_Java_Deep_Workbook.docx | 2026-09-07T17:07:54.535717Z | DISCOVERED |
 | Stack_Queue_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T05:33:07.971008Z | DISCOVERED |
-| DSA_Arrays_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T01:55:56.718502Z | DISCOVERED |
+| DSA_Arrays_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T01:55:56.718502Z | IN PROGRESS — Section 1 extracted lines 65–108 corroborated; 116-page rendering inspected |
 | AI_RAG_CAG_Deep_Learning_Developer_Guide.docx | 2026-09-02T04:40:53.490553Z | READY — compared; two useful original figures retained |
 | Angular_Interview_Workbook.docx | 2026-08-31T14:40:43.673563Z | PROMOTED — Q1–Q74, rapid-fire items 1–39 and Final Revision Sheet processed through extracted source end at line 1177 |
 | JavaScript_HTML_CSS_Interview_Workbook.docx | 2026-08-31T14:40:39.905787Z | PROMOTED — corroborated Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet through rendered source end at line 1445 |
@@ -100,7 +100,7 @@ See [pipeline rules](ENHANCEMENT_PIPELINE.md) and [machine-readable queue](ENRIC
 
 Angular Q1–Q74 plus rapid-fire items 1–39 are tracked at [frontend/angular](frontend/angular/). The fourth rapid-fire module was reconciled from both workbooks on 2026-10-14; the Final Revision Sheet remains unprocessed.
 
-JavaScript/HTML/CSS Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The final trigger-map/speaking-template module was reconciled from both workbooks on 2026-10-16, completing this paired-source intake. Database/caching Sections 1–44 are tracked at [databases/caching-java](databases/caching-java/); its confirmed source is exhausted through line 2402. Angular's paired source is also exhausted. AI-platform Chapter 1 is promoted, System-design Blueprint 1 is promoted, and Spring AI/Python Section 1 is promoted. Their next bounded sections remain queued after fair domain rotation. The next intake is the paired DSA arrays source comparison. The wider collection and 170-item Java-placeholder backlog remain incomplete.
+JavaScript/HTML/CSS Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The final trigger-map/speaking-template module was reconciled from both workbooks on 2026-10-16, completing this paired-source intake. Database/caching Sections 1–44 are tracked at [databases/caching-java](databases/caching-java/); its confirmed source is exhausted through line 2402. Angular's paired source is also exhausted. AI-platform Chapter 1, System-design Blueprint 1, Spring AI/Python Section 1 and DSA Arrays Section 1 are promoted. Rotate next to AI-platform Chapter 2; Arrays Section 2 remains queued after fair domain rotation. The wider collection and 170-item Java-placeholder backlog remain incomplete.
 
 
 
