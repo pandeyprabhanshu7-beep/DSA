@@ -1,6 +1,6 @@
 # System Design Enrichment Status
 
-Last updated: 2026-10-21.
+Last updated: 2026-10-22.
 
 ## Fundamentals
 
@@ -41,7 +41,7 @@ Next action:
 
 ## Interview blueprints
 
-State: **PROMOTED; four source blueprints remain**.
+State: **PROMOTED; three source blueprints remain**.
 
 Canonical pair:
 
@@ -50,12 +50,15 @@ Canonical pair:
 
 Blueprint 1, **Global video streaming**, promotes source lines 5–253 from `top_5_system_design_interview_blueprints.md` revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. It separates control/media/event planes and deepens the source with four worked traces: CDN capacity/locality, expiring authorized delivery, buffer-aware ABR, and sequence-ordered progress that permits backward seek.
 
+Blueprint 2, **Real-time ride hailing**, promotes source lines 254–459 from the same confirmed revision. It defines freshness and latency contracts, separates ephemeral geo projection from authoritative assignment, and deepens four traces: expanding-cell candidate search, out-of-order locations, a single-winner offer race, and snapshot-plus-version reconnect with idempotent payment handoff.
+
 Validation for this promotion:
 
 - Java 17 source-file launch passed the capacity, cache-miss, ABR, progress-ordering and invalid-input scenario groups in `VideoPlaybackContracts.java`.
+- Java 17 source-file launch passed 22 ride-hailing scenario groups covering cell estimates, freshness/order, single-winner assignment, lost-response retry, reconnect ordering, payment identity and invalid inputs.
 - The deterministic reader embeds the exact Markdown payload and exposes a section search index; static ID, fragment, relative-link, JSON, fence and Mermaid-source checks passed.
-- Primary references were refreshed against official Netflix Open Connect, Apple HLS, RFC 8216/RFC 9317, and AWS CloudFront private-content documentation on 2026-10-21.
+- Ride-hailing primary references were refreshed against current H3, Uber Engineering, Redis, PostgreSQL, Apache Kafka, RFC 6455 and Stripe documentation on 2026-10-22.
 - The live literal DSA Java-marker audit is 170 (Graph 51, Stack/Queue 18, Linked List 27, Trees/BST 47, Hashing 27).
 - Standalone `javac`, browser/assistive-technology integration, and rendered Mermaid visual QA were unavailable and are not represented as passes.
 
-Next action: rotate domains fairly. On the next blueprints pass, process source Blueprint 2, **Real-Time Ride-Hailing Service**, lines 254–459. Do not imply the five-blueprint source is complete before Blueprints 2–5 are promoted.
+Next action: rotate domains fairly to Spring AI/Python Section 2, source lines 31–56. On the next blueprints pass, process source Blueprint 3 beginning at line 460. Do not imply the five-blueprint source is complete before Blueprints 3–5 are promoted.

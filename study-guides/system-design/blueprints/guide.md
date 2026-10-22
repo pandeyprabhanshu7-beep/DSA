@@ -1,6 +1,6 @@
 # System Design Blueprints
 
-This is the canonical incremental guide. Each blueprint must make its requirements, arithmetic, ownership boundaries, failure behavior, and verification evidence explicit. This pass processes only source Blueprint 1 (lines 5–253); the ride-hailing blueprint begins the next source section.
+This is the canonical incremental guide. Each blueprint must make its requirements, arithmetic, ownership boundaries, failure behavior, and verification evidence explicit. Source Blueprints 1–2 are promoted; Blueprints 3–5 remain queued.
 
 ## Blueprint 1 — Global video streaming
 
@@ -201,4 +201,214 @@ The key invariant is subtle: newer progress sequence wins even if its position i
 
 ### 11. Source provenance and continuation
 
-The confirmed Library source is `top_5_system_design_interview_blueprints.md`, revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. This section promotes source lines 5–253 and adds explicit contracts, four worked examples, executable Java, failure tests, and refreshed primary references. Source Blueprint 2, **Real-Time Ride-Hailing Service**, begins at line 254 and remains queued after fair domain rotation. The five-blueprint collection is not complete.
+The confirmed Library source is `top_5_system_design_interview_blueprints.md`, revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. This section promotes source lines 5–253 and adds explicit contracts, four worked examples, executable Java, failure tests, and refreshed primary references.
+
+## Blueprint 2 — Real-time ride hailing
+
+### 1. Define “real time” and the ownership boundary
+
+A rider requests a priced trip, the system searches sufficiently fresh available drivers, one driver accepts, both parties observe ordered trip state, and completion triggers one logical payment. “Real time” is not zero latency: give each promise a measurable bound.
+
+| Contract | Example target | Correctness rule |
+|---|---:|---|
+| driver location | emitted every 4 s; candidate age at decision ≤ 10 s | an older sequence never replaces a newer location; stale drivers are excluded |
+| dispatch | accepted offer or explicit no-match within 8 s | a geo result is only a candidate; authoritative state grants ownership |
+| offer | expires after 6 s | acceptance after expiry or for a superseded attempt loses |
+| trip updates | ordered per trip; reconnect snapshot within 2 s | client applies only a version greater than its last applied version |
+| completion/payment | asynchronous after durable trip completion | one stable idempotency key per completion version |
+
+Separate three data classes because they have different durability and consistency needs:
+
+- **location telemetry** is write-heavy, replaceable and TTL-bound;
+- **driver/trip ownership** is small, durable and strongly coordinated within a market;
+- **events** are durable and replayable for push, payment, support and analytics.
+
+```mermaid
+flowchart TB
+  Apps["Rider and driver apps"] --> Edge["API and realtime gateways"]
+  Edge --> Loc["Location ingest"] --> Geo[("TTL geo index")]
+  Edge --> Ride["Ride command service"] --> Dispatch["Market dispatch owner"]
+  Dispatch --> Geo
+  Dispatch --> Auth[("Authoritative driver and trip state")]
+  Auth --> Log[("Ordered trip event log")]
+  Log --> Push["Realtime fanout"] --> Apps
+  Log --> Pay["Payment and reconciliation"]
+```
+
+Partition first by market/city because trips are local. Route every command for one trip and its assigned driver to the same home market. Cross-region identity, configuration and analytics can remain global; dispatch ownership should not require a cross-ocean round trip.
+
+### 2. Example 1 — capacity and expanding-cell search
+
+At five million active drivers sending one GPS fix every four seconds:
+
+\[
+QPS_{location}=\frac{5{,}000{,}000}{4}=1.25\text{ million updates/s}
+\]
+
+If an event averages 180 bytes before replication and indexing, ingress is about 225 MB/s or 19.44 TB/day. Retaining every raw fix for seven days would be roughly 136 TB before replication and compression. The hot path should therefore keep only the latest useful fix per driver with a TTL; a stream/object-store pipeline can retain sampled or policy-approved history separately.
+
+Map a pickup to a cell, inspect nearby cells, filter by freshness and availability, and expand only until the candidate budget or radius limit is met. For an ideal hexagonal disk, `1 + 3k(k + 1)` estimates 1, 7, 19 and 37 cells for rings 0–3. H3 traversal can encounter pentagonal distortion, so that formula is a capacity estimate—not an API cardinality promise.
+
+```mermaid
+flowchart TD
+  P["Pickup cell: k=0"] --> F0{"Enough fresh candidates?"}
+  F0 -->|yes| Rank["Route/ETA rank and cap offers"]
+  F0 -->|no| R1["Add ring k=1"] --> F1{"Enough?"}
+  F1 -->|yes| Rank
+  F1 -->|no| RN["Expand within latency/radius budget"] --> Rank
+```
+
+Trace for pickup `p7` at decision time `12:00:10`:
+
+| Candidate | Cell ring | Last fix | Driver state | Result |
+|---|---:|---:|---|---|
+| d11 | 0 | `12:00:04` | available | keep; age 6 s |
+| d12 | 1 | `11:59:57` | available | reject; age 13 s |
+| d13 | 1 | `12:00:07` | assigned | reject; geo index is stale |
+| d14 | 2 | `12:00:05` | available | keep; then rank by route ETA |
+
+Straight-line or cell distance narrows the set; road ETA makes the final ranking. Cap concurrent offers so one request does not fan out to hundreds of drivers.
+
+### 3. Example 2 — out-of-order location must not move a driver backward
+
+Mobile networks reorder and duplicate uploads. Give each driver session a monotonically increasing sequence and retain both device observation time and server receipt time. The write condition is “newer session/sequence,” not “arrived last.”
+
+| Arrival | Fix `(session, seq, observedAt, cell)` | Stored result |
+|---|---|---|
+| first | `(s9, 40, 12:00:04, A)` | accept A |
+| delayed | `(s9, 39, 12:00:03, B)` | ignore older sequence |
+| duplicate | `(s9, 40, 12:00:04, A)` | idempotent no-op |
+| new | `(s9, 41, 12:00:08, C)` | replace with C |
+
+On a driver-app restart, issue a new server-authorized session/epoch; otherwise sequence `1` could lose forever to the previous session's `41`. Do not trust a handset clock alone for freshness. Reject implausible future timestamps, bound clock skew, and use server receipt time to enforce a conservative TTL.
+
+The geo index is a disposable projection. Update the latest-location record and cell membership idempotently; periodic repair removes a driver from an old cell if a crash occurs between those operations. Dispatch still checks authoritative availability before offering.
+
+### 4. Example 3 — the offer is not the assignment
+
+Two riders can see the same available driver in a slightly stale geo index. Only one transactional compare-and-set may move that driver from `AVAILABLE` to `ASSIGNED` and bind the trip in the same commit.
+
+```mermaid
+sequenceDiagram
+  participant A as Trip A dispatch
+  participant B as Trip B dispatch
+  participant S as Driver state
+  participant D as Driver
+  A->>D: offer A (attempt a7, expires 10:00:06)
+  B->>D: offer B (attempt b3, expires 10:00:06)
+  D->>A: accept a7
+  D->>B: accept b3
+  par competing commits
+    A->>S: claim d9 if AVAILABLE/version 22
+    B->>S: claim d9 if AVAILABLE/version 22
+  end
+  S-->>A: 1 row updated; commit trip A
+  S-->>B: 0 rows; re-dispatch trip B
+```
+
+A representative relational claim is:
+
+```sql
+UPDATE driver_state
+SET status = 'ASSIGNED', active_trip_id = :trip_id, version = version + 1
+WHERE market_id = :market_id
+  AND driver_id = :driver_id
+  AND status = 'AVAILABLE'
+  AND version = :expected_version
+RETURNING version;
+```
+
+The trip binding and an outbox event belong in the same database transaction. A zero-row result is an ordinary conflict, not an error to paper over. The acceptance endpoint also validates rider/trip, driver, attempt ID and expiry, and uses the request idempotency key so a timeout retry returns the original result.
+
+Critical trace: the database commits Trip A, but the response is lost. The driver retries `accept(a7)` with the same key. The server reads the stored outcome and returns Trip A; it does not try another claim. If Trip B retries, its stored conflict remains a conflict.
+
+### 5. Example 4 — reconnect from snapshot plus ordered replay
+
+WebSocket provides a bidirectional transport, not application-level exactly-once delivery or durable catch-up. Persist a monotonic trip version with every state transition; push is only a low-latency delivery path.
+
+```mermaid
+stateDiagram-v2
+  [*] --> REQUESTED
+  REQUESTED --> OFFERING
+  OFFERING --> MATCHED: atomic driver claim
+  MATCHED --> ARRIVING
+  ARRIVING --> IN_PROGRESS
+  IN_PROGRESS --> COMPLETED
+  REQUESTED --> CANCELLED
+  OFFERING --> CANCELLED
+  MATCHED --> CANCELLED: policy permits
+```
+
+Suppose a rider has applied version 17, disconnects, and the server reaches version 20:
+
+| Step | Server/client action | Outcome |
+|---|---|---|
+| 1 | server commits v18 `DRIVER_ARRIVING` and v19 `DRIVER_AT_PICKUP` | durable before push |
+| 2 | client reconnects with `lastApplied=17` | gateway authenticates trip membership |
+| 3 | API returns snapshot v20 `IN_PROGRESS` | client atomically installs v20 |
+| 4 | delayed push v19 arrives | ignored because `19 <= 20` |
+| 5 | push v21 `COMPLETED` arrives twice | first applies; duplicate is ignored |
+
+Snapshot-first recovery bounds event retention and avoids a replay/snapshot race: obtain a snapshot version, then subscribe or fetch events strictly after that version. Partition trip events by `trip_id` if using a log whose ordering guarantee is per partition.
+
+Completion records an outbox message with stable key `payment:{tripId}:v{completionVersion}`. The payment worker retries uncertain failures with that same key, stores provider outcome, and reconciles pending attempts. Broker delivery claims alone cannot make an external charge exactly once.
+
+### 6. API, data model, and command rules
+
+```http
+POST /v1/rides                         Idempotency-Key: rider-generated UUID
+GET  /v1/rides/{rideId}
+POST /v1/drivers/{driverId}/locations  driverSession + sequence
+POST /v1/offers/{offerId}/accept       Idempotency-Key: offer-attempt ID
+POST /v1/rides/{rideId}/cancel         expected trip version
+GET  /v1/rides/{rideId}/snapshot       returns trip version
+```
+
+| Record | Essential fields | Authority/retention |
+|---|---|---|
+| `DriverLocation` | driver, session, seq, lat/lon, cell, observed/received time | latest projection with short TTL |
+| `DriverState` | market, driver, status, active trip, version | authoritative durable row |
+| `Trip` | rider, driver, pickup/destination, quote revision, status, version | authoritative durable row |
+| `OfferAttempt` | offer, trip, driver, attempt, expiry, result | durable through retry window |
+| `TripEvent` | trip, version, type, payload, time | durable replay/audit log |
+| `Outbox` | event ID, aggregate/version, payload, publish state | same commit as authoritative change |
+
+Never expose precise driver coordinates to unrelated riders. Authenticate driver devices, authorize every trip subscription, limit location precision and retention, encrypt transport/storage, and audit privileged access.
+
+### 7. Failure matrix and operational evidence
+
+| Failure | Safe behavior | Evidence |
+|---|---|---|
+| location ingest delayed | exclude fixes beyond the freshness bound; widen search only within latency budget | candidate-age histogram and stale-exclusion count |
+| geo projection loses membership | repair from latest-location records; authoritative state still blocks double assignment | projection drift sample and repair lag |
+| dispatch dies after claim commit | retry reads idempotent outcome; outbox republishes committed match | unknown-outcome reconciliation age |
+| hot downtown cell | split worker ownership, batch ingestion, cap offers and apply backpressure | per-cell QPS/skew and queue age |
+| gateway fleet restarts | jitter reconnects, admit gradually, snapshot then resume | reconnect rate and recovery p95 |
+| payment timeout | same idempotency key; mark pending and reconcile provider state | pending age and duplicate-charge invariant |
+| market region impaired | protect active trips; stop new dispatch before accepting ownership unsafely | failover drill and active-trip recovery time |
+
+Alert on location-ingest lag, candidate age, match latency p50/p95/p99, no-match rate, search-ring distribution, claim conflicts, expired accepts, trip-version gaps, reconnect recovery, outbox age and payment reconciliation age. A double-assigned driver or duplicate charge is a correctness incident even when latency SLOs are green.
+
+### 8. Executable contract
+
+[`RideHailingContracts.java`](RideHailingContracts.java) exercises cell-count estimation, stale/out-of-order location handling, single-winner assignment, ordered reconnect state and stable payment keys. Run:
+
+```bash
+java -ea study-guides/system-design/blueprints/RideHailingContracts.java
+```
+
+The tests deliberately model a lost response after commit: retrying the same offer attempt returns the same winning trip, while a competing attempt remains rejected.
+
+### 9. Current primary references
+
+- [H3 introduction](https://h3geo.org/docs/) and [grid traversal API](https://h3geo.org/docs/api/traversal/) — hierarchical cells, nearby-cell traversal and documented distortion limits.
+- [Uber Engineering: H3 spatial index](https://www.uber.com/us/en/blog/h3/) — the source system's public origin and marketplace/geospatial motivation.
+- [Redis `GEOSEARCH`](https://redis.io/docs/latest/commands/geosearch/) — one concrete proximity-index implementation; it does not replace authoritative driver state.
+- [PostgreSQL `UPDATE`](https://www.postgresql.org/docs/current/sql-update.html) and [concurrency control](https://www.postgresql.org/docs/current/mvcc.html) — conditional row updates and concurrent transaction behavior.
+- [Apache Kafka introduction](https://kafka.apache.org/documentation/) — ordering within a topic-partition; key trip events consistently if that guarantee is used.
+- [RFC 6455: WebSocket](https://www.rfc-editor.org/rfc/rfc6455) — bidirectional transport protocol; replay and application ordering remain application responsibilities.
+- [Stripe idempotent requests](https://docs.stripe.com/api/idempotent_requests) — a primary-source example of safe request retries with a stable idempotency key.
+
+### 10. Source provenance and continuation
+
+The confirmed Library source remains `top_5_system_design_interview_blueprints.md`, revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. This section promotes exactly source lines 254–459 and adds measurable requirements, four worked traces, executable Java, failure evidence and primary-source verification refreshed on 2026-10-22. Source Blueprint 3 begins at line 460 and remains queued after fair domain rotation. The five-blueprint collection is not complete.
