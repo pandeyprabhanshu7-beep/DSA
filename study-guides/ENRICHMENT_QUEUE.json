@@ -124,10 +124,10 @@
       "modified_at": "2026-09-11T21:27:10.870584Z",
       "size_bytes": 37445,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-10-21T11:02:39-04:00",
+      "last_read_at": "2026-10-22T15:42:41-04:00",
       "sha256": "10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03",
       "canonical_target": "study-guides/system-design/blueprints/guide.md",
-      "selection": "Library revision 1 was read directly. Blueprint 1, source lines 5-253, is promoted; Blueprints 2-5 remain queued."
+      "selection": "Library revision 1 was read directly. Blueprints 1-2, source lines 5-459, are promoted; Blueprints 3-5 remain queued."
     },
     {
       "name": "system_design_fundamentals_deep_research.md",
@@ -622,9 +622,10 @@
       "source_names": [
         "top_5_system_design_interview_blueprints.md"
       ],
-      "last_processed_at": "2026-10-21T11:02:39-04:00",
+      "last_processed_at": "2026-10-22T15:42:41-04:00",
       "processed_sections": [
-        "Blueprint 1: global video streaming — requirements and consistency, CDN/byte-hit arithmetic, entitlement and signed delivery, buffer-aware ABR, sequence-ordered progress, publication and failure evidence"
+        "Blueprint 1: global video streaming — requirements and consistency, CDN/byte-hit arithmetic, entitlement and signed delivery, buffer-aware ABR, sequence-ordered progress, publication and failure evidence",
+        "Blueprint 2: real-time ride hailing — freshness and latency contracts, expanding-cell search, ordered locations, single-winner assignment, reconnect recovery and idempotent payment handoff"
       ],
       "source_revision": {
         "baseline_commit": "3fdd8b15594a440233169cb8e9504ff5cc9b858a",
@@ -632,11 +633,11 @@
         "file_id": "file_00000000214481fdb368917e2f9d55f1",
         "version_id": "1",
         "source_sha256": "10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03",
-        "canonical_sha256_after": "28114302e9d515af56b4fbe90761fca019e81246bf388520894dfbbbbc2ad007"
+        "canonical_sha256_after": "5713e3f921f63100a0deaadff93867d1bf9d1d5d33c771bc3e34bf26fa34a1f9"
       },
-      "last_successful_commit": "c9e6c714e51ec17aaf64acf8c6378601010dacdc",
-      "validation": "Java 17 source-file launch passed 13 scenario groups for capacity, origin exposure, ABR, progress ordering and invalid inputs. Deterministic reader generation passed exact 12850-byte payload equality, SHA-256 28114302e9d515af56b4fbe90761fca019e81246bf388520894dfbbbbc2ad007, 29 unique IDs, 2 search entries, local links/fragments, 14 balanced fences and 4 Mermaid sources. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
-      "next_action": "Rotate to DevOps/backend fairly. On the next blueprints turn, process Blueprint 2, Real-Time Ride-Hailing Service, source lines 254-459; Blueprints 3-5 remain queued.",
+      "last_successful_commit": "52b74aec5de27405970a959530562c05f427cf46",
+      "validation": "The confirmed Library revision was read at exact source lines 254-459 and bounded before Blueprint 3. Java 17 source-file launch passed 13 video and 22 ride-hailing scenario groups. Deterministic reader generation passed exact 26170-byte payload equality, SHA-256 5713e3f921f63100a0deaadff93867d1bf9d1d5d33c771bc3e34bf26fa34a1f9, 50 unique IDs, 3 search entries, local links/fragments, 28 balanced fence markers, 8 Mermaid sources and deterministic rebuild identity. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
+      "next_action": "Rotate fairly to DevOps/backend Spring AI/Python Section 2, source lines 31-56. On the next blueprints turn, process Blueprint 3 beginning at source line 460; Blueprints 3-5 remain queued.",
       "priority": 11
     },
     {
@@ -997,7 +998,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources and the confirmed database source are processed through their source ends. AI-platform Chapter 2 is promoted; rotate to System-design Blueprint 2 before returning to backend, DSA arrays or AI-platform continuation.",
+    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources and the confirmed database source are processed through their source ends. System-design Blueprint 2 is promoted; rotate to Spring AI/Python Section 2, source lines 31-56, before returning to DSA arrays, AI platform or Blueprint 3.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1104,15 +1105,16 @@
       "System-design Blueprint 1: global video streaming contracts, four worked traces, executable Java and failure evidence",
       "Spring AI/Python Section 1: minimal layer selection, four architecture cases, paired executable contracts and release identity",
       "DSA Arrays Section 1: array identity, sequence taxonomy, stable in-place compaction and overflow-safe prefix sums",
-      "AI platform Chapter 2: token admission, embedding identity and guarded cosine, generation metadata and semantic acceptance"
+      "AI platform Chapter 2: token admission, embedding identity and guarded cosine, generation metadata and semantic acceptance",
+      "System-design Blueprint 2: ride-hailing freshness, cell expansion, ordered location, atomic assignment, reconnect and payment contracts"
     ],
-    "processed_section": "AI-platform Chapter 2, Model mechanics you need for system design: master lines 111-136 (SHA-256 c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a) and companion lines 39-64 (SHA-256 45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05), bounded by Chapter 3",
-    "validation": "The bounded master and companion sections were compared and agree. Java 17 source-file launch passed 14 routing and 13 model-mechanics scenario groups. Deterministic reader generation passed exact 21007-byte Markdown recovery, SHA-256 e51f0b44f68af2592a6c3c4dbf2e9d0d3d27421d7e66727d108c3bfb4dfdebbc, 40 unique IDs, 16 search entries, local fragments, 22 balanced fence markers, 8 Mermaid sources, parseable inline JavaScript and deterministic rebuild identity. Five content files were atomically published with an expected-head guard. JSON and git diff checks passed; the live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
-    "estimated_next_tokens": 9200,
-    "estimate_method": "Heuristic only for one bounded System-design Blueprint 2 pass with source review, research, examples, code, reader, validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "b100fdc4170f98b8ebf916839294f128eece42c4",
-    "last_processed_at": "2026-10-22T15:06:05-04:00",
-    "next_batch_decision": "AI-platform Chapter 2 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to System-design Blueprint 2, source lines 254-459; retain AI-platform Chapter 3 and Arrays Section 2 for later domain turns."
+    "processed_section": "System-design Blueprint 2, Real-Time Ride-Hailing Service: confirmed Library revision 1 lines 254-459 (SHA-256 10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03), bounded by Blueprint 3",
+    "validation": "The exact bounded source was read and expanded into measurable requirements, four worked traces, four diagrams and an executable Java 17 contract. Video and ride-hailing source-file launches passed 13 and 22 scenario groups. Deterministic reader generation passed exact 26170-byte Markdown recovery, SHA-256 5713e3f921f63100a0deaadff93867d1bf9d1d5d33c771bc3e34bf26fa34a1f9, 50 unique IDs, 3 search entries, local fragments, 28 balanced fence markers, 8 Mermaid sources and deterministic rebuild identity. Seven content files were atomically published with an expected-head guard. JSON and git diff checks passed; the live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
+    "estimated_next_tokens": 8200,
+    "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 2 pass with source review, research, examples, paired code, reader, validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "52b74aec5de27405970a959530562c05f427cf46",
+    "last_processed_at": "2026-10-22T15:42:41-04:00",
+    "next_batch_decision": "System-design Blueprint 2 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to Spring AI/Python Section 2, source lines 31-56; retain Blueprint 3, AI-platform Chapter 3 and Arrays Section 2 for later domain turns."
   }
 }
 
