@@ -127,7 +127,7 @@
       "last_read_at": "2026-10-22T15:42:41-04:00",
       "sha256": "10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03",
       "canonical_target": "study-guides/system-design/blueprints/guide.md",
-      "selection": "Library revision 1 was read directly. Blueprints 1-2, source lines 5-459, are promoted; Blueprints 3-5 remain queued."
+      "selection": "Library revision 1 was read directly. Blueprints 1-3, source lines 5-680, are promoted; Blueprints 4-5 remain queued."
     },
     {
       "name": "system_design_fundamentals_deep_research.md",
@@ -625,10 +625,11 @@
       "source_names": [
         "top_5_system_design_interview_blueprints.md"
       ],
-      "last_processed_at": "2026-10-22T15:42:41-04:00",
+      "last_processed_at": "2026-10-23T00:18:20-04:00",
       "processed_sections": [
         "Blueprint 1: global video streaming — requirements and consistency, CDN/byte-hit arithmetic, entitlement and signed delivery, buffer-aware ABR, sequence-ordered progress, publication and failure evidence",
-        "Blueprint 2: real-time ride hailing — freshness and latency contracts, expanding-cell search, ordered locations, single-winner assignment, reconnect recovery and idempotent payment handoff"
+        "Blueprint 2: real-time ride hailing — freshness and latency contracts, expanding-cell search, ordered locations, single-winner assignment, reconnect recovery and idempotent payment handoff",
+        "Blueprint 3: distributed financial ledger — balanced immutable entries, idempotent replay, serialized debits, uncertain external outcomes, outbox/inbox deduplication and reconciliation"
       ],
       "source_revision": {
         "baseline_commit": "3fdd8b15594a440233169cb8e9504ff5cc9b858a",
@@ -636,11 +637,11 @@
         "file_id": "file_00000000214481fdb368917e2f9d55f1",
         "version_id": "1",
         "source_sha256": "10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03",
-        "canonical_sha256_after": "b367778debc725fe565bda5de46a51e24b0af1f3732298fe8761002fa5985069"
+        "canonical_sha256_after": "36c82066a53891f5a26dca2454f38d45b52ae44fe47d5f3270d09f63423469d5"
       },
-      "last_successful_commit": "52b74aec5de27405970a959530562c05f427cf46",
-      "validation": "The confirmed Library revision was read at exact source lines 254-459 and bounded before Blueprint 3. Java 17 source-file launch passed 13 video and 22 ride-hailing scenario groups. Deterministic reader generation passed exact 26094-byte payload equality, SHA-256 b367778debc725fe565bda5de46a51e24b0af1f3732298fe8761002fa5985069, 50 unique IDs, 3 search entries, local links/fragments, 28 balanced fence markers, 8 Mermaid sources and deterministic rebuild identity. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
-      "next_action": "Rotate fairly to DevOps/backend Spring AI/Python Section 2, source lines 31-56. On the next blueprints turn, process Blueprint 3 beginning at source line 460; Blueprints 3-5 remain queued.",
+      "last_successful_commit": "54a4edb4dae3e1f954da6974299808f964d516f4",
+      "validation": "The confirmed Library revision was read at exact source lines 460-680 and bounded before Blueprint 4. Java 17 source-file launch passed 13 video, 22 ride-hailing and 18 financial-ledger scenario groups. Deterministic reader generation passed exact 38856-byte payload equality, SHA-256 36c82066a53891f5a26dca2454f38d45b52ae44fe47d5f3270d09f63423469d5, 73 unique IDs, 4 search entries, local links/fragments, 42 balanced fence markers, 12 Mermaid sources, JavaScript parsing and deterministic rebuild identity. Seven content files were published atomically with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
+      "next_action": "Rotate fairly to DevOps/backend Spring AI/Python Section 3 beginning at source line 57. On the next blueprints turn, process Blueprint 4 beginning at source line 681; Blueprints 4-5 remain queued.",
       "priority": 11
     },
     {
@@ -1002,7 +1003,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources and the confirmed database source are processed through their source ends. AI-platform Chapter 3 is promoted; rotate to System-design Blueprint 3 beginning at source line 460 before Spring AI/Python Section 3, Arrays Section 3 or AI-platform Chapter 4.",
+    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources and the confirmed database source are processed through their source ends. System-design Blueprint 3 is promoted; rotate to Spring AI/Python Section 3 beginning at source line 57 before Arrays Section 3, AI-platform Chapter 4 or System-design Blueprint 4.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1113,15 +1114,16 @@
       "System-design Blueprint 2: ride-hailing freshness, cell expansion, ordered location, atomic assignment, reconnect and payment contracts",
       "Spring AI/Python Section 2: 17-project responsibility map, classical baseline, pinned local model, bounded async API and replay-safe durable graph",
       "DSA Arrays Section 2: pattern-selection gates, signed exact sums, sorted pair elimination, nonnegative windows and cyclic placement",
-      "AI platform Chapter 3: retry-safe ingestion identity, bounded parsing, numeric chunk windows, coherent generation publication and deletion/ACL freshness"
+      "AI platform Chapter 3: retry-safe ingestion identity, bounded parsing, numeric chunk windows, coherent generation publication and deletion/ACL freshness",
+      "System-design Blueprint 3: balanced ledger posting, idempotent replay, serialized debit, external-rail uncertainty, outbox/inbox and reconciliation contracts"
     ],
-    "processed_section": "AI-platform Chapter 3, Ingestion is a data pipeline, not a file-upload callback: master lines 96-138 and companion lines 65-127, bounded before Chapter 4",
-    "validation": "The paired source ranges agree on versioned ingestion, bounded parsing, chunking, staged publication and deletion. Four worked examples, traces, five diagrams and an executable Java 17 contract were added. Java 17 source-file launch passed 14 routing, 13 model-mechanics and 12 ingestion scenario groups. Deterministic reader generation passed exact 32663-byte Markdown recovery, SHA-256 1f5ce97de61ced4ea23b63d1a7d66c1090c2e5ff6c1442187daf59f88d0e5484, 51 unique HTML IDs, 22 search entries, local links/fragments, 34 balanced fence markers, 13 Mermaid sources, JSON/JavaScript parsing and deterministic rebuild identity. Six content files were atomically published with an expected-head guard and remote blob reads matched. JSON and git diff checks passed; the live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
-    "estimated_next_tokens": 8200,
-    "estimate_method": "Heuristic only for one bounded System-design Blueprint 3 pass with confirmed-source review, current primary references, examples, Java, reader, validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "0e40c62b6e1315916e6e3ac6e41832fa9bc54749",
-    "last_processed_at": "2026-10-22T20:25:37-04:00",
-    "next_batch_decision": "AI-platform Chapter 3 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to System-design Blueprint 3 beginning at source line 460; retain Spring AI/Python Section 3, Arrays Section 3 and AI-platform Chapter 4 for later domain turns."
+    "processed_section": "System-design Blueprint 3, Distributed Financial Transaction Ledger: source lines 460-680, bounded before Blueprint 4",
+    "validation": "The confirmed Library revision preserves double-entry, idempotency, outbox and reconciliation fundamentals. Four worked examples, traces, four diagrams and an executable Java 17 contract were added. Java 17 source-file launch passed 13 video, 22 ride-hailing and 18 financial-ledger scenario groups. Deterministic reader generation passed exact 38856-byte Markdown recovery, SHA-256 36c82066a53891f5a26dca2454f38d45b52ae44fe47d5f3270d09f63423469d5, 73 unique HTML IDs, 4 search entries, local links/fragments, 42 balanced fence markers, 12 Mermaid sources, JSON/JavaScript parsing and deterministic rebuild identity. Seven content files were atomically published with an expected-head guard; JSON and git diff checks passed and the live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
+    "estimated_next_tokens": 9000,
+    "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 3 pass with confirmed-source review, current primary references, paired code, reader, validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "54a4edb4dae3e1f954da6974299808f964d516f4",
+    "last_processed_at": "2026-10-23T00:18:20-04:00",
+    "next_batch_decision": "System-design Blueprint 3 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to Spring AI/Python Section 3 beginning at source line 57; retain Arrays Section 3, AI-platform Chapter 4 and System-design Blueprint 4 for later domain turns."
   }
 }
 
