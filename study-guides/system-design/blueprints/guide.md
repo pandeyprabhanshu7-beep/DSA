@@ -411,7 +411,7 @@ The tests deliberately model a lost response after commit: retrying the same off
 
 ### 10. Source provenance and continuation
 
-The confirmed Library source remains `top_5_system_design_interview_blueprints.md`, revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. This section promotes exactly source lines 254–459 and adds measurable requirements, four worked traces, executable Java, failure evidence and primary-source verification refreshed on 2026-10-22. Source Blueprint 3 begins at line 460 and remains queued after fair domain rotation. The five-blueprint collection is not complete.
+The confirmed Library source remains `top_5_system_design_interview_blueprints.md`, revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. This section promotes exactly source lines 254–459 and adds measurable requirements, four worked traces, executable Java, failure evidence and primary-source verification refreshed on 2026-10-22. Source Blueprint 3 begins at line 460 and is promoted in the next section below. The five-blueprint collection is not complete.
 
 ## Blueprint 3 — Distributed financial transaction ledger
 

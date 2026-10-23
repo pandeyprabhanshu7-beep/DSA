@@ -59,7 +59,7 @@ Validation for this promotion:
 - Java 17 source-file launch passed the capacity, cache-miss, ABR, progress-ordering and invalid-input scenario groups in `VideoPlaybackContracts.java`.
 - Java 17 source-file launch passed 22 ride-hailing scenario groups covering cell estimates, freshness/order, single-winner assignment, lost-response retry, reconnect ordering, payment identity and invalid inputs.
 - Java 17 source-file launch passed 18 ledger scenario groups covering balanced/mixed-currency posting, idempotency replay and mismatch, insufficient funds, stable external identity, reconciliation and inbox deduplication.
-- The deterministic reader embeds the exact 38,860-byte Markdown payload at SHA-256 `2c1c260323e189e721819599cf58fa4f2392cae19154564ba5905a44f2d3bde6`; 73 unique IDs, four search entries, links/fragments, 42 balanced fence markers, 12 Mermaid sources and deterministic rebuild identity passed.
+- The deterministic reader embeds the exact 38,856-byte Markdown payload at SHA-256 `36c82066a53891f5a26dca2454f38d45b52ae44fe47d5f3270d09f63423469d5`; 73 unique IDs, four search entries, links/fragments, 42 balanced fence markers, 12 Mermaid sources and deterministic rebuild identity passed.
 - Ride-hailing primary references were refreshed against current H3, Uber Engineering, Redis, PostgreSQL, Apache Kafka, RFC 6455 and Stripe documentation on 2026-10-22.
 - Ledger primary references were refreshed against current Stripe, PostgreSQL and AWS transactional-outbox documentation on 2026-10-23.
 - The live literal DSA Java-marker audit is 170 (Graph 51, Stack/Queue 18, Linked List 27, Trees/BST 47, Hashing 27).
