@@ -41,7 +41,7 @@ Next action:
 
 ## Interview blueprints
 
-State: **PROMOTED; two source blueprints remain**.
+State: **PROMOTED; all five named blueprints complete, source supplement remains**.
 
 Canonical pair:
 
@@ -54,15 +54,23 @@ Blueprint 2, **Real-time ride hailing**, promotes source lines 254–459 from th
 
 Blueprint 3, **Distributed financial transaction ledger**, promotes source lines 460–680 from the same revision. It preserves double-entry accounting and deepens four traces: balanced posting, stable-key lost-response replay, serialized concurrent debits, and an external-rail timeout that remains `UNKNOWN` until authoritative reconciliation.
 
+Blueprint 4, **Large-scale polite web crawler**, promotes source lines 681–902. It makes origin-scoped scheduling and SSRF boundaries explicit and deepens four traces: conservative canonicalization, priority under politeness, robots/overload eligibility, and safe conditional recrawl through redirects.
+
+Blueprint 5, **Distributed unique ID generator**, promotes source lines 903–1125. It defines the uniqueness/order/availability contract and deepens four examples: 41/10/12 bit arithmetic and decode, same-tick saturation plus rollback, leased worker reuse with fencing, and a sequence/range/Snowflake/UUIDv7 decision comparison.
+
 Validation for this promotion:
 
 - Java 17 source-file launch passed the capacity, cache-miss, ABR, progress-ordering and invalid-input scenario groups in `VideoPlaybackContracts.java`.
 - Java 17 source-file launch passed 22 ride-hailing scenario groups covering cell estimates, freshness/order, single-winner assignment, lost-response retry, reconnect ordering, payment identity and invalid inputs.
 - Java 17 source-file launch passed 18 ledger scenario groups covering balanced/mixed-currency posting, idempotency replay and mismatch, insufficient funds, stable external identity, reconciliation and inbox deduplication.
-- The deterministic reader embeds the exact 38,856-byte Markdown payload at SHA-256 `36c82066a53891f5a26dca2454f38d45b52ae44fe47d5f3270d09f63423469d5`; 73 unique IDs, four search entries, links/fragments, 42 balanced fence markers, 12 Mermaid sources and deterministic rebuild identity passed.
+- Java 17 source-file launch passed 25 crawler scenario groups covering URL identity, admission deduplication, robots matching, origin-scoped capacity/delay, `Retry-After`, public-address boundaries and recrawl delay.
+- Java 17 source-file launch passed 24 distributed-ID scenario groups covering 41/10/12 packing and decoding, 4,096 same-tick values, overflow and rollback rejection, expired/stale lease fencing, disjoint ranges, UUIDv7 fields and the signed-long boundary.
+- The deterministic reader embeds the exact 65,291-byte Markdown payload at SHA-256 `c3eb5c5c5ea0ef4cef6b8e5cf5ee82013aeb122d98a89e1f8243bd6642e0f708`; 99 unique IDs, six search entries, all 29 local fragments, 72 balanced fence markers, 20 Mermaid sources and deterministic rebuild identity passed.
 - Ride-hailing primary references were refreshed against current H3, Uber Engineering, Redis, PostgreSQL, Apache Kafka, RFC 6455 and Stripe documentation on 2026-10-22.
 - Ledger primary references were refreshed against current Stripe, PostgreSQL and AWS transactional-outbox documentation on 2026-10-23.
+- Crawler primary references were refreshed against current RFC 9309/3986/9110/9111, Google crawling, OWASP SSRF and Java SE 17 documentation on 2026-10-23.
+- Distributed-ID primary references were refreshed against the X Snowflake announcement, RFC 9562, PostgreSQL 18, etcd 3.6 and Java SE 17 documentation on 2026-10-23.
 - The live literal DSA Java-marker audit is 170 (Graph 51, Stack/Queue 18, Linked List 27, Trees/BST 47, Hashing 27).
 - Standalone `javac`, browser/assistive-technology integration, and rendered Mermaid visual QA were unavailable and are not represented as passes.
 
-Next action: rotate domains fairly to Spring AI/Python Section 3 beginning at source line 57. On the next blueprints pass, process source Blueprint 4 beginning at line 681. Do not imply the five-blueprint source is complete before Blueprints 4–5 are promoted.
+Next action: rotate domains fairly to Spring AI/Python Section 5 beginning at source line 203. On a later system-design pass, review the source cross-question/practice supplement at lines 1127–1264 without duplicating the richer canonical guide. The wider intake and enrichment backlog remain incomplete.

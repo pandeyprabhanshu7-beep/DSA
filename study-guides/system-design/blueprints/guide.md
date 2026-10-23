@@ -1,6 +1,6 @@
 # System Design Blueprints
 
-This is the canonical incremental guide. Each blueprint must make its requirements, arithmetic, ownership boundaries, failure behavior, and verification evidence explicit. Source Blueprints 1–4 are promoted; Blueprint 5 remains queued.
+This is the canonical incremental guide. Each blueprint makes its requirements, arithmetic, ownership boundaries, failure behavior, and verification evidence explicit. All five named source blueprints are promoted; the source's cross-question and practice supplement remains queued.
 
 ## Blueprint 1 — Global video streaming
 
@@ -764,3 +764,183 @@ The address helper intentionally validates numeric literals only. Production cod
 ### 10. Source provenance and continuation
 
 The confirmed Library source remains `top_5_system_design_interview_blueprints.md`, revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. This bounded pass promotes exactly source lines 681–902 and adds explicit safety contracts, four worked traces, executable Java, capacity arithmetic, failure evidence and primary-source verification refreshed on 2026-10-23. Source Blueprint 5 begins at line 903 and remains queued. The five-blueprint collection is not complete.
+
+## Blueprint 5 — Distributed unique ID generator
+
+### 1. Choose the contract before the bit layout
+
+“Unique” does not imply “gapless,” “unguessable,” “causally ordered,” or even “strictly increasing across machines.” State each property independently:
+
+| Property | Contract for this design | Deliberate non-guarantee |
+|---|---|---|
+| uniqueness | no two live generators may emit the same 64-bit value in the deployment and epoch | no recovery by checking a database after emission |
+| latency and availability | local generation, p99 below 1 ms, no coordination on the hot path | a suspect worker may become unavailable to preserve uniqueness |
+| ordering | increasing within one worker while its clock and lease are valid; usually time-sortable across workers | numeric order is not causality and may differ across skewed clocks |
+| capacity | at least 8 million IDs/s deployment-wide with 2× burst headroom | no infinite same-millisecond burst |
+| representation | non-negative signed `BIGINT`, 63 usable bits | not a secret or authorization capability |
+| deployment | multiple regions; worker identities are exclusive, leased and fenced | a disconnected worker cannot generate after lease expiry |
+
+Strict global consecutive order is excluded: it would put consensus or a single sequencer on every generation path. If regulation requires gapless document numbers, solve that narrower accounting workflow transactionally instead of changing a general object-ID service.
+
+```mermaid
+flowchart TB
+  C["Lease coordinator<br/>strong exclusive slots"] -->|"worker 17, generation 8, expiry"| W1["Generator 17"]
+  C -->|"worker 18, generation 3, expiry"| W2["Generator 18"]
+  A["Application instances"] --> W1
+  A --> W2
+  W1 --> D["Databases and event logs"]
+  W2 --> D
+```
+
+The coordinator is off the per-ID path, but it remains part of the safety boundary. Every generator stops before its lease expires if it cannot renew.
+
+### 2. Example 1 — prove the bit budget and decode one ID
+
+Use a custom epoch and reserve the signed `long` sign bit:
+
+```text
+| 1 zero sign bit | 41 elapsed milliseconds | 10 worker | 12 sequence |
+```
+
+```mermaid
+flowchart LR
+  T["41-bit elapsed ms"] --> P["shift left 22"]
+  W["10-bit worker"] --> Q["shift left 12"]
+  S["12-bit sequence"] --> O["bitwise OR"]
+  P --> O
+  Q --> O
+```
+
+The limits follow from the fields, not from a product claim:
+
+- `2^41` milliseconds is about 69.7 years from the custom epoch. Record the epoch and projected exhaustion date as configuration evidence.
+- `2^10 = 1,024` simultaneously assignable worker slots.
+- `2^12 = 4,096` IDs per worker per millisecond, or 4.096 million sequence positions/s/worker.
+- The largest packed value is `Long.MAX_VALUE`; no valid ID is negative.
+
+For custom-epoch elapsed time `1,000`, worker `17`, sequence `3`:
+
+```text
+(1,000 << 22) | (17 << 12) | 3
+= 4,194,304,000 | 69,632 | 3
+= 4,194,373,635
+```
+
+Decoding reverses the shifts and masks to `(elapsed=1,000, worker=17, sequence=3)`. At a measured 8 million IDs/s, even 100 active workers average only 80,000/s each, or 80 IDs/ms; the 4,096/ms field gives 51.2× average headroom. Validate p99 bursts because averages do not prove that a single hot worker cannot saturate.
+
+### 3. Example 2 — same-tick overflow and rollback fail closed
+
+A generator keeps `(lastTimestamp, sequence)` under one synchronization boundary. New milliseconds reset sequence to zero; equal milliseconds increment it. The 4,097th request in one millisecond must wait for a later tick or return backpressure—it must never wrap to zero.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Ready
+  Ready --> Emit: time advances, sequence = 0
+  Emit --> Emit: same time, increment sequence
+  Emit --> Saturated: sequence would exceed 4095
+  Saturated --> Emit: later millisecond
+  Emit --> Quarantined: clock moves backward or lease invalid
+  Quarantined --> Ready: new fenced identity and safe time
+```
+
+Trace one worker at millisecond `t`:
+
+| Observation | State before | Decision | Safety reason |
+|---|---|---|---|
+| first call at `t` | last time `t-1` | emit sequence 0 | new timestamp tuple |
+| 4,096th call at `t` | sequence 4,094 | emit sequence 4,095 | last value in field |
+| 4,097th call at `t` | sequence 4,095 | block/reject; do not mutate | wrapping would duplicate sequence 0 |
+| clock reports `t-5` | last time `t` | reject and fail health | a prior `(time, worker, sequence)` could recur |
+| clock reaches `t+1` with valid lease | quarantined or saturated | policy-controlled recovery, sequence 0 | tuple moves forward |
+
+Do not silently pin the timestamp forever: that borrows finite future capacity and makes encoded time dishonest. A bounded small-rollback policy may wait, but a large rollback or restart without durable last-time evidence should quarantine the worker, acquire a newly fenced generation, or remain unavailable. A monotonic clock measures durations; it cannot by itself supply the wall-clock field persisted in the ID.
+
+### 4. Example 3 — lease loss and worker reuse need fencing
+
+Worker number alone is not enough. Suppose process A holds slot 17, generation 8 through `12:00:30`. A partition prevents renewal; the coordinator later grants slot 17, generation 9 to process B. Process A must stop before the old expiry. Merely reconnecting and observing “slot 17 exists” cannot reactivate generation 8.
+
+```mermaid
+sequenceDiagram
+  participant A as Old worker A
+  participant C as Coordinator
+  participant B as Replacement B
+  A->>C: acquire slot 17
+  C-->>A: generation 8, expires 12:00:30
+  Note over A,C: partition; renewal unavailable
+  C->>B: after expiry, slot 17 generation 9
+  A--xA: local deadline reached; stop
+  B->>B: generate only with generation 9
+```
+
+The generation token does not fit in the sample 64-bit ID, so its job is to prevent overlapping use, not distinguish two overlapping workers after the fact. Persist the lease generation beside generator state, compare it on every renewal/restart, budget clock uncertainty and network delay into a conservative local stop deadline, and alert on any conflicting ownership observation. With etcd, an ownership key can be attached to a lease and disappears when that lease expires; the application still owns the stop-before-expiry and stale-generation checks.
+
+### 5. Example 4 — compare sequence, ranges, Snowflake and UUIDv7
+
+Different contracts justify different mechanisms:
+
+| Mechanism | Worked trace | Strong point | Cost or trap |
+|---|---|---|---|
+| database sequence | transaction gets 501, aborts; next caller safely gets 502 | atomic distinct values inside one database | gaps are normal; DB call and regional authority are on the path |
+| range/Hi-Lo | A reserves `[1,000,000, 1,001,000)`; crashes after 37 IDs; B receives the next non-overlapping range | one coordination call amortized across many IDs | unused 963-value gap; allocator availability and durable non-overlap matter |
+| Snowflake-like 64-bit | `(time, worker, sequence)` generated locally under a live fenced lease | compact, high throughput, approximately ordered | clock rollback, worker reuse and bit exhaustion are correctness events |
+| UUIDv7 | 48-bit Unix-millisecond timestamp plus version/variant and random/counter fields | standardized 128-bit time-ordered format; no small global worker registry required | larger indexes; per-node monotonicity and trustworthy randomness still need design |
+
+For UUIDv7, two IDs created at the same Unix millisecond can put an incrementing value in the high random bits to preserve local ordering while retaining sufficient random entropy. RFC 9562 requires handling counter rollover without knowingly returning a duplicate and warns that UUIDs are not security capabilities. Prefer UUIDv7 when 128 bits and probabilistic collision resistance are acceptable; prefer a fenced Snowflake layout when compact 64-bit storage is a hard requirement.
+
+```mermaid
+flowchart TD
+  N{"Need 64 bits?"} -->|yes| O{"Can lease worker slots safely?"}
+  O -->|yes| S["Fenced Snowflake-like ID"]
+  O -->|no| R["Coordinated sequence or ranges"]
+  N -->|no| U["RFC 9562 UUIDv7"]
+```
+
+### 6. API, state and storage contract
+
+Prefer an in-process library or same-host sidecar so ordinary generation has no network hop. If a remote service is unavoidable, expose bounded batches such as `POST /v1/id-batches {"count": 1000}` and make the returned batch immutable; a request retry needs an idempotency key or may intentionally allocate a second, disjoint batch.
+
+```text
+WorkerLease(slot, generation, holder, issued_at, expires_at, status)
+GeneratorState(slot, generation, custom_epoch, last_timestamp, sequence, persisted_at)
+RangeAllocation(range_start, range_end, holder, allocation_id, allocated_at)
+```
+
+The lease store is authoritative for slot ownership. Local generator state is authoritative for the last tuple emitted by that process and must be durably restored if identity can survive a restart. Databases store IDs as signed 64-bit integers without converting them through floating-point JSON; JavaScript clients should use strings or `BigInt` because ordinary `Number` cannot exactly represent every 63-bit integer.
+
+Partition application data independently of the embedded worker or time bits. A monotonically increasing key improves B-tree locality but may create a hot right edge or range shard. Hash/bucket the partition key when write distribution matters, while retaining the original ID for identity and approximate time inspection.
+
+### 7. Failure matrix and operational evidence
+
+| Failure | Safe behavior | Required evidence |
+|---|---|---|
+| sequence field exhausted in one millisecond | wait/reject until a later tick; never wrap | saturation count, wait time and hottest worker |
+| clock moves backward | quarantine or bounded wait; never reuse a prior tuple | rollback magnitude, source and last emitted time |
+| lease renewal times out | stop before conservative local expiry | lease generation, TTL margin and stop timestamp |
+| slot is reused | only new generation may start; old holder remains fenced | ownership audit and conflicting-holder alarm |
+| restart loses last timestamp | acquire new identity/generation or fail | durable-state version and boot decision |
+| custom epoch overflows | reject before packing | years remaining and maximum observed timestamp |
+| duplicate detector fires | page immediately, stop implicated generators, preserve samples | both decoded tuples, host/lease evidence and first-seen stores |
+
+Track IDs/s and p99 generation latency by worker, same-tick sequence high-water mark, saturation/backpressure, clock offset/rollback, lease TTL margin and renew failures, active slots, generation changes, epoch consumption and sampled duplicate checks. Test concurrent callers, exact boundaries 0/4,095/4,096, rollback sizes, restart in the same millisecond, partition through lease expiry, slot reuse, invalid worker 1,024, and the last 41-bit timestamp.
+
+### 8. Executable contract
+
+[`DistributedIdContracts.java`](DistributedIdContracts.java) packs and decodes the 41/10/12 layout, proves 4,096 unique same-tick values, rejects overflow, rollback, expired/stale leases and invalid bit fields, demonstrates disjoint range allocation, and constructs/validates deterministic RFC 9562 UUIDv7 fields. Run:
+
+```bash
+java -ea study-guides/system-design/blueprints/DistributedIdContracts.java
+```
+
+The UUID helper accepts preselected random/counter bits to keep the test deterministic. Production UUIDv7 generation must use a trustworthy random source and a counter/rollback policy appropriate to its concurrency and threat model.
+
+### 9. Current primary references
+
+- [X Engineering: Announcing Snowflake](https://blog.x.com/engineering/en_us/a/2010/announcing-snowflake) — the original service decomposes IDs into time, worker and sequence fields and uses ZooKeeper to select worker numbers.
+- [RFC 9562: UUIDs](https://www.rfc-editor.org/rfc/rfc9562) — UUIDv7 layout, batch monotonicity, counter rollover, distributed generation, randomness and security limits.
+- [PostgreSQL 18 sequence functions](https://www.postgresql.org/docs/current/functions-sequence.html) — `nextval` is atomic and multiuser-safe, but aborted transactions and crashes can leave gaps.
+- [etcd 3.6 concurrency API](https://etcd.io/docs/v3.6/dev-guide/api_concurrency_reference_v3/) — lock ownership is attached to a lease and ends when that lease expires or is revoked.
+- [Java SE 17 `Clock`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/Clock.html) — injectable, testable wall-clock access; clock implementations do not guarantee perfect real-time accuracy.
+
+### 10. Source provenance and continuation
+
+The confirmed Library source remains `top_5_system_design_interview_blueprints.md`, revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. This bounded pass promotes exactly source lines 903–1125 and deepens them with explicit contracts, four worked examples, four failure/decision diagrams, executable Java and primary-source verification refreshed on 2026-10-23. All five named source blueprints are now promoted, but the source's cross-question and practice supplement at lines 1127–1264 remains unprocessed and the wider intake/backlog is not complete.
