@@ -1,6 +1,6 @@
 # Spring AI and Python APIs
 
-This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–2, lines 6–56.
+This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–4, lines 6–202.
 
 ## Section 1 — Choose the layer before choosing the library
 
@@ -583,6 +583,192 @@ Interview variations: expose the same MCP tool over stdio and Streamable HTTP; r
 - [Resilience4j introduction](https://resilience4j.readme.io/docs/getting-started) and [bulkheads](https://resilience4j.readme.io/docs/bulkhead) — composable resilience primitives and concurrency isolation.
 - [DJL overview](https://docs.djl.ai/master/index.html), [inference performance](https://docs.djl.ai/master/docs/development/inference_performance_optimization.html), and [ONNX Runtime Java](https://onnxruntime.ai/docs/get-started/with-java.html) — engine abstraction, predictor/concurrency considerations and direct JVM ONNX execution.
 
+## Section 4 — Start with the offline lab
+
+### Requirements before infrastructure
+
+The first retrieval exercise should be runnable without a model, API key, vector database, network call or third-party package. That constraint is useful: it makes five contracts independently testable before probabilistic generation can hide a defect.
+
+| Contract | Required invariant | Failure outcome |
+|---|---|---|
+| candidate authority | derive the tenant/resource scope from trusted identity, then exclude ineligible documents before scoring | reject a missing scope; return no evidence for an unknown scope |
+| lexical baseline | tokenize deterministically, score only eligible documents and break equal scores by immutable ID | return an empty ranking for no positive overlap |
+| vector math | require equal non-empty dimensions, finite coordinates and non-zero directions | reject invalid vectors rather than emit `NaN` |
+| rank fusion | give one contribution per document per input ranking and use a stable final tie-break | reject an invalid rank constant |
+| citation membership | every citation must belong to the exact evidence set supplied to generation | reject missing or unknown IDs; evaluate entailment separately |
+
+```mermaid
+flowchart TB
+  ID["Trusted identity"] --> SCOPE["Authorized scope"]
+  SCOPE --> ELIG["Eligible documents only"]
+  ELIG --> LEX["Lexical ranking"]
+  ELIG --> VEC["Vector ranking"]
+  LEX --> FUSE["Duplicate-safe RRF"]
+  VEC --> FUSE
+  FUSE --> PACK["Bounded evidence set"]
+  PACK --> CITE["Citation allow-list"]
+  CITE --> ANSWER["Accept or abstain"]
+```
+
+The order is part of the security contract. Filtering after global retrieval is not equivalent: an unauthorized document may already have influenced top-k selection, logs, caches or timing. The offline function accepts `trusted_tenant` only after authentication and authorization have resolved it; it must not be bound directly from an arbitrary request field.
+
+### Example 1 — authorization before similarity
+
+Corpus:
+
+| ID | tenant | relevant terms |
+|---|---|---|
+| `payments-r7` | `acme` | `payments` once, `rollback` twice |
+| `cache-r2` | `acme` | neither query term |
+| `vectors-r3` | `acme` | neither query term |
+| `private-r1` | `globex` | both query terms repeated; deliberately stronger lexical match |
+
+Request: query `payments rollback`, trusted scope `acme`, `top_k=3`.
+
+Trace:
+
+1. The authority predicate selects the three Acme documents. `private-r1` is never passed to the scorer even though its text would score higher.
+2. Token counts for the query are `{payments: 1, rollback: 1}`. `payments-r7` is the only eligible positive-overlap document.
+3. The result is exactly `payments-r7`. An unknown tenant or an Acme query such as `quasar` returns `NO_EVIDENCE`; it does not broaden scope or fabricate a fallback.
+
+```python
+eligible = (doc for doc in CORPUS if doc.tenant == trusted_tenant)
+scored = ((lexical_score(query, doc.text), doc) for doc in eligible)
+ranked = sorted(
+    (pair for pair in scored if pair[0] > 0.0),
+    key=lambda pair: (-pair[0], pair[1].id),
+)[:top_k]
+```
+
+The deterministic ID tie-break matters because equal floating-point scores otherwise inherit container or database iteration order. Reproducible ordering makes parity tests, caches and incident traces comparable.
+
+### Example 2 — bag-of-words cosine by hand
+
+For query vector \(q=(1,1)\), and the document's query-term projection \(d=(1,2)\):
+
+\[
+q \cdot d = 3,\qquad \lVert q\rVert=\sqrt{2},\qquad \lVert d\rVert=\sqrt{5},\qquad
+\cos(q,d)=\frac{3}{\sqrt{10}}\approx 0.948683.
+\]
+
+That projected value is not the final corpus score, because the full document norm also contains every other token. The implementation builds a `Counter`/map over all lower-cased `[a-z0-9]+` terms, computes the dot product over query terms and divides by both full norms. Repeated terms therefore affect direction, while document length affects the denominator.
+
+| Input | Result | Why |
+|---|---:|---|
+| empty query | `0.0` | query has no direction |
+| no term overlap | `0.0` | dot product is zero |
+| positive overlap | `(0, 1]` for nonnegative counts | ordinary cosine bound |
+| equal scores | lower document ID first | explicit deterministic order |
+
+This is a transparent baseline, not BM25: it has no inverse-document-frequency term or length normalization parameter. It is also not a neural embedding: the coordinates are literal token counts, not learned latent features. Naming the baseline correctly prevents test results from being attributed to an algorithm that was never run.
+
+Complexity for \(D\) eligible documents, query token count \(Q\), total eligible document tokens \(T\), and requested \(k\): tokenization and scoring cost \(O(Q+T)\); the simple full sort costs \(O(D\log D)\); stored score pairs cost \(O(D)\). A production top-k heap can reduce ranking work to \(O(D\log k)\), but it does not change the scope-first invariant.
+
+### Example 3 — cosine guards are part of the API
+
+The generic vector function tests shape and numerical validity independently of lexical retrieval:
+
+```java
+if (left.length == 0 || left.length != right.length) {
+    throw new IllegalArgumentException("non-empty equal dimensions required");
+}
+if (!Double.isFinite(left[i]) || !Double.isFinite(right[i])) {
+    throw new IllegalArgumentException("finite vector coordinates required");
+}
+```
+
+Expected traces:
+
+| left | right | outcome |
+|---|---|---|
+| `[1, 0]` | `[1, 0]` | `1.0`, same direction |
+| `[1, 0]` | `[0, 1]` | `0.0`, orthogonal |
+| `[1, 0]` | `[-1, 0]` | `-1.0`, opposite direction |
+| `[]` | `[]` | reject empty dimensions |
+| `[0, 0]` | `[1, 0]` | reject directionless zero vector |
+| `[NaN]` | `[1]` | reject non-finite coordinate |
+| `[1]` | `[1, 2]` | reject dimension mismatch |
+
+A naive sum of squares can overflow even when every coordinate is finite. The paired contracts first divide each vector by its own maximum absolute coordinate. Cosine is invariant under positive scaling, so `[1e308, 1e308]` compared with itself safely yields `1.0` instead of `Infinity / Infinity`. The implementation still checks the result and clamps only final round-off to `[-1, 1]`; it never uses clamping to disguise invalid input.
+
+For vector dimension \(n\), the guarded calculation takes \(O(n)\) time. The teaching implementation stores two scaled arrays in Python and uses scalar accumulation in Java; a production implementation may fuse those passes while preserving identical validation.
+
+### Example 4 — duplicate-safe RRF and citation gates
+
+Fuse these two rankings with rank constant 60:
+
+1. lexical: `payments-r7`, `cache-r2`, `payments-r7`
+2. vector: `cache-r2`, `payments-r7`, `vectors-r3`
+
+Within the first ranking, the second `payments-r7` is discarded before ranks are assigned. The contributions are:
+
+| ID | lexical contribution | vector contribution | total |
+|---|---:|---:|---:|
+| `cache-r2` | \(1/62\) | \(1/61\) | \(1/61+1/62\) |
+| `payments-r7` | \(1/61\) | \(1/62\) | \(1/61+1/62\) |
+| `vectors-r3` | — | \(1/63\) | \(1/63\) |
+
+The first two totals tie, so immutable ID order produces `cache-r2`, `payments-r7`, `vectors-r3`. Without per-ranking duplicate removal, one retriever could overweight a document by repeating it. With \(R\) rankings and \(N\) total entries, fusion is \(O(N)\) expected time for sets/maps plus \(O(U\log U)\) to sort \(U\) unique IDs.
+
+```mermaid
+sequenceDiagram
+  participant R as Retrieved evidence
+  participant M as Model output
+  participant V as Validator
+  R->>V: allow {payments-r7}
+  M->>V: claim [payments-r7]
+  V->>V: parse IDs and test subset
+  alt missing or unknown ID
+    V-->>M: reject output
+  else IDs are members
+    V-->>M: membership passed
+  end
+```
+
+Membership is necessary but insufficient. “The moon is green `[payments-r7]`” passes an ID allow-list yet is not entailed by the passage. Keep three checks distinct: citation syntax, membership in supplied evidence, and claim-to-passage support. The offline lab owns the first two; a separate grounded-evaluation contract owns the third.
+
+### Paired executable contract
+
+The Java and Python programs use the same corpus, token grammar, scope-first retrieval, numerically guarded cosine, duplicate-safe RRF and citation rules. Both print the same parity line before their language-specific test summary:
+
+```text
+PARITY|payments-r7|NO_EVIDENCE|cache-r2,payments-r7,vectors-r3|1
+```
+
+Run them from the repository root:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/OfflineRetrievalLabContracts.java
+python3 study-guides/backend/spring-ai-python/offline_retrieval_lab_contracts.py
+```
+
+The 31 scenario groups per language cover positive ranking, adversarial cross-tenant text, unknown scope, no-overlap abstention, `top_k` bounds, repeated tokens, empty lexical input, cosine identities, overflow resistance, invalid vectors, RRF duplicates/ties, empty fusion and citation acceptance/rejection. Matching output demonstrates the cross-language algorithm contract; it does not prove the two standard libraries use identical internal data structures.
+
+### Failure matrix and review checklist
+
+| Fault | Detection point | Safe response |
+|---|---|---|
+| caller supplies tenant text directly | API/authentication boundary | ignore request scope; derive authorized scope from verified identity |
+| unknown authorized scope | candidate selection | `NO_EVIDENCE` |
+| `top_k` outside `[1,20]` | retrieval input validation | reject |
+| empty/no-overlap query | lexical scorer/retriever | empty ranking, then abstain |
+| vector mismatch, zero, `NaN` or infinity | cosine preconditions | reject before ranking |
+| duplicate ID inside one ranking | RRF per-ranking set | count once at its first rank |
+| equal fused score | final comparator | order by immutable ID |
+| missing/foreign citation | membership validator | reject generated output |
+| allowed citation with unsupported prose | entailment evaluator | reject or send to review; membership alone cannot decide |
+
+Before replacing the corpus with a database or vector engine, preserve these oracles: unauthorized documents are never scored, no evidence is a first-class outcome, numerical errors fail closed, ranking is reproducible, and citations are checked against the exact supplied evidence set. Infrastructure integration should be tested against those contracts instead of redefining them.
+
+### Current primary references
+
+Verified on 23 October 2026:
+
+- [Python `collections.Counter`](https://docs.python.org/3/library/collections.html#collections.Counter), [`math.isfinite`](https://docs.python.org/3/library/math.html#math.isfinite), and [`unittest`](https://docs.python.org/3/library/unittest.html) — standard-library counting, finiteness and executable-test semantics.
+- [Java `Pattern`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/regex/Pattern.html) and [`Comparator`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Comparator.html) — reusable compiled token grammar and explicit total ordering.
+- [Elasticsearch reciprocal rank fusion](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion) — the current rank contribution formula, one-based ranks and rank-constant constraints.
+- [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html) — deny by default, validate permission on every request, test authorization and do not let framework capabilities define requirements.
+
 ### Source provenance and continuation
 
-The selected editable source is `atlas_guides/spring_ai_python_api_interview_guide.md` from `ai_cicd_spring_python_guides_complete.zip`, bundle SHA-256 `c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31`, member SHA-256 `af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553`. Sections 1–3 promote source lines 6–82. Section 3 preserves all twelve source projects and its version-discipline boundary while adding four requirement-driven examples, traces, paired executable contracts, failure/admission tests, and refreshed primary references checked on 23 October 2026. The standalone HTML SHA-256 `6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3` is byte-identical to the bundle’s generated HTML and remains comparison evidence rather than a duplicate guide. Section 4, **Start with the offline lab**, begins at source line 84 and remains queued after fair domain rotation. The 25-section source is not complete.
+The selected editable source is `atlas_guides/spring_ai_python_api_interview_guide.md` from `ai_cicd_spring_python_guides_complete.zip`, bundle SHA-256 `c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31`, member SHA-256 `af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553`. Sections 1–4 promote source lines 6–202. Section 4 expands the source's dependency-free lab with four requirement-driven examples, exact traces, numerical overflow guards, complexity analysis, adversarial authorization checks, paired 31-scenario executable contracts and primary references checked on 23 October 2026. The standalone HTML SHA-256 `6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3` is comparison evidence rather than a duplicate guide. Section 5, **A model call at the wire level**, begins at source line 203 and remains queued after fair domain rotation. The 25-section source is not complete.
