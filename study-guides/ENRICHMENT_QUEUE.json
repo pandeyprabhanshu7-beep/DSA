@@ -124,10 +124,10 @@
       "modified_at": "2026-09-11T21:27:10.870584Z",
       "size_bytes": 37445,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-10-22T15:42:41-04:00",
+      "last_read_at": "2026-10-23T07:20:57-04:00",
       "sha256": "10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03",
       "canonical_target": "study-guides/system-design/blueprints/guide.md",
-      "selection": "Library revision 1 was read directly. Blueprints 1-3, source lines 5-680, are promoted; Blueprints 4-5 remain queued."
+      "selection": "Library revision 1 was read directly. Blueprints 1-4, source lines 5-902, are promoted; Blueprint 5 remains queued."
     },
     {
       "name": "system_design_fundamentals_deep_research.md",
@@ -587,7 +587,7 @@
       },
       "last_successful_commit": "674cb856b2750dbe9a36312ab6ebaa52d15aaa88",
       "validation": "The selected master and bundled editable companion were materialized, hashed and compared for bounded Chapter 4 (master lines 139-168; companion lines 129-178); their substance agrees and no duplicate guide was created. Java 17 source-file launch passed 14 routing, 13 model-mechanics, 12 ingestion and 13 retrieval scenario groups. Deterministic reader generation passed exact 45219-byte Markdown recovery, SHA-256 cea25874d9756dd56fc738ef300cfde3d7c4a204e35512a104e9ceb170866870, 63 unique HTML IDs, 28 search entries, 21 local fragments, 46 balanced fence markers, 18 Mermaid sources, JSON/JavaScript parsing and deterministic rebuild identity. Six content files were atomically published with an expected-head guard and remote blob reads matched. The live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
-      "next_action": "After fair rotation to System-design Blueprint 4 beginning at source line 681, process Chapter 5, PostgreSQL data design for a production RAG store, without creating a duplicate edition.",
+      "next_action": "Process Chapter 5, PostgreSQL data design for a production RAG store, on the next AI-platform turn after Spring AI/Python Section 4 and Arrays Section 4; do not create a duplicate edition.",
       "priority": 9
     },
     {
@@ -627,11 +627,12 @@
       "source_names": [
         "top_5_system_design_interview_blueprints.md"
       ],
-      "last_processed_at": "2026-10-23T00:18:20-04:00",
+      "last_processed_at": "2026-10-23T07:20:57-04:00",
       "processed_sections": [
         "Blueprint 1: global video streaming — requirements and consistency, CDN/byte-hit arithmetic, entitlement and signed delivery, buffer-aware ABR, sequence-ordered progress, publication and failure evidence",
         "Blueprint 2: real-time ride hailing — freshness and latency contracts, expanding-cell search, ordered locations, single-winner assignment, reconnect recovery and idempotent payment handoff",
-        "Blueprint 3: distributed financial ledger — balanced immutable entries, idempotent replay, serialized debits, uncertain external outcomes, outbox/inbox deduplication and reconciliation"
+        "Blueprint 3: distributed financial ledger — balanced immutable entries, idempotent replay, serialized debits, uncertain external outcomes, outbox/inbox deduplication and reconciliation",
+        "Blueprint 4: large-scale web crawler — conservative URL identity, exact admission, origin politeness, robots decisions, safe fetch boundaries, retry timing and conditional recrawl"
       ],
       "source_revision": {
         "baseline_commit": "3fdd8b15594a440233169cb8e9504ff5cc9b858a",
@@ -639,11 +640,11 @@
         "file_id": "file_00000000214481fdb368917e2f9d55f1",
         "version_id": "1",
         "source_sha256": "10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03",
-        "canonical_sha256_after": "36c82066a53891f5a26dca2454f38d45b52ae44fe47d5f3270d09f63423469d5"
+        "canonical_sha256_after": "d5bbe705674eb49c07c051f87cce993aa04551c1d889cf3730c311997e6e4312"
       },
-      "last_successful_commit": "54a4edb4dae3e1f954da6974299808f964d516f4",
-      "validation": "The confirmed Library revision was read at exact source lines 460-680 and bounded before Blueprint 4. Java 17 source-file launch passed 13 video, 22 ride-hailing and 18 financial-ledger scenario groups. Deterministic reader generation passed exact 38856-byte payload equality, SHA-256 36c82066a53891f5a26dca2454f38d45b52ae44fe47d5f3270d09f63423469d5, 73 unique IDs, 4 search entries, local links/fragments, 42 balanced fence markers, 12 Mermaid sources, JavaScript parsing and deterministic rebuild identity. Seven content files were published atomically with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
-      "next_action": "Process Blueprint 4 beginning at source line 681 as the next bounded fair-rotation section; Blueprint 5 remains queued.",
+      "last_successful_commit": "018468cadeb977a4e5b2bab02cd405c370aa0555",
+      "validation": "The confirmed Library revision was read at exact source lines 681-902 and bounded by Blueprint 5 at line 903. Java 17 source-file launch passed 13 video, 22 ride-hailing, 18 financial-ledger and 25 crawler scenario groups. Deterministic reader generation passed exact 51937-byte payload equality, SHA-256 d5bbe705674eb49c07c051f87cce993aa04551c1d889cf3730c311997e6e4312, 86 unique IDs, 5 search entries, 28 local fragments, 54 balanced fence markers, 15 Mermaid sources, JavaScript parsing and deterministic rebuild identity. Six content files were published atomically with an expected-head guard and all remote blob hashes matched. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
+      "next_action": "Rotate fairly to Spring AI/Python Section 4 beginning at source line 84; Blueprint 5 begins at source line 903 and remains queued for the next system-design turn.",
       "priority": 11
     },
     {
@@ -775,7 +776,7 @@
       },
       "last_successful_commit": "7d3b69e09d183af3985f77910fd3db161d2d4e26",
       "validation": "The confirmed editable member and byte-identical standalone HTML were compared for bounded Section 3, source lines 57-82, ending before Section 4. Java 17 source-file launch passed 9 layer-selection, 16 Python-map and 21 Java-map scenario groups; Python 3 passed the corresponding 9, 15 and 21 groups. Deterministic reader generation passed exact 40159-byte Markdown recovery, SHA-256 20feed44e2c5f26a22d4a0739df6a68f3544e8e287e3ba6e90c9e3221c5b31c4, 93 unique IDs, 4 search entries, local links/fragments, 46 balanced fence markers, 14 Mermaid sources, JSON and reader JavaScript parsing, and deterministic rebuild identity. All seven content-commit remote blob hashes matched. Standalone javac, framework/native dependency compilation, live provider/model/MCP integrations, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
-      "next_action": "After the queued AI-platform Chapter 4 turn, process Section 4, Start with the offline lab, beginning at source line 84; Sections 4-25 remain queued.",
+      "next_action": "Process Section 4, Start with the offline lab, beginning at source line 84, as the next bounded fair-rotation section; Sections 4-25 remain queued.",
       "priority": 14
     },
     {
@@ -1006,7 +1007,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources and the confirmed database source are processed through their source ends. Arrays Section 3 is promoted; rotate fairly to AI-platform Chapter 4 before System-design Blueprint 4, Spring AI/Python Section 4 or Arrays Section 4.",
+    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources and the confirmed database source are processed through their source ends. System-design Blueprint 4 is promoted; rotate fairly to Spring AI/Python Section 4 before Arrays Section 4, AI-platform Chapter 5 or System-design Blueprint 5.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1121,15 +1122,16 @@
       "System-design Blueprint 3: balanced ledger posting, idempotent replay, serialized debit, external-rail uncertainty, outbox/inbox and reconciliation contracts",
       "Spring AI/Python Section 3: 12-project Java ownership map, secured MCP tool, framework-port migration, bounded JVM inference and versioned Java/Python service boundary",
       "DSA Arrays Section 3: copy/sort/index contracts, hash frequencies and boxed equality, indexed monotonic deque, safe midpoint/arithmetic and swap",
-      "AI platform Chapter 4: BM25 identifiers, exact/approximate vectors, checked capacity, RRF and authorization-first bounded reranking"
+      "AI platform Chapter 4: BM25 identifiers, exact/approximate vectors, checked capacity, RRF and authorization-first bounded reranking",
+      "System-design Blueprint 4: conservative URL identity, exact admission, robots policy, origin-scoped politeness, safe fetching, retry timing and conditional recrawl"
     ],
-    "processed_section": "AI platform Chapter 4, Retrieval internals: master lines 139-168 / companion lines 129-178, bounded before Chapter 5",
-    "validation": "The paired Library sources agree on bounded Chapter 4 and no duplicate guide was created. Four worked examples, traces, five diagrams and a dependency-free Java contract were added. Java 17 source-file launch passed 14 routing, 13 model-mechanics, 12 ingestion and 13 retrieval scenario groups. Deterministic reader generation passed exact 45219-byte Markdown recovery, SHA-256 cea25874d9756dd56fc738ef300cfde3d7c4a204e35512a104e9ceb170866870, 63 unique HTML IDs, 28 search entries, 21 local fragments, 46 balanced fence markers and 18 Mermaid sources. Six content files were atomically published at 674cb856b2750dbe9a36312ab6ebaa52d15aaa88 with an expected-head guard; JSON and git diff checks passed and the live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
-    "estimated_next_tokens": 9000,
-    "estimate_method": "Heuristic only for one bounded System-design Blueprint 4 pass with source review, examples, Java, reader, validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "674cb856b2750dbe9a36312ab6ebaa52d15aaa88",
-    "last_processed_at": "2026-10-23T06:12:37-04:00",
-    "next_batch_decision": "AI platform Chapter 4 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to System-design Blueprint 4 beginning at source line 681; retain Spring AI/Python Section 4, Arrays Section 4 and AI-platform Chapter 5 for later domain turns."
+    "processed_section": "System-design Blueprint 4, Large-scale polite web crawler: source lines 681-902, bounded by Blueprint 5 at line 903",
+    "validation": "The confirmed Library revision was read at exact source lines 681-902. Four worked examples, traces, three diagrams and a dependency-free Java contract were added. Java 17 source-file launch passed 13 video, 22 ride-hailing, 18 financial-ledger and 25 crawler scenario groups. Deterministic reader generation passed exact 51937-byte Markdown recovery, SHA-256 d5bbe705674eb49c07c051f87cce993aa04551c1d889cf3730c311997e6e4312, 86 unique HTML IDs, 5 search entries, 28 local fragments, 54 balanced fence markers and 15 Mermaid sources. Six content files were atomically published at 018468cadeb977a4e5b2bab02cd405c370aa0555 with an expected-head guard; all remote blob hashes, JSON and git diff checks passed and the live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
+    "estimated_next_tokens": 8200,
+    "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 4 pass with source review, examples, paired contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "018468cadeb977a4e5b2bab02cd405c370aa0555",
+    "last_processed_at": "2026-10-23T07:20:57-04:00",
+    "next_batch_decision": "System-design Blueprint 4 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to Spring AI/Python Section 4 beginning at source line 84; retain Arrays Section 4, AI-platform Chapter 5 and System-design Blueprint 5 for later domain turns."
   }
 }
 
