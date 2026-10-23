@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–2 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates both sections. Later source sections remain queued.
+> **Incremental status:** Sections 1–3 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates all three sections. Later source sections remain queued.
 
 ## Study index
 
@@ -19,6 +19,13 @@
   - [Decision example 4 — first missing positive in place](#decision-example-4--first-missing-positive-in-place)
   - [Pattern trigger sheet](#pattern-trigger-sheet)
   - [Decision checklist](#decision-checklist)
+- [3. Java array interview toolkit](#3-java-array-interview-toolkit)
+  - [Toolkit contract](#toolkit-contract)
+  - [Toolkit example 1 — sort a copy and preserve original indices](#toolkit-example-1--sort-a-copy-and-preserve-original-indices)
+  - [Toolkit example 2 — frequencies and boxed equality](#toolkit-example-2--frequencies-and-boxed-equality)
+  - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
+  - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
+  - [Toolkit checklist](#toolkit-checklist)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -433,17 +440,231 @@ static int firstMissingPositive(int[] a) {
 8. Promote arithmetic before sums, differences, and midpoint calculations can overflow.
 9. Trace an empty case, a no-answer case, duplicates, and the smallest legal input.
 
+## 3. Java array interview toolkit
+
+The toolkit is not a bag of memorized calls. Each operation carries a contract about mutation, identity, ordering, lifetime, or numeric range. State that contract before choosing the API.
+
+### Toolkit contract
+
+| Need | Preferred Java tool | Contract to say aloud | Failure to avoid |
+|---|---|---|---|
+| Independent primitive-array values | `Arrays.copyOf(a, a.length)` | New array object; primitive components are copied by value | `int[] copy = a` creates an alias |
+| Destructive ordering | `Arrays.sort(a)` | Sorts the supplied array in place | Losing original positions or caller-visible order |
+| Uniform initialization | `Arrays.fill(a, value)` | Overwrites every selected component | Assuming it allocates a new array |
+| Counts or membership | `HashMap` / `HashSet` | Define the key and when it becomes visible | Comparing boxed objects with `==` |
+| Expiring ordered candidates | `ArrayDeque<Integer>` | Store indices when age and value both matter | Storing only values, which cannot prove expiration |
+| Midpoint and arithmetic | `left + (right-left)/2`; cast before arithmetic | Preconditions bound the difference; arithmetic executes in `long` | Casting after an overflowing `int` operation |
+| Exchange two components | three-assignment swap | Both indices must be valid; `i == j` is harmless | XOR swap, which is opaque and breaks on the same index |
+
+```mermaid
+flowchart TD
+    A[Read output and mutation contract] --> B{Need original order or indices?}
+    B -->|Yes| C[Copy values or pair value with index]
+    B -->|No| D[In-place sort or fill is allowed]
+    A --> E{Need history?}
+    E -->|Counts| F[Hash map or set]
+    E -->|Ordered expiring candidates| G[ArrayDeque of indices]
+```
+
+### Toolkit example 1 — sort a copy and preserve original indices
+
+**Requirement:** for `[40, 10, 40, -2]`, produce sorted values without mutating the input and return original indices in value order. Equal values must retain increasing original index. Expected values: `[-2, 10, 40, 40]`; indices: `[3, 1, 0, 2]`.
+
+`Arrays.copyOf` is enough when only sorted values are needed. Once original positions are output, sort explicit `(value, index)` pairs. The index tie-break makes the duplicate rule visible instead of relying on an incidental sort property.
+
+```java
+record IndexedValue(int value, int index) {}
+
+static int[] sortedCopy(int[] input) {
+    int[] copy = Arrays.copyOf(input, input.length);
+    Arrays.sort(copy);                 // mutates only copy
+    return copy;
+}
+
+static int[] stableOriginalIndicesByValue(int[] input) {
+    IndexedValue[] pairs = new IndexedValue[input.length];
+    for (int i = 0; i < input.length; i++) pairs[i] = new IndexedValue(input[i], i);
+    Arrays.sort(pairs, (a, b) -> {
+        int byValue = Integer.compare(a.value(), b.value());
+        return byValue != 0 ? byValue : Integer.compare(a.index(), b.index());
+    });
+    int[] indices = new int[pairs.length];
+    for (int i = 0; i < pairs.length; i++) indices[i] = pairs[i].index();
+    return indices;
+}
+```
+
+| Sorted position | pair chosen | output index | input remains |
+|---:|---|---:|---|
+| 0 | `(-2, 3)` | 3 | `[40, 10, 40, -2]` |
+| 1 | `(10, 1)` | 1 | unchanged |
+| 2 | `(40, 0)` | 0 | unchanged |
+| 3 | `(40, 2)` | 2 | unchanged |
+
+```mermaid
+flowchart LR
+    I[Input: 40, 10, 40, -2] --> C[Independent sorted copy]
+    I --> P[Value-index pairs]
+    P --> O[Indices: 3, 1, 0, 2]
+```
+
+Sorting primitive values is `O(n log n)` time and the returned copy is `O(n)` space. Pair sorting also uses `O(n)` explicit storage. If the API promises `O(1)` auxiliary space, it cannot simultaneously return a full independent copy.
+
+### Toolkit example 2 — frequencies and boxed equality
+
+**Requirement:** decide whether `[1000, 1000, -2]` and `[1000, -2, 1000]` contain the same values with the same multiplicities. Expected result: `true`; `[1, 1, 2]` versus `[1, 2, 2]` is `false`.
+
+The map invariant is: after processing a prefix of the right array, `balance[v]` is the number of unmatched occurrences of `v` from the left array. A missing key is immediate failure; remove a key when its last unmatched occurrence is consumed.
+
+```java
+static Map<Integer, Integer> frequencies(int[] input) {
+    Map<Integer, Integer> result = new HashMap<>();
+    for (int value : input) result.merge(value, 1, Integer::sum);
+    return result;
+}
+
+static boolean sameMultiset(int[] left, int[] right) {
+    if (left.length != right.length) return false;
+    Map<Integer, Integer> balance = frequencies(left);
+    for (int value : right) {
+        Integer count = balance.get(value);
+        if (count == null) return false;
+        if (count == 1) balance.remove(value);
+        else balance.put(value, count - 1);
+    }
+    return balance.isEmpty();
+}
+```
+
+| Right value consumed | balance afterward |
+|---:|---|
+| start | `{1000=2, -2=1}` |
+| `1000` | `{1000=1, -2=1}` |
+| `-2` | `{1000=1}` |
+| `1000` | `{}` → equal |
+
+Two separately boxed `Integer.valueOf(1000)` values need not be the same reference, so `a == b` is not a value-equality contract. Use `a.equals(b)` (or `Objects.equals(a, b)` when null is possible). Hash-based collections use equality/hash semantics, not the caller's reference identity. Expected time is `O(n)` and auxiliary space is `O(u)` for `u` distinct values.
+
+### Toolkit example 3 — store deque indices, not values
+
+**Requirement:** return each width-3 maximum for `[1, 3, -1, -3, 5, 3, 6, 7]`. Expected output: `[3, 3, 5, 5, 6, 7]`.
+
+Keep indices in increasing order from front to back and their values in strictly decreasing order. The front is therefore the largest live candidate. Indices make both expiration (`index <= right - width`) and value lookup possible; values alone cannot distinguish an expired duplicate from a live one.
+
+```java
+static int[] windowMaximum(int[] input, int width) {
+    if (width <= 0 || width > input.length) throw new IllegalArgumentException("invalid width");
+    int[] result = new int[input.length - width + 1];
+    Deque<Integer> candidates = new ArrayDeque<>();
+    for (int right = 0; right < input.length; right++) {
+        while (!candidates.isEmpty() && candidates.peekFirst() <= right - width) {
+            candidates.pollFirst();
+        }
+        while (!candidates.isEmpty()
+                && input[candidates.peekLast()] <= input[right]) {
+            candidates.pollLast();
+        }
+        candidates.offerLast(right);
+        if (right >= width - 1) {
+            result[right - width + 1] = input[candidates.peekFirst()];
+        }
+    }
+    return result;
+}
+```
+
+| `right` | value | deque indices after updates | represented values | emitted max |
+|---:|---:|---|---|---:|
+| 0 | 1 | `[0]` | `[1]` | — |
+| 1 | 3 | `[1]` | `[3]` | — |
+| 2 | -1 | `[1, 2]` | `[3, -1]` | 3 |
+| 3 | -3 | `[1, 2, 3]` | `[3, -1, -3]` | 3 |
+| 4 | 5 | `[4]` | `[5]` | 5 |
+| 5 | 3 | `[4, 5]` | `[5, 3]` | 5 |
+| 6 | 6 | `[6]` | `[6]` | 6 |
+| 7 | 7 | `[7]` | `[7]` | 7 |
+
+```mermaid
+flowchart LR
+    X[Expire old front indices] --> D[Drop dominated back indices]
+    D --> A[Append current index]
+    A --> M[Front index owns window maximum]
+```
+
+Each index is appended once and removed at most once from each end, so total time is `O(n)` and deque space is `O(width)`. `ArrayDeque` supplies amortized constant-time end operations and rejects nulls, which is useful here because null has no candidate meaning.
+
+### Toolkit example 4 — safe midpoint, arithmetic, and swap
+
+**Requirement:** find the first position whose value is at least `3` in `[1, 3, 3, 7]`; return `1`. Also compute `Integer.MAX_VALUE + 1` and `50_000 × 50_000` mathematically, and permit swapping an element with itself.
+
+Use a half-open search interval `[left, right)`. Before each iteration, every index before `left` is known to be `< target`; every index at or after `right` is known to be `>= target`. The subtraction-based midpoint avoids `left + right` overflow under `0 <= left <= right`.
+
+```java
+static int lowerBound(int[] sorted, int target) {
+    int left = 0, right = sorted.length;
+    while (left < right) {
+        int mid = left + (right - left) / 2;
+        if (sorted[mid] < target) left = mid + 1;
+        else right = mid;
+    }
+    return left;
+}
+
+static long safeSum(int a, int b)     { return (long) a + b; }
+static long safeProduct(int a, int b) { return (long) a * b; }
+
+static void swap(int[] a, int i, int j) {
+    int tmp = a[i];
+    a[i] = a[j];
+    a[j] = tmp;
+}
+```
+
+| Step | interval `[left, right)` | `mid` | value | next interval |
+|---:|---|---:|---:|---|
+| 1 | `[0, 4)` | 2 | 3 | `[0, 2)` |
+| 2 | `[0, 2)` | 1 | 3 | `[0, 1)` |
+| 3 | `[0, 1)` | 0 | 1 | `[1, 1)` → return 1 |
+
+The cast must occur before the operator: `(long) a * b` multiplies as `long`, while `(long) (a * b)` first allows `int` overflow and only then widens the wrong value. The expected results are `2_147_483_648L` and `2_500_000_000L`. For swap, `i == j` simply writes the same value back.
+
+```mermaid
+flowchart LR
+    L[Known less than target] --> U[Unknown half-open interval]
+    U --> R[Known at least target]
+    U -->|mid comparison shrinks interval| U
+```
+
+Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap are `O(1)`.
+
+### Toolkit checklist
+
+1. Say whether the operation mutates the supplied array or returns a new one.
+2. Preserve `(value, originalIndex)` pairs when output depends on original positions.
+3. Define a map's key, value, and update visibility before coding.
+4. Use `.equals` for boxed/object values; use `==` only when reference identity is the requirement.
+5. Store deque indices when candidates expire by position.
+6. Cast an operand before overflow-sensitive addition, subtraction, or multiplication.
+7. Write binary-search interval semantics and midpoint preconditions.
+8. Prefer a readable temporary-variable swap and validate both indices.
+9. Test empty and singleton inputs, duplicates, extreme integers, invalid window widths, and no-answer searches.
+
+Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
 - [Java Language Specification, Java SE 17, Chapter 4: Types, Values, and Variables](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — primitive values versus reference values and array reference semantics.
 - [Java SE 17 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Arrays.html) — copying, filling, comparison, sorting, and searching utilities.
 - [Java SE 17 `java.util.HashMap`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/HashMap.html) — key/value map behavior and the `getOrDefault`/merge operations used by prefix-frequency counting.
+- [Java SE 17 `java.util.Map`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html) — map equality semantics and the `merge`/`getOrDefault` contracts used by the toolkit.
+- [Java SE 17 `java.util.ArrayDeque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayDeque.html) — resizable deque behavior, null prohibition, and amortized constant-time end operations.
+- [Java Language Specification, Java SE 17, Chapter 5](https://docs.oracle.com/javase/specs/jls/se17/html/jls-5.html) — boxing/unboxing and numeric-promotion rules behind object equality and cast-before-arithmetic guidance.
 - [Java Language Specification, Java SE 17, §15.18.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.18.1) — integer addition and overflow semantics; the examples promote sums to `long` before addition.
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–2 lines 141–229. Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–2 extracted lines 65–135. Compared as a corroborating companion; its 116-page rendering was visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251. Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 extracted lines 65–165. Compared as a corroborating companion; its 116-page rendering was visually inspected rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 3, “Java Array Interview Toolkit,” begins at Markdown line 230 / DOCX extracted line 136 and is the next Arrays source boundary.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4, “Core Array Patterns + 47 Fully Solved Problems,” begins at Markdown anchor line 253 (heading line 255) / DOCX extracted heading line 169 and is the next Arrays source boundary.

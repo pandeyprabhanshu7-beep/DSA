@@ -7,6 +7,7 @@ Run the dependency-free Java evidence:
 ```bash
 java -ea study-guides/striver-dsa/arrays/ArrayMentalModels.java
 java -ea study-guides/striver-dsa/arrays/ArrayPatternDecisions.java
+java -ea study-guides/striver-dsa/arrays/ArrayToolkitContracts.java
 ```
 
 Rebuild the reader:
@@ -15,4 +16,4 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–2 are promoted; Section 3 and later sections remain queued.
+This is an incremental guide. Source Sections 1–3 are promoted; Section 4 and later sections remain queued.

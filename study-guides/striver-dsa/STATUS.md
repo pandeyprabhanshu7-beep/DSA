@@ -39,6 +39,7 @@
 | H-16 Minimum Window Substring | ✅ | ✅ | Four examples, brute force, frequency-window invariant, detailed ADOBECODEBANC trace, Java, proof and O(m+n) derivation |
 | Arrays §1 Mental Model and Invariants | ✅ | ✅ | Four examples, aliasing, taxonomy, stable compaction, overflow-safe prefix sums, traces, proofs, Java and Mermaid |
 | Arrays §2 Pattern-Recognition Decision Tree | ✅ | ✅ | Decision gates plus four examples for signed exact sums, sorted pairs, nonnegative windows and cyclic placement, with Java, traces, proofs and Mermaid |
+| Arrays §3 Java Array Interview Toolkit | ✅ | ✅ | Four contract-driven examples for copy/sort/index preservation, hash frequencies and boxed equality, indexed monotonic deques, and overflow-safe arithmetic, with Java, traces and Mermaid |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -148,3 +149,9 @@ Fresh literal-marker audit after these two cards: Graph 51, Stack & Queue 18, Li
 BT-1 and BT-3 now explain precise tree vocabulary, family invariants, recursion contracts and the three meaningful DFS processing moments. `TreeTraversalMomentsCheck` passed 376,980 assertions across empty/singleton/branched/skewed examples and 10,000 seeded random trees compared with independent iterative preorder, inorder, postorder, BFS and height oracles.
 
 Fresh literal-marker audit after these cards: Graph 51, Stack & Queue 18, Linked List 27, Trees & BST 47, HashMap & Hashing 27; **total 170**.
+
+## Arrays Java toolkit enrichment — 2026-10-23 ET
+
+Arrays Section 3 now turns the source toolkit into four requirement-driven examples with explicit mutation, identity, ordering, expiration and numeric-range contracts. `ArrayToolkitContracts` compiles for Java 17 and validates 28 explicit scenario groups plus 20,000 seeded comparisons against brute-force window-maximum and lower-bound oracles. The responsive reader embeds the exact canonical Markdown bytes.
+
+Fresh literal-marker audit remains **170**: this section did not contain a placeholder card. The broader intake and placeholder backlog remain incomplete.
