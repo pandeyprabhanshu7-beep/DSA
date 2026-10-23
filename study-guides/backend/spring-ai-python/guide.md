@@ -368,6 +368,221 @@ Interview variations: remove a framework without changing the business contract;
 - [HTTPX async support](https://www.python-httpx.org/async/), [timeouts](https://www.python-httpx.org/advanced/timeouts/), [resource limits](https://www.python-httpx.org/advanced/resource-limits/), and [clients](https://www.python-httpx.org/advanced/clients/) — reusable pools and bounded wait phases.
 - [LangGraph Functional API](https://docs.langchain.com/oss/python/langgraph/functional-api) — durable replay and idempotent-side-effect requirements.
 
+## Section 3 — Java library map: choose the owner, then the abstraction
+
+### Preserve the source map, but select by contract
+
+The Java projects in the source solve different jobs. Spring AI and LangChain4j are application-integration choices; the MCP SDK is a protocol implementation; Spring Security, Reactor, validation, resilience, telemetry and JDBC are general application infrastructure; DJL and ONNX Runtime Java can run models inside the JVM. None of them makes authorization, evidence quality, idempotency or capacity decisions for the application.
+
+| Library / project | Job it can own | Python-side analogy | Boundary to make explicit |
+|---|---|---|---|
+| Spring AI | Spring-native chat, embedding, vector-store and tool adapters | parts of LangChain/LlamaIndex integrated with Spring | provider features and business policy remain outside the abstraction |
+| LangChain4j | Java LLM integrations, AI Services, tools, memory and RAG helpers | similar problem space to LangChain | independent Java API, not a Python translation or a model runtime |
+| MCP Java SDK | MCP client/server protocol implementation | official Python MCP SDK | pin SDK and protocol revision; negotiate capabilities |
+| Spring AI MCP starters | Boot auto-configuration for MCP transports and annotations | protocol SDK integrated into a web framework | HTTP transports need a deliberate authentication/authorization boundary |
+| Spring Security | authentication plus request, method and domain authorization | framework identity/policy middleware | endpoint authentication does not prove resource-level access |
+| Reactor / WebFlux | nonblocking streams, demand and scheduling | async streams/ASGI concepts | blocking work, scheduler choice and bounded demand remain design decisions |
+| Jakarta Validation | structural constraints on Java DTOs | Pydantic constraints | valid shape does not prove truth, authorization or citation support |
+| Resilience4j | retry, rate limit, circuit breaker, bulkhead and time limit | focused resilience primitives | choose one retry owner and preserve a total deadline |
+| Micrometer / OpenTelemetry | metrics, observations and distributed traces | OTel Python and metrics clients | prompts, resource IDs and user IDs are unsafe high-cardinality labels |
+| Deep Java Library (DJL) | engine-agnostic Java deep-learning APIs and translators | selected PyTorch/Transformers workflows | native engine, model format, preprocessing and predictor ownership must match |
+| ONNX Runtime Java | direct JVM inference for compatible ONNX artifacts | ONNX Runtime Python | operator support, tensor shape/type and pre/post-processing are part of the artifact contract |
+| JDBC / database drivers | SQL transactions and database wire access | DB-API drivers such as psycopg | pooling, transaction scope and publication consistency still apply in AI services |
+
+Use the narrowest row set that satisfies a written requirement. Do not install both Spring AI and LangChain4j merely to preserve optionality. Hide the selected framework behind an application-owned port only when there is a real replacement or testing need, and test the semantic gap—stream events, tool-call arguments, token accounting, errors and cancellation—not just method signatures.
+
+```mermaid
+flowchart TB
+  REQ["Business requirement"] --> PORT["Application-owned port"]
+  PORT --> APP["Spring AI or LangChain4j adapter"]
+  PORT --> INF["DJL or ONNX inference adapter"]
+  PORT --> PY["Versioned Python service adapter"]
+  APP --> CROSS["Security, limits, telemetry, persistence"]
+  INF --> CROSS
+  PY --> CROSS
+```
+
+### Example 1 — Spring business service with an MCP tool
+
+Requirement: a signed-in support agent asks for an order summary; the model may call a read-only `lookup_order` tool, but only for an order the agent may view. The service must emit traces without prompt or customer data in metric labels.
+
+Choose Spring AI for the model/tool adapter, an MCP Java SDK or Spring AI MCP starter only if an MCP transport is actually required, Spring Security for request and method authorization, Jakarta Validation for DTO shape, and Micrometer/OpenTelemetry for bounded evidence. Keep the resource predicate in application code and repeat it inside the tool boundary. Spring AI's current MCP starter documentation explicitly says HTTP transports expose an unauthenticated JSON-RPC endpoint by default, so network reachability must not be treated as authority.
+
+```java
+public OrderSummary lookupOrder(ToolRequest request, Principal principal) {
+    var orderId = requireValidId(request.orderId());       // shape only
+    authorization.checkCanReadOrder(principal, orderId);   // resource authority
+    return orders.readSummary(orderId);                    // scoped projection
+}
+```
+
+Trace:
+
+| Step | Owner | Required result |
+|---:|---|---|
+| 1 | Spring Security | authenticated principal and request-level policy |
+| 2 | application service | authorized resource scope before prompt/tool exposure |
+| 3 | model adapter | proposed tool name and structurally parsed arguments |
+| 4 | tool service | resource authorization repeated; read executes only if allowed |
+| 5 | telemetry | low-cardinality outcome (`allowed`, `denied`, `invalid`, `failed`) plus trace correlation |
+
+```mermaid
+sequenceDiagram
+  participant U as Support agent
+  participant A as Secured API
+  participant M as Model adapter
+  participant T as Order tool
+  U->>A: signed request
+  A->>A: authenticate + derive scope
+  A->>M: prompt + allowed tool schema
+  M-->>A: proposed lookup_order(args)
+  A->>T: principal + validated args
+  T->>T: authorize order resource
+  T-->>A: scoped summary or denial
+```
+
+Never expose database rows merely because the generated tool arguments pass Jakarta Validation. DTO validation answers “is the input shaped correctly?”; authorization answers “may this principal act on this resource?”
+
+### Example 2 — Spring AI versus LangChain4j behind one business port
+
+Requirement: generate a typed, cited answer and allow a later provider/framework replacement without changing the public business API. Define the application port around outcomes the product owns:
+
+```java
+sealed interface AnswerResult permits Answered, NoEvidence, DependencyFailure {}
+interface EvidenceAnswerer {
+    AnswerResult answer(AuthorizedQuestion question, Deadline deadline);
+}
+```
+
+A Spring AI adapter may use `ChatClient`; a LangChain4j adapter may use an AI Service. That common port is useful only if its contract includes citation membership, cancellation, deadline propagation and typed failure mapping. Lowest-common-denominator wrappers that discard streaming/tool/provider features create apparent portability while moving surprises to production.
+
+Compatibility trace:
+
+| Probe | Old adapter | Candidate adapter | Promotion gate |
+|---|---|---|---|
+| empty authorized evidence | `NoEvidence` | must also abstain | no provider call with fabricated context |
+| unsupported citation | reject | reject | every citation belongs to authorized evidence IDs |
+| deadline expires | cancel/map timeout | same typed outcome | no hidden second retry owner |
+| provider tool call | normalized arguments | normalized arguments | schema and effect policy are equivalent |
+
+```mermaid
+flowchart LR
+  API["Stable business API"] --> PORT["EvidenceAnswerer contract"]
+  PORT --> SAI["Spring AI adapter"]
+  PORT --> LC4J["LangChain4j adapter"]
+  SAI --> ORACLE["Shared contract tests"]
+  LC4J --> ORACLE
+```
+
+Select one production adapter. Run the other only in an evaluation or migration lane until the shared oracles and provider-specific tests pass.
+
+### Example 3 — DJL versus direct ONNX Runtime inference
+
+Requirement: run a classifier in the JVM with bounded concurrency and reproducible inputs. Choose DJL when engine-agnostic model loading, translators and a broader deep-learning API earn their cost. Choose direct ONNX Runtime Java when the promoted artifact is ONNX and explicit tensor/session control is preferable. DJL can itself use an ONNX Runtime engine; that does not make direct ORT calls and DJL's abstraction identical.
+
+The release unit must bind these values:
+
+| Identity | Example evidence | Reject when |
+|---|---|---|
+| model bytes | immutable URI plus SHA-256 | digest differs |
+| format/opset | ONNX plus declared opset | runtime/provider lacks required operators |
+| preprocessing | tokenizer/normalizer code digest | training and serving transforms differ |
+| tensor contract | names, dtypes and shapes | request shape/type is incompatible |
+| runtime/native provider | DJL engine or ORT version plus CPU/CUDA provider | native library or accelerator is incompatible |
+| concurrency owner | fixed predictor/session admission limit | request bypasses the permit gate |
+
+```java
+if (!artifact.digest().equals(actualDigest)) throw new IllegalStateException("model drift");
+if (!permits.tryAcquire()) return InferenceResult.saturated();
+try {
+    return predictor.predict(preprocessor.translate(input));
+} finally {
+    permits.release();
+}
+```
+
+```mermaid
+flowchart TB
+  REQ["Pinned artifact manifest"] --> PRE["Preprocess + tensor contract"]
+  PRE --> GATE{"Capacity permit?"}
+  GATE -->|no| SAT["Typed saturation"]
+  GATE -->|yes| RUN["DJL predictor or ORT session"]
+  RUN --> POST["Validated output + metrics"]
+```
+
+Do not share a stateful predictor because construction is expensive unless its API explicitly permits that concurrency. Pool or create per-request resources according to the selected runtime's ownership contract, and close native resources deterministically.
+
+### Example 4 — keep specialized Python inference behind a versioned service boundary
+
+Requirement: Java owns identity, orders and durable workflow; Python owns a specialized GPU model. Split the process when release cadence, native dependencies, accelerator scheduling or team ownership justify the operational boundary—not because Python is “the AI language.”
+
+The Java-to-Python envelope needs an immutable schema version, operation ID, absolute deadline, trace context, authenticated service identity and model capability/version. The Java service authorizes business resources before sending the minimum necessary input. The Python service authenticates the caller, validates its own request limits, admits work only while capacity and deadline remain, and returns a typed outcome.
+
+| Event | Java decision | Python decision |
+|---|---|---|
+| invalid business resource | reject locally | no request received |
+| stale schema/model capability | map compatibility failure | reject before inference |
+| no capacity before deadline | do not multiply retries | return `SATURATED` with bounded retry guidance |
+| transport timeout, operation read-only | retry only within remaining deadline and one retry owner | deduplicate expensive work when an operation ID cache is configured |
+| result shape valid but policy-invalid | reject at business boundary | record technical success only |
+
+```mermaid
+sequenceDiagram
+  participant J as Java workflow
+  participant P as Python inference API
+  participant G as GPU admission gate
+  J->>J: authorize + set absolute deadline
+  J->>P: schema, operation, trace, minimal input
+  P->>P: authenticate + validate capability
+  P->>G: acquire within remaining deadline
+  alt admitted
+    G-->>P: permit
+    P-->>J: typed result + model identity
+  else saturated
+    G-->>P: no permit
+    P-->>J: SATURATED
+  end
+```
+
+### Version, retry and observability discipline
+
+As verified on 23 October 2026, the Spring reference lists Spring AI 2.0.1 as stable and states that the 2.0.x line supports Spring Boot 4.0.x and 4.1.x. Treat that as a compatible release family, not permission to float dependencies: import the Spring AI BOM, pin the application build, record the resolved graph, and review upgrades. The MCP Java SDK documentation is independently versioned; pin the SDK and record the negotiated MCP revision/capabilities rather than assuming every server supports the same transport or feature set.
+
+Retries belong at one layer. An application retry around a Spring AI client that already retries, combined with an ingress retry, can multiply calls. Keep one absolute deadline, allocate phase budgets from its remaining time, and do not retry effectful tools without an idempotency/reconciliation contract. Bulkheads and Reactor demand are related but not interchangeable: a stream can honor downstream demand while an unbounded number of independent requests still compete for the same database, provider or GPU.
+
+Metrics must aggregate. Put bounded values such as adapter name, model family, outcome and failure class in metric tags; put request/resource identifiers and detailed events in access-controlled traces or logs. Redact prompt/tool payloads by default and define retention before enabling framework observations in production.
+
+### Executable Java/Python contracts
+
+The paired standard-library exercises encode all twelve source-map selections, framework-port promotion gates, pinned inference identity, bounded inference admission, and a versioned cross-language service envelope:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/JavaLibraryMapContracts.java
+python3 study-guides/backend/spring-ai-python/java_library_map_contracts.py
+```
+
+They test decision and boundary logic. They do not claim to compile Spring AI, LangChain4j, MCP, DJL or ONNX Runtime integrations without those dependency graphs and native runtimes.
+
+### Common mistakes and interview follow-ups
+
+- **Two frameworks for optionality:** demand an application contract and migration evidence; otherwise choose one.
+- **MCP endpoint equals secure tool:** require transport authentication plus resource/effect authorization inside every tool.
+- **Reactive equals bounded:** name the queue, demand, scheduler and downstream capacity limit.
+- **Circuit breaker equals retry policy:** breakers stop calls after evidence of failure; they do not decide whether an effect is safe to repeat.
+- **Model format equals serving contract:** include preprocessing, tensor names/types/shapes, runtime/native provider and output mapping.
+- **Trace equals safe evidence:** define redaction, access, retention and cardinality before recording prompts or identities.
+
+Interview variations: expose the same MCP tool over stdio and Streamable HTTP; replace Spring AI with LangChain4j while preserving failure semantics; choose DJL over direct ORT for two model formats; diagnose blocking JDBC inside a WebFlux chain; split GPU inference to Python without moving business authorization.
+
+### Current primary references
+
+- [Spring AI introduction](https://docs.spring.io/spring-ai/reference/index.html), [getting started](https://docs.spring.io/spring-ai/reference/getting-started.html), [tool calling](https://docs.spring.io/spring-ai/reference/api/tools.html), and [MCP server starters](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-server-boot-starter-docs.html) — current release family, application abstractions, tool execution and the explicit MCP transport-security warning.
+- [LangChain4j introduction](https://docs.langchain4j.dev/intro/) and [AI Services](https://docs.langchain4j.dev/tutorials/ai-services/) — Java-native integration scope and high-level typed interface.
+- [Official MCP SDK tiers](https://modelcontextprotocol.io/docs/2026-07-28/sdk) and [MCP Java SDK overview](https://java.sdk.modelcontextprotocol.io/latest/overview/) — maintenance/support expectations, SDK version and protocol implementation.
+- [Spring Security authorization](https://docs.spring.io/spring-security/reference/servlet/authorization/) and [Reactor backpressure](https://projectreactor.io/docs/core/release/reference/coreFeatures/simple-ways-to-create-a-flux-or-mono-and-subscribe-to-it.html) — request/method authorization and demand propagation.
+- [Resilience4j introduction](https://resilience4j.readme.io/docs/getting-started) and [bulkheads](https://resilience4j.readme.io/docs/bulkhead) — composable resilience primitives and concurrency isolation.
+- [DJL overview](https://docs.djl.ai/master/index.html), [inference performance](https://docs.djl.ai/master/docs/development/inference_performance_optimization.html), and [ONNX Runtime Java](https://onnxruntime.ai/docs/get-started/with-java.html) — engine abstraction, predictor/concurrency considerations and direct JVM ONNX execution.
+
 ### Source provenance and continuation
 
-The selected editable source is `atlas_guides/spring_ai_python_api_interview_guide.md` from `ai_cicd_spring_python_guides_complete.zip`, bundle SHA-256 `c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31`, member SHA-256 `af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553`. Sections 1–2 promote source lines 6–56. Section 2 preserves the source's 17-project selection map while adding four requirement-driven examples, trace tables, paired executable contracts, failure/replay tests, and refreshed primary references. The standalone HTML SHA-256 `6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3` is byte-identical to the bundle’s generated HTML and remains comparison evidence rather than a duplicate guide. Section 3, **Java library map and how it differs**, begins at source line 57 and remains queued after fair domain rotation. The 25-section source is not complete.
+The selected editable source is `atlas_guides/spring_ai_python_api_interview_guide.md` from `ai_cicd_spring_python_guides_complete.zip`, bundle SHA-256 `c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31`, member SHA-256 `af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553`. Sections 1–3 promote source lines 6–82. Section 3 preserves all twelve source projects and its version-discipline boundary while adding four requirement-driven examples, traces, paired executable contracts, failure/admission tests, and refreshed primary references checked on 23 October 2026. The standalone HTML SHA-256 `6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3` is byte-identical to the bundle’s generated HTML and remains comparison evidence rather than a duplicate guide. Section 4, **Start with the offline lab**, begins at source line 84 and remains queued after fair domain rotation. The 25-section source is not complete.

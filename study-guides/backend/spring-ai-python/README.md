@@ -7,8 +7,10 @@ The paired standard-library exercises are intentionally small:
 ```bash
 java -ea study-guides/backend/spring-ai-python/LayerSelectionContracts.java
 java -ea study-guides/backend/spring-ai-python/LibrarySelectionContracts.java
+java -ea study-guides/backend/spring-ai-python/JavaLibraryMapContracts.java
 python3 study-guides/backend/spring-ai-python/layer_selection_contracts.py
 python3 study-guides/backend/spring-ai-python/library_selection_contracts.py
+python3 study-guides/backend/spring-ai-python/java_library_map_contracts.py
 ```
 
-This is an incremental guide. Sections 1–2 are promoted; later source sections remain queued.
+This is an incremental guide. Sections 1–3 are promoted; later source sections remain queued.
