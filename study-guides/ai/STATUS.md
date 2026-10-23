@@ -1,10 +1,10 @@
 # AI Enrichment Status
 
-Last updated: 2026-10-22.
+Last updated: 2026-10-23.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapters 1–3 complete**.
+State: **PROMOTED incrementally; Chapters 1–4 complete**.
 
 Canonical pair:
 
@@ -21,8 +21,10 @@ Source comparison:
 - Deepened Chapter 2 with four model-mechanics examples, token and migration traces, four diagrams, current primary references, and an executable Java 17 contract for context admission, embedding compatibility, guarded cosine similarity, decoding metadata, and semantic output acceptance.
 - Compared Chapter 3 in selected master lines 96–138 and editable companion lines 65–127; both specify versioned ingestion, bounded parsing, chunking, staged publication, and deletion, so no duplicate guide was created.
 - Deepened Chapter 3 with four ingestion examples, retry/limit/window/publication traces, five diagrams, current primary references, and an executable Java 17 contract for idempotency, monotonic revisions, resource limits, deterministic chunk windows, coherent generations, tombstones, and ACL epochs.
+- Compared Chapter 4 in selected master lines 139–168 and editable companion lines 129–178; both cover lexical/vector retrieval, capacity, rank fusion, reranking, and authorization-before-disclosure, so no duplicate guide was created.
+- Deepened Chapter 4 with four retrieval examples, exact identifier/ANN/RRF/reranker traces, five diagrams, current primary references, and an executable Java 17 contract for BM25, tenant-scoped exact vectors, checked capacity, deterministic RRF, and authorization-first bounded reranking with timeout fallback.
 
-Next bounded section: Chapter 4, **Retrieval internals: lexical, vector, hybrid and reranking**, after the recorded domain rotation.
+Next bounded section: Chapter 5, **PostgreSQL data design for a production RAG store**, after the recorded domain rotation.
 
 ## AI foundations, RAG and CAG
 
@@ -50,6 +52,6 @@ Validation is recorded in the enrichment queue and the promotion commit.
 Next action:
 
 1. Rotate fairly after this AI-platform pass.
-2. On the next AI-platform pass, process Chapter 4 only.
+2. On the next AI-platform pass, process Chapter 5 only.
 3. On a later AI-foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment.
 4. Keep project source code in the existing Spring Boot AI repositories; this repository holds learning documentation only.

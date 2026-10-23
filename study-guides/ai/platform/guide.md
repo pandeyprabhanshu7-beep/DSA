@@ -1,6 +1,6 @@
 # AI Platform Engineering
 
-> Canonical incremental guide. This pass has processed source Chapters 1–3. Later source chapters remain queued.
+> Canonical incremental guide. This pass has processed source Chapters 1–4. Later source chapters remain queued.
 
 ## 1. Choose prompting, RAG, fine-tuning, and tools by authority
 
@@ -420,6 +420,179 @@ java -ea IngestionContracts.java
 
 `IngestionContracts` exercises twelve scenario groups: retry identity; revision 7/8 publication; a delayed revision 6; normal and expansion-bomb parsing; the exact eight-window trace; failed then successful generation publication; fresh, revoked, and deleted reads; and quarantine isolation.
 
+## 4. Retrieval internals: lexical, vector, hybrid, and reranking
+
+Retrieval is a staged decision, not one similarity call. Lexical and vector systems create candidates with different strengths and incomparable raw scores. Fusion combines their **positions** or calibrated evidence, a bounded reranker spends more compute on a small authorized set, and the context builder still decides which passages are safe, current, diverse, and affordable enough to send to generation.
+
+```mermaid
+flowchart TD
+    I["Trusted identity + query"] --> A["Apply tenant, ACL, generation"]
+    A --> L["Lexical candidates"]
+    A --> V["Vector candidates"]
+    L --> F["Rank fusion"]
+    V --> F
+    F --> R["Bounded rerank + deduplicate"]
+    R --> C["Recheck access; pack evidence"]
+```
+
+### Requirements and invariants
+
+1. **Scope precedes scoring and disclosure.** Derive tenant and access scope from validated identity, not prompt text. Exclude ineligible rows before ranking whenever the engine supports it, and always recheck before text crosses a process or provider boundary.
+2. **Analyzer behavior is part of the lexical schema.** Record field, tokenizer, case folding, stemming, synonyms, and index revision. Preserve a keyword field for identifiers such as `ERR_PAY_042`; do not assume a prose analyzer preserves punctuation or dots.
+3. **Exact vector search is the recall oracle.** Approximate indexes trade recall for latency or memory. Compare HNSW/IVFFlat results with exact search on representative, authorization-filtered queries and report recall by important slice.
+4. **Embedding and distance contracts match the index.** Model identity, dimension, normalization, distance operator, and index generation must agree. A high similarity is a ranking signal, not evidence of authorization, freshness, or factual support.
+5. **Capacity includes operational overhead.** Raw coordinates are only a floor. Budget graph/list structures, tuples, text, metadata, write-ahead logging, replicas, backups, build headroom, and temporary query memory.
+6. **Never add unrelated raw scores blindly.** BM25, cosine, dot-product, and reranker scores have different scales. Use a validated calibration or a rank method such as reciprocal rank fusion (RRF), with deterministic tie-breaking.
+7. **Reranking has hard budgets and a typed fallback.** Bound candidate count, input tokens, batch size, deadline, and model revision. On timeout, return the deterministic fused order or a typed failure; do not silently widen access or wait without limit.
+8. **Every stage is observable and evaluable.** Record candidate IDs and ranks, not confidential text, plus index/analyzer/model versions, filters, timing, fallback, and final selections. Evaluate retrieval recall, rank quality, security, latency, and cost separately.
+
+## Example 1 — exact error code: lexical search earns its place
+
+Query: **“What does `ERR_PAY_042` mean?”** The corpus contains an exact runbook passage, a semantically broad payments overview, and a confidential passage for another tenant. The trusted tenant is `acme`.
+
+The lexical field lowercases while retaining underscores, so the query term remains `err_pay_042`. The exact runbook matches; the generic overview does not. The other-tenant passage must be removed by trusted scope even though it contains the same identifier. A separate keyword field can preserve the original code for an exact term query, while the prose field continues to support normal language.
+
+```mermaid
+flowchart TD
+    Q["ERR_PAY_042"] --> S["Trusted tenant = acme"]
+    S --> K["Keyword field: exact code"]
+    S --> T["Text field: analyzed terms"]
+    K --> U["Authorized union"]
+    T --> U
+    U --> O["Stable ranked IDs"]
+```
+
+For a simple term, Lucene's BM25 implementation uses
+
+`idf = log(1 + (docCount - docFreq + 0.5) / (docFreq + 0.5))`.
+
+Its `k1` controls term-frequency saturation and `b` controls document-length normalization. Those parameters do not repair a destructive analyzer: if tokenization loses the identifier, scoring never sees it.
+
+| Candidate | Trusted tenant? | Analyzed exact term? | Semantic theme? | Decision |
+|---|---:|---:|---:|---|
+| `pay-code` | Yes | Yes | Yes | Strong lexical candidate |
+| `pay-overview` | Yes | No | Yes | Vector candidate; not an exact-code lexical hit |
+| `beta-secret` | No | Yes | Yes | Exclude before result text is exposed |
+
+`RetrievalContracts.bm25` is an inspectable teaching oracle using `k1=1.2`, `b=0.75`, unique query terms, corpus document frequency, average field length, and stable ID tie-breaking. A production Lucene/OpenSearch/Elasticsearch score must come from that engine's configured analyzer and index statistics; do not claim byte-for-byte parity with this small reference.
+
+## Example 2 — exact vectors define recall; ANN earns latency
+
+Suppose the authorized corpus contains one million 768-dimensional `float32` embeddings. Raw coordinates require
+
+`1,000,000 × 768 × 4 = 3,072,000,000 bytes ≈ 2.861 GiB`.
+
+That number excludes every index and operational cost. HNSW adds a multilayer proximity graph and usually spends more memory/build time for a strong speed–recall trade-off. IVFFlat partitions vectors into trained lists and searches selected lists; its probes setting trades work for recall. Distribution drift, sparse tenant filters, and index settings can all change observed recall.
+
+```mermaid
+flowchart TD
+    D["Authorized exact search"] --> G["Ground-truth top-k"]
+    Q["Same query + filters"] --> H["HNSW / IVFFlat"]
+    H --> P["Approximate top-k"]
+    G --> E["Recall, latency, memory by slice"]
+    P --> E
+    E --> X{"Release gate passes?"}
+    X -->|yes| R["Promote settings"]
+    X -->|no| T["Tune or keep exact"]
+```
+
+Trace the acceptance decision rather than asserting “ANN is fast”:
+
+| Check | Exact baseline | Candidate ANN | Gate |
+|---|---:|---:|---|
+| Authorized relevant IDs recovered | 50 / 50 | 48 / 50 | Recall@50 = 0.96 |
+| Rare error-code slice | 10 / 10 | 7 / 10 | Fail if slice floor is 0.90 |
+| p95 retrieval latency | 180 ms | 28 ms | Pass a 40 ms target |
+| Returned rows | All `acme`, active generation | All `acme`, active generation | Mandatory |
+
+The overall recall looks acceptable, but the rare-code slice fails. Possible repairs include better hybrid candidate generation, a larger HNSW search breadth, more IVFFlat probes, partitioning, or an exact path for small authorized subsets. Removing the authorization predicate is never a recall optimization.
+
+The Java contract performs exact cosine ranking only after trusted-tenant filtering and rejects non-finite, zero, and dimension-mismatched vectors. It calculates raw capacity with checked multiplication so an overflow cannot become a plausible-looking budget.
+
+## Example 3 — fuse ranks, not BM25 and cosine magnitudes
+
+Lexical and vector retrievers return these independent ranks:
+
+| Rank | Lexical | Vector |
+|---:|---|---|
+| 1 | A | B |
+| 2 | X | C |
+| 3 | B | D |
+| 4 | Y | A |
+
+RRF uses `RRF(d) = Σ 1 / (k + rank_i(d))`, with ranks starting at one and zero contribution when a document is absent. At `k=60`:
+
+- A: `1/61 + 1/64 = 0.0320184426…`
+- B: `1/63 + 1/61 = 0.0322664585…`
+
+B wins narrowly because it is first in one list and third in the other. No conversion between a BM25 score and a cosine value was required.
+
+```mermaid
+flowchart TD
+    L["Lexical ranks: A, X, B, Y"] --> F["RRF k = 60"]
+    V["Vector ranks: B, C, D, A"] --> F
+    F --> B["B = 1/63 + 1/61"]
+    F --> A["A = 1/61 + 1/64"]
+    B --> O["B before A"]
+    A --> O
+```
+
+| Failure boundary | Why it matters | Contract |
+|---|---|---|
+| Same ID appears twice in one child list | Ambiguous rank contribution | Reject the malformed ranking |
+| Rank constant is zero/negative | Invalid formula/configuration | Reject before serving |
+| Two fused scores tie | Runtime/map order could leak into output | Break ties by stable document ID |
+| Child windows are too small | Useful candidates never reach fusion | Evaluate window size and recall |
+
+RRF is a strong baseline, not proof that every query benefits from hybrid search. Keep per-retriever and fused metrics, tune the rank window and constant on labeled queries, and preserve independent child ranks for diagnosis.
+
+## Example 4 — authorize, budget, rerank, and fall back
+
+A fused list for tenant `acme` contains five candidates. The external cross-encoder budget is three candidates and 1,000 estimated tokens.
+
+| Candidate | Tenant / ACL | Fused score | Reranker score | Tokens | Before reranker |
+|---|---|---:|---:|---:|---|
+| `beta-secret` | `beta` / allow | 0.050 | 1.00 | 100 | Exclude: wrong trusted tenant |
+| `revoked` | `acme` / deny | 0.040 | 1.00 | 100 | Exclude: ACL denies |
+| `runbook-r7` | `acme` / allow | 0.032 | 0.71 | 420 | Admit |
+| `incident-42` | `acme` / allow | 0.031 | 0.94 | 500 | Admit |
+| `long-appendix` | `acme` / allow | 0.030 | 0.99 | 900 | Skip: would exceed 1,000 tokens |
+
+Only `runbook-r7` and `incident-42` cross the reranker boundary, consuming 920 tokens. If the cross-encoder completes, it orders `incident-42` before `runbook-r7`. If it times out, the system returns the fused order—`runbook-r7`, then `incident-42`—with `usedFallback=true`. The secret, revoked, and over-budget candidates never become reranker inputs.
+
+```mermaid
+sequenceDiagram
+    participant H as Authorized host
+    participant R as Retriever
+    participant X as Cross-encoder
+    H->>R: query + trusted scope + budgets
+    R-->>H: fused IDs with tenant/ACL metadata
+    H->>H: filter, recheck, admit 920 tokens
+    H->>X: two allowed query-candidate pairs
+    alt completes before deadline
+        X-->>H: reranker scores + model revision
+    else timeout
+        H->>H: retain deterministic fused order
+    end
+```
+
+A cross-encoder jointly attends to the query and each candidate, which can improve ordering but is too expensive for corpus-wide scoring. It is a second-stage ranker, not an authorization service. Log model revision, admitted IDs, deadline/fallback, and score order; avoid logging confidential text merely to debug ranking.
+
+## Executable retrieval contract
+
+[`RetrievalContracts.java`](RetrievalContracts.java) implements the teaching BM25 oracle, exact tenant-scoped cosine ranking, checked vector-capacity arithmetic, deterministic RRF, and an authorization-first bounded reranker with timeout fallback.
+
+Run all four contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+```
+
+`RetrievalContracts` exercises thirteen scenario groups: exact identifier retrieval; invalid BM25 parameters; tenant-scoped exact vectors; cosine validation; decimal/GiB capacity and overflow; the exact A/B RRF trace; malformed child ranks; authorization and token admission before reranking; successful reorder; timeout fallback; and invalid budget rejection.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -434,6 +607,11 @@ java -ea IngestionContracts.java
 | “The same filename is the same document” | Filename provides stable identity and revision ordering | Store stable document ID, immutable revision, hash, and transform tuple |
 | “Overlap fixes every bad boundary” | Redundancy guarantees complete meaning | Preserve structure; evaluate parent expansion and deduplication |
 | “Delete the vector row and we are done” | No derived or cached copy can survive | Tombstone and invalidate text, vectors, summaries, caches, and ACL state |
+| “Cosine replaces keyword search” | Semantic proximity preserves exact codes and names | Keep an analyzed lexical baseline and keyword fields |
+| “ANN is close enough” | Average recall covers filtered and rare-query slices | Compare with exact search using the same trusted scope |
+| “Add BM25 and cosine scores” | Their numeric scales are directly comparable | Calibrate explicitly or fuse ranks such as RRF |
+| “Rerank everything, then remove secrets” | Text is safe until the final answer is shown | Filter and recheck before any reranker/model boundary |
+| “A reranker timeout should widen top-k” | More candidates are always safer | Use the bounded deterministic fallback and expose it |
 
 ## Primary references
 
@@ -449,14 +627,19 @@ java -ea IngestionContracts.java
 - OWASP Cheat Sheet Series, [File Upload Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html) (accessed 2026-10-22).
 - Apache Tika 4.x, [Tika Server security guidance](https://tika.apache.org/docs/4.0.x/using-tika/server/index.html), [unpack safety limits](https://tika.apache.org/docs/4.0.x/pipes/unpack-config.html), and [metadata limits](https://tika.apache.org/docs/4.0.x/migration-to-4x/metadata-changes-4x.html) (accessed 2026-10-22).
 - PostgreSQL 18, [`INSERT ... ON CONFLICT`](https://www.postgresql.org/docs/current/sql-insert.html), [transaction isolation](https://www.postgresql.org/docs/current/transaction-iso.html), and [explicit locking](https://www.postgresql.org/docs/current/explicit-locking.html) (accessed 2026-10-22).
+- Apache Lucene 10.5.1, [`BM25Similarity`](https://lucene.apache.org/core/10_5_1/core/org/apache/lucene/search/similarities/BM25Similarity.html) (accessed 2026-10-23).
+- pgvector, [exact and approximate search, HNSW, IVFFlat, filtering, and iterative scans](https://github.com/pgvector/pgvector) (accessed 2026-10-23).
+- Elasticsearch, [reciprocal rank fusion](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion) (accessed 2026-10-23).
+- Sentence Transformers, [retrieve-and-rerank pipeline](https://sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html) (accessed 2026-10-23).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–3, through `Ingestion is a data pipeline, not a file-upload callback`, bounded by Chapter 4.
+- Processed range: Chapters 1–4, through `Retrieval internals: lexical, vector, hybrid and reranking`, bounded by Chapter 5.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
-- Next bounded section: Chapter 4, `Retrieval internals: lexical, vector, hybrid and reranking` (after the recorded domain rotation).
+- Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
+- Next bounded section: Chapter 5, `PostgreSQL data design for a production RAG store` (after the recorded domain rotation).
 
