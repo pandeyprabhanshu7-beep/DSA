@@ -1,6 +1,6 @@
 # AI Platform Engineering
 
-> Canonical incremental guide. This pass has processed source Chapters 1–4. Later source chapters remain queued.
+> Canonical incremental guide. This pass has processed source Chapters 1–5. Later source chapters remain queued.
 
 ## 1. Choose prompting, RAG, fine-tuning, and tools by authority
 
@@ -593,6 +593,255 @@ java -ea RetrievalContracts.java
 
 `RetrievalContracts` exercises thirteen scenario groups: exact identifier retrieval; invalid BM25 parameters; tenant-scoped exact vectors; cosine validation; decimal/GiB capacity and overflow; the exact A/B RRF trace; malformed child ranks; authorization and token admission before reranking; successful reorder; timeout fallback; and invalid budget rejection.
 
+## 5. PostgreSQL data design for a production RAG store
+
+PostgreSQL plus pgvector can keep relational authority, lexical search, vectors, and publication state in one transactional system. That is useful when access rules and document revisions already live in PostgreSQL. It does not make schema identity, authorization, filtered approximate recall, maintenance, or migrations automatic. Treat the database as a set of explicit contracts rather than a table named `chunks` with an embedding column.
+
+```mermaid
+flowchart TD
+    I["Trusted tenant + principal"] --> A["Active-generation pointer"]
+    A --> C["Revisioned chunks"]
+    I --> P["Document ACL relation"]
+    P --> C
+    C --> X["Lexical / exact / ANN candidates"]
+    X --> R["Recheck scope; bounded evidence"]
+```
+
+### Requirements and invariants
+
+1. **Identity is composite and immutable.** A chunk key includes trusted tenant, stable document ID, immutable revision, deterministic chunk number, and index generation. A retry with the same key and payload is a no-op; the same key with different bytes or metadata is corruption.
+2. **One generation has one embedding contract.** Store model revision, dimension, representation, normalization rule, and distance metric with the generation. `vector(768)` enforces 768 coordinates, but it cannot prove that the coordinates came from the declared model or use the intended metric.
+3. **Publication changes one authoritative pointer.** Stage and validate rows without exposing them, then change a per-tenant active-generation row in a short transaction. Lock or compare-and-set that pointer so a delayed publisher cannot replace a newer generation.
+4. **Authorization is relational query input, not prompt metadata.** Derive tenant and principal from authenticated server context; join an authorized-document relation or apply a tested row-security policy before text leaves PostgreSQL. Application predicates remain mandatory even when row-level security adds defense in depth.
+5. **Deletion and revocation outrank replicas and indexes.** A monotonic tombstone or authority row must suppress deleted revisions even while physical rows, an old generation, caches, or replicas still exist. Cleanup is asynchronous; denial is immediate.
+6. **Queries are parameterized and bounded.** Bind the vector through the driver's supported representation, validate dimension and finite values, cap top-k and deadlines, and never concatenate tenant, principal, vector, identifier, or limit text into SQL.
+7. **Exact search is the filtered recall baseline.** An HNSW or IVFFlat index can apply filters after scanning approximate candidates. Measure result count and recall with realistic tenant/ACL selectivity; iterative scans, partitions, and larger search budgets are tuning choices, not permission to weaken scope.
+8. **DDL and index changes are production releases.** Rehearse extension/version compatibility, build or rebuild strategy, I/O/WAL headroom, invalid-index cleanup, replica lag, backup/restore, rollback, and query-plan changes. `CONCURRENTLY` reduces blocking but adds work and operational states to observe.
+
+## Example 1 — encode authority and version identity in the schema
+
+This teaching schema fixes the physical vector width at 768 and cosine distance. A real migration must choose its width from the deployed embedding model and pgvector type/index limits.
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE rag_generation (
+    tenant_id text NOT NULL,
+    generation_id text NOT NULL,
+    embedding_model text NOT NULL,
+    dimensions integer NOT NULL CHECK (dimensions = 768),
+    distance_metric text NOT NULL CHECK (distance_metric = 'cosine'),
+    expected_chunks bigint NOT NULL CHECK (expected_chunks > 0),
+    validated_at timestamptz,
+    PRIMARY KEY (tenant_id, generation_id)
+);
+
+CREATE TABLE rag_active_generation (
+    tenant_id text PRIMARY KEY,
+    generation_id text NOT NULL,
+    FOREIGN KEY (tenant_id, generation_id)
+      REFERENCES rag_generation (tenant_id, generation_id)
+);
+
+CREATE TABLE rag_document_acl (
+    tenant_id text NOT NULL,
+    document_id text NOT NULL,
+    principal_id text NOT NULL,
+    acl_version bigint NOT NULL CHECK (acl_version > 0),
+    PRIMARY KEY (tenant_id, document_id, principal_id)
+);
+
+CREATE TABLE rag_tombstone (
+    tenant_id text NOT NULL,
+    document_id text NOT NULL,
+    deleted_through_revision bigint NOT NULL CHECK (deleted_through_revision > 0),
+    PRIMARY KEY (tenant_id, document_id)
+);
+
+CREATE TABLE rag_chunk (
+    tenant_id text NOT NULL,
+    generation_id text NOT NULL,
+    document_id text NOT NULL,
+    revision bigint NOT NULL CHECK (revision > 0),
+    chunk_no integer NOT NULL CHECK (chunk_no >= 0),
+    body text NOT NULL CHECK (body <> ''),
+    body_sha256 text NOT NULL,
+    embedding vector(768) NOT NULL,
+    search_text tsvector GENERATED ALWAYS AS
+      (to_tsvector('english', body)) STORED,
+    PRIMARY KEY (tenant_id, generation_id, document_id, revision, chunk_no),
+    FOREIGN KEY (tenant_id, generation_id)
+      REFERENCES rag_generation (tenant_id, generation_id)
+);
+
+CREATE INDEX rag_chunk_scope
+  ON rag_chunk (tenant_id, generation_id, document_id, revision);
+CREATE INDEX rag_chunk_lexical ON rag_chunk USING gin (search_text);
+CREATE INDEX rag_chunk_cosine
+  ON rag_chunk USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX rag_acl_principal
+  ON rag_document_acl (tenant_id, principal_id, document_id);
+```
+
+The foreign keys protect generation membership; primary/unique constraints protect cross-row identity; check constraints protect properties of one row. Do not write a `CHECK` constraint that queries an ACL or generation table—PostgreSQL does not use cross-row `CHECK` constraints as a general consistency mechanism.
+
+| Fact | Enforcement | What it does **not** prove |
+|---|---|---|
+| Chunk has 768 coordinates | `vector(768)` | Model identity, normalization, semantic quality |
+| One immutable chunk identity | composite primary key | Same key has same bytes on a retry; compare `body_sha256` |
+| Chunk belongs to declared generation | composite foreign key | Generation is validated or active |
+| Principal has document relation | ACL primary key + query join | Identity was authenticated; the server supplies it |
+| Delete watermark only moves forward | guarded upsert/application contract | Old physical rows are already removed |
+
+## Example 2 — make a retry idempotent without hiding corruption
+
+Worker W1 writes revision 7, chunk 0 of `runbook` into `g17`. Its acknowledgement is lost, so W2 retries. `ON CONFLICT DO NOTHING` alone would hide a changed payload. Instead, either compare a returned existing row in the application or use a guarded update whose predicate accepts only the same immutable values.
+
+```sql
+INSERT INTO rag_chunk
+  (tenant_id, generation_id, document_id, revision, chunk_no,
+   body, body_sha256, embedding)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector)
+ON CONFLICT (tenant_id, generation_id, document_id, revision, chunk_no)
+DO UPDATE SET body_sha256 = rag_chunk.body_sha256
+WHERE rag_chunk.body_sha256 = EXCLUDED.body_sha256
+  AND rag_chunk.body = EXCLUDED.body
+  AND rag_chunk.embedding = EXCLUDED.embedding
+RETURNING body_sha256;
+```
+
+If the statement returns one row, the insert or exact retry succeeded. If it returns no row after a conflict, fetch the existing identity for diagnosis and fail the job: identical identity with a different hash is not a retry. In production, the embedding/model/transform identity also belongs in the comparison, and the caller checks the returned value rather than inferring success from command completion.
+
+```mermaid
+sequenceDiagram
+    participant W as Ingestion worker
+    participant P as PostgreSQL
+    W->>P: insert key K, hash H1
+    P-->>W: row H1 (ack lost)
+    W->>P: retry key K, hash H1
+    P-->>W: existing H1; success
+    W->>P: retry key K, hash H2
+    P-->>W: no returned row; fail closed
+```
+
+| Attempt | Key | Hash | Result |
+|---|---|---|---|
+| First | `acme/g17/runbook/r7/c0` | `H1` | Insert |
+| Exact retry | same | `H1` | Idempotent success |
+| Corrupt retry | same | `H2` | Reject; do not overwrite |
+| New revision | `acme/g18/runbook/r8/c0` | `H2` | Distinct immutable row |
+
+## Example 3 — publish a complete generation with a guarded pointer switch
+
+Suppose `g17` is active while `g18` expects eight chunks. A first validation sees seven, so readers continue using all of `g17`; no query mixes generations. After repair, a transaction locks the tenant pointer, rechecks the expected predecessor and staged facts, then changes exactly one row.
+
+```sql
+BEGIN;
+
+SELECT generation_id
+FROM rag_active_generation
+WHERE tenant_id = $1
+FOR UPDATE;
+
+-- Application requires the returned generation to equal $2 ('g17').
+-- In the same transaction, verify g18's expected count, model/dimension/
+-- metric contract, nonempty bodies, hashes, and any probe queries.
+
+UPDATE rag_generation
+SET validated_at = clock_timestamp()
+WHERE tenant_id = $1 AND generation_id = $3;
+
+UPDATE rag_active_generation
+SET generation_id = $3
+WHERE tenant_id = $1 AND generation_id = $2;
+
+-- Application requires UPDATE row_count = 1.
+COMMIT;
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Staging
+    Staging --> Staging: 7 of 8; repair
+    Staging --> Validated: 8 of 8 + probes pass
+    Validated --> Active: guarded pointer g17 to g18
+    Active --> Retained: next generation published
+    Retained --> [*]: rollback window expires
+```
+
+| Event | Staged `g18` | Active pointer | Reader-visible set |
+|---|---:|---|---|
+| Initial load | 7 / 8 | `g17` | coherent `g17` |
+| Repaired and validated | 8 / 8 | `g17` | coherent `g17` |
+| Transaction commits | 8 / 8 | `g18` | coherent `g18` |
+| Delayed writer expects `g17` | 8 / 8 | `g18` | update count 0; reject |
+
+`SELECT ... FOR UPDATE` locks the pointer row until transaction end. Keep this transaction short: expensive parsing and embedding happen before it. An empty first publication needs an explicit insert path (or a pre-created pointer row); do not silently treat missing state as any expected predecessor.
+
+## Example 4 — authorize before distance and migrate embeddings explicitly
+
+The server derives tenant `acme` and principal `employee-42` from authenticated context. The query joins the active generation and ACL, suppresses tombstoned revisions, and binds a 768-dimensional query vector. Text for `beta`, unauthorized `acme` documents, inactive generations, and deleted revisions must not cross the database boundary.
+
+```sql
+SELECT c.document_id, c.revision, c.chunk_no, c.body,
+       c.embedding <=> $3::vector AS cosine_distance
+FROM rag_active_generation AS a
+JOIN rag_chunk AS c
+  ON c.tenant_id = a.tenant_id
+ AND c.generation_id = a.generation_id
+JOIN rag_document_acl AS p
+  ON p.tenant_id = c.tenant_id
+ AND p.document_id = c.document_id
+LEFT JOIN rag_tombstone AS t
+  ON t.tenant_id = c.tenant_id
+ AND t.document_id = c.document_id
+WHERE a.tenant_id = $1
+  AND p.principal_id = $2
+  AND c.revision > COALESCE(t.deleted_through_revision, 0)
+ORDER BY c.embedding <=> $3::vector, c.document_id, c.revision, c.chunk_no
+LIMIT $4;
+```
+
+| Candidate row | Active generation? | Tenant / ACL | Tombstone | Outcome |
+|---|---:|---|---:|---|
+| `runbook-r8-c0` | Yes | `acme` / allow | through r7 | Eligible, score it |
+| `secret-r2-c0` | Yes | `acme` / deny | none | Exclude before text leaves DB |
+| `runbook-r7-c0` | No (`g17`) | `acme` / allow | through r7 | Exclude twice |
+| `beta-runbook-r9-c0` | Yes for beta | `beta` / allow | none | Exclude by trusted tenant |
+
+For exact search this eligible set is the natural correctness oracle. For HNSW/IVFFlat, SQL predicates remain logically mandatory, but pgvector documents that filtering can occur after the approximate index scan. A selective ACL may therefore produce fewer than top-k results. Compare against the exact query by tenant/role/query slice; then test a B-tree scope index, iterative scans, larger search breadth, partial indexes, or partitioning. Never fetch unauthorized text and “filter it later” to repair recall.
+
+A model migration is a data migration. If `embed-a` and `embed-b` both emit 768 dimensions but define different coordinate spaces, separate generations still prevent cross-model comparison. If dimensions change, a fixed `vector(768)` column cannot hold both shapes: add a new typed column/table or complete a controlled schema migration. Dual-read is acceptable only when each query vector searches its matching model/dimension/metric and application-level fusion combines independent ranks; raw distances across spaces are not comparable.
+
+```mermaid
+flowchart TD
+    Q["Query"] --> O["Old-model vector"]
+    Q --> N["New-model vector"]
+    O --> G1["Eligible old generation"]
+    N --> G2["Eligible new generation"]
+    G1 --> E["Evaluate separate ranks"]
+    G2 --> E
+    E --> P{"New release passes?"}
+    P -->|yes| S["Switch active pointer"]
+    P -->|no| K["Keep old generation"]
+```
+
+## Executable PostgreSQL/RAG contract
+
+[`PostgresRagContracts.java`](PostgresRagContracts.java) is a dependency-free state-machine oracle for the database invariants; it does not pretend to execute PostgreSQL or test an HNSW plan. It implements immutable composite keys, exact-retry detection, generation-wide embedding contracts, count validation, compare-and-set publication, tenant/ACL/active-generation filtering before exact cosine scoring, bounded top-k, and monotonic tombstones.
+
+Run all five contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+```
+
+`PostgresRagContracts` exercises four worked sequences plus validation failures: exact retry versus key collision; incomplete and stale publication; active-generation/model/dimension/tenant/ACL query filtering; and a tombstone that remains monotonic under an older repeated delete.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -612,6 +861,11 @@ java -ea RetrievalContracts.java
 | “Add BM25 and cosine scores” | Their numeric scales are directly comparable | Calibrate explicitly or fuse ranks such as RRF |
 | “Rerank everything, then remove secrets” | Text is safe until the final answer is shown | Filter and recheck before any reranker/model boundary |
 | “A reranker timeout should widen top-k” | More candidates are always safer | Use the bounded deterministic fallback and expose it |
+| “`vector(768)` proves model compatibility” | Equal shape means equal embedding space | Version model, dimension, representation, normalization, and metric by generation |
+| “`ON CONFLICT DO NOTHING` makes retries safe” | Duplicate identity always means duplicate payload | Compare immutable hashes/specs and fail on a key collision |
+| “Seven of eight chunks are close enough” | Readers can tolerate partial publication | Validate staging, then switch one guarded active pointer |
+| “The SQL has an ACL predicate, so ANN recall is solved” | Filtered approximate search always fills top-k | Measure against scoped exact search; tune without weakening scope |
+| “Dropping the row completes deletion” | No stale generation, cache, or replica can serve it | Enforce a monotonic tombstone/authority check before cleanup |
 
 ## Primary references
 
@@ -631,15 +885,18 @@ java -ea RetrievalContracts.java
 - pgvector, [exact and approximate search, HNSW, IVFFlat, filtering, and iterative scans](https://github.com/pgvector/pgvector) (accessed 2026-10-23).
 - Elasticsearch, [reciprocal rank fusion](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion) (accessed 2026-10-23).
 - Sentence Transformers, [retrieve-and-rerank pipeline](https://sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html) (accessed 2026-10-23).
+- PostgreSQL 18, [constraints](https://www.postgresql.org/docs/current/ddl-constraints.html), [row security policies](https://www.postgresql.org/docs/current/ddl-rowsecurity.html), [full-text search](https://www.postgresql.org/docs/current/textsearch.html), and [`SELECT ... FOR UPDATE` locking](https://www.postgresql.org/docs/current/explicit-locking.html) (accessed 2026-10-23).
+- PostgreSQL 18, [`CREATE INDEX`](https://www.postgresql.org/docs/current/sql-createindex.html), [`REINDEX`](https://www.postgresql.org/docs/current/sql-reindex.html), and [index-build progress reporting](https://www.postgresql.org/docs/current/progress-reporting.html#CREATE-INDEX-PROGRESS-REPORTING) (accessed 2026-10-23).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–4, through `Retrieval internals: lexical, vector, hybrid and reranking`, bounded by Chapter 5.
+- Processed range: Chapters 1–5, through `PostgreSQL data design for a production RAG store`, bounded by Chapter 6.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
-- Next bounded section: Chapter 5, `PostgreSQL data design for a production RAG store` (after the recorded domain rotation).
+- Chapter 5 source comparison: selected master lines 169–204 and editable companion lines 180–222 agree on the pgvector schema pattern, fixed example dimension, parameterized cosine query, tenant/generation scope, ACL caveat, and datastore-selection criteria; the companion was used for editable structure, not promoted as a duplicate guide.
+- Next bounded section: Chapter 6, `Context construction, citations and abstention` (after the recorded domain rotation).
 
