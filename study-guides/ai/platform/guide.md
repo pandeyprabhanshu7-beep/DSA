@@ -1,6 +1,6 @@
 # AI Platform Engineering
 
-> Canonical incremental guide. This pass has processed source Chapters 1–2. Later source chapters remain queued.
+> Canonical incremental guide. This pass has processed source Chapters 1–3. Later source chapters remain queued.
 
 ## 1. Choose prompting, RAG, fine-tuning, and tools by authority
 
@@ -278,6 +278,148 @@ java -ea ModelMechanics.java
 
 `ModelMechanics` exercises thirteen scenario groups: valid and invalid context budgets, ranked admission, cosine examples and malformed vectors, same- and cross-generation embedding identities, explicit decoding settings, and semantic acceptance versus fluent unsupported output.
 
+## 3. Ingestion is a data pipeline, not a file-upload callback
+
+An upload is only an immutable input revision. Publication is a separate, asynchronous decision reached after bounded parsing, provenance-preserving chunking, embedding, staging, and validation. This separation makes retries safe, keeps malformed inputs away from serving indexes, and prevents delayed work from replacing newer knowledge.
+
+```mermaid
+flowchart TD
+    U["Accept immutable revision"] --> P["Parse in bounded worker"]
+    P -->|valid| C["Chunk with provenance"]
+    P -->|invalid| Q["Quarantine"]
+    C --> E["Embed into staging generation"]
+    E --> V{"Counts, metadata, probes pass?"}
+    V -->|yes| A["Atomically switch active pointer"]
+    V -->|no| Q
+```
+
+### Requirements and invariants
+
+1. **Identity has distinct dimensions.** Keep tenant, stable document ID, immutable revision, content hash, source URI, parser/chunker/model versions, ACL version, and chunk location separate. A content hash detects byte equality; it does not replace document identity or authorization.
+2. **The complete transformation tuple is idempotent.** At minimum, key work by `(tenant, document, revision, parser version, chunker version, embedding model)`. A retry returns or resumes the same durable job and outputs; it does not append another copy.
+3. **Revision publication is monotonic.** A delayed revision 6 job cannot replace active revision 8. Enforce the comparison where the authoritative pointer is changed, inside one transaction or equivalent compare-and-set operation.
+4. **Parsing is hostile-input processing.** Validate allowed type and extension independently, generate storage names, keep inputs outside the serving path, and cap compressed bytes, expanded bytes, pages, nested items, elapsed time, and output metadata. Isolate parsing with narrow network and filesystem access.
+5. **Structure and provenance survive extraction.** Preserve page, section, headings, table headers, code symbol/language, source revision, and offsets. A warning must not be separated from the instruction it qualifies.
+6. **Chunk settings are measured configuration.** Record tokenizer, size, overlap, boundary strategy, and parent relation. Evaluate recall and citation completeness on representative questions; there is no universally optimal window.
+7. **Only a coherent generation is queryable.** Write and validate a staging generation, then atomically switch one active pointer. Readers use one generation unless mixed-version semantics are deliberately specified and tested.
+8. **Deletion and ACL changes invalidate derived state.** Tombstone source revisions and remove or invalidate vectors, extracted text, caches, and summaries. Recheck authorization at read time and include an authorization epoch or equivalent freshness token in cache identity.
+
+## Example 1 — retry safely and reject a delayed old revision
+
+The payments runbook has stable document ID `payments`. Revision 7 is ingested with tuple `(acme, payments, 7, tika-4.1, heading-v3, embed-v5)`. A worker loses its acknowledgement after creating `job-1`; the client retries the exact tuple. The registry returns `job-1`, not `job-2`.
+
+Revision 8 then publishes generation `g18`. Much later, a revision 6 worker finishes. Its chunks may be retained for diagnosis, but the authoritative publication check records the job as `SUPERSEDED`; active revision 8 remains unchanged.
+
+```mermaid
+sequenceDiagram
+    participant C as Ingestion client
+    participant J as Job registry
+    participant W as Worker
+    participant A as Active pointer
+    C->>J: accept tuple for revision 7
+    J-->>C: job-1
+    C->>J: retry same tuple
+    J-->>C: job-1
+    W->>A: publish revision 8 / g18
+    A-->>W: active = revision 8
+    W->>A: delayed publish revision 6 / g16
+    A-->>W: SUPERSEDED; active unchanged
+```
+
+| Event | Durable check | Result |
+|---|---|---|
+| First revision 7 acceptance | No row for complete tuple | Create `job-1` |
+| Retry after lost response | Unique tuple already maps to `job-1` | Return/resume `job-1` |
+| Revision 8 publication | `8 >= active revision 7` and staging passed | Switch active pointer to `g18` |
+| Delayed revision 6 publication | `6 < active revision 8` | Mark superseded; do not switch |
+
+A database implementation can use a unique constraint plus `INSERT ... ON CONFLICT` for job identity. Publication still needs an atomic conditional update or locked transaction; an upsert by itself does not express “only if this revision is not older.”
+
+## Example 2 — parse layout under explicit resource limits
+
+An HTTP endpoint receives `pricing.pdf`. It validates the declared extension, detected media type, authorization, and a 10 MB input limit; stores the bytes under a generated name outside the web root; records a hash and immutable revision; enqueues a job; and returns `202 Accepted` with the job ID. It does not hold an application transaction open while OCR runs.
+
+The isolated worker has limits of 100 MB expanded content, 500 pages, and 30 seconds. A normal 2 MB PDF expands to 18 MB and 42 pages, so parsing proceeds. A crafted 2 MB archive attempts to expand to 120 MB, so the worker stops, marks the revision `QUARANTINED`, and publishes nothing.
+
+```mermaid
+flowchart LR
+    H["Upload handler"] --> S["Immutable object + job"]
+    S --> W["Isolated parser"]
+    W --> L{"Within every limit?"}
+    L -->|yes| N["Layout-aware normalized blocks"]
+    L -->|no| Q["Quarantine + diagnostic"]
+```
+
+| Observation | Limit | Decision |
+|---|---:|---|
+| Compressed bytes `2,000,000` | `10,000,000` | Continue |
+| Expanded bytes `18,000,000` | `100,000,000` | Continue |
+| Pages `42` | `500` | Continue |
+| Elapsed time `1,900 ms` | `30,000 ms` | Continue |
+| Alternate expanded bytes `120,000,000` | `100,000,000` | Stop and quarantine |
+
+Successful extraction is not merely a string. A pricing-table row carries its column headers; a code block carries repository, revision, path, language, and symbol; a two-column PDF retains reading order and page; and OCR output is labeled as OCR-derived. Representative golden files should detect silent layout regressions when a parser changes.
+
+## Example 3 — calculate windows and protect a warning boundary
+
+For a 4,000-token normalized document, window size 600 and overlap 100 produce stride `600 - 100 = 500`. Starts are `0, 500, 1000, 1500, 2000, 2500, 3000, 3500`, so there are eight windows. The first is `[0,600)` and the last is `[3500,4000)`, only 500 tokens long. Total indexed token occurrences are `7 × 600 + 500 = 4,700`: overlap adds 700 occurrences, or 17.5% over the source length.
+
+```mermaid
+flowchart TD
+    D["4,000 tokens"] --> W["window 600; overlap 100"]
+    W --> S["stride 500"]
+    S --> C["8 windows; 4,700 indexed occurrences"]
+    C --> R["Deduplicate neighbors; expand parent when needed"]
+```
+
+| Window | Range | Size | Boundary note |
+|---:|---:|---:|---|
+| 0 | `[0,600)` | 600 | Full window |
+| 1 | `[500,1100)` | 600 | Repeats 100 tokens from window 0 |
+| 6 | `[3000,3600)` | 600 | May contain the migration warning |
+| 7 | `[3500,4000)` | 500 | Must not return rollback steps without their warning |
+
+If “Do not roll back after migration M42 without the recovery procedure” ends near token 3,550 and the next passage begins “Restore the previous image,” overlap alone may still rank the incomplete passage first. Heading-aware boundaries, a warning-to-procedure parent relation, parent expansion, and adjacent-hit deduplication solve different problems from merely raising top-k. Compare configurations such as 300/600/900 tokens and 10–20% overlap using task-specific recall and complete-citation checks.
+
+## Example 4 — validate, publish, revoke, and delete coherently
+
+Generation `g18` for revision 8 expects eight chunks. The first validation observes seven, so publication fails and readers remain on `g17`. After repair, `g18` has eight chunks, complete provenance/ACL metadata, and passes retrieval probes. A single authoritative pointer change makes `g18` visible; readers never observe half of `g17` and half of `g18`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Staging
+    Staging --> Rejected: count / metadata / probe failure
+    Staging --> Active: all gates pass + atomic switch
+    Active --> Prior: newer generation publishes
+    Active --> Invalidated: tombstone or ACL epoch changes
+    Rejected --> [*]
+    Prior --> [*]
+    Invalidated --> [*]
+```
+
+| Stage | Expected / observed | Pointer | Serve? |
+|---|---|---|---|
+| First `g18` validation | 8 / 7 chunks | `g17` | No from `g18` |
+| Repaired `g18` validation | 8 / 8 + metadata + probe pass | atomically `g17 → g18` | Yes from `g18` |
+| ACL revocation | authorization epoch `12 → 13` | `g18` | Old epoch cache entry: no |
+| Delete revision 8 | tombstone through revision 8 | `g18` until cleanup/next publish | Revision 8: no |
+
+An ACL change can invalidate authorization without changing document bytes, so the content hash is not a sufficient cache key. Likewise, a tombstone must outrank a stale replica or cache. Retaining `g17` for rollback does not authorize serving content that has since been deleted or revoked.
+
+## Executable ingestion contract
+
+[`IngestionContracts.java`](IngestionContracts.java) implements the complete idempotency tuple, monotonic publication, bounded parse observations, deterministic windows, staging validation, atomic active views, tombstones, and authorization epochs.
+
+Run all three contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+```
+
+`IngestionContracts` exercises twelve scenario groups: retry identity; revision 7/8 publication; a delayed revision 6; normal and expansion-bomb parsing; the exact eight-window trace; failed then successful generation publication; fresh, revoked, and deleted reads; and quarantine isolation.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -288,6 +430,10 @@ java -ea ModelMechanics.java
 | “The tool is listed, so it is allowed” | Discovery equals authorization | Enforce host policy, consent, and server authorization |
 | “The tool timed out, so retry” | No response means no side effect | Reconcile by idempotency key and operation record |
 | “JSON is valid, so the answer is correct” | Syntax proves semantics | Validate claims, citations, business rules, and postconditions |
+| “The upload returned 200, so it is searchable” | Storage equals validated publication | Return a job; parse, stage, validate, then switch generations |
+| “The same filename is the same document” | Filename provides stable identity and revision ordering | Store stable document ID, immutable revision, hash, and transform tuple |
+| “Overlap fixes every bad boundary” | Redundancy guarantees complete meaning | Preserve structure; evaluate parent expansion and deduplication |
+| “Delete the vector row and we are done” | No derived or cached copy can survive | Tombstone and invalidate text, vectors, summaries, caches, and ACL state |
 
 ## Primary references
 
@@ -300,13 +446,17 @@ java -ea ModelMechanics.java
 - Hugging Face Transformers, [generation configuration](https://huggingface.co/docs/transformers/main_classes/text_generation) and [generation strategies](https://huggingface.co/docs/transformers/generation_strategies).
 - PyTorch, [Reproducibility](https://docs.pytorch.org/docs/stable/notes/randomness.html) and [`use_deterministic_algorithms`](https://docs.pytorch.org/docs/stable/generated/torch.use_deterministic_algorithms.html).
 - NIST, [AI RMF Generative AI Profile](https://doi.org/10.6028/NIST.AI.600-1) (2024).
+- OWASP Cheat Sheet Series, [File Upload Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html) (accessed 2026-10-22).
+- Apache Tika 4.x, [Tika Server security guidance](https://tika.apache.org/docs/4.0.x/using-tika/server/index.html), [unpack safety limits](https://tika.apache.org/docs/4.0.x/pipes/unpack-config.html), and [metadata limits](https://tika.apache.org/docs/4.0.x/migration-to-4x/metadata-changes-4x.html) (accessed 2026-10-22).
+- PostgreSQL 18, [`INSERT ... ON CONFLICT`](https://www.postgresql.org/docs/current/sql-insert.html), [transaction isolation](https://www.postgresql.org/docs/current/transaction-iso.html), and [explicit locking](https://www.postgresql.org/docs/current/explicit-locking.html) (accessed 2026-10-22).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–2, through `Model mechanics you need for system design`, bounded by Chapter 3.
+- Processed range: Chapters 1–3, through `Ingestion is a data pipeline, not a file-upload callback`, bounded by Chapter 4.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
-- Next bounded section: Chapter 3, `Embeddings and retrieval engineering`.
+- Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
+- Next bounded section: Chapter 4, `Retrieval internals: lexical, vector, hybrid and reranking` (after the recorded domain rotation).
 

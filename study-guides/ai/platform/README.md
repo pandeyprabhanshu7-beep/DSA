@@ -4,5 +4,6 @@
 - [Searchable responsive HTML](guide.html)
 - [Executable Java 17 routing contract](EvidenceRouting.java)
 - [Executable Java 17 model-mechanics contract](ModelMechanics.java)
+- [Executable Java 17 ingestion contract](IngestionContracts.java)
 
-This is an incremental canonical guide. Chapters 1–2 are promoted; Chapter 3 is the next bounded source section. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
+This is an incremental canonical guide. Chapters 1–3 are promoted; Chapter 4 is the next bounded source section after the recorded domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
