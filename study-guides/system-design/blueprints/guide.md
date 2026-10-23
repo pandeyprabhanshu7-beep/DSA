@@ -1,6 +1,6 @@
 # System Design Blueprints
 
-This is the canonical incremental guide. Each blueprint must make its requirements, arithmetic, ownership boundaries, failure behavior, and verification evidence explicit. Source Blueprints 1–3 are promoted; Blueprints 4–5 remain queued.
+This is the canonical incremental guide. Each blueprint must make its requirements, arithmetic, ownership boundaries, failure behavior, and verification evidence explicit. Source Blueprints 1–4 are promoted; Blueprint 5 remains queued.
 
 ## Blueprint 1 — Global video streaming
 
@@ -600,3 +600,167 @@ The synchronized in-memory method models one database transaction for teaching; 
 ### 10. Source provenance and continuation
 
 The confirmed Library source remains `top_5_system_design_interview_blueprints.md`, revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. This bounded pass promotes exactly source lines 460–680 and adds measurable contracts, four worked examples, executable invariants, failure evidence and primary-source verification refreshed on 2026-10-23. Source Blueprint 4 begins at line 681 and remains queued after fair domain rotation. The five-blueprint collection is not complete.
+
+## Blueprint 4 — Large-scale, polite web crawler
+
+### 1. Define the safety and ownership contracts first
+
+The crawler discovers HTTP(S) URLs from approved seeds, sitemaps and fetched documents; normalizes fetch identity; consults the applicable robots policy; schedules fairly; fetches within strict network and byte limits; stores evidence; extracts links; and chooses a bounded recrawl time. Discovery is not permission to fetch, a fetched page is not automatically indexable, and `robots.txt` is not an authorization mechanism.
+
+| Contract | Required behavior | Unsafe shortcut |
+|---|---|---|
+| URL identity | resolve against the document base; lowercase scheme/host; remove default port, dot segments and fragment; preserve unknown query semantics | sort/drop every query parameter |
+| origin ownership | one scheduler owner coordinates `(scheme, host, effective port)` delay and concurrency | partition only by full-URL hash |
+| robots | cache policy by origin and user-agent; longest matching rule wins; refresh with bounded staleness | fetch robots for every page or treat it as access control |
+| fetch safety | allow HTTP(S), validate the address actually connected to, block private/link-local/loopback destinations, cap redirects/time/bytes | validate only the first hostname before redirects |
+| delivery | leased work is at-least-once; content storage and downstream parsing are idempotent | assume a queue makes fetching exactly once |
+| recrawl | base the next time on observed change, freshness demand, cache validators and failures | fixed interval for every URL |
+
+Align the partition key with the politeness invariant:
+
+```mermaid
+flowchart TB
+  Seeds["Seeds, sitemaps, extracted links"] --> Norm["Resolve and canonicalize"]
+  Norm --> Seen[("Durable seen-URL store")]
+  Seen --> Priority["Priority and recrawl queues"]
+  Priority --> Owner["Origin-owned scheduler"]
+  Owner --> Fetch["Bounded fetcher"]
+  Fetch --> Raw[("Raw response and fetch evidence")]
+  Raw --> Parse["Parser and link extractor"] --> Norm
+  Raw --> Index["Downstream index or archive"]
+```
+
+The durable seen set gives exact admission decisions. A Bloom filter can protect it from obvious misses but must not silently become the only record if false-positive URL loss is unacceptable.
+
+### 2. Example 1 — canonicalization and deduplication without changing meaning
+
+Resolve relative links before canonicalizing. For the base `https://Example.COM/a/b/`, the reference `../c#section` becomes `https://example.com/a/c`: the host is case-insensitive, the dot segment is removed, and the fragment is not part of HTTP fetch identity. `https://example.com:443/a/c` maps to the same key because 443 is the HTTPS default.
+
+| Candidate | Canonical fetch key | Decision |
+|---|---|---|
+| `https://Example.COM:443/a/../b#top` | `https://example.com/b` | admit once |
+| `https://example.com/b#comments` | `https://example.com/b` | duplicate fetch identity |
+| `https://example.com/?b=2&a=1` | unchanged query | distinct unless site-specific evidence says otherwise |
+| `https://example.com/?a=1&b=2` | unchanged query | distinct by conservative default |
+
+Do not decode reserved characters, collapse meaningful repeated slashes, or globally sort/delete query parameters. RFC 3986 supplies generic equivalences; application-specific query equivalence needs an explicit host policy backed by evidence. Store the original discovery URL and source edge beside the canonical key so a bad normalization rule can be audited and replayed.
+
+```mermaid
+flowchart LR
+  Link["Raw link + base URI"] --> Resolve["Resolve reference"]
+  Resolve --> Generic["Safe generic normalization"]
+  Generic --> Key["Canonical fetch key"]
+  Key --> Exact{"Seen already?"}
+  Exact -->|no| Admit["Persist then enqueue"]
+  Exact -->|yes| Edge["Record discovery edge only"]
+```
+
+### 3. Example 2 — priority cannot bypass per-origin politeness
+
+Assume global priorities put two `example.com` URLs ahead of all other work. The scheduler allows one concurrent request per origin and a 1,000 ms minimum delay:
+
+| Time | Event | Origin state/result |
+|---:|---|---|
+| 1,000 ms | lease `/one` for 5 s | in-flight = 1 |
+| 1,001 ms | try `/two` | denied; concurrency already consumed |
+| 1,200 ms | `/one` completes 200 | next allowed = 2,200 ms |
+| 2,199 ms | try `/two` | denied; delay not elapsed |
+| 2,200 ms | lease `/two` | allowed |
+
+Global front queues rank importance/freshness; origin queues enforce eligibility. A worker leases a bounded batch and acknowledges after the raw response plus fetch record are durable. If it dies, lease expiry makes the item visible again, so duplicate fetches are expected and downstream writes use stable fetch identities.
+
+At 250,000 fetches/s and 80 KiB average compressed bodies, ingress is about 20.48 GB/s or 1.77 PB/day before replication and metadata. If only 8% of pages change and policy retains unchanged bodies by reference, the changed-body component is about 142 TB/day. Write the retention horizon, replication factor and compression basis next to every storage estimate.
+
+### 4. Example 3 — robots and overload responses modify eligibility
+
+RFC 9309 scopes robots policy to the service that serves `/robots.txt`; cache it using normal HTTP cache controls, follow the specified redirect/error behavior, and apply the most specific matching rule for the crawler's user-agent. Given:
+
+```text
+Disallow: /private
+Allow:    /private/public
+```
+
+`/private/report` is ineligible while `/private/public/index.html` is eligible because the longer matching path wins. A robots fetch failure needs an explicit state and policy; it must not be confused with an empty allow-all file.
+
+When an eligible fetch returns 429 or 503 with `Retry-After: 10`, the origin owner moves `next_allowed_fetch_at` at least ten seconds forward. Without the header it applies capped exponential backoff with jitter. A queue retry that ignores this shared state simply shifts overload between workers.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Eligible: robots allow and origin ready
+  Eligible --> Leased: capacity token acquired
+  Leased --> Cooling: success plus minimum delay
+  Leased --> Backoff: 429, 503, timeout or DNS failure
+  Backoff --> Eligible: retry deadline reached
+  Cooling --> Eligible: next-allowed reached
+  Leased --> Blocked: robots refresh now disallows
+```
+
+Robots rules do not protect secrets: an operator must authenticate private resources. Likewise, a crawler may store a public response yet exclude it from indexing because of separate content directives or product policy.
+
+### 5. Example 4 — safe fetch, conditional recrawl and redirect trace
+
+An internet crawler is an SSRF-capable system by design. Isolate it from control-plane credentials and private networks; allow only HTTP(S); resolve A and AAAA records; reject loopback, private, link-local, multicast and platform metadata destinations; and ensure the validated address is the one the client connects to. Repeat the full check after every redirect, cap redirect count, and reject protocol changes outside policy.
+
+Trace a recrawl of `https://news.example/story`:
+
+| Step | Request/evidence | Safe decision |
+|---|---|---|
+| 1 | prior record has ETag `"v7"`, body hash H7 | send `If-None-Match: "v7"` |
+| 2 | origin returns 304 | retain H7; update fetch evidence, not body bytes |
+| 3 | next response redirects to `http://169.254.169.254/...` | reject after destination validation; do not follow |
+| 4 | later 200 has ETag `"v8"`, hash H8 | store immutable body, parse once by `(URL, H8)` |
+| 5 | H8 differs from H7 | shorten the next base interval; failures multiply it with a cap |
+
+HTTP validators reduce transferred bytes, not scheduling work: a 304 still consumes origin capacity. Treat sitemap `lastmod` as a hint and measure its reliability per source. JavaScript rendering is a separate, much smaller budget selected after cheap HTML signals; renderer workers inherit the same destination and response limits.
+
+### 6. Records, APIs and idempotent stages
+
+```text
+Url(url_hash, canonical_url, origin_id, first_seen, last_seen, priority)
+Origin(origin_id, robots_version, next_allowed, max_concurrency, error_score)
+Frontier(url_hash, due_at, priority, lease_owner, lease_expiry, attempt)
+Fetch(fetch_id, url_hash, requested_at, final_url, status, validators, body_hash, bytes)
+Content(body_hash, object_key, media_type, length)
+LinkEdge(source_fetch_id, target_url_hash, relation)
+```
+
+`POST /discoveries` accepts a stable source-fetch ID plus extracted references; the normalizer inserts URL and edge records idempotently. Fetchers lease with compare-and-set ownership. The content object key is its cryptographic hash, so a retry cannot create a second logical body. Parsing deduplicates on `(parserVersion, bodyHash)` while index publication uses `(urlHash, fetchVersion)`.
+
+Partition frontier ownership by origin hash, then keep multiple priority/time buckets inside that owner. Hot origins scale only up to their declared concurrency; adding workers must never multiply politeness capacity. Separate scheduler lag, network time, parser lag and indexing lag so one healthy aggregate does not hide a broken stage.
+
+### 7. Failure matrix and operational evidence
+
+| Failure | Safe behavior | Evidence |
+|---|---|---|
+| worker dies after fetch | lease expires; refetch allowed; content/parser writes deduplicate | expired lease age and duplicate-fetch rate |
+| robots policy stale | revalidate; retain version used for every decision | robots age, status and blocked-fetch audit |
+| DNS rebinding or redirect to private IP | bind connection to validated public address; validate every hop | rejection reason, resolved address and redirect chain |
+| origin sends endless/huge body | header/read deadline, compressed and expanded byte caps, abort | bytes rejected and timeout phase |
+| 429/503 spike | honor `Retry-After`, reduce origin concurrency, jittered backoff | per-origin status rate and next-allowed time |
+| poison parse/render input | sandbox, CPU/memory/depth deadline, quarantine sample | parser version, failure fingerprint and queue age |
+| frontier shard unavailable | stop issuing its host leases until ownership is fenced | epoch/lease conflicts and recovery time |
+
+Operate on pages/s and bytes/s, but also per-origin concurrency/delay violations, robots decisions, frontier due-time lag, lease expiries, redirect blocks, status families, DNS/TLS/connect/header/body latency, compressed/expanded bytes, content-change rate, duplicate URL/body rate, render admission and end-to-end freshness percentiles. Any private-address connection or robots-disallowed fetch is a correctness incident.
+
+### 8. Executable contract
+
+[`WebCrawlerContracts.java`](WebCrawlerContracts.java) exercises conservative URL identity, exact admission deduplication, longest-match robots decisions, priority ordering, origin-scoped concurrency/delay, `Retry-After`, public-address boundaries and adaptive recrawl delay. Run:
+
+```bash
+java -ea study-guides/system-design/blueprints/WebCrawlerContracts.java
+```
+
+The address helper intentionally validates numeric literals only. Production code must resolve every hostname, validate all A/AAAA answers, and bind the HTTP connection to a validated address; a separate preflight lookup is not sufficient against DNS rebinding.
+
+### 9. Current primary references
+
+- [RFC 9309: Robots Exclusion Protocol](https://www.rfc-editor.org/rfc/rfc9309) — matching, caching, redirects and unavailable-policy behavior; robots is not access control.
+- [RFC 3986: URI Generic Syntax](https://www.rfc-editor.org/rfc/rfc3986) — reference resolution, dot-segment removal, fragments and scheme-based normalization.
+- [RFC 9110: HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110) and [RFC 9111: HTTP Caching](https://www.rfc-editor.org/rfc/rfc9111) — `Retry-After`, validators, 304 responses and cache revalidation.
+- [Google Crawling Infrastructure: crawl budget](https://developers.google.com/crawling/docs/crawl-budget) — host capacity and demand/freshness as separate scheduling inputs.
+- [OWASP SSRF Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html) — address validation, DNS rebinding and binding the connection to the validated destination.
+- [Java SE 17 `URI`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/net/URI.html) — dependency-free reference resolution and path normalization used by the executable teaching contract.
+
+### 10. Source provenance and continuation
+
+The confirmed Library source remains `top_5_system_design_interview_blueprints.md`, revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. This bounded pass promotes exactly source lines 681–902 and adds explicit safety contracts, four worked traces, executable Java, capacity arithmetic, failure evidence and primary-source verification refreshed on 2026-10-23. Source Blueprint 5 begins at line 903 and remains queued. The five-blueprint collection is not complete.
