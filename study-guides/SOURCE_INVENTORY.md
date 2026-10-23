@@ -14,7 +14,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | ai-foundations-rag-cag | AI | PROMOTED | `study-guides/ai/foundations-rag-cag/` | AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md<br>AI_RAG_CAG_Deep_Learning_Developer_Guide.docx |
 | ai-platform | AI | IN_PROGRESS | [`study-guides/ai/platform/`](ai/platform/) | ai_cicd_spring_python_guides_complete.zip<br>ai_platform_master_guide.html<br>ai_platform_engineering_complete_bundle.zip<br>ai_platform_engineering_illustrated.html |
 | system-design-fundamentals | System design/data | PROMOTED | `study-guides/system-design/fundamentals/` | system_design_fundamentals_deep_research.md<br>system_design_fundamentals.md |
-| system-design-blueprints | System design/data | IN_PROGRESS | [`study-guides/system-design/blueprints/`](system-design/blueprints/) | top_5_system_design_interview_blueprints.md |
+| system-design-blueprints | System design/data | IN_PROGRESS | [`study-guides/system-design/blueprints/`](system-design/blueprints/) | top_5_system_design_interview_blueprints.md — all five named blueprints promoted; cross-question/practice supplement remains |
 | database-caching-java | System design/data | PROMOTED | [`study-guides/databases/caching-java/`](databases/caching-java/) | database_internals_caching_java_master_guide.md |
 | cicd-cloud-kubernetes | DevOps/backend | PROMOTED | `study-guides/devops/cicd/` | cicd_aws_azure_teamcity_jenkins_guide.html<br>ai_cicd_spring_python_guides_complete.zip |
 | spring-ai-python-api | DevOps/backend | IN_PROGRESS | [`study-guides/backend/spring-ai-python/`](backend/spring-ai-python/) | ai_cicd_spring_python_guides_complete.zip<br>spring_ai_python_api_interview_guide.html |
@@ -42,7 +42,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | ai_platform_engineering_complete_bundle.zip | 2026-09-16T16:22:16.910779Z | IN PROGRESS — editable RAG/MCP companion selected; Chapters 1–5 processed |
 | ai_platform_engineering_illustrated.html | 2026-09-16T16:22:16.059506Z | READY — compared; byte-identical to bundled illustrated HTML |
 | database_internals_caching_java_master_guide.md | 2026-09-16T05:20:18.877277Z | PROMOTED — Sections 1–44 lines 62–2402 processed through source end |
-| top_5_system_design_interview_blueprints.md | 2026-09-11T21:27:10.870584Z | IN PROGRESS — Blueprints 1–4 lines 5–902 promoted; Blueprint 5 queued |
+| top_5_system_design_interview_blueprints.md | 2026-09-11T21:27:10.870584Z | IN PROGRESS — Blueprints 1–5 lines 5–1125 promoted; cross-question/practice supplement lines 1127–1264 queued |
 | system_design_fundamentals_deep_research.md | 2026-09-11T21:27:08.096531Z | PROMOTED — canonical fundamentals base |
 | system_design_fundamentals.md | 2026-09-11T04:57:16.259594Z | READY — compared; distinct case studies reserved for blueprints |
 | ai_jobs_elimination_deep_research_2026.md | 2026-09-10T23:06:32.260101Z | DISCOVERED |

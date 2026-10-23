@@ -629,12 +629,13 @@
       "source_names": [
         "top_5_system_design_interview_blueprints.md"
       ],
-      "last_processed_at": "2026-10-23T07:20:57-04:00",
+      "last_processed_at": "2026-10-23T14:52:29-04:00",
       "processed_sections": [
         "Blueprint 1: global video streaming — requirements and consistency, CDN/byte-hit arithmetic, entitlement and signed delivery, buffer-aware ABR, sequence-ordered progress, publication and failure evidence",
         "Blueprint 2: real-time ride hailing — freshness and latency contracts, expanding-cell search, ordered locations, single-winner assignment, reconnect recovery and idempotent payment handoff",
         "Blueprint 3: distributed financial ledger — balanced immutable entries, idempotent replay, serialized debits, uncertain external outcomes, outbox/inbox deduplication and reconciliation",
-        "Blueprint 4: large-scale web crawler — conservative URL identity, exact admission, origin politeness, robots decisions, safe fetch boundaries, retry timing and conditional recrawl"
+        "Blueprint 4: large-scale web crawler — conservative URL identity, exact admission, origin politeness, robots decisions, safe fetch boundaries, retry timing and conditional recrawl",
+        "Blueprint 5: distributed unique ID generator — explicit uniqueness/order contract, 41/10/12 arithmetic, same-tick saturation and rollback, worker lease fencing, range allocation and UUIDv7 comparison"
       ],
       "source_revision": {
         "baseline_commit": "3fdd8b15594a440233169cb8e9504ff5cc9b858a",
@@ -642,11 +643,11 @@
         "file_id": "file_00000000214481fdb368917e2f9d55f1",
         "version_id": "1",
         "source_sha256": "10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03",
-        "canonical_sha256_after": "d5bbe705674eb49c07c051f87cce993aa04551c1d889cf3730c311997e6e4312"
+        "canonical_sha256_after": "c3eb5c5c5ea0ef4cef6b8e5cf5ee82013aeb122d98a89e1f8243bd6642e0f708"
       },
-      "last_successful_commit": "018468cadeb977a4e5b2bab02cd405c370aa0555",
-      "validation": "The confirmed Library revision was read at exact source lines 681-902 and bounded by Blueprint 5 at line 903. Java 17 source-file launch passed 13 video, 22 ride-hailing, 18 financial-ledger and 25 crawler scenario groups. Deterministic reader generation passed exact 51937-byte payload equality, SHA-256 d5bbe705674eb49c07c051f87cce993aa04551c1d889cf3730c311997e6e4312, 86 unique IDs, 5 search entries, 28 local fragments, 54 balanced fence markers, 15 Mermaid sources, JavaScript parsing and deterministic rebuild identity. Six content files were published atomically with an expected-head guard and all remote blob hashes matched. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
-      "next_action": "Process Blueprint 5, distributed unique ID generator, beginning at source line 903 as the next bounded fair-rotation section.",
+      "last_successful_commit": "f02137fe20e4fefd8ef49d115ee203209665ec28",
+      "validation": "The confirmed Library revision was read at exact source lines 903-1125 and bounded before the cross-question supplement at line 1127. Java 17 source-file launch passed 13 video, 22 ride-hailing, 18 financial-ledger, 25 crawler and 24 distributed-ID scenario groups. Deterministic reader generation passed exact 65291-byte payload equality, SHA-256 c3eb5c5c5ea0ef4cef6b8e5cf5ee82013aeb122d98a89e1f8243bd6642e0f708, 99 unique IDs, 6 search entries, 29 local fragments, 72 balanced fence markers, 20 Mermaid sources, JavaScript parsing and deterministic rebuild identity. Six content files were published atomically at f02137fe20e4fefd8ef49d115ee203209665ec28 with an expected-head guard and all remote blob hashes matched. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
+      "next_action": "Rotate fairly to Spring AI/Python Section 5 at source line 203. On a later System-design turn, review the cross-question/practice supplement at source lines 1127-1264 without duplicating the canonical guide.",
       "priority": 11
     },
     {
