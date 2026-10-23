@@ -4,7 +4,7 @@ Canonical study material is organized by conceptual topic rather than historical
 
 | Topic | Markdown | Searchable HTML | Status |
 |---|---|---|---|
-| Spring AI and Python APIs | [guide.md](spring-ai-python/guide.md) | [guide.html](spring-ai-python/guide.html) | Sections 1–4 promoted; Sections 5–25 remain |
+| Spring AI and Python APIs | [guide.md](spring-ai-python/guide.md) | [guide.html](spring-ai-python/guide.html) | Sections 1–5 promoted; Sections 6–25 remain |
 
 Run `python3 study-guides/backend/build_guides.py` from the repository root to regenerate the responsive reader from canonical Markdown.
 

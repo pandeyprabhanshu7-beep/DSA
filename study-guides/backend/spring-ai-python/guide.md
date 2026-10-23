@@ -1,6 +1,6 @@
 # Spring AI and Python APIs
 
-This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–4, lines 6–202.
+This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–5, lines 6–263.
 
 ## Section 1 — Choose the layer before choosing the library
 
@@ -771,4 +771,199 @@ Verified on 23 October 2026:
 
 ### Source provenance and continuation
 
-The selected editable source is `atlas_guides/spring_ai_python_api_interview_guide.md` from `ai_cicd_spring_python_guides_complete.zip`, bundle SHA-256 `c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31`, member SHA-256 `af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553`. Sections 1–4 promote source lines 6–202. Section 4 expands the source's dependency-free lab with four requirement-driven examples, exact traces, numerical overflow guards, complexity analysis, adversarial authorization checks, paired 31-scenario executable contracts and primary references checked on 23 October 2026. The standalone HTML SHA-256 `6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3` is comparison evidence rather than a duplicate guide. Section 5, **A model call at the wire level**, begins at source line 203 and remains queued after fair domain rotation. The 25-section source is not complete.
+The selected editable source is `atlas_guides/spring_ai_python_api_interview_guide.md` from `ai_cicd_spring_python_guides_complete.zip`, bundle SHA-256 `c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31`, member SHA-256 `af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553`. Sections 1–4 promote source lines 6–202. Section 4 expands the source's dependency-free lab with four requirement-driven examples, exact traces, numerical overflow guards, complexity analysis, adversarial authorization checks, paired 31-scenario executable contracts and primary references checked on 23 October 2026. The standalone HTML SHA-256 `6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3` is comparison evidence rather than a duplicate guide.
+
+## Section 5 — A model call at the wire level
+
+### Make the transport contract explicit
+
+A model call is an HTTP exchange with unusually expensive and slow failure modes. The client library owns connection reuse, TLS negotiation, byte transfer and serialization. The application still owns endpoint trust, authentication material, request identity, admission, total deadline, replay policy, response limits, completion semantics, domain validation and safe observability.
+
+| Requirement | Concrete contract | Failure behavior |
+|---|---|---|
+| trusted destination | base URI comes from deployment configuration; remote origins require HTTPS; reject URL credentials, query and fragment | fail startup or request construction |
+| bounded request | pin model/revision policy, input limit, output-token limit and non-streaming/streaming mode | reject before acquiring scarce model capacity |
+| bounded transport | reuse one client/pool; set pool, connect, write and read-inactivity timeouts beneath an outer deadline | return a phase-specific dependency failure |
+| replay safety | distinguish “not sent,” transient response and unknown result after send; tool/effect calls are not blind retries | reconcile effects or surface unknown outcome |
+| layered acceptance | validate status, media type, bytes, JSON/provider envelope, completion reason, schema and business rules | reject, abstain or mark incomplete |
+| useful telemetry | record IDs, model identity, phase latency, outcome, token counts and bounded error class | never log secrets or full prompts by default |
+
+`stream: false` is useful when the application must validate one complete JSON value before returning it. Streaming changes the protocol contract: the client must parse a sequence, enforce cumulative byte/token/time bounds, detect terminal completion, cancel on disconnect, and avoid exposing an answer before validation permits it.
+
+```mermaid
+sequenceDiagram
+  participant A as Application
+  participant P as Reused client and pool
+  participant M as Model runtime
+  participant V as Validator
+  A->>A: authorize, admit, assign request ID
+  A->>P: bounded request + outer deadline
+  P->>M: TLS/auth + POST /api/chat
+  M-->>P: status + bounded JSON
+  P-->>A: parsed provider envelope
+  A->>V: completion + schema + business checks
+  V-->>A: accepted | incomplete | rejected
+```
+
+### Example 1 — trace one complete Ollama chat exchange
+
+For a trusted local runtime, `http://127.0.0.1:11434` is a reasonable development origin. A remote runtime must use an authenticated HTTPS origin chosen by configuration, not a caller-supplied URL. This representative request asks the runtime for one complete response and caps generation:
+
+```http
+POST /api/chat HTTP/1.1
+Host: 127.0.0.1:11434
+Content-Type: application/json
+X-Request-ID: req_01HZX9A2
+
+{
+  "model": "qwen3:8b",
+  "messages": [{"role": "user", "content": "Classify: duplicate invoice"}],
+  "stream": false,
+  "options": {"temperature": 0, "num_predict": 120}
+}
+```
+
+A representative successful envelope is:
+
+```json
+{
+  "model": "qwen3:8b",
+  "message": {"role": "assistant", "content": "billing"},
+  "done": true,
+  "done_reason": "stop",
+  "total_duration": 1850000000,
+  "load_duration": 120000000,
+  "prompt_eval_count": 900,
+  "eval_count": 100
+}
+```
+
+Trace the fields by owner:
+
+| Check | Observed | Interpretation |
+|---|---:|---|
+| HTTP status/media type | `200`, `application/json` | transport envelope may be parsed; content is not accepted yet |
+| body limit | `640 < 1,048,576` bytes | bounded memory use |
+| requested/returned model | `qwen3:8b` | expected runtime identity; a production alias policy must resolve to immutable release evidence |
+| completion | `done=true`, `done_reason=stop` | provider says generation terminated normally |
+| domain value | `billing` | accepted only if it is in the application's category allow-list |
+| usage | 900 prompt + 100 output tokens | 1,000 tokens for cost/capacity evidence |
+
+Ollama can also accept `format: "json"` or a JSON Schema. That narrows syntax; it does not prove truth, authorization or business validity. In Spring AI, `ChatClient` can hide the wire DTO and map structured output, but the same endpoint, deadline, completion and domain contracts must remain visible at the adapter boundary.
+
+### Example 2 — allocate timeout and concurrency budgets
+
+Suppose the API has a 20-second dependency deadline. One explicit phase allocation is:
+
+| Phase | Ceiling | What expiry means |
+|---|---:|---|
+| wait for pool slot | 250 ms | local saturation; model request was not sent |
+| connect/TLS | 2,000 ms | origin unavailable or handshake too slow |
+| write request | 1,000 ms | upload stalled; whether bytes were sent matters to replay |
+| read inactivity | 16,750 ms | no response bytes within the allowed interval |
+| outer stopwatch | 20,000 ms | absolute application deadline across every phase and retry |
+
+HTTPX exposes pool, connect, write and read timeouts. They are phase/inactivity bounds, not a substitute for the absolute stopwatch across acquisition, transfer, parsing, validation and retries. Create one `Client`/`AsyncClient` for its lifecycle so connection pooling works; do not instantiate it inside the hot request loop.
+
+```python
+timeout = httpx.Timeout(pool=0.250, connect=2.0, write=1.0, read=16.750)
+limits = httpx.Limits(max_connections=480, max_keepalive_connections=120)
+client = httpx.AsyncClient(base_url=MODEL_ORIGIN, timeout=timeout, limits=limits)
+# Wrap the complete operation in the application's 20 s deadline.
+```
+
+At 50 admitted requests/second and 8 seconds mean dependency latency, Little's Law gives (L=\lambda W=50\times8=400) mean in-flight calls. A 64-connection default would queue this target before the model is necessarily saturated. A 480 hard cap provides an illustrative 20% headroom; it is not a universal setting. Measure latency distribution and runtime concurrency, then bound the pool, admission queue and model scheduler consistently. When all 480 slots are committed, reject or shed according to the API contract rather than creating an unbounded queue.
+
+```mermaid
+flowchart TB
+  IN["Admitted call: 20 s outer deadline"] --> POOL["Pool: 0.25 s"]
+  POOL --> CONN["Connect/TLS: 2 s"]
+  CONN --> WRITE["Write: 1 s"]
+  WRITE --> READ["Read inactivity: 16.75 s"]
+  READ --> VAL["Parse and validate before deadline"]
+```
+
+### Example 3 — retry by observed state, not exception name alone
+
+HTTP `POST` is not inherently idempotent. A read-only model inference can be *application-classified* as replayable, but a retry may still duplicate billing and return different text. Once tools or other effects are possible, a model request is not pure inference: preserve a logical operation ID and reconcile the effect instead of blindly replaying the turn.
+
+| Observation | Pure inference | Tool/effect-capable request |
+|---|---|---|
+| pool/connect failure proved no bytes sent | retry within attempt/deadline caps | retry; external effect was not requested |
+| `429`/`503` response | retry only under explicit policy; honor valid `Retry-After`, add bounded jitter | generally do not replay the whole turn; follow provider/tool reconciliation contract |
+| read timeout after request bytes sent | outcome unknown; retry only if duplicate cost/nondeterminism are explicitly accepted | do not retry blindly; reconcile by stable operation ID |
+| `400`/`401`/`403` or schema rejection | fail; fix request, credentials or contract | fail closed |
+| attempt/outer deadline exhausted | return typed dependency failure | return typed failure or unknown-effect state |
+
+The same stable logical request ID is useful for traces and provider-supported deduplication, but a header by itself does not make a provider idempotent. Bound attempts, include retry delay inside the original deadline, and cap `Retry-After` according to product latency policy.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Attempt
+  Attempt --> Retry: proved not sent
+  Attempt --> Retry: replayable 429/503
+  Attempt --> Unknown: timeout after send
+  Attempt --> Fail: permanent response
+  Retry --> Attempt: budget remains
+  Retry --> Fail: cap/deadline reached
+  Unknown --> Retry: pure + duplicate risk accepted
+  Unknown --> Reconcile: tools or effects
+  Attempt --> Done: validated completion
+```
+
+### Example 4 — validate in layers and keep cost arithmetic auditable
+
+Validation is ordered so an attacker or broken runtime cannot skip directly to domain parsing:
+
+```mermaid
+flowchart TB
+  S["Status, media type, byte limit"] --> J["JSON parse"]
+  J --> P["Provider envelope and model identity"]
+  P --> C{"done reason"}
+  C -->|stop| D["Schema + business rules"]
+  C -->|length| I["INCOMPLETE: never treat as full answer"]
+  C -->|unknown| R["Reject unknown completion"]
+  D --> A["ACCEPTED or abstain"]
+```
+
+For the example response, assume illustrative rates of $2 per million input tokens and $8 per million output tokens. Use integer microdollars and round each charged component upward:
+
+\[
+\lceil 900\times2{,}000{,}000/1{,}000{,}000\rceil+
+\lceil 100\times8{,}000{,}000/1{,}000{,}000\rceil
+=1{,}800+800=2{,}600\text{ microdollars}.
+\]
+
+That arithmetic is evidence, not a claim about a current provider price. Record the actual rate-card version separately. A response with `done=true` and `done_reason=length` is transport-complete but application-incomplete; do not parse a truncated JSON object as a successful classification.
+
+Safe telemetry should include request/trace ID, configured and returned model identity, attempt number, pool/connect/write/read/total latency, status/error class, byte count, completion reason, token counts, validation outcome and rate-card version. Redact authorization headers. Hash, sample or omit prompts and answers unless a reviewed purpose, access policy and retention period require their content. Keep metric labels bounded—request IDs belong in traces/logs, not high-cardinality metric dimensions.
+
+### Paired executable contract
+
+The dependency-free Java/Python pair implements the same endpoint, 20-second phase budget, retry state, completion validation, integer-cost and Little's-Law examples:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/ModelWireContracts.java
+python3 study-guides/backend/spring-ai-python/model_wire_contracts.py
+```
+
+Both print this parity trace before their language-specific 30-scenario summary:
+
+```text
+PARITY|RETRY_1000|ACCEPTED|INCOMPLETE|400|2600
+```
+
+The contracts prove decision logic without opening a socket. They do not prove a live Ollama/Spring AI/provider integration, TLS configuration, pool tuning or model behavior.
+
+### Current primary references
+
+Verified on 23 October 2026:
+
+- [Ollama chat API](https://docs.ollama.com/api/chat) and [structured outputs](https://docs.ollama.com/capabilities/structured-outputs) — request fields, non-streaming mode, response completion/usage fields and JSON/JSON-Schema formatting.
+- [Spring AI ChatClient](https://docs.spring.io/spring-ai/reference/api/chatclient.html) — synchronous/reactive fluent client, structured mapping, advisors and the warning around sensitive logging.
+- [HTTP Semantics, RFC 9110](https://www.rfc-editor.org/rfc/rfc9110) and [Additional HTTP Status Codes, RFC 6585](https://www.rfc-editor.org/rfc/rfc6585) — method/idempotency semantics, `Retry-After`, `429` and response handling.
+- [HTTPX timeouts](https://www.python-httpx.org/advanced/timeouts/), [resource limits](https://www.python-httpx.org/advanced/resource-limits/), [clients](https://www.python-httpx.org/advanced/clients/) and [exceptions](https://www.python-httpx.org/exceptions/) — phase timeouts, pooling/reuse, bounds and failure taxonomy.
+
+### Source provenance and continuation
+
+The confirmed editable range is source lines 203–263, ending immediately before Section 6. The matching standalone HTML range is lines 388–434, with Section 6 beginning at line 435; its substance agrees with the editable member, so no duplicate guide was created. Section 5 preserves the source's Ollama and Spring `ChatClient` model-call boundary, then adds four requirement-driven traces, phase/deadline arithmetic, replay-aware failure states, layered validation, capacity/cost evidence, four diagrams and paired 30-scenario contracts. Section 6, **Embedding calls and response validation**, begins at source line 264. Sections 6–25 remain queued; the source is not complete.

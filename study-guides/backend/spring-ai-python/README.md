@@ -9,10 +9,12 @@ java -ea study-guides/backend/spring-ai-python/LayerSelectionContracts.java
 java -ea study-guides/backend/spring-ai-python/LibrarySelectionContracts.java
 java -ea study-guides/backend/spring-ai-python/JavaLibraryMapContracts.java
 java -ea study-guides/backend/spring-ai-python/OfflineRetrievalLabContracts.java
+java -ea study-guides/backend/spring-ai-python/ModelWireContracts.java
 python3 study-guides/backend/spring-ai-python/layer_selection_contracts.py
 python3 study-guides/backend/spring-ai-python/library_selection_contracts.py
 python3 study-guides/backend/spring-ai-python/java_library_map_contracts.py
 python3 study-guides/backend/spring-ai-python/offline_retrieval_lab_contracts.py
+python3 study-guides/backend/spring-ai-python/model_wire_contracts.py
 ```
 
-This is an incremental guide. Sections 1–4 are promoted; later source sections remain queued.
+This is an incremental guide. Sections 1–5 are promoted; Sections 6–25 remain queued.
