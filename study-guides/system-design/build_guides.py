@@ -22,7 +22,7 @@ GUIDES = (
     {
         "directory": "blueprints",
         "title": "System Design Blueprints",
-        "placeholder": "Try: byte hit ratio, atomic claim, reconnect",
+        "placeholder": "Try: byte hit ratio, atomic claim, ledger, reconciliation",
     },
 )
 

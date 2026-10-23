@@ -1,6 +1,6 @@
 # System Design Blueprints
 
-This is the canonical incremental guide. Each blueprint must make its requirements, arithmetic, ownership boundaries, failure behavior, and verification evidence explicit. Source Blueprints 1–2 are promoted; Blueprints 3–5 remain queued.
+This is the canonical incremental guide. Each blueprint must make its requirements, arithmetic, ownership boundaries, failure behavior, and verification evidence explicit. Source Blueprints 1–3 are promoted; Blueprints 4–5 remain queued.
 
 ## Blueprint 1 — Global video streaming
 
@@ -412,3 +412,191 @@ The tests deliberately model a lost response after commit: retrying the same off
 ### 10. Source provenance and continuation
 
 The confirmed Library source remains `top_5_system_design_interview_blueprints.md`, revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. This section promotes exactly source lines 254–459 and adds measurable requirements, four worked traces, executable Java, failure evidence and primary-source verification refreshed on 2026-10-22. Source Blueprint 3 begins at line 460 and remains queued after fair domain rotation. The five-blueprint collection is not complete.
+
+## Blueprint 3 — Distributed financial transaction ledger
+
+### 1. Make the correctness boundary explicit
+
+The authoritative ledger accepts a money-moving command, writes an immutable balanced journal transaction, and returns one durable logical result for every idempotency scope/key. Balance and history reads may use projections, but a projection never becomes the authority for whether money moved. When certainty and availability conflict, an unknown write waits for recovery or reconciliation; it is not guessed into success or retried under a fresh identity.
+
+| Contract | Required behavior | Rejected shortcut |
+|---|---|---|
+| amount | positive integer minor units or an exact decimal with declared scale; one currency per journal transaction | binary floating point |
+| journal | at least two entries; signed sum is exactly zero; posted entries are immutable | updating a balance without durable entries |
+| retry | unique `(scope, idempotencyKey)` stores request hash and canonical outcome | a new key after timeout |
+| concurrency | debit availability and all journal/outbox rows commit in one local transaction | check-then-write in separate transactions |
+| external rail | stable provider operation key; timeout becomes `UNKNOWN` until queried/reconciled | assuming timeout means failure |
+| publication | journal and outbox commit together; consumers deduplicate event IDs | database write followed by best-effort publish |
+
+Separate ownership so the central invariant stays small:
+
+```mermaid
+flowchart TB
+  C["Client or merchant"] --> API["Transfer API"]
+  API --> CMD["Command owner: idempotency and state"]
+  CMD --> DB[("Transactional journal + outbox")]
+  DB --> RELAY["Outbox relay"] --> BUS[("Durable event stream")]
+  BUS --> BAL["Balance/history projection"]
+  BUS --> HOOK["Webhook delivery"]
+  BUS --> RECON["Reconciliation"]
+  CMD --> RAIL["External payment rail"]
+  RAIL --> RECON
+```
+
+The journal commit is the authority for internal transfers. A card/bank rail has its own authority, so orchestration records a durable attempt state and later reconciles the two systems instead of pretending they share one atomic database transaction.
+
+### 2. Example 1 — balance a transfer, then derive the view
+
+For a USD 12.50 transfer from merchant A to customer B, record signed minor units:
+
+| Transaction | Account | Currency | Amount |
+|---|---|---|---:|
+| `txn_100` | `merchant:A` | USD | −1250 |
+| `txn_100` | `customer:B` | USD | +1250 |
+| invariant |  | USD | **0** |
+
+Do not insert one row and hope the second insert succeeds. In one transaction, insert the transaction header, both entries, the idempotency outcome, and an outbox row; commit only after the balance and currency checks pass.
+
+```sql
+BEGIN;
+INSERT INTO ledger_transaction(txn_id, scope, idem_key, request_hash, status)
+VALUES (:txn, :scope, :key, :hash, 'POSTED');
+INSERT INTO ledger_entry(txn_id, account_id, currency, amount_minor, entry_no)
+VALUES (:txn, 'merchant:A', 'USD', -1250, 1),
+       (:txn, 'customer:B', 'USD',  1250, 2);
+INSERT INTO outbox(event_id, aggregate_id, aggregate_version, event_type, payload)
+VALUES (:event, :txn, 1, 'LedgerPosted', :payload);
+COMMIT;
+```
+
+An application check is useful, but a production design also needs a database-enforced posting boundary—for example a stored posting procedure, deferred constraint trigger, or staged transaction that cannot change to `POSTED` until its currency-local sum is zero. `BIGINT` arithmetic can overflow, so use checked arithmetic and declare maximum amounts; exact `NUMERIC(p,s)` is the alternative when fractional rules do not map cleanly to one minor-unit scale.
+
+Balance is then a derived sum of posted entries. A cached balance of 8,750 minor units is repairable; the two immutable entries are the evidence.
+
+### 3. Example 2 — a lost response replays one logical transfer
+
+The client sends key `k-1`; the server commits `txn_100`, but the response is lost. The same request and key must return `txn_100` without another pair of entries or outbox event. Reusing `k-1` with amount 1,251 must fail because the stored request hash differs.
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant A as Transfer API
+  participant D as Ledger DB
+  C->>A: transfer k-1, hash H1
+  A->>D: header + entries + outcome + outbox
+  D-->>A: commit txn_100
+  A--xC: response lost
+  C->>A: retry k-1, hash H1
+  A->>D: read unique scope/key
+  D-->>A: canonical txn_100
+  A-->>C: replay same outcome
+  C->>A: k-1, hash H2
+  A-->>C: 409 key/request mismatch
+```
+
+Store canonical request bytes or a stable versioned hash. A hash built from ad-hoc JSON serialization is unsafe because field order, omitted defaults and serializer upgrades can change it. Scope keys by merchant/account and retain them at least as long as clients are allowed to retry; document what happens after expiry.
+
+### 4. Example 3 — concurrent debits need one serialized decision
+
+Wallet W has 1,000 minor units. Transfers A and B each try to debit 700 after both read 1,000. If they perform separate check-then-insert transactions, both may post and the wallet becomes −400.
+
+| Step | Transfer A | Transfer B |
+|---|---|---|
+| 1 | reads available 1000 | reads available 1000 |
+| 2 | claims/post 700 | waits or receives serialization conflict |
+| 3 | commits; available becomes 300 | retries, reads 300, rejects insufficient funds |
+
+Viable implementations include a conditional account-state update with a version/available predicate, a row lock around the debit and journal posting, or a serializable transaction with bounded retry. Choose one and test it under contention. If a transfer locks two accounts, acquire locks in a stable global order to reduce deadlocks. Sharding must preserve the same ownership rule: route an account to a home shard, or introduce an explicit cross-shard protocol and accept its availability/latency cost.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Proposed
+  Proposed --> Posted: atomic claim and balanced journal commit
+  Proposed --> Rejected: insufficient funds or policy
+  Posted --> Reversed: new compensating transaction
+  Rejected --> [*]
+  Reversed --> [*]
+```
+
+A reversal never edits or deletes the original entries. It posts a linked compensating transaction so both business history and the accounting trail remain explainable.
+
+### 5. Example 4 — timeout to an external rail is `UNKNOWN`, not failed
+
+Suppose internal operation `op_7` sends an authorization under provider key `rail:op_7`; the rail commits but the connection times out. Retrying with a new key can double-charge. Mark the attempt `UNKNOWN`, retry/query only with the stable key where supported, consume signed provider events idempotently, and reconcile until the external authority is known.
+
+| Time | Internal state | Evidence/action |
+|---|---|---|
+| T0 | `CREATED` | durable operation and provider key |
+| T1 | `SENT` | request attempt recorded |
+| T2 | `UNKNOWN` | timeout; no success/failure assumption |
+| T3 | `UNKNOWN` | duplicate webhook event ID ignored |
+| T4 | `SUCCEEDED` | provider query/settlement record confirms charge |
+| T5 | projected | one inbox event updates balance and merchant webhook |
+
+```mermaid
+flowchart LR
+  U["UNKNOWN attempt"] --> Q["Query by stable provider key"]
+  U --> W["Verify and deduplicate webhook"]
+  U --> S["Compare settlement file"]
+  Q --> R{"Authoritative result?"}
+  W --> R
+  S --> R
+  R -->|yes| F["Finalize succeeded or failed"]
+  R -->|no| U
+```
+
+The outbox relay may publish more than once. Every downstream projection therefore keeps an inbox/processed-event record in the same local transaction as its update. Replay from the immutable stream must reproduce the same balance; periodically compare journal-derived totals, projections and provider settlement records, and route differences to an explicit exception queue.
+
+### 6. Capacity, partitioning, and read paths
+
+At 25,000 transfers/s with four journal entries per transfer, the journal receives 100,000 entry inserts/s. If a stored entry plus indexes averages 320 bytes, raw entry growth is about 32 MB/s, 2.76 TB/day, before replication, outbox, backups and transaction metadata. This arithmetic requires partitioning and lifecycle plans, but it does not justify weakening the invariant.
+
+Partition by a stable ownership key and keep an account's conflicting commands at one authority. Hot merchant accounts may require sub-ledgers with an explicit aggregation invariant; simply hashing every transaction can scatter one account's spend decisions and reintroduce overspending. Serve statements and dashboards from replayable projections, with a visible freshness/version marker; use the journal for authoritative investigation and repair.
+
+Core records:
+
+```text
+LedgerTransaction(txn_id, scope, idem_key, request_hash, type, state, created_at)
+LedgerEntry(txn_id, entry_no, account_id, currency, amount_minor, created_at)
+AccountState(account_id, currency, available_minor, version)
+Outbox(event_id, aggregate_id, aggregate_version, payload, published_at)
+Inbox(consumer, event_id, processed_at)
+RailAttempt(operation_id, provider_key, state, provider_reference, version)
+ReconciliationException(id, source, expected, observed, state)
+```
+
+### 7. Failure matrix and operational evidence
+
+| Failure | Safe behavior | Evidence |
+|---|---|---|
+| response lost after commit | replay canonical outcome for same key/hash | replay count; duplicate-effect invariant |
+| outbox relay crashes after publish | publish again; consumer inbox deduplicates | oldest unpublished age; duplicate deliveries |
+| projection falls behind | journal remains authoritative; expose staleness | consumer lag and projection version |
+| database primary fails mid-write | transaction is committed or absent; recover before deciding | recovery drill and uncertain-write count |
+| processor timeout | `UNKNOWN`; same provider key; query/reconcile | unknown-attempt age histogram |
+| settlement disagrees | preserve both facts; open exception | break count/value by rail and age |
+| hot account saturates shard | admission control and ordered queue; no unsafe fail-open | per-account skew, conflict/retry rate |
+
+Alert immediately on any posted transaction whose entries do not sum to zero, mixed-currency posting, duplicate logical effect, negative balance where disallowed, journal/projection checksum divergence, or one provider key linked to multiple operations. Track posting p50/p95/p99, serialization retries, idempotency replays/mismatches, outbox age, consumer lag, unknown rail age, reconciliation breaks and recovery objectives. Monetary totals need currency-local aggregation; never sum USD and EUR into one number.
+
+### 8. Executable contract
+
+[`FinancialLedgerContracts.java`](FinancialLedgerContracts.java) exercises balanced posting, replay under a stable idempotency key, key/request mismatch rejection, a contested debit, stable external-rail identity, unknown-state reconciliation, consumer deduplication, mixed-currency rejection and invalid amounts. Run:
+
+```bash
+java -ea study-guides/system-design/blueprints/FinancialLedgerContracts.java
+```
+
+The synchronized in-memory method models one database transaction for teaching; it is not a claim that JVM locking coordinates a fleet.
+
+### 9. Current primary references
+
+- [Stripe idempotent requests](https://docs.stripe.com/api/idempotent_requests) and [advanced error handling](https://docs.stripe.com/error-low-level) — stable retry identity and indeterminate outcomes after network/server errors.
+- [Stripe webhook endpoint guidance](https://docs.stripe.com/events/manage-webhook-endpoints) — duplicate events and consumer-side event tracking.
+- [PostgreSQL numeric types](https://www.postgresql.org/docs/current/datatype-numeric.html) — exact numeric types and precision/scale behavior.
+- [PostgreSQL transaction isolation](https://www.postgresql.org/docs/current/transaction-iso.html) — serialization anomalies, guarantees and retry-relevant failures.
+- [AWS Prescriptive Guidance: transactional outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html) — atomic database/outbox writes plus duplicate-aware consumers.
+
+### 10. Source provenance and continuation
+
+The confirmed Library source remains `top_5_system_design_interview_blueprints.md`, revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. This bounded pass promotes exactly source lines 460–680 and adds measurable contracts, four worked examples, executable invariants, failure evidence and primary-source verification refreshed on 2026-10-23. Source Blueprint 4 begins at line 681 and remains queued after fair domain rotation. The five-blueprint collection is not complete.
