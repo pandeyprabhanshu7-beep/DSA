@@ -510,7 +510,7 @@
       ],
       "last_successful_commit": "846995919f9a21209c0fff734a0d2f7e7dc6b661",
       "validation": "The paired Library sources agree on bounded Section 3 and its copy/fill/sort, hashing, indexed-deque, safe-midpoint, swap and Java-trap scope. The canonical section adds four contract-driven examples, traces, four diagrams and executable Java. OpenJDK 17 source-file launch passed 28 explicit scenario groups plus 20,000 seeded comparisons against brute-force window-maximum and lower-bound oracles. Deterministic reader generation passed exact 34913-byte Markdown recovery, SHA-256 6311aba51f40c5ae684ebf63b6176e5521c233439917b00c49d60ad5c1818a66, 200 unique IDs, 25 search entries, 182 local fragments, 48 balanced fence markers and 13 Mermaid sources. Six content files were published atomically with an expected-head guard; standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
-      "next_action": "After fair domain rotation, deepen Section 4, Core Array Patterns + 47 Fully Solved Problems, beginning at Markdown anchor line 253 (heading line 255) / DOCX extracted heading line 169.",
+      "next_action": "Process Section 4, Core Array Patterns + 47 Fully Solved Problems, beginning at Markdown anchor line 253 (heading line 255) / DOCX extracted heading line 169, as the next bounded fair-rotation section.",
       "priority": 6
     },
     {
@@ -587,7 +587,7 @@
       },
       "last_successful_commit": "674cb856b2750dbe9a36312ab6ebaa52d15aaa88",
       "validation": "The selected master and bundled editable companion were materialized, hashed and compared for bounded Chapter 4 (master lines 139-168; companion lines 129-178); their substance agrees and no duplicate guide was created. Java 17 source-file launch passed 14 routing, 13 model-mechanics, 12 ingestion and 13 retrieval scenario groups. Deterministic reader generation passed exact 45219-byte Markdown recovery, SHA-256 cea25874d9756dd56fc738ef300cfde3d7c4a204e35512a104e9ceb170866870, 63 unique HTML IDs, 28 search entries, 21 local fragments, 46 balanced fence markers, 18 Mermaid sources, JSON/JavaScript parsing and deterministic rebuild identity. Six content files were atomically published with an expected-head guard and remote blob reads matched. The live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
-      "next_action": "Process Chapter 5, PostgreSQL data design for a production RAG store, on the next AI-platform turn after Spring AI/Python Section 4 and Arrays Section 4; do not create a duplicate edition.",
+      "next_action": "Process Chapter 5, PostgreSQL data design for a production RAG store, on the next AI-platform turn after Arrays Section 4; do not create a duplicate edition.",
       "priority": 9
     },
     {
@@ -644,7 +644,7 @@
       },
       "last_successful_commit": "018468cadeb977a4e5b2bab02cd405c370aa0555",
       "validation": "The confirmed Library revision was read at exact source lines 681-902 and bounded by Blueprint 5 at line 903. Java 17 source-file launch passed 13 video, 22 ride-hailing, 18 financial-ledger and 25 crawler scenario groups. Deterministic reader generation passed exact 51937-byte payload equality, SHA-256 d5bbe705674eb49c07c051f87cce993aa04551c1d889cf3730c311997e6e4312, 86 unique IDs, 5 search entries, 28 local fragments, 54 balanced fence markers, 15 Mermaid sources, JavaScript parsing and deterministic rebuild identity. Six content files were published atomically with an expected-head guard and all remote blob hashes matched. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
-      "next_action": "Rotate fairly to Spring AI/Python Section 4 beginning at source line 84; Blueprint 5 begins at source line 903 and remains queued for the next system-design turn.",
+      "next_action": "Rotate fairly to DSA Arrays Section 4; Blueprint 5 begins at source line 903 and remains queued for the next system-design turn.",
       "priority": 11
     },
     {
@@ -757,11 +757,12 @@
         "ai_cicd_spring_python_guides_complete.zip",
         "spring_ai_python_api_interview_guide.html"
       ],
-      "last_processed_at": "2026-10-23T01:47:37-04:00",
+      "last_processed_at": "2026-10-23T12:09:10-04:00",
       "processed_sections": [
         "Section 1: choose the layer before choosing the library — requirements, four selection examples, authority/retry/release boundaries, paired Java/Python contracts and current primary references",
         "Section 2: Python library map — all 17 source projects mapped by responsibility, four decision proofs, trace tables, replay/failure boundaries, paired Java/Python contracts and current primary references",
-        "Section 3: Java library map — all 12 source projects mapped by ownership, secured MCP tool, framework migration, DJL/direct-ONNX inference and Java/Python service-boundary proofs, paired contracts and current primary references"
+        "Section 3: Java library map — all 12 source projects mapped by ownership, secured MCP tool, framework migration, DJL/direct-ONNX inference and Java/Python service-boundary proofs, paired contracts and current primary references",
+        "Section 4: offline retrieval lab — authorization-first candidates, lexical/cosine traces, numerical guards, duplicate-safe RRF, citation membership, paired 31-scenario contracts and current primary references"
       ],
       "source_revision": {
         "baseline_commit": "3296b794f00a24f206148599d249246d69ed8942",
@@ -772,11 +773,11 @@
         "selected_inner_sha256": "af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553",
         "compared_library_file_id": "libfile_a6efee022fb881919d2e8ff61bd758ed",
         "compared_html_sha256": "6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3",
-        "canonical_sha256_after": "20feed44e2c5f26a22d4a0739df6a68f3544e8e287e3ba6e90c9e3221c5b31c4"
+        "canonical_sha256_after": "76b3cf63d66061c92e35ad99ed1053aeeda3ceae810f2e5efaeaded00b8916cf"
       },
-      "last_successful_commit": "7d3b69e09d183af3985f77910fd3db161d2d4e26",
-      "validation": "The confirmed editable member and byte-identical standalone HTML were compared for bounded Section 3, source lines 57-82, ending before Section 4. Java 17 source-file launch passed 9 layer-selection, 16 Python-map and 21 Java-map scenario groups; Python 3 passed the corresponding 9, 15 and 21 groups. Deterministic reader generation passed exact 40159-byte Markdown recovery, SHA-256 20feed44e2c5f26a22d4a0739df6a68f3544e8e287e3ba6e90c9e3221c5b31c4, 93 unique IDs, 4 search entries, local links/fragments, 46 balanced fence markers, 14 Mermaid sources, JSON and reader JavaScript parsing, and deterministic rebuild identity. All seven content-commit remote blob hashes matched. Standalone javac, framework/native dependency compilation, live provider/model/MCP integrations, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
-      "next_action": "Process Section 4, Start with the offline lab, beginning at source line 84, as the next bounded fair-rotation section; Sections 4-25 remain queued.",
+      "last_successful_commit": "1f6f5d7a86b2d3b7ceb20378fc32996ae7cd8d72",
+      "validation": "The confirmed editable member at source lines 84-202 and its standalone HTML rendering at lines 283-387 were compared and bounded before Section 5; no duplicate guide was created. Java 17 source-file launch passed 9 layer-selection, 16 Python-map, 21 Java-map and 31 offline-lab scenario groups; Python 3 passed the corresponding 9, 15, 21 and 31 groups, with an identical parity trace. Deterministic reader generation passed exact 51638-byte Markdown recovery, SHA-256 76b3cf63d66061c92e35ad99ed1053aeeda3ceae810f2e5efaeaded00b8916cf, 119 unique IDs, 5 search entries, local links/fragments, 58 balanced fence markers, 16 Mermaid sources, JSON plus inline/module JavaScript parsing, and deterministic rebuild identity. Seven content files were published atomically at 1f6f5d7a86b2d3b7ceb20378fc32996ae7cd8d72 with an expected-head guard and all remote blob hashes matched. Standalone javac, framework/native dependency compilation, live provider/model/vector-database integrations, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
+      "next_action": "After fair rotation to DSA Arrays Section 4, process Section 5, A model call at the wire level, beginning at source line 203; Sections 5-25 remain queued.",
       "priority": 14
     },
     {
@@ -1007,7 +1008,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources and the confirmed database source are processed through their source ends. System-design Blueprint 4 is promoted; rotate fairly to Spring AI/Python Section 4 before Arrays Section 4, AI-platform Chapter 5 or System-design Blueprint 5.",
+    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources and the confirmed database source are processed through their source ends. Spring AI/Python Section 4 is promoted; rotate fairly to DSA Arrays Section 4 before AI-platform Chapter 5, System-design Blueprint 5 or Spring AI/Python Section 5.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1123,15 +1124,16 @@
       "Spring AI/Python Section 3: 12-project Java ownership map, secured MCP tool, framework-port migration, bounded JVM inference and versioned Java/Python service boundary",
       "DSA Arrays Section 3: copy/sort/index contracts, hash frequencies and boxed equality, indexed monotonic deque, safe midpoint/arithmetic and swap",
       "AI platform Chapter 4: BM25 identifiers, exact/approximate vectors, checked capacity, RRF and authorization-first bounded reranking",
-      "System-design Blueprint 4: conservative URL identity, exact admission, robots policy, origin-scoped politeness, safe fetching, retry timing and conditional recrawl"
+      "System-design Blueprint 4: conservative URL identity, exact admission, robots policy, origin-scoped politeness, safe fetching, retry timing and conditional recrawl",
+      "Spring AI/Python Section 4: authorization-first offline retrieval, lexical/cosine traces, numerical guards, duplicate-safe RRF and citation membership contracts"
     ],
-    "processed_section": "System-design Blueprint 4, Large-scale polite web crawler: source lines 681-902, bounded by Blueprint 5 at line 903",
-    "validation": "The confirmed Library revision was read at exact source lines 681-902. Four worked examples, traces, three diagrams and a dependency-free Java contract were added. Java 17 source-file launch passed 13 video, 22 ride-hailing, 18 financial-ledger and 25 crawler scenario groups. Deterministic reader generation passed exact 51937-byte Markdown recovery, SHA-256 d5bbe705674eb49c07c051f87cce993aa04551c1d889cf3730c311997e6e4312, 86 unique HTML IDs, 5 search entries, 28 local fragments, 54 balanced fence markers and 15 Mermaid sources. Six content files were atomically published at 018468cadeb977a4e5b2bab02cd405c370aa0555 with an expected-head guard; all remote blob hashes, JSON and git diff checks passed and the live canonical Java-marker audit remains 170. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable.",
+    "processed_section": "Spring AI/Python Section 4, Start with the offline lab: editable-member lines 84-202, bounded by Section 5 at line 203",
+    "validation": "The confirmed editable member and byte-identical standalone HTML were compared for bounded Section 4 and no duplicate guide was created. Four worked examples, exact traces, two diagrams and paired dependency-free Java/Python contracts were added. Java 17 source-file launch passed 9, 16, 21 and 31 scenario groups; Python 3 passed 9, 15, 21 and 31, including an identical offline-lab parity trace. Deterministic reader generation passed exact 51638-byte Markdown recovery, SHA-256 76b3cf63d66061c92e35ad99ed1053aeeda3ceae810f2e5efaeaded00b8916cf, 119 unique IDs, 5 search entries, local links/fragments, 58 balanced fence markers and 16 Mermaid sources. Seven content files were atomically published at 1f6f5d7a86b2d3b7ceb20378fc32996ae7cd8d72 with an expected-head guard; all remote blob hashes, JSON, JavaScript and git diff checks passed and the live canonical Java-marker audit remains 170. Standalone javac, framework/native integrations, live provider/model/vector-database tests, browser, assistive-technology and rendered Mermaid QA were unavailable.",
     "estimated_next_tokens": 8200,
-    "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 4 pass with source review, examples, paired contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "018468cadeb977a4e5b2bab02cd405c370aa0555",
-    "last_processed_at": "2026-10-23T07:20:57-04:00",
-    "next_batch_decision": "System-design Blueprint 4 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to Spring AI/Python Section 4 beginning at source line 84; retain Arrays Section 4, AI-platform Chapter 5 and System-design Blueprint 5 for later domain turns."
+    "estimate_method": "Heuristic only for one bounded DSA Arrays Section 4 pass with paired-source review, examples, Java, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "1f6f5d7a86b2d3b7ceb20378fc32996ae7cd8d72",
+    "last_processed_at": "2026-10-23T12:09:10-04:00",
+    "next_batch_decision": "Spring AI/Python Section 4 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to DSA Arrays Section 4 at Markdown anchor/heading lines 253/255 and DOCX heading line 169; retain AI-platform Chapter 5, System-design Blueprint 5 and Spring AI/Python Section 5 for later domain turns."
   }
 }
 
