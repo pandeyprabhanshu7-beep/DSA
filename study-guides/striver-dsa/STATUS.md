@@ -38,6 +38,7 @@
 | H-10 Subarray Sum Equals K | ✅ | ✅ | Prefix-frequency proof, Java and overflow handling |
 | H-16 Minimum Window Substring | ✅ | ✅ | Four examples, brute force, frequency-window invariant, detailed ADOBECODEBANC trace, Java, proof and O(m+n) derivation |
 | Arrays §1 Mental Model and Invariants | ✅ | ✅ | Four examples, aliasing, taxonomy, stable compaction, overflow-safe prefix sums, traces, proofs, Java and Mermaid |
+| Arrays §2 Pattern-Recognition Decision Tree | ✅ | ✅ | Decision gates plus four examples for signed exact sums, sorted pairs, nonnegative windows and cyclic placement, with Java, traces, proofs and Mermaid |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
