@@ -8,6 +8,7 @@ Run the dependency-free Java evidence:
 java -ea study-guides/striver-dsa/arrays/ArrayMentalModels.java
 java -ea study-guides/striver-dsa/arrays/ArrayPatternDecisions.java
 java -ea study-guides/striver-dsa/arrays/ArrayToolkitContracts.java
+java -ea study-guides/striver-dsa/arrays/ArrayCorePatterns.java
 ```
 
 Rebuild the reader:
@@ -16,4 +17,4 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3 are promoted; Section 4 and later sections remain queued.
+This is an incremental guide. Source Sections 1–3 and Section 4's bounded opening slice (problems 1–4) are promoted. Section 4 problems 5–47 and later source material remain queued.

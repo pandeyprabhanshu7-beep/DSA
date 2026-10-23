@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates all three sections. Later source sections remain queued.
+> **Incremental status:** Sections 1–3 and the bounded opening slice of Section 4 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 5–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,6 +26,13 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
+- [4. Core pattern lab — first four solved problems](#4-core-pattern-lab--first-four-solved-problems)
+  - [Pattern-lab contract](#pattern-lab-contract)
+  - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
+  - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
+  - [Example 3 — maximum subarray: compress the best ending state](#example-3--maximum-subarray-compress-the-best-ending-state)
+  - [Example 4 — majority element: cancel, then verify](#example-4--majority-element-cancel-then-verify)
+  - [Core-pattern checklist](#core-pattern-checklist)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -651,6 +658,212 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
+## 4. Core pattern lab — first four solved problems
+
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This bounded pass promotes its first four problems—Two Sum, one-transaction stock profit, maximum subarray, and majority element—because together they teach four different forms of **state compression**. Problems 5–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+
+### Pattern-lab contract
+
+Before selecting code, pin down the result and the guarantee that makes discarded history irrelevant:
+
+| Problem | Required result | Minimal retained state | Proof obligation | This guide's edge contract |
+|---|---|---|---|---|
+| Two Sum | two distinct indices, or no answer | value → earliest earlier index | only the complement can complete the current value | target arithmetic is `long`; input is not mutated |
+| One stock trade | maximum nonnegative profit | minimum price in the legal prefix | every sale is best paired with the cheapest earlier buy | fewer than two prices returns `0`; result is `long` |
+| Maximum subarray | largest sum of a non-empty contiguous range | best sum ending exactly here | every optimum ending here either restarts or extends | empty input is rejected; sum is `long` |
+| Majority element | value occurring more than `n / 2`, if present | cancellation candidate and balance | cancellation yields only a candidate without a promise | a second pass verifies; no majority returns empty |
+
+```mermaid
+flowchart TD
+    A[State exact output and guarantees] --> B{What history matters?}
+    B -->|Earlier complement| C[Hash the legal prefix]
+    B -->|Cheapest earlier buy| D[Prefix minimum]
+    B -->|Best range ending here| E[Kadane state]
+    B -->|Strict majority| F[Cancel then verify]
+```
+
+All four implementations are side-effect free. Their arithmetic contracts deliberately differ from many short interview snippets: indices stay `int`, but sums, targets, differences, and returned numeric aggregates use `long` wherever two legal `int` values can exceed the `int` range.
+
+### Example 1 — Two Sum: index the legal prefix
+
+**Requirement:** for `input = [2, 7, 11, 15]` and `target = 9`, return two distinct indices whose values sum mathematically to the target. Return an empty array when no pair exists. Do not mutate the input.
+
+Invariant before reading index `right`: the map stores the earliest index of each value in `input[0..right)`. Therefore any retrieved index is automatically different from `right`.
+
+```mermaid
+flowchart LR
+    P[Map: earlier values only] --> N[Compute long complement]
+    X[Current value] --> N
+    N --> Q{Complement present?}
+    Q -->|Yes| R[Return earlier index and right]
+    Q -->|No| S[Record current value]
+```
+
+Trace:
+
+| `right` | value | `need = target - value` | map before | decision |
+|---:|---:|---:|---|---|
+| 0 | 2 | 7 | `{}` | record `2 → 0` |
+| 1 | 7 | 2 | `{2=0}` | return `[0, 1]` |
+
+```java
+static int[] twoSumIndices(int[] input, long target) {
+    Map<Long, Integer> firstIndex = new HashMap<>();
+    for (int right = 0; right < input.length; right++) {
+        long need = target - input[right];
+        Integer left = firstIndex.get(need);
+        if (left != null) return new int[]{left, right};
+        firstIndex.putIfAbsent((long) input[right], right);
+    }
+    return new int[0];
+}
+```
+
+**Why the order matters:** checking before insertion prevents reusing the current index. `putIfAbsent` retains the earliest duplicate, which makes behavior deterministic without changing correctness. `long need` handles pairs such as two `Integer.MAX_VALUE` values with target `4_294_967_294L`.
+
+Expected time is `O(n)` under the map's usual hash-distribution assumption, with `O(n)` auxiliary space. A nested-loop baseline is `O(n²)` time and `O(1)` space; a sorted two-pointer solution is appropriate only when sorting is allowed and original-index identity is preserved separately.
+
+### Example 2 — one stock trade: retain the cheapest legal buy
+
+**Requirement:** for prices `[7, 1, 5, 3, 6, 4]`, choose at most one buy and one later sell and return the maximum profit. Return `0` when no profitable legal trade exists.
+
+Before evaluating day `sell`, `minimum` is the lowest price in `[0, sell)`, and `best` is the largest profit among sales before `sell`. The only state a new selling day needs is the cheapest legal earlier buy.
+
+```mermaid
+flowchart LR
+    M[Minimum earlier price] --> P[Profit if sold today]
+    T[Today's price] --> P
+    P --> B[Update best profit]
+    T --> U[Update prefix minimum]
+    B --> U
+```
+
+| sell day | price | minimum before | profit today | best after |
+|---:|---:|---:|---:|---:|
+| 1 | 1 | 7 | -6 | 0 |
+| 2 | 5 | 1 | 4 | 4 |
+| 3 | 3 | 1 | 2 | 4 |
+| 4 | 6 | 1 | 5 | 5 |
+| 5 | 4 | 1 | 3 | 5 |
+
+```java
+static long maxSingleTradeProfit(int[] prices) {
+    if (prices.length < 2) return 0L;
+    int minimum = prices[0];
+    long best = 0L;
+    for (int sell = 1; sell < prices.length; sell++) {
+        best = Math.max(best, (long) prices[sell] - minimum);
+        minimum = Math.min(minimum, prices[sell]);
+    }
+    return best;
+}
+```
+
+The cast occurs before subtraction, so the method remains correct even across the full `int` domain. Selling is evaluated before incorporating today's price into the prefix minimum; buying and selling on one day would produce zero anyway, but keeping the legal-prefix meaning explicit makes the proof portable to variants with fees or a mandatory positive holding period. Time is `O(n)` and auxiliary space is `O(1)`.
+
+### Example 3 — maximum subarray: compress the best ending state
+
+**Requirement:** return the largest mathematical sum of a non-empty contiguous subarray. For `[-2, 1, -3, 4, -1, 2, 1, -5, 4]`, return `6` for `[4, -1, 2, 1]`.
+
+After processing index `i`, `endingHere` is the maximum sum among all non-empty subarrays ending exactly at `i`; `best` is the maximum over every ending position processed so far.
+
+```mermaid
+flowchart LR
+    E[Previous best ending here] --> X[Extend with current value]
+    V[Current value] --> R[Restart here]
+    X --> M{Take larger}
+    R --> M
+    M --> G[Update global best]
+```
+
+| `i` | value | extend | restart | `endingHere` | `best` |
+|---:|---:|---:|---:|---:|---:|
+| 0 | -2 | — | -2 | -2 | -2 |
+| 1 | 1 | -1 | 1 | 1 | 1 |
+| 2 | -3 | -2 | -3 | -2 | 1 |
+| 3 | 4 | 2 | 4 | 4 | 4 |
+| 4 | -1 | 3 | -1 | 3 | 4 |
+| 5 | 2 | 5 | 2 | 5 | 5 |
+| 6 | 1 | 6 | 1 | 6 | 6 |
+
+```java
+static long maxSubarraySum(int[] input) {
+    if (input.length == 0) throw new IllegalArgumentException("non-empty input required");
+    long endingHere = input[0], best = input[0];
+    for (int i = 1; i < input.length; i++) {
+        endingHere = Math.max((long) input[i], endingHere + input[i]);
+        best = Math.max(best, endingHere);
+    }
+    return best;
+}
+```
+
+Every non-empty subarray ending at `i` either contains no earlier element or extends a subarray ending at `i - 1`; no third case exists. Retaining the best earlier ending dominates every worse extension. Initialization from the first element is essential: initializing to zero would incorrectly allow an empty range for all-negative input. Time is `O(n)`, auxiliary space is `O(1)`, and `long` keeps repeated `int` additions mathematical.
+
+### Example 4 — majority element: cancel, then verify
+
+**Requirement:** return a value only when it occurs strictly more than `floor(n / 2)` times. The usual interview statement may guarantee a majority; this reusable contract does not trust that promise.
+
+The candidate pass pairs occurrences of the current candidate with different values. If a strict majority exists, it survives every possible cancellation. Cancellation does **not** prove that a majority exists, so verification is a separate gate.
+
+```mermaid
+flowchart TD
+    A[Scan value] --> B{Balance zero?}
+    B -->|Yes| C[Adopt value]
+    B -->|No| D[Keep candidate]
+    C --> E[Same adds, different subtracts]
+    D --> E
+    E --> F[Count candidate in second pass]
+    F --> G{Count greater than n divided by 2?}
+    G -->|Yes| H[Return candidate]
+    G -->|No| I[Return empty]
+```
+
+Trace for `[2, 2, 1, 1, 1, 2, 2]`:
+
+| value | candidate before | balance before | candidate/balance after |
+|---:|---:|---:|---|
+| 2 | — | 0 | `2 / 1` |
+| 2 | 2 | 1 | `2 / 2` |
+| 1 | 2 | 2 | `2 / 1` |
+| 1 | 2 | 1 | `2 / 0` |
+| 1 | 2 | 0 | `1 / 1` |
+| 2 | 1 | 1 | `1 / 0` |
+| 2 | 1 | 0 | `2 / 1` |
+
+The second pass counts four occurrences of `2`; `4 > 7 / 2`, so the result is present.
+
+```java
+static OptionalInt majorityElement(int[] input) {
+    if (input.length == 0) return OptionalInt.empty();
+    int candidate = 0, balance = 0;
+    for (int value : input) {
+        if (balance == 0) candidate = value;
+        balance += value == candidate ? 1 : -1;
+    }
+    int occurrences = 0;
+    for (int value : input) if (value == candidate) occurrences++;
+    return occurrences > input.length / 2
+            ? OptionalInt.of(candidate)
+            : OptionalInt.empty();
+}
+```
+
+The candidate pass is `O(n)`, verification is another `O(n)`, and auxiliary space is `O(1)`. Under a contractual guarantee, verification may be omitted; without it, `[1, 2, 3]` demonstrates why returning the final candidate is unsound. Majority means strictly more than half, not merely the mode.
+
+### Core-pattern checklist
+
+1. State whether the output is indices, a numeric aggregate, a mutated array, or an optional value.
+2. Preserve legality in the state: Two Sum stores only earlier indices; stock state stores only earlier buys.
+3. Name exactly what a compressed variable means after each iteration.
+4. Distinguish a candidate-producing pass from a proof-producing verification pass.
+5. Check before inserting when the current element must not match itself.
+6. Initialize non-empty extrema from real input, not a convenient zero.
+7. Promote before subtraction or addition when legal `int` values can overflow.
+8. Test duplicates, no answer, all-negative input, decreasing prices, absent majority, and integer extremes.
+
+Executable evidence is in `ArrayCorePatterns.java`. It checks 28 explicit scenario groups and runs 40,000 seeded comparisons against brute-force pair-existence, profit, maximum-subarray, and majority oracles.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -661,10 +874,12 @@ Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite 
 - [Java SE 17 `java.util.ArrayDeque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayDeque.html) — resizable deque behavior, null prohibition, and amortized constant-time end operations.
 - [Java Language Specification, Java SE 17, Chapter 5](https://docs.oracle.com/javase/specs/jls/se17/html/jls-5.html) — boxing/unboxing and numeric-promotion rules behind object equality and cast-before-arithmetic guidance.
 - [Java Language Specification, Java SE 17, §15.18.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.18.1) — integer addition and overflow semantics; the examples promote sums to `long` before addition.
+- [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — `max`/`min` contracts and exact-arithmetic alternatives when overflow must raise instead of being prevented by widening.
+- [Boyer and Moore, “A Linear Time Majority Vote Algorithm”](https://www.cs.utexas.edu/~moore/best-ideas/mjrty/) — primary description and history of the cancellation algorithm used to produce the majority candidate.
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251. Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 extracted lines 65–165. Compared as a corroborating companion; its 116-page rendering was visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus the bounded Section 4 opening slice at lines 253–634 (problems 1–4). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 extracted lines 65–165 plus the bounded Section 4 opening slice at lines 169–418. Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4, “Core Array Patterns + 47 Fully Solved Problems,” begins at Markdown anchor line 253 (heading line 255) / DOCX extracted heading line 169 and is the next Arrays source boundary.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problems 1–4 are promoted through Markdown line 634 / DOCX extracted line 418; problem 5, “Move Zeroes,” begins at Markdown anchor line 635 / DOCX extracted line 419.
