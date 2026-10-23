@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "bf31358e21c0c83174dfe0336aead865670e682e",
+  "last_successful_commit": "0e40c62b6e1315916e6e3ac6e41832fa9bc54749",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -862,11 +862,11 @@
     }
   ],
   "next_batch": {
-    "source": "ai_platform_master_guide.html with bundled editable RAG/MCP companion",
-    "section": "Chapter 3: Ingestion is a data pipeline, not a file-upload callback",
+    "source": "top_5_system_design_interview_blueprints.md",
+    "section": "Blueprint 3 beginning at source line 460",
     "status": "QUEUED",
-    "estimated_tokens": 9200,
-    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 3 paired-source pass with source comparison, current primary references, examples, Java, reader, validation and checkpoint reserves. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 8200,
+    "estimate_method": "Heuristic only for one bounded System-design Blueprint 3 pass with confirmed-source review, current primary references, examples, Java, reader, validation and checkpoint reserves. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
@@ -875,11 +875,11 @@
     "readers": "Canonical JavaScript/HTML/CSS reader rebuilt from Markdown; exact 206630-character embedded payload equality, 77 unique anchors, 151 balanced fences, 54 Mermaid diagrams, inline JavaScript, fragment targets, relative links, JSON syntax, and the live 170-marker Java-placeholder invariant passed. All six content-commit remote blob hashes matched; no commit statuses or check runs were configured. Browser and assistive-technology integration plus Mermaid visual QA were not executed.",
     "diagrams": "Fifty-four Mermaid diagrams remain in the JavaScript/HTML/CSS canonical payload. The database Sections 1-43 reader now has 176 validated Mermaid source blocks; browser rendering and Mermaid visual QA were not executed.",
     "database": "Exact source lines 2270-2328 were bounded by the Section 44 heading and expanded into four current primary-reference-backed debugging labs for absolute-rate capacity, index read/write evidence, revision and membership publication, and pool/lease/transaction/network authority boundaries. Java 17 source launch passed all 172 deterministic scenario groups. Deterministic reader generation passed exact 575175-character Markdown payload equality, source SHA-256 3b1e36c1455107707026c80cc591c6437de5973c4507afb55a4e5d8dfaaba646, 2279 unique HTML IDs, 364 search entries, fragments, allowed relative links, 373 balanced fences and 176 Mermaid sources. All six content-commit remote blob hashes matched. Standalone javac, production PostgreSQL/Redis/Debezium/Hikari/cache/pool integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170. The content was published with an expected-head guard.",
-    "ai_platform": "The expanded master and bundled editable companion were materialized, hashed and compared for bounded Chapter 2; their substance agrees and no duplicate guide was created. Chapter 2 was expanded into token admission, embedding identity and guarded cosine, generation metadata, semantic acceptance, four examples, traces, four diagrams and an executable Java 17 contract. Source-file launch passed 14 routing and 13 model-mechanics scenario groups. The deterministic reader passed exact 21007-byte Markdown recovery, SHA-256 e51f0b44f68af2592a6c3c4dbf2e9d0d3d27421d7e66727d108c3bfb4dfdebbc, 40 unique IDs, 16 search entries, local links/fragments, 22 balanced fence markers, 8 Mermaid sources and deterministic HTML identity. Five content files were atomically published with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+    "ai_platform": "The expanded master and bundled editable companion were materialized, hashed and compared for bounded Chapter 3 at master lines 96-138 and companion lines 65-127; their substance agrees and no duplicate guide was created. Chapter 3 was expanded into retry-safe identity, bounded parsing, numeric chunk windows, coherent publication, deletion/ACL freshness, four examples, traces, five diagrams and an executable Java 17 contract. Source-file launch passed 14 routing, 13 model-mechanics and 12 ingestion scenario groups. The deterministic reader passed exact 32663-byte Markdown recovery, SHA-256 1f5ce97de61ced4ea23b63d1a7d66c1090c2e5ff6c1442187daf59f88d0e5484, 51 unique HTML IDs, 22 search entries, local links/fragments, 34 balanced fence markers, 13 Mermaid sources, JSON/JavaScript parsing and deterministic rebuild identity. Six content files were atomically published at 0e40c62b6e1315916e6e3ac6e41832fa9bc54749 with an expected-head guard and remote blob reads matched. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
     "system_design_blueprints": "Library revision 1 was read at exact lines 254-459 and bounded before Blueprint 3. Blueprint 2 adds measurable requirements, four worked traces, four diagrams and an executable ride-hailing contract. Java 17 source-file launch passed 13 video and 22 ride-hailing scenario groups. Deterministic reader generation passed exact 26094-byte payload equality, SHA-256 b367778debc725fe565bda5de46a51e24b0af1f3732298fe8761002fa5985069, 50 unique IDs, 3 search entries, local links/fragments, 28 balanced fence markers, 8 Mermaid sources and deterministic rebuild identity. Seven content files were published atomically with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable; the live canonical Java-marker audit remains 170.",
     "spring_ai_python": "The selected ZIP passed integrity and path-traversal checks. Its editable atlas_guides/spring_ai_python_api_interview_guide.md member has SHA-256 af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553; its generated HTML has SHA-256 6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3 and is byte-identical to the standalone HTML, so no duplicate edition was promoted. Sections 1-2 now cover source lines 6-56. Section 2 retains the 17-project map and adds four requirement-driven proofs, trace tables, five diagrams and paired dependency-free contracts. Java 17 source launch passed 9 plus 16 scenario groups; Python 3 passed 9 plus 15 groups. Deterministic reader generation passed exact 23716-byte Markdown recovery, SHA-256 384a45323cdee287d87170595abdcf022cf1706c65e98eaf16ca38029fea22e2, 61 unique IDs, 3 search entries, local links/fragments, 28 balanced fence markers, 9 Mermaid sources, JSON/JavaScript parsing and deterministic rebuild identity. Seven content files were published atomically with an expected-head guard; all seven remote blob hashes matched and no commit statuses or workflow runs were configured. Standalone javac, framework dependency compilation, live provider/model/graph integrations, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
     "arrays": "The paired arrays workbooks were materialized, hashed and compared for Sections 1-2; both sources agree on the bounded decision sequence and pattern table, so the editable Markdown remains canonical and the DOCX remains corroboration rather than a duplicate. Section 2 adds explicit eligibility gates, four worked examples, traces, four diagrams and executable Java. Java 17 source launch passed 17 Section 1 plus 26 Section 2 scenario groups. Deterministic reader generation passed exact 23384-byte Markdown recovery, SHA-256 693d982f15e66975701eda9451644d12e9fc0c942a057a7bb4b5aff67105fdd5, 116 unique IDs, 18 search entries, fragments, 32 balanced fence markers, 9 Mermaid sources, parseable JSON/JavaScript and deterministic rebuild identity. Six content files were atomically published with an expected-head guard; all six remote blob hashes matched and no commit statuses or workflow runs were configured. The DOCX's 116 rendered pages were previously visually inspected. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-    "last_processed_at": "2026-10-22T20:06:15-04:00"
+    "last_processed_at": "2026-10-22T20:25:37-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-21T08:11:37-04:00",
@@ -920,20 +920,20 @@
     "estimate_method": "Heuristic for bounded Section 44 source review, primary-reference reconciliation, examples, executable Java, reader synchronization and validation/checkpoint reserves; not actual quota percentage"
   },
   "ai_platform_intake_checkpoint": {
-    "last_processed_at": "2026-10-22T15:06:05-04:00",
+    "last_processed_at": "2026-10-22T20:25:37-04:00",
     "selected_source_sha256": "c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a",
     "selected_library_file_id": "libfile_1c4d3d95d7408191ba154228767f0886",
     "selected_file_id": "file_00000000493c81f783ae7443074f1c91",
     "companion_archive_sha256": "78548fdcdb08af668299b9fe1815a4f13c7063b54a34dff487d24c8d9f0e5c43",
     "companion_markdown_sha256": "45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05",
     "compared_illustrated_sha256": "006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9",
-    "processed": "Chapters 1-2 through Model mechanics you need for system design; latest bounded range is master lines 111-136 and companion lines 39-64, ending before Chapter 3",
+    "processed": "Chapters 1-3 through Ingestion is a data pipeline, not a file-upload callback; latest bounded range is master lines 96-138 and companion lines 65-127, ending before Chapter 4",
     "status": "IN_PROGRESS",
-    "validation": "Java 17 source-file launch passed 14 routing and 13 model-mechanics scenario groups. Deterministic reader generation passed exact 21007-byte Markdown recovery, SHA-256 e51f0b44f68af2592a6c3c4dbf2e9d0d3d27421d7e66727d108c3bfb4dfdebbc, 40 unique IDs, 16 search entries, links/fragments, 22 balanced fence markers, 8 Mermaid sources, parseable inline JavaScript and deterministic rebuild identity. Five content files were published atomically with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
-    "content_commit": "b100fdc4170f98b8ebf916839294f128eece42c4",
-    "next_section": "Chapter 3, Ingestion is a data pipeline, not a file-upload callback; process after fair domain rotation",
-    "estimated_next_tokens": 9200,
-    "estimate_method": "Heuristic only for one bounded System-design Blueprint 2 pass; no reliable quota percentages were exposed"
+    "validation": "Java 17 source-file launch passed 14 routing, 13 model-mechanics and 12 ingestion scenario groups. Deterministic reader generation passed exact 32663-byte Markdown recovery, SHA-256 1f5ce97de61ced4ea23b63d1a7d66c1090c2e5ff6c1442187daf59f88d0e5484, 51 unique HTML IDs, 22 search entries, links/fragments, 34 balanced fence markers, 13 Mermaid sources, parseable JSON/JavaScript and deterministic rebuild identity. Six content files were published atomically with an expected-head guard and remote blob reads matched. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
+    "content_commit": "0e40c62b6e1315916e6e3ac6e41832fa9bc54749",
+    "next_section": "Chapter 4, Retrieval internals: lexical, vector, hybrid and reranking; retain until after fair rotation to System-design Blueprint 3",
+    "estimated_next_tokens": 8200,
+    "estimate_method": "Heuristic only for one bounded System-design Blueprint 3 pass; no reliable quota percentages were exposed"
   },
   "system_design_blueprints_intake_checkpoint": {
     "last_processed_at": "2026-10-22T15:42:41-04:00",
