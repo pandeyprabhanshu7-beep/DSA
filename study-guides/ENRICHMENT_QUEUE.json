@@ -52,9 +52,9 @@
       "modified_at": "2026-09-17T05:55:54.714170Z",
       "size_bytes": 2535466,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-10-24T01:39:01-04:00",
+      "last_read_at": "2026-10-24T08:46:59-04:00",
       "sha256": "c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31",
-      "selection": "Archive integrity/traversal checks passed. Its CI/CD source is promoted separately; Spring/Python member atlas_guides/spring_ai_python_api_interview_guide.md (SHA-256 af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553) is the selected editable source and Sections 1-6 are promoted."
+      "selection": "Archive integrity/traversal checks passed. Its CI/CD source is promoted separately; Spring/Python member atlas_guides/spring_ai_python_api_interview_guide.md (SHA-256 af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553) is the selected editable source and Sections 1-7 are promoted through line 620."
     },
     {
       "name": "ai_platform_master_guide.html",
@@ -76,9 +76,9 @@
       "modified_at": "2026-09-17T05:55:54.480720Z",
       "size_bytes": 149762,
       "status": "READY",
-      "last_read_at": "2026-10-24T01:39:01-04:00",
+      "last_read_at": "2026-10-24T08:46:59-04:00",
       "sha256": "6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3",
-      "selection": "Read and compared through standalone HTML lines 435-579; it agrees with the selected editable member and remains a comparison source rather than a duplicate canonical guide."
+      "selection": "Read and compared through standalone HTML lines 580-752 for Section 7; it agrees with the selected editable member and remains a comparison source rather than a duplicate canonical guide."
     },
     {
       "name": "ai_platform_engineering_complete_bundle.zip",
@@ -765,14 +765,15 @@
         "ai_cicd_spring_python_guides_complete.zip",
         "spring_ai_python_api_interview_guide.html"
       ],
-      "last_processed_at": "2026-10-24T01:39:01-04:00",
+      "last_processed_at": "2026-10-24T08:46:59-04:00",
       "processed_sections": [
         "Section 1: choose the layer before choosing the library — requirements, four selection examples, authority/retry/release boundaries, paired Java/Python contracts and current primary references",
         "Section 2: Python library map — all 17 source projects mapped by responsibility, four decision proofs, trace tables, replay/failure boundaries, paired Java/Python contracts and current primary references",
         "Section 3: Java library map — all 12 source projects mapped by ownership, secured MCP tool, framework migration, DJL/direct-ONNX inference and Java/Python service-boundary proofs, paired contracts and current primary references",
         "Section 4: offline retrieval lab — authorization-first candidates, lexical/cosine traces, numerical guards, duplicate-safe RRF, citation membership, paired 31-scenario contracts and current primary references",
         "Section 5: model call at the wire level — trusted endpoint, raw HTTP, phase/deadline budgets, replay-aware retries, completion/schema validation, capacity/cost evidence and paired 30-scenario contracts",
-        "Section 6: complete Python RAG endpoint — atomic startup snapshot, process-local admission and deadlines, deterministic retrieval, calibrated abstention, citation membership/support, typed failures and exactly-once permit release"
+        "Section 6: complete Python RAG endpoint — atomic startup snapshot, process-local admission and deadlines, deterministic retrieval, calibrated abstention, citation membership/support, typed failures and exactly-once permit release",
+        "Section 7: complete Spring AI RAG path — current release identity, minimal dependency/configuration boundary, atomic readiness publication, deadline/admission propagation, grounding gates, typed failures and graceful shutdown"
       ],
       "source_revision": {
         "baseline_commit": "3296b794f00a24f206148599d249246d69ed8942",
@@ -783,11 +784,11 @@
         "selected_inner_sha256": "af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553",
         "compared_library_file_id": "libfile_a6efee022fb881919d2e8ff61bd758ed",
         "compared_html_sha256": "6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3",
-        "canonical_sha256_after": "042fa523f769de0f026940a3b9ba06784781d3398bf9a37e6622de10f9ecfe30"
+        "canonical_sha256_after": "617039b5a72bd0b228bc82e57f78abe53080195dbcdec8526fd7afc1d07dadf3"
       },
-      "last_successful_commit": "931b79dd979000b72bd3e9fb0dba78de12d3fa16",
-      "validation": "The selected ZIP member at editable source lines 264-427 and standalone HTML lines 435-579 were compared and bounded before Section 7; their endpoint substance agrees and no duplicate guide was created. Four requirement-driven examples, four diagrams, current primary references and paired dependency-free contracts were added. Java 17 source-file launch and Python 3 passed all six contract suites; the new pair produced identical PARITY|READY|ANSWER|ABSTAIN|429|504|502|RELEASED traces, 32 scenario groups and 10,000 seeded trials per language. Deterministic reader generation passed exact 74689-byte Markdown recovery, SHA-256 042fa523f769de0f026940a3b9ba06784781d3398bf9a37e6622de10f9ecfe30, 173 unique HTML IDs, 7 search entries, 90 balanced fence markers, 24 Mermaid sources, JSON and JavaScript parsing and deterministic rebuild identity. Seven content files were atomically published at 931b79dd979000b72bd3e9fb0dba78de12d3fa16 with an expected-head guard; all remote blob hashes matched and no commit status checks were configured. Standalone javac, FastAPI/Pydantic/HTTPX packages, live Ollama/model integration, multi-process load tests, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-      "next_action": "Rotate fairly to Arrays Section 4 problem 6, Remove Duplicates from Sorted Array, at Markdown line 725 / DOCX extracted line 480; on the next Spring/Python pass process Section 7, Complete Spring AI RAG path, beginning at source line 428. Sections 7-25 remain queued.",
+      "last_successful_commit": "3fc2da6d1c8e7419b64e15e85bb184e503f8d6cd",
+      "validation": "The selected ZIP member at editable source lines 428-620 and standalone HTML lines 580-752 were compared and bounded before Section 8; their dependency, configuration, service and run-path substance agrees and no duplicate guide was created. The dated source versions were reconciled to the current documented stable pair, and four requirement-driven examples, four diagrams, current primary references and paired dependency-free contracts were added. Java 17 source-file launch and Python 3 passed all seven contract suites; the new pair produced identical PARITY|CONFIGURED|READY|ANSWER|ABSTAIN|429|504|502|RELEASED traces, 36 scenario groups and 10,000 seeded trials per language. Deterministic reader generation passed exact 88729-byte Markdown recovery, SHA-256 617039b5a72bd0b228bc82e57f78abe53080195dbcdec8526fd7afc1d07dadf3, 260 unique HTML IDs, 8 search entries, 169 local fragments, 110 balanced fence markers, 28 Mermaid sources, JSON and JavaScript parsing and deterministic rebuild identity. Seven content files were atomically published at 3fc2da6d1c8e7419b64e15e85bb184e503f8d6cd with an expected-head guard; all remote blob hashes matched and no commit status checks were configured. Standalone javac, Maven/framework dependency compilation, live Spring Boot/Ollama integration, multi-process load tests, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+      "next_action": "Rotate fairly to Arrays Section 4 problem 7 at Markdown line 802 / DOCX extracted line 526; on the next Spring/Python pass process Section 8, Replacing in-memory vectors with durable retrieval, beginning at editable line 621 / standalone HTML line 753. Sections 8-25 remain queued.",
       "priority": 14
     },
     {
@@ -1018,7 +1019,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources, the confirmed database source and the System-design blueprint source are processed through their source ends. AI-platform Chapters 1-7, Spring AI/Python Sections 1-6 and Arrays Section 4 problems 1-6 are promoted; rotate fairly to Spring AI/Python Section 7 at editable source line 428 before Arrays problem 7 or AI-platform Chapter 8.",
+    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources, the confirmed database source and the System-design blueprint source are processed through their source ends. AI-platform Chapters 1-7, Spring AI/Python Sections 1-7 and Arrays Section 4 problems 1-6 are promoted; rotate fairly to Arrays problem 7 at Markdown/DOCX lines 802/526 before AI-platform Chapter 8 or Spring AI/Python Section 8.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1145,14 +1146,16 @@
       "Spring AI/Python Section 6: atomic startup snapshot, bounded admission/deadlines, deterministic retrieval, calibrated abstention, grounding gates and exactly-once release",
       "DSA Arrays Section 4 problem 6: stable sorted-array unique-prefix compaction, exact trace, atomic validation, proof and assignment-bound oracle",
       "AI platform Chapter 7: duplicate-aware retrieval metrics, typed stage outcomes, calibrated judges, paired exact evidence, hard-slice release gates and reproducibility identities",
-      "System-design cross-question supplement: repeated primitives, answer sequence, overload/authority/idempotency/degradation drills, review card and executable design-defense contract"
+      "System-design cross-question supplement: repeated primitives, answer sequence, overload/authority/idempotency/degradation drills, review card and executable design-defense contract",
+      "Spring AI/Python Section 7: current release identity, minimal RAG dependencies, atomic readiness publication, deadline/admission propagation, typed grounding outcomes and graceful shutdown"
     ],
-    "processed_section": "System-design cross-question/practice supplement, source lines 1127-1264 through the final line",
-    "validation": "The confirmed Library revision 1 was read through the exact final supplement at source lines 1127-1264; the cross-question pattern map, staff-level answer template and practice drills were promoted without duplicating the five completed blueprints. Four worked traces, four diagrams, current primary references and a dependency-free Java contract were added. Java 17 source-file launch passed all six blueprint contracts: 13 video, 22 ride-hailing, 18 financial-ledger, 25 crawler, 24 distributed-ID and 21 design-defense scenario groups; DesignDefenseContracts also passed 10,000 seeded capacity-conservation checks with the exact PARITY|BACKLOG=1200000|DRAIN=120|REPLAY=op-1|VIDEO=DEGRADE|LEDGER=REJECT trace. Deterministic reader generation passed exact 79350-byte Markdown recovery, SHA-256 54716af9384ef3ff682e36cea1fb32f5e27fb3416bdde955658a5fa433c2635b, 111 unique HTML IDs, 7 search entries, 30 local fragments, 6 resolved relative links, 92 balanced fence markers, 25 Mermaid sources, inline JavaScript parsing and deterministic rebuild identity. Six content files were atomically published at d57953a2931d73e0072ebef36a3e2c5be7e1d8f3 with an expected-head guard; all remote blob hashes matched and no commit status checks were configured. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-    "estimated_next_tokens": 8500,
-    "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 7 pass with paired-source comparison, examples, Java/Python, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "d57953a2931d73e0072ebef36a3e2c5be7e1d8f3",
-    "last_processed_at": "2026-10-24T07:29:48-04:00",
-    "next_batch_decision": "The System-design supplement is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Its confirmed source is exhausted. Rotate fairly to Spring AI/Python Section 7 at editable source line 428; retain Arrays problem 7 and AI-platform Chapter 8 for later domain turns."
+    "processed_section": "Spring AI/Python Section 7, Complete Spring AI RAG path, editable source lines 428-620 / standalone HTML lines 580-752",
+    "validation": "The selected ZIP member at editable source lines 428-620 and standalone HTML lines 580-752 were compared and bounded before Section 8; their dependency, configuration, service and run-path substance agrees and no duplicate guide was created. The dated source versions were reconciled to the current documented stable pair, and four requirement-driven examples, four diagrams, current primary references and paired dependency-free contracts were added. Java 17 source-file launch and Python 3 passed all seven contract suites; the new pair produced identical PARITY|CONFIGURED|READY|ANSWER|ABSTAIN|429|504|502|RELEASED traces, 36 scenario groups and 10,000 seeded trials per language. Deterministic reader generation passed exact 88729-byte Markdown recovery, SHA-256 617039b5a72bd0b228bc82e57f78abe53080195dbcdec8526fd7afc1d07dadf3, 260 unique HTML IDs, 8 search entries, 169 local fragments, 110 balanced fence markers, 28 Mermaid sources, JSON and JavaScript parsing and deterministic rebuild identity. Seven content files were atomically published at 3fc2da6d1c8e7419b64e15e85bb184e503f8d6cd with an expected-head guard; all remote blob hashes matched and no commit status checks were configured. Standalone javac, Maven/framework dependency compilation, live Spring Boot/Ollama integration, multi-process load tests, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+    "estimated_next_tokens": 7800,
+    "estimate_method": "Heuristic only for one bounded Arrays problem 7 pass with paired-source comparison, examples, Java, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "3fc2da6d1c8e7419b64e15e85bb184e503f8d6cd",
+    "last_processed_at": "2026-10-24T08:46:59-04:00",
+    "next_batch_decision": "Spring AI/Python Section 7 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to Arrays problem 7 at Markdown/DOCX lines 802/526; retain AI-platform Chapter 8 and Spring AI/Python Section 8 for later domain turns."
   }
 }
+
