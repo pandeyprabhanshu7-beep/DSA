@@ -1355,4 +1355,226 @@ Verified on 24 October 2026:
 
 ### Source provenance and continuation
 
-The confirmed editable range is source lines 428–620, ending immediately before Section 8. The matching standalone HTML range is lines 580–752, with Section 8 beginning at line 753; dependency, configuration, service and build/run content agree. The canonical section preserves that Spring AI path but updates the dated `4.1.1`/`2.0.1` example to the current documented `4.1.2`/`2.0.2` pair, removes the unrelated MCP starter from the minimal RAG dependency set, and makes lifecycle publication, total deadlines, typed failures, grounding and shutdown behavior testable. Section 8, **Replacing in-memory vectors with durable retrieval**, begins at editable source line 621 / standalone HTML line 753. Sections 8–25 remain queued; the source is not complete.
+The confirmed editable range is source lines 428–620, ending immediately before Section 8. The matching standalone HTML range is lines 580–752, with Section 8 beginning at line 753; dependency, configuration, service and build/run content agree. The canonical section preserves that Spring AI path but updates the dated `4.1.1`/`2.0.1` example to the current documented `4.1.2`/`2.0.2` pair, removes the unrelated MCP starter from the minimal RAG dependency set, and makes lifecycle publication, total deadlines, typed failures, grounding and shutdown behavior testable. Section 8, **Replacing in-memory vectors with durable retrieval**, begins at editable source line 621 / standalone HTML line 753 and is promoted below. Sections 9–25 remain queued; the source is not complete.
+
+## 8. Replacing in-memory vectors with durable retrieval: preserve scope, generation and evidence identity
+
+Moving vectors to PostgreSQL is not a storage-only refactor. The durable path must preserve the same answer contract as the in-memory lab while adding migration ownership, authorization predicates, generation cutover, query planning, connection-pool pressure and index-recall evidence. A `VectorStore` removes adapter boilerplate; it does not decide who may see a chunk, which corpus generation is active, whether an approximate index returned enough authorized neighbors or how long a request may hold a database connection.
+
+Write these invariants before choosing HNSW, IVFFlat or exact search:
+
+| Boundary | Required invariant | Failure meaning |
+|---|---|---|
+| schema and model identity | dimension, distance operator, embedding-model revision and chunk schema are one reviewed release contract | reject incompatible ingestion or query vectors; never silently truncate |
+| row authority | every row carries immutable tenant, document, revision, chunk and generation identity | an unscoped query is a security defect, not a recall optimization |
+| generation publication | ingestion writes a private generation; one small control record activates it only after validation | readers see the old complete generation or the new complete generation, never a mixture |
+| retrieval | authorization and active generation constrain candidates before result acceptance; ordering is distance then stable ID | too few authorized results means abstain/fallback within policy, never broaden scope |
+| ANN quality | approximate results are compared with an exact authorized baseline on representative slices | a fast plan with unacceptable recall fails the release gate |
+| runtime budget | pool wait, SQL execution and result decoding share the caller's remaining deadline | pool exhaustion is admission pressure; statement expiry is retrieval timeout |
+| resource ownership | the transaction and connection end before model generation or token streaming begins | a model call must not pin a scarce database session |
+
+### Example 1 — ingest privately, validate, then switch one generation pointer
+
+Suppose `corpus-42` is serving while a new embedding model builds `corpus-43`. Do not delete or mutate the active rows in place. Write immutable `corpus-43` rows, verify expected counts, unique identities, dimensions, finite values, source revisions and retrieval quality, then update one control row in a short transaction.
+
+```sql
+CREATE TABLE rag_generation (
+  tenant_id text NOT NULL,
+  generation text NOT NULL,
+  embedding_model text NOT NULL,
+  dimensions integer NOT NULL CHECK (dimensions > 0),
+  state text NOT NULL CHECK (state IN ('BUILDING', 'READY', 'ACTIVE', 'RETIRED')),
+  expected_chunks bigint NOT NULL CHECK (expected_chunks >= 0),
+  PRIMARY KEY (tenant_id, generation)
+);
+
+CREATE TABLE rag_chunk (
+  tenant_id text NOT NULL,
+  generation text NOT NULL,
+  document_id text NOT NULL,
+  revision bigint NOT NULL,
+  chunk_id text NOT NULL,
+  body text NOT NULL,
+  embedding vector(768) NOT NULL,
+  PRIMARY KEY (tenant_id, generation, document_id, revision, chunk_id),
+  FOREIGN KEY (tenant_id, generation)
+    REFERENCES rag_generation (tenant_id, generation)
+);
+```
+
+The fixed `vector(768)` column makes a wrong dimension fail at storage. The generation record still stores `dimensions=768` so release evidence can prove that application configuration and schema agree. A deployment may instead use one table per model family when dimensions change; it must not reinterpret old rows as vectors from the new model.
+
+Trace a safe cutover for tenant `payments`:
+
+| Step | `corpus-42` | `corpus-43` | Reader-visible generation |
+|---:|---|---|---|
+| 1 | `ACTIVE`, 2,400 chunks | absent | `corpus-42` |
+| 2 | unchanged | `BUILDING`, 2,397/2,400 rows | `corpus-42` |
+| 3 | unchanged | validator finds three missing rows | `corpus-42` |
+| 4 | unchanged | rebuilt, 2,400 rows; exact/ANN gates pass; `READY` | `corpus-42` |
+| 5 | marked `RETIRED` and retained for rollback | marked `ACTIVE` in one transaction | `corpus-43` |
+| 6 | removed only after rollback window and no readers | unchanged | `corpus-43` |
+
+```mermaid
+stateDiagram-v2
+  [*] --> Building
+  Building --> Building: ingest immutable chunks
+  Building --> Rejected: count, identity or vector check fails
+  Building --> Ready: integrity and recall gates pass
+  Ready --> Active: atomic control-row switch
+  Active --> Retired: newer generation activates
+  Retired --> [*]: rollback window and readers drain
+```
+
+Activation is control-plane data. Keep it small and strongly consistent. If authorization differs inside one tenant, include immutable ACL-group or policy-version metadata in each row and bind the trusted value as another predicate; never copy an untrusted request field directly into the filter.
+
+### Example 2 — bind values, validate the vector, and make ordering replayable
+
+The Spring AI path should use trusted server-side scope and the active generation in its metadata filter. Schema creation belongs to reviewed migrations; application startup should not receive broad extension or DDL privileges merely because automatic initialization exists.
+
+```java
+var f = new FilterExpressionBuilder();
+var request = SearchRequest.builder()
+    .query(question)
+    .topK(6)
+    .filterExpression(f.and(
+        f.eq("tenant_id", authenticatedTenant),
+        f.eq("generation", activeGeneration),
+        f.eq("acl_group", authorizedGroup)).build())
+    .build();
+List<Document> candidates = vectorStore.similaritySearch(request);
+```
+
+The direct Python repository path is useful when SQL plans, deterministic tie handling or transaction-local settings must be explicit. Values stay in the driver parameter sequence. The embedding is rejected before SQL if its length differs, a coordinate is non-finite or the vector is all zeros.
+
+```python
+import math
+
+def vector_literal(values: list[float], dimensions: int) -> str:
+    if len(values) != dimensions or not all(math.isfinite(x) for x in values):
+        raise ValueError("invalid embedding")
+    if not any(x != 0.0 for x in values):
+        raise ValueError("zero embedding")
+    return "[" + ",".join(format(float(x), ".9g") for x in values) + "]"
+
+def retrieve(conn, vector, *, tenant, generation, dimensions, k, timeout_ms):
+    if not 1 <= k <= 50 or not 1 <= timeout_ms <= 5_000:
+        raise ValueError("invalid retrieval bounds")
+    literal = vector_literal(vector, dimensions)
+    with conn.transaction():
+        with conn.cursor() as cur:
+            cur.execute("SET LOCAL statement_timeout = %s", (timeout_ms,))
+            cur.execute("""
+                SELECT document_id, revision, chunk_id, body,
+                       embedding <=> %s::vector AS distance
+                FROM rag_chunk
+                WHERE tenant_id = %s AND generation = %s
+                ORDER BY distance, document_id, revision, chunk_id
+                LIMIT %s
+            """, (literal, tenant, generation, k))
+            return cur.fetchall()
+```
+
+`tenant` and `generation` may contain hostile-looking text without changing the SQL grammar because they are values, not string-built SQL. Table/column names cannot use value placeholders; keep identifiers static or build them only from an allowlist with the driver's SQL-composition API. The final ID tuple makes equal-distance results replayable across tests and traces.
+
+```mermaid
+flowchart TB
+  I["Authenticated identity"] --> S["Trusted tenant + ACL scope"]
+  G["Active generation record"] --> S
+  Q["Validated query vector"] --> SQL["Parameterized SQL"]
+  S --> SQL
+  SQL --> O["Distance, then stable-ID order"]
+  O --> R["Bounded evidence envelope"]
+```
+
+### Example 3 — measure filtered ANN against the exact authorized answer
+
+Approximate indexes trade recall for latency. Filtering makes the trade more subtle: an ANN scan can visit global neighbors and discard rows that fail `tenant_id`, `generation` or ACL predicates, returning fewer than `k` authorized results even when more exist. That is not permission to retry without filters.
+
+For a payments slice with exact authorized top five `{p1,p2,p3,p4,p5}`:
+
+| Candidate plan | Returned IDs | Recall@5 | Decision |
+|---|---|---:|---|
+| exact scan | `p1,p2,p3,p4,p5` | 1.00 | baseline |
+| HNSW default search budget | `p1,p2,p4` | 0.60 | fail: too few and below 0.95 gate |
+| HNSW iterative strict scan | `p1,p2,p3,p4,p5` | 1.00 | pass for this slice |
+| unscoped HNSW | `p1,c7,h2,p2,p3` | not evaluated | security failure, even if latency is excellent |
+
+The pgvector project documents that approximate filtering is applied after the index scan and that iterative scans can visit more tuples until enough filtered results are found or a configured bound is reached. Strict iterative order preserves distance order; relaxed order may improve recall/latency and requires an outer reorder if strict ranking matters. Treat those settings as measured plan inputs, not universal defaults.
+
+```mermaid
+flowchart TB
+  A["Exact authorized top-k baseline"] --> C["Compare candidate ANN plan"]
+  C --> S{"Scope identical?"}
+  S -->|no| X["Reject security defect"]
+  S -->|yes| N{"Returned enough rows?"}
+  N -->|no| F["Abstain or bounded exact fallback"]
+  N -->|yes| R{"Recall and p95 meet gates?"}
+  R -->|no| X
+  R -->|yes| P["Promote index/settings evidence"]
+```
+
+Evaluate by tenant size, ACL selectivity, query family and corpus generation. Record the exact plan, pgvector/PostgreSQL versions, index parameters, recall distribution and tail latency. A global mean can hide a small tenant or restrictive ACL slice with zero useful neighbors. When a bounded exact fallback is permitted, it must use the same authorization predicates and remaining deadline.
+
+### Example 4 — budget pool wait and SQL, then release before generation
+
+Assume a request has 900 ms remaining after authentication and query embedding. Pool wait is capped at 100 ms and retrieval execution at 250 ms. The application gets a connection in 40 ms, sets a transaction-local 250 ms statement timeout, retrieves six rows in 75 ms, ends the transaction and returns the connection. Roughly 785 ms remains for prompt assembly, model generation and final validation. The connection is not held while the model streams.
+
+| Phase | Cap | Actual | Remaining deadline | Resource state |
+|---|---:|---:|---:|---|
+| pool acquisition | 100 ms | 40 ms | 860 ms | connection held |
+| transaction + vector query | min(250, 860) ms | 75 ms | 785 ms | connection held |
+| decode/copy bounded rows | included | 0–small | about 785 ms | connection released |
+| model generation + validation | remaining budget | variable | must finish before 0 | no DB resource held |
+
+If the pool wait expires, return admission pressure (`503` with an intentional retry policy, or the API's documented overload status) before sending SQL. If PostgreSQL cancels the statement at its timeout, report a retrieval timeout; do not continue with partial rows. If caller cancellation arrives, request cancellation and still close the transaction, but remember that a client-side cancel attempt is not proof the server stopped immediately.
+
+```mermaid
+sequenceDiagram
+  participant A as API
+  participant P as Pool
+  participant D as PostgreSQL
+  participant M as Model
+  A->>P: acquire within min(pool cap, remaining)
+  P-->>A: connection
+  A->>D: BEGIN; SET LOCAL statement_timeout
+  A->>D: scoped vector query
+  D-->>A: bounded rows or typed timeout
+  A->>P: end transaction; release
+  A->>M: evidence + remaining deadline
+  M-->>A: proposed answer
+  A->>A: validate citations/support
+```
+
+Pool size is a server-capacity decision, not a per-process convenience. Eight application instances with 12 connections each can consume 96 sessions before migrations, operators and other workloads. Bound the pool queue as well as its size, publish wait/timeout/utilization metrics, and size from database capacity and measured service time rather than thread count.
+
+### Paired executable contract
+
+The dependency-free pair models private-generation promotion, fixed vector validation, parameter/value separation, trusted-scope exact retrieval, stable tie order, ANN recall gating, deadline-derived statement budgets and exactly-once connection release:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/DurableRetrievalContracts.java
+python3 study-guides/backend/spring-ai-python/durable_retrieval_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|GEN=corpus-43|SCOPE=payments|TOP=payments-r8|RECALL=1.000|POOL=RELEASED|TIMEOUT=250
+```
+
+The randomized portion injects unauthorized decoys and checks that exact results never escape the trusted tenant/generation, while independent score ordering agrees for 10,000 seeded trials. These pure contracts do not create PostgreSQL tables, exercise a real HNSW/IVFFlat plan, compile Spring AI, prove row-level-security policy, calibrate production recall, load-test a connection pool or verify cancellation on a live server.
+
+### Current primary references
+
+Verified on 24 October 2026:
+
+- [Spring AI PGvector](https://docs.spring.io/spring-ai/reference/api/vectordbs/pgvector.html) — current starter, dimensions, schema-initialization behavior, distance/index options and metadata filters.
+- [Spring AI RAG](https://docs.spring.io/spring-ai/reference/api/retrieval-augmented-generation.html) — advisors and retrieval components that can reduce wiring while leaving application policy observable.
+- [pgvector](https://github.com/pgvector/pgvector) — exact/approximate operators, HNSW/IVFFlat indexes, filtering behavior and bounded iterative scans.
+- [PostgreSQL client connection defaults](https://www.postgresql.org/docs/current/runtime-config-client.html) — `statement_timeout`, `lock_timeout` and idle-transaction limits.
+- [Psycopg parameters](https://www.psycopg.org/psycopg3/docs/basic/params.html), [transactions](https://www.psycopg.org/psycopg3/docs/basic/transactions.html), [async behavior](https://www.psycopg.org/psycopg3/docs/advanced/async.html) and [pool API](https://www.psycopg.org/psycopg3/docs/api/pool.html) — value binding, transaction ownership, cancellation semantics, bounded wait queues and pool timeouts.
+
+### Source provenance and continuation
+
+The selected editable bundle member's Section 8 is source lines 621–677; Section 9 begins at line 678. The matching standalone HTML is lines 753–795; Section 9 begins at line 796. Both contain the same Spring `VectorStore`, parameterized psycopg and higher-level-advisor substance, so the HTML remains a comparison source rather than a duplicate guide. This canonical section retains those boundaries and adds generation-safe migration, exact-versus-ANN recall gates, deterministic scoped SQL, four worked traces, four diagrams, deadline/pool ownership and paired executable contracts. Section 9, **Structured outputs: validate syntax and business meaning**, begins at editable source line 678 / standalone HTML line 796. Sections 9–25 remain queued; the source is not complete.

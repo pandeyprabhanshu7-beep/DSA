@@ -12,6 +12,7 @@ java -ea study-guides/backend/spring-ai-python/OfflineRetrievalLabContracts.java
 java -ea study-guides/backend/spring-ai-python/ModelWireContracts.java
 java -ea study-guides/backend/spring-ai-python/PythonRagEndpointContracts.java
 java -ea study-guides/backend/spring-ai-python/SpringRagPathContracts.java
+java -ea study-guides/backend/spring-ai-python/DurableRetrievalContracts.java
 python3 study-guides/backend/spring-ai-python/layer_selection_contracts.py
 python3 study-guides/backend/spring-ai-python/library_selection_contracts.py
 python3 study-guides/backend/spring-ai-python/java_library_map_contracts.py
@@ -19,6 +20,7 @@ python3 study-guides/backend/spring-ai-python/offline_retrieval_lab_contracts.py
 python3 study-guides/backend/spring-ai-python/model_wire_contracts.py
 python3 study-guides/backend/spring-ai-python/python_rag_endpoint_contracts.py
 python3 study-guides/backend/spring-ai-python/spring_rag_path_contracts.py
+python3 study-guides/backend/spring-ai-python/durable_retrieval_contracts.py
 ```
 
-This is an incremental guide. Sections 1–7 are promoted; Sections 8–25 remain queued.
+This is an incremental guide. Sections 1–8 are promoted; Sections 9–25 remain queued.
