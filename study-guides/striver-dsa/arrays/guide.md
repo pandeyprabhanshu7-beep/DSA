@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–6 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 7–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–7 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 8–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first six solved problems](#4-core-pattern-lab--first-six-solved-problems)
+- [4. Core pattern lab — first seven solved problems](#4-core-pattern-lab--first-seven-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -35,6 +35,7 @@
   - [Core-pattern checklist](#core-pattern-checklist)
   - [Example 5 — Move Zeroes: stable compaction, then clear](#example-5--move-zeroes-stable-compaction-then-clear)
   - [Example 6 — Remove Duplicates: finalize a unique prefix](#example-6--remove-duplicates-finalize-a-unique-prefix)
+  - [Example 7 — Sorted Squares: consume the largest magnitude](#example-7--sorted-squares-consume-the-largest-magnitude)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -660,9 +661,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first six solved problems
+## 4. Core pattern lab — first seven solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes its first five problems—Two Sum, one-transaction stock profit, maximum subarray, majority element, and Move Zeroes. The first four compress decision state; problem 5 compresses **live values into a stable prefix**. Problems 6–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first seven: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, and Squares of a Sorted Array. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude. Problems 8–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -675,6 +676,8 @@ Before selecting code, pin down the result and the guarantee that makes discarde
 | Maximum subarray | largest sum of a non-empty contiguous range | best sum ending exactly here | every optimum ending here either restarts or extends | empty input is rejected; sum is `long` |
 | Majority element | value occurring more than `n / 2`, if present | cancellation candidate and balance | cancellation yields only a candidate without a promise | a second pass verifies; no majority returns empty |
 | Move Zeroes | mutate the same array: stable nonzeros, then zero suffix | next output slot `write` | before `read`, the compact prefix is final and `write <= read` | null is rejected; empty and already-valid arrays are no-ops |
+| Remove Duplicates | return the length of the stable unique prefix | last accepted value and `write` | sorted runs are contiguous, so one representative completes each run | validate sortedness before mutation at reusable boundaries; suffix is unspecified |
+| Sorted Squares | a new nondecreasing array of mathematical squares | unconsumed interval `[left, right]` and backward `write` | the largest remaining magnitude is at an interval endpoint | input is validated and not mutated; `long` preserves every squared `int` |
 
 ```mermaid
 flowchart TD
@@ -684,6 +687,7 @@ flowchart TD
     B -->|Best range ending here| E[Kadane state]
     B -->|Strict majority| F[Cancel then verify]
     B -->|Stable live prefix| G[Read forward, write forward]
+    B -->|Largest magnitude at an end| H[Compare endpoint squares, write backward]
 ```
 
 All four implementations are side-effect free. Their arithmetic contracts deliberately differ from many short interview snippets: indices stay `int`, but sums, targets, differences, and returned numeric aggregates use `long` wherever two legal `int` values can exceed the `int` range.
@@ -1037,6 +1041,116 @@ Time is `O(n)` and auxiliary space is `O(1)`. A `LinkedHashSet` baseline preserv
 
 Executable evidence is in `RemoveDuplicatesContracts.java`. It checks the four worked contracts, empty/singleton and signed-boundary cases, null rejection, atomic rejection of unsorted input, assignment bounds, and 20,000 seeded sorted arrays against an independent `LinkedHashSet` oracle.
 
+### Example 7 — Sorted Squares: consume the largest magnitude
+
+**Requirement:** accept an `int[]` sorted in nondecreasing signed order and return a **new** array containing every mathematical square in nondecreasing order. Do not mutate the input. This reusable version returns `long[]`, because Java's full `int` domain includes values whose square does not fit in `int`. Empty input returns an empty result; null or unsorted input is rejected before the output scan.
+
+The subtlety is that signed order is not magnitude order. Squaring folds the negative half around zero: `-9 < -2`, but `81 > 4`. For any remaining sorted interval `[left, right]`, every interior value lies between the endpoints. Its magnitude therefore cannot exceed both endpoint magnitudes. The next largest square must come from `values[left]` or `values[right]`.
+
+```mermaid
+flowchart LR
+    L["left endpoint"] --> LS["square as long"]
+    R["right endpoint"] --> RS["square as long"]
+    LS --> C{"which square is larger?"}
+    RS --> C
+    C -->|left| WL["write at end; left++"]
+    C -->|right or tie| WR["write at end; right--"]
+    WL --> N["write--"]
+    WR --> N
+```
+
+The interview core is short once the contracts are settled:
+
+```java
+static long[] sortedSquares(int[] values) {
+    Objects.requireNonNull(values, "values");
+    for (int i = 1; i < values.length; i++) {
+        if (values[i - 1] > values[i]) {
+            throw new IllegalArgumentException("input must be sorted");
+        }
+    }
+
+    long[] output = new long[values.length];
+    int left = 0, right = values.length - 1;
+    for (int write = output.length - 1; write >= 0; write--) {
+        long leftSquare = (long) values[left] * values[left];
+        long rightSquare = (long) values[right] * values[right];
+        if (leftSquare > rightSquare) {
+            output[write] = leftSquare;
+            left++;
+        } else {
+            output[write] = rightSquare;
+            right--;
+        }
+    }
+    return output;
+}
+```
+
+Two details are deliberate:
+
+1. Compare widened squares, not `Math.abs(int)`. `Math.abs(Integer.MIN_VALUE)` is still negative because `2^31` is not representable as an `int`.
+2. Cast **before** multiplication. `(long) value * value` computes a `long` product; `(long) (value * value)` widens an already-overflowed `int`.
+
+#### Worked case 1 — mixed signs, exact pointer trace
+
+For `[-4,-1,0,3,10]`, fill from right to left:
+
+| step | `left:value` | `right:value` | endpoint squares | chosen endpoint | `write` | output after write |
+|---:|---|---|---|---|---:|---|
+| 1 | `0:-4` | `4:10` | `16` vs `100` | right | 4 | `[_,_,_,_,100]` |
+| 2 | `0:-4` | `3:3` | `16` vs `9` | left | 3 | `[_,_,_,16,100]` |
+| 3 | `1:-1` | `3:3` | `1` vs `9` | right | 2 | `[_,_,9,16,100]` |
+| 4 | `1:-1` | `2:0` | `1` vs `0` | left | 1 | `[_,1,9,16,100]` |
+| 5 | `2:0` | `2:0` | `0` vs `0` | right tie | 0 | `[0,1,9,16,100]` |
+
+```mermaid
+sequenceDiagram
+    participant I as Remaining interval
+    participant C as Endpoint comparison
+    participant O as Output from right
+    I->>C: [-4,-1,0,3,10]
+    C->>O: 10² -> index 4
+    I->>C: [-4,-1,0,3]
+    C->>O: (-4)² -> index 3
+    C->>O: 3², (-1)², 0²
+```
+
+#### Worked case 2 — all negative
+
+`[-7,-3,-1]` returns `[1,9,49]`. The left endpoint wins until only `-1` remains. This case rejects the mistaken idea that “sorted input means square left-to-right.” The scan is still linear; one pointer simply moves more often.
+
+#### Worked case 3 — duplicates and equal magnitudes
+
+`[-3,-2,2,3]` returns `[4,4,9,9]`. Equal endpoint squares may consume either side because the returned values, not source indices, define the result. The implementation consumes the right endpoint on ties, giving one deterministic rule without needing deduplication.
+
+#### Worked case 4 — full-width integer boundaries
+
+`[Integer.MIN_VALUE,0,Integer.MAX_VALUE]` requires full-width arithmetic. Use the actual products, not a memorized decimal:
+
+| source value | mathematical square |
+|---:|---:|
+| `0` | `0L` |
+| `Integer.MAX_VALUE = 2^31 - 1` | `4_611_686_014_132_420_609L` |
+| `Integer.MIN_VALUE = -2^31` | `4_611_686_018_427_387_904L` |
+
+Thus the exact output is `[0L, 4_611_686_014_132_420_609L, 4_611_686_018_427_387_904L]`. An `int[]` result is safe only under a tighter input bound such as the original problem's `|value| <= 10_000`; a reusable Java method should encode or validate that assumption rather than silently wrap.
+
+```mermaid
+flowchart TD
+    A["Need squared values"] --> B{"Can every square fit in int?"}
+    B -->|documented bound| C["int[] is legal"]
+    B -->|full int domain or unknown| D["return long[]"]
+    D --> E["cast operand before multiplication"]
+    C --> F["still validate sorted input if boundary is reusable"]
+```
+
+**Correctness invariant.** Before an iteration with output index `write`, cells `output[write + 1..n)` contain exactly the largest `n - 1 - write` squares in nondecreasing order, and `values[left..right]` are precisely the unconsumed inputs. The largest absolute value in a sorted interval is at an endpoint, so the algorithm writes the largest remaining square at `write`. Removing only that endpoint preserves both claims. When `write < 0`, no input remains and the entire output is sorted.
+
+Time is `O(n)`: validation and construction are each one pass. The returned array costs `O(n)`, while pointer state costs `O(1)`. The square-then-sort baseline is `O(n log n)` time and `O(n)` output. A split-at-zero merge is also linear but needs more boundary logic; endpoint selection is the smaller proof.
+
+Executable evidence is in `SortedSquaresContracts.java`. It checks the four cases above, empty/singleton/zero inputs, null and unsorted rejection, input immutability, and 20,000 seeded sorted arrays against an independent square-then-sort oracle.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -1051,11 +1165,13 @@ Executable evidence is in `RemoveDuplicatesContracts.java`. It checks the four w
 - [Java SE 25 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html) — the range-`fill` contract corresponding to the suffix-clear phase; the guide uses an explicit loop so assignment evidence is observable.
 - [LeetCode, “Move Zeroes”](https://leetcode.com/problems/move-zeroes/) — primary problem statement for stable in-place zero movement.
 - [LeetCode, “Remove Duplicates from Sorted Array”](https://leetcode.com/problems/remove-duplicates-from-sorted-array/) — sorted-input, stable in-place unique-prefix, returned-count and ignored-suffix contract.
+- [LeetCode, “Squares of a Sorted Array”](https://leetcode.com/problems/squares-of-a-sorted-array/) — sorted-input and nondecreasing squared-output contract, original numeric bounds, and the linear-time follow-up.
 - [Boyer and Moore, “A Linear Time Majority Vote Algorithm”](https://www.cs.utexas.edu/~moore/best-ideas/mjrty/) — primary description and history of the cancellation algorithm used to produce the majority candidate.
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 6 at lines 253–800. Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 extracted lines 65–165 plus Section 4 through problem 6 at extracted lines 169–522. Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 7 at lines 253–891 (problem 7's anchor/content is lines 807–891). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 7 (the prior extraction records problem 7 beginning at line 526; a fresh Pandoc no-wrap extraction places its bounded text at lines 743–834). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problems 1–6 are promoted through Markdown line 800 / DOCX extracted line 522; problem 7, “Squares of a Sorted Array,” begins at Markdown line 802 / DOCX extracted line 526.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 7, “Squares of a Sorted Array,” is promoted from Markdown lines 807–891 and the corresponding DOCX section; problem 8, “3Sum,” begins at Markdown line 895 (fresh DOCX no-wrap line 835).
+

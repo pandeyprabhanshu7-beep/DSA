@@ -42,6 +42,7 @@
 | Arrays §3 Java Array Interview Toolkit | ✅ | ✅ | Four contract-driven examples for copy/sort/index preservation, hash frequencies and boxed equality, indexed monotonic deques, and overflow-safe arithmetic, with Java, traces and Mermaid |
 | Arrays §4 Problem 5 — Move Zeroes | ✅ | ✅ | Stable in-place compaction, four worked cases, pointer trace, proof, assignment accounting and randomized Java oracle |
 | Arrays §4 Problem 6 — Remove Duplicates | ✅ | ✅ | Stable unique-prefix compaction, four worked cases, trace, proof, precondition validation, assignment accounting and randomized Java oracle |
+| Arrays §4 Problem 7 — Sorted Squares | ✅ | ✅ | Opposite-endpoint selection, four worked cases, exact trace, proof, full-width arithmetic contract and randomized Java oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -169,3 +170,10 @@ Fresh literal-marker audit remains **170**: this bounded source problem did not 
 Arrays Section 4 problem 6 now states the sorted-input, stable unique-prefix, returned-count and ignored-suffix contract precisely; distinguishes the reusable validated wrapper from the interview core; and adds four worked cases, an invariant proof, a pointer trace, assignment accounting and the at-most-`m`-copies follow-up. `RemoveDuplicatesContracts` validates explicit boundary and invalid-input cases plus 20,000 seeded sorted arrays against an independent `LinkedHashSet` oracle. The responsive reader embeds the exact canonical Markdown bytes.
 
 Fresh literal-marker audit remains **170**: this bounded source problem did not contain a placeholder card. Section 4 problem 7 and the broader intake remain incomplete.
+
+## Arrays Sorted Squares enrichment — 2026-10-24 ET
+
+Arrays Section 4 problem 7 now states the sorted-input, new-output and nonmutation contracts; replaces unsafe `Math.abs(int)` reasoning with widened endpoint squares; and adds four worked cases, a full pointer trace, three diagrams, proof and full-width `long` arithmetic. `SortedSquaresContracts` validates explicit boundaries plus 20,000 seeded sorted arrays against an independent square-then-sort oracle. The responsive reader embeds the exact canonical Markdown bytes.
+
+Fresh literal-marker audit remains **170**: this bounded source problem did not contain a placeholder card. Section 4 problem 8 and the broader intake remain incomplete.
+
