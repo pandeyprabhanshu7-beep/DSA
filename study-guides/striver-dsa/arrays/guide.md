@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–5 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 6–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–6 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 7–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first five solved problems](#4-core-pattern-lab--first-five-solved-problems)
+- [4. Core pattern lab — first six solved problems](#4-core-pattern-lab--first-six-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -34,6 +34,7 @@
   - [Example 4 — majority element: cancel, then verify](#example-4--majority-element-cancel-then-verify)
   - [Core-pattern checklist](#core-pattern-checklist)
   - [Example 5 — Move Zeroes: stable compaction, then clear](#example-5--move-zeroes-stable-compaction-then-clear)
+  - [Example 6 — Remove Duplicates: finalize a unique prefix](#example-6--remove-duplicates-finalize-a-unique-prefix)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -659,7 +660,7 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first five solved problems
+## 4. Core pattern lab — first six solved problems
 
 The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes its first five problems—Two Sum, one-transaction stock profit, maximum subarray, majority element, and Move Zeroes. The first four compress decision state; problem 5 compresses **live values into a stable prefix**. Problems 6–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
@@ -941,6 +942,101 @@ Interview variations change the predicate, not the proof shape: move all values 
 
 Executable evidence is in `MoveZeroesContracts.java`. It checks the four cases above plus empty input, alternating values, null rejection, and 20,000 seeded arrays against an independent extra-array oracle. It also checks the reported nonzero count and the at-most-`n` changed-cell assignment bound.
 
+### Example 6 — Remove Duplicates: finalize a unique prefix
+
+**Requirement:** the input is sorted in nondecreasing order. Mutate the same array so its first `k` cells contain every distinct input value exactly once in original order, then return `k`. The suffix beginning at `k` is explicitly unspecified and must not be tested or cleared. For `[0,0,1,1,1,2,2,3,3,4]`, return `5` with prefix `[0,1,2,3,4]`.
+
+This is stable compaction with a different keep rule from Move Zeroes. Because the input is sorted, all copies of a value form one run. `write` is the length of the finalized unique prefix; `values[write - 1]` is the last accepted value. Before processing `read`:
+
+1. `values[0..write)` contains exactly one representative of every run that starts in `values[0..read)`.
+2. That prefix is strictly increasing and matches the original encounter order.
+3. `1 <= write <= read` for nonempty input, so a leftward write cannot overwrite unread input.
+
+```mermaid
+flowchart LR
+    U["Final unique prefix: 0 to write-1"] --> L["Last accepted value"]
+    R["Current run value at read"] --> C{"Same as last accepted?"}
+    L --> C
+    C -->|yes| S["Skip duplicate"]
+    C -->|no| W["Write at index write; advance write"]
+```
+
+The interview form assumes the sorted-input precondition:
+
+```java
+static int removeDuplicates(int[] values) {
+    if (values.length == 0) return 0;
+    int write = 1;
+    for (int read = 1; read < values.length; read++) {
+        if (values[read] != values[write - 1]) {
+            if (write != read) values[write] = values[read];
+            write++;
+        }
+    }
+    return write;
+}
+```
+
+The `write != read` guard is not needed for correctness. It avoids assignments when an already-unique prefix is already in its final location, which makes mutation accounting and caller-visible write traffic easier to reason about.
+
+#### Worked case 1 — interleaved duplicate runs
+
+Trace `[0,0,1,1,1,2,2,3,3,4]`:
+
+| `read` | value | last accepted | action | finalized prefix | `write` after |
+|---:|---:|---:|---|---|---:|
+| 1 | 0 | 0 | skip same run | `[0]` | 1 |
+| 2 | 1 | 0 | write index 1 | `[0,1]` | 2 |
+| 3 | 1 | 1 | skip | `[0,1]` | 2 |
+| 4 | 1 | 1 | skip | `[0,1]` | 2 |
+| 5 | 2 | 1 | write index 2 | `[0,1,2]` | 3 |
+| 6 | 2 | 2 | skip | `[0,1,2]` | 3 |
+| 7 | 3 | 2 | write index 3 | `[0,1,2,3]` | 4 |
+| 8 | 3 | 3 | skip | `[0,1,2,3]` | 4 |
+| 9 | 4 | 3 | write index 4 | `[0,1,2,3,4]` | 5 |
+
+The array may end as `[0,1,2,3,4,2,2,3,3,4]`. That is correct: only indices `0..4` belong to the result. Clearing or validating the suffix adds work and invents a requirement.
+
+```mermaid
+stateDiagram-v2
+    [*] --> AcceptedFirst
+    AcceptedFirst --> Reading
+    Reading --> Reading: duplicate, write unchanged
+    Reading --> Extended: new run, append once
+    Extended --> Reading: advance read
+    Reading --> Done: read reaches length
+    Extended --> Done: read reaches length
+```
+
+#### Worked case 2 — one long run
+
+For `[-7,-7,-7]`, return `k = 1`; the meaningful prefix is `[-7]`. No assignment is needed because the first representative was already accepted. This case proves that `k` counts runs, not occurrences, and that `write` must start at one only after ruling out empty input.
+
+#### Worked case 3 — every value is already unique
+
+For `[Integer.MIN_VALUE,-1,0,Integer.MAX_VALUE]`, return `k = 4` with the entire array unchanged. Equality comparisons are sufficient—there is no subtraction that could overflow at integer extremes. The conditional self-write guard records zero changed assignments.
+
+#### Worked case 4 — precondition failure versus promised input
+
+`[1,0,1]` is outside the problem contract. On an interview platform, state the sorted precondition and omit an extra pass. At a reusable service/library boundary, validate nondecreasing order **before** mutation and reject atomically; detecting disorder only after compaction may leave the caller's array partially changed.
+
+```mermaid
+flowchart TD
+    A["Reusable API receives array"] --> V{"Sorted nondecreasingly?"}
+    V -->|no| X["Reject before any write"]
+    V -->|yes, empty| Z["Return k = 0"]
+    V -->|yes, nonempty| I["write = 1; scan runs"]
+    I --> K["Return k; ignore suffix"]
+```
+
+**Correctness.** For a nonempty array, the invariant holds initially because the prefix containing only `values[0]` represents the first run. When `values[read]` equals the last accepted value, sortedness means it belongs to the same run, so skipping it preserves the exact unique prefix. When it differs, it begins a new run; appending it at `write` adds exactly the next distinct value and preserves order. Because `write <= read`, the assignment cannot destroy unread input. At termination every run has contributed once, so `write` is both the prefix length and the number of distinct values.
+
+Time is `O(n)` and auxiliary space is `O(1)`. A `LinkedHashSet` baseline preserves encounter order but costs `O(n)` space; a plain `HashSet` does not specify encounter order. The optimized method performs at most `k - 1` changed-cell assignments and none for an already unique array.
+
+**Follow-up — allow at most `m` copies.** Keep the first `m` cells automatically; afterward accept `values[read]` exactly when it differs from `values[write - m]`. This compares with the oldest retained copy in the allowed window. Reject `m < 1`, and retain the same suffix-is-unspecified rule.
+
+Executable evidence is in `RemoveDuplicatesContracts.java`. It checks the four worked contracts, empty/singleton and signed-boundary cases, null rejection, atomic rejection of unsorted input, assignment bounds, and 20,000 seeded sorted arrays against an independent `LinkedHashSet` oracle.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -954,11 +1050,12 @@ Executable evidence is in `MoveZeroesContracts.java`. It checks the four cases a
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — `max`/`min` contracts and exact-arithmetic alternatives when overflow must raise instead of being prevented by widening.
 - [Java SE 25 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html) — the range-`fill` contract corresponding to the suffix-clear phase; the guide uses an explicit loop so assignment evidence is observable.
 - [LeetCode, “Move Zeroes”](https://leetcode.com/problems/move-zeroes/) — primary problem statement for stable in-place zero movement.
+- [LeetCode, “Remove Duplicates from Sorted Array”](https://leetcode.com/problems/remove-duplicates-from-sorted-array/) — sorted-input, stable in-place unique-prefix, returned-count and ignored-suffix contract.
 - [Boyer and Moore, “A Linear Time Majority Vote Algorithm”](https://www.cs.utexas.edu/~moore/best-ideas/mjrty/) — primary description and history of the cancellation algorithm used to produce the majority candidate.
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 5 at lines 253–724. Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 extracted lines 65–165 plus Section 4 through problem 5 at extracted lines 169–479. Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 6 at lines 253–800. Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 extracted lines 65–165 plus Section 4 through problem 6 at extracted lines 169–522. Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problems 1–5 are promoted through Markdown line 724 / DOCX extracted line 479; problem 6, “Remove Duplicates from Sorted Array,” begins at Markdown line 725 / DOCX extracted line 480.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problems 1–6 are promoted through Markdown line 800 / DOCX extracted line 522; problem 7, “Squares of a Sorted Array,” begins at Markdown line 802 / DOCX extracted line 526.

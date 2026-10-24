@@ -41,6 +41,7 @@
 | Arrays §2 Pattern-Recognition Decision Tree | ✅ | ✅ | Decision gates plus four examples for signed exact sums, sorted pairs, nonnegative windows and cyclic placement, with Java, traces, proofs and Mermaid |
 | Arrays §3 Java Array Interview Toolkit | ✅ | ✅ | Four contract-driven examples for copy/sort/index preservation, hash frequencies and boxed equality, indexed monotonic deques, and overflow-safe arithmetic, with Java, traces and Mermaid |
 | Arrays §4 Problem 5 — Move Zeroes | ✅ | ✅ | Stable in-place compaction, four worked cases, pointer trace, proof, assignment accounting and randomized Java oracle |
+| Arrays §4 Problem 6 — Remove Duplicates | ✅ | ✅ | Stable unique-prefix compaction, four worked cases, trace, proof, precondition validation, assignment accounting and randomized Java oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -162,3 +163,9 @@ Fresh literal-marker audit remains **170**: this section did not contain a place
 Arrays Section 4 problem 5 now separates the stable-compaction requirement from generic partitioning, proves the `write <= read` safety condition, traces the canonical example, and contrasts copy-and-clear with swap and unstable end-swap variants. `MoveZeroesContracts` validates explicit boundary cases plus 20,000 seeded arrays against an independent extra-array oracle while checking the nonzero count and an at-most-`n` changed-cell assignment bound. The responsive reader embeds the exact canonical Markdown bytes.
 
 Fresh literal-marker audit remains **170**: this bounded source problem did not contain a placeholder card. Section 4 problem 6 and the broader intake remain incomplete.
+
+## Arrays Remove Duplicates enrichment — 2026-10-24 ET
+
+Arrays Section 4 problem 6 now states the sorted-input, stable unique-prefix, returned-count and ignored-suffix contract precisely; distinguishes the reusable validated wrapper from the interview core; and adds four worked cases, an invariant proof, a pointer trace, assignment accounting and the at-most-`m`-copies follow-up. `RemoveDuplicatesContracts` validates explicit boundary and invalid-input cases plus 20,000 seeded sorted arrays against an independent `LinkedHashSet` oracle. The responsive reader embeds the exact canonical Markdown bytes.
+
+Fresh literal-marker audit remains **170**: this bounded source problem did not contain a placeholder card. Section 4 problem 7 and the broader intake remain incomplete.
