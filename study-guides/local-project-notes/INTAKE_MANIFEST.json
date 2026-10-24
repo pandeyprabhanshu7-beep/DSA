@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "b61494fad3db8c0b9667538ac49e92b950ce0d5c",
+  "last_successful_commit": "fd661e5edebf4768b55218577c08487ca4996f8a",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -862,11 +862,11 @@
     }
   ],
   "next_batch": {
-    "source": "DSA_Arrays_FAANG_Mermaid_Question_Workbook.md / DSA_Arrays_FAANG_Question_Workbook_Expanded.docx",
-    "section": "Section 4 problem 5, Move Zeroes, beginning at Markdown line 635 / DOCX extracted line 419",
+    "source": "ai_platform_master_guide.html / ai_platform_engineering_complete_bundle.zip member 02_rag_mcp.md",
+    "section": "Chapter 6, Context construction, citations and abstention",
     "status": "QUEUED",
     "estimated_tokens": 8200,
-    "estimate_method": "Heuristic only for one bounded Arrays problem pass with paired-source review, examples, Java, reader validation and checkpoint reserves. No weekly/hourly quota telemetry was exposed.",
+    "estimate_method": "Heuristic only for one bounded AI-platform chapter pass with paired-source review, examples, Java, reader validation and checkpoint reserves. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
@@ -878,8 +878,8 @@
     "ai_platform": "The expanded master and bundled editable companion were materialized, hashed and compared for bounded Chapter 5 at master lines 169-204 and companion lines 180-222; their schema/query substance agrees and no duplicate guide was created. Four PostgreSQL/RAG examples, retry/publication/query/migration traces, four new diagrams and a dependency-free Java state-machine contract were added. Java 17 source-file launch passed all five AI contracts, including the Chapter 5 exact-retry, collision, count, stale-publication, tenant/ACL/generation/model/dimension/top-k and tombstone scenarios. Deterministic reader generation passed exact 61055-byte Markdown recovery, SHA-256 18d473f7efd3cbb605035d51cdb138feee6fe7d17849eb29e95a5b56ee2fe7c2, 186 unique HTML IDs, 34 search entries, 132 local fragments, 64 balanced fence markers, 22 Mermaid sources, JSON/JavaScript parsing and deterministic rebuild identity. Seven content files were atomically published at 772938e4dfe8537b31d97d75c6fc24f419333329 with an expected-head guard and all blob hashes matched. Standalone javac, live PostgreSQL/pgvector integration, query-plan/filtered-recall benchmarking, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
     "system_design_blueprints": "Library revision 1 was read at exact lines 903-1125 and bounded before the cross-question supplement at line 1127. Blueprint 5 adds explicit uniqueness/order/availability contracts, 41/10/12 arithmetic, same-tick saturation and clock-rollback traces, fenced worker reuse, mechanism comparison and an executable distributed-ID contract. Java 17 source-file launch passed 13 video, 22 ride-hailing, 18 financial-ledger, 25 crawler and 24 distributed-ID scenario groups. Deterministic reader generation passed exact 65291-byte payload equality, SHA-256 c3eb5c5c5ea0ef4cef6b8e5cf5ee82013aeb122d98a89e1f8243bd6642e0f708, 99 unique IDs, 6 search entries, 29 local fragments, 72 balanced fence markers, 20 Mermaid sources, JavaScript parsing and deterministic rebuild identity. Six content files were published atomically at f02137fe20e4fefd8ef49d115ee203209665ec28 with an expected-head guard and all remote blob hashes matched. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable; the live canonical Java-marker audit remains 170.",
     "spring_ai_python": "The selected ZIP passed integrity and path-traversal checks. Its editable atlas_guides/spring_ai_python_api_interview_guide.md member has SHA-256 af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553; its generated HTML has SHA-256 6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3 and is byte-identical to the standalone HTML, so no duplicate edition was promoted. Sections 1-5 now cover source lines 6-263. Section 5 adds trusted endpoint rules, raw HTTP, exact phase/deadline and capacity/cost arithmetic, replay-aware retries, layered completion validation and four requirement-driven examples with paired contracts. Java 17 source launch passed 9, 16, 21, 31 and 30 scenario groups; Python 3 passed 9, 15, 21, 31 and 30, with identical Section 4 and 5 parity traces. Deterministic reader generation passed exact 63894-byte Markdown recovery, SHA-256 48ce9701abdaffe6e5a12157827825dbc8ea9ec61b92eb80d59f77b5ade81eec, 147 unique IDs, 6 search entries, 79 local fragments, 76 balanced fence markers, 20 Mermaid sources, JSON plus inline/module JavaScript parsing and deterministic rebuild identity. Seven content files were published atomically at b61494fad3db8c0b9667538ac49e92b950ce0d5c with an expected-head guard and all remote blob hashes matched. Standalone javac, framework/native dependency compilation, live provider/model/pool integrations, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-    "arrays": "The paired arrays workbooks were compared for the bounded Section 4 opening slice at Markdown lines 253-634 and DOCX extracted lines 169-418, ending before problem 5 at lines 635/419; no duplicate guide was created. Four contract-driven examples, traces, five diagrams and executable Java were added. Java 17 source-file launch passed 99 explicit scenario groups across all Arrays contracts plus 60,000 seeded oracle comparisons. Deterministic reader generation passed exact 46569-byte Markdown recovery, SHA-256 0328d9b7bd1f0e432f6dc43c1eee71589de74bcd83943f7bd0ccfc7d4c3d13a9, 253 unique IDs, 32 search entries, 30 local fragments, 66 balanced fence markers and 18 Mermaid sources. Five content files were atomically published at 08081947c2ebcafa7bdf803cd269e05ed5b6bfff with an expected-head guard and all blob hashes matched. The DOCX's 116 rendered pages were previously visually inspected. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-    "last_processed_at": "2026-10-23T15:52:05-04:00"
+    "arrays": "The paired Arrays workbooks agree on bounded Move Zeroes at Markdown lines 635-724 and DOCX extracted lines 419-479, ending before problem 6 at lines 725/480; no duplicate guide was created. Four cases, exact pointer/write trace, stability proof, trade-offs, two diagrams and dependency-free Java were added. Java 17 source-file launch passed 110 explicit scenario groups across all five Arrays contracts plus 80,000 seeded oracle comparisons; the new contract passed 11 groups and 20,000 comparisons with nonzero-count and at-most-n changed-cell-write checks. Deterministic reader generation passed exact 51847-byte Markdown recovery, SHA-256 a9a056a85ef0336ac1eb9d046712fd292203f0e04b8d7f814d5368735a50fe3f, 264 unique IDs, 33 search entries, 31 local fragments, 72 balanced fence markers and 20 Mermaid sources. Six content files were atomically published at fd661e5edebf4768b55218577c08487ca4996f8a with an expected-head guard and all blob hashes matched. The DOCX's 116 rendered pages were previously visually inspected. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+    "last_processed_at": "2026-10-23T20:43:05-04:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-21T08:11:37-04:00",
@@ -970,21 +970,21 @@
     "estimate_method": "Heuristic only for one bounded Arrays problem pass; no reliable quota percentages were exposed"
   },
   "dsa_arrays_intake_checkpoint": {
-    "last_processed_at": "2026-10-23T13:06:04-04:00",
+    "last_processed_at": "2026-10-23T20:43:05-04:00",
     "selected_markdown_library_file_id": "libfile_ec0215b953208191b254acfc4fc39f1a",
     "selected_markdown_file_id": "file_00000000a05881fdb093fccba59318e6",
     "selected_markdown_sha256": "735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda",
     "corroborating_docx_library_file_id": "libfile_7956d8107f2081919f2bf02bb4e620ec",
     "corroborating_docx_file_id": "file_00000000672882118a9ca69f00c30be7",
     "corroborating_docx_sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-    "canonical_markdown_sha256": "0328d9b7bd1f0e432f6dc43c1eee71589de74bcd83943f7bd0ccfc7d4c3d13a9",
-    "processed": "Sections 1-3 plus Section 4 problems 1-4 through Markdown line 634 and DOCX extracted line 418; latest bounded slice ends before problem 5 at lines 635/419",
+    "canonical_markdown_sha256": "a9a056a85ef0336ac1eb9d046712fd292203f0e04b8d7f814d5368735a50fe3f",
+    "processed": "Sections 1-3 plus Section 4 problems 1-5 through Markdown line 724 and DOCX extracted line 479; latest bounded problem is Move Zeroes at Markdown lines 635-724 / DOCX extracted lines 419-479, ending before problem 6 at lines 725/480",
     "status": "IN_PROGRESS",
-    "validation": "The paired source ranges agree on the bounded Section 4 opening slice. Java 17 source-file launch passed 99 explicit scenario groups across all Arrays contracts plus 60,000 seeded oracle comparisons. Deterministic reader generation passed exact 46569-byte Markdown recovery, 253 unique IDs, 32 search entries, 30 local fragments, 66 balanced fence markers and 18 Mermaid sources. Five content files were published atomically at 08081947c2ebcafa7bdf803cd269e05ed5b6bfff with an expected-head guard and all blob hashes matched. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
-    "content_commit": "08081947c2ebcafa7bdf803cd269e05ed5b6bfff",
-    "next_section": "Section 4 problem 5, Move Zeroes, begins at Markdown anchor line 635 / DOCX extracted line 419; it is the next fair-rotation section",
+    "validation": "The paired source ranges agree on bounded Move Zeroes. Java 17 source-file launch passed 110 explicit scenario groups across all five Arrays contracts plus 80,000 seeded oracle comparisons; MoveZeroesContracts passed 11 explicit groups and 20,000 independent comparisons. Deterministic reader generation passed exact 51847-byte Markdown recovery, 264 unique IDs, 33 search entries, 31 local fragments, 72 balanced fence markers and 20 Mermaid sources. Six content files were published atomically at fd661e5edebf4768b55218577c08487ca4996f8a with an expected-head guard and all blob hashes matched. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
+    "content_commit": "fd661e5edebf4768b55218577c08487ca4996f8a",
+    "next_section": "After fair rotation to AI-platform Chapter 6, process Section 4 problem 6, Remove Duplicates from Sorted Array, beginning at Markdown line 725 / DOCX extracted line 480",
     "estimated_next_tokens": 8200,
-    "estimate_method": "Heuristic only for one bounded System-design Blueprint 5 pass; no reliable quota percentages were exposed"
+    "estimate_method": "Heuristic only for one bounded AI-platform chapter pass; no reliable quota percentages were exposed"
   }
 }
 
