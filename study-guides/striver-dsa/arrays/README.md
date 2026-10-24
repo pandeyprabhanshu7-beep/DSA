@@ -9,6 +9,7 @@ java -ea study-guides/striver-dsa/arrays/ArrayMentalModels.java
 java -ea study-guides/striver-dsa/arrays/ArrayPatternDecisions.java
 java -ea study-guides/striver-dsa/arrays/ArrayToolkitContracts.java
 java -ea study-guides/striver-dsa/arrays/ArrayCorePatterns.java
+java -ea study-guides/striver-dsa/arrays/MoveZeroesContracts.java
 ```
 
 Rebuild the reader:
@@ -17,4 +18,4 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3 and Section 4's bounded opening slice (problems 1–4) are promoted. Section 4 problems 5–47 and later source material remain queued.
+This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–5 are promoted. Section 4 problems 6–47 and later source material remain queued.

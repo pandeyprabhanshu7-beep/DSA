@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and the bounded opening slice of Section 4 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 5–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–5 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 6–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,13 +26,14 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first four solved problems](#4-core-pattern-lab--first-four-solved-problems)
+- [4. Core pattern lab — first five solved problems](#4-core-pattern-lab--first-five-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
   - [Example 3 — maximum subarray: compress the best ending state](#example-3--maximum-subarray-compress-the-best-ending-state)
   - [Example 4 — majority element: cancel, then verify](#example-4--majority-element-cancel-then-verify)
   - [Core-pattern checklist](#core-pattern-checklist)
+  - [Example 5 — Move Zeroes: stable compaction, then clear](#example-5--move-zeroes-stable-compaction-then-clear)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -658,9 +659,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first four solved problems
+## 4. Core pattern lab — first five solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This bounded pass promotes its first four problems—Two Sum, one-transaction stock profit, maximum subarray, and majority element—because together they teach four different forms of **state compression**. Problems 5–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes its first five problems—Two Sum, one-transaction stock profit, maximum subarray, majority element, and Move Zeroes. The first four compress decision state; problem 5 compresses **live values into a stable prefix**. Problems 6–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -672,6 +673,7 @@ Before selecting code, pin down the result and the guarantee that makes discarde
 | One stock trade | maximum nonnegative profit | minimum price in the legal prefix | every sale is best paired with the cheapest earlier buy | fewer than two prices returns `0`; result is `long` |
 | Maximum subarray | largest sum of a non-empty contiguous range | best sum ending exactly here | every optimum ending here either restarts or extends | empty input is rejected; sum is `long` |
 | Majority element | value occurring more than `n / 2`, if present | cancellation candidate and balance | cancellation yields only a candidate without a promise | a second pass verifies; no majority returns empty |
+| Move Zeroes | mutate the same array: stable nonzeros, then zero suffix | next output slot `write` | before `read`, the compact prefix is final and `write <= read` | null is rejected; empty and already-valid arrays are no-ops |
 
 ```mermaid
 flowchart TD
@@ -680,6 +682,7 @@ flowchart TD
     B -->|Cheapest earlier buy| D[Prefix minimum]
     B -->|Best range ending here| E[Kadane state]
     B -->|Strict majority| F[Cancel then verify]
+    B -->|Stable live prefix| G[Read forward, write forward]
 ```
 
 All four implementations are side-effect free. Their arithmetic contracts deliberately differ from many short interview snippets: indices stay `int`, but sums, targets, differences, and returned numeric aggregates use `long` wherever two legal `int` values can exceed the `int` range.
@@ -864,6 +867,80 @@ The candidate pass is `O(n)`, verification is another `O(n)`, and auxiliary spac
 
 Executable evidence is in `ArrayCorePatterns.java`. It checks 28 explicit scenario groups and runs 40,000 seeded comparisons against brute-force pair-existence, profit, maximum-subarray, and majority oracles.
 
+### Example 5 — Move Zeroes: stable compaction, then clear
+
+**Requirement:** mutate the supplied array so every nonzero value keeps its original relative order at the front and every zero occupies the suffix. For `[0, 1, 0, 3, 12]`, the required final array is `[1, 3, 12, 0, 0]`. Return data is optional; the observable contract is the same array object after mutation.
+
+The `read` pointer discovers values; `write` names the first unfilled slot in the compact prefix. Before each read:
+
+1. `values[0..write)` equals the nonzero subsequence of `values[0..read)` in encounter order.
+2. `write <= read`, so copying `values[read]` left cannot destroy an unread value.
+3. Nothing at or after `write` is final until the scan ends.
+
+```mermaid
+flowchart TD
+    A[Read next value] --> B{Value is zero?}
+    B -->|Yes| C[Advance read only]
+    B -->|No| D{write equals read?}
+    D -->|Yes| E[Value already placed]
+    D -->|No| F[Copy value to write]
+    E --> G[Advance write and read]
+    F --> G
+    C --> H{Scan complete?}
+    G --> H
+    H -->|No| A
+    H -->|Yes| I[Clear suffix write to end]
+```
+
+Canonical trace:
+
+| `read` | value | `write` before | action | array after action | `write` after |
+|---:|---:|---:|---|---|---:|
+| 0 | 0 | 0 | skip | `[0, 1, 0, 3, 12]` | 0 |
+| 1 | 1 | 0 | copy to index 0 | `[1, 1, 0, 3, 12]` | 1 |
+| 2 | 0 | 1 | skip | `[1, 1, 0, 3, 12]` | 1 |
+| 3 | 3 | 1 | copy to index 1 | `[1, 3, 0, 3, 12]` | 2 |
+| 4 | 12 | 2 | copy to index 2 | `[1, 3, 12, 3, 12]` | 3 |
+| clear | — | 3 | zero indices 3 and 4 | `[1, 3, 12, 0, 0]` | 3 |
+
+```java
+static void moveZeroes(int[] values) {
+    int write = 0;
+    for (int read = 0; read < values.length; read++) {
+        if (values[read] == 0) continue;
+        if (write != read) values[write] = values[read];
+        write++;
+    }
+    while (write < values.length) values[write++] = 0;
+}
+```
+
+Four cases pin down different parts of the contract:
+
+| Input | Expected mutation | What it proves |
+|---|---|---|
+| `[0, 1, 0, 3, 12]` | `[1, 3, 12, 0, 0]` | zeros can be interleaved; nonzeros stay ordered |
+| `[4, -1, 7]` | `[4, -1, 7]` | no zero means no movement; conditional copy avoids self-writes |
+| `[0, 0, 0]` | `[0, 0, 0]` | empty live prefix and full zero suffix are valid |
+| `[0, -1, -1, 0, 2]` | `[-1, -1, 2, 0, 0]` | negatives and duplicates are values, not special cases; stability is observable |
+
+```mermaid
+flowchart LR
+    A[Seen prefix] --> B[Stable nonzero subsequence]
+    B --> C[Final compact prefix]
+    D[Unread suffix] --> E[May still contain live values]
+```
+
+**Correctness.** Initially both prefixes are empty. A zero adds nothing to the required nonzero subsequence, so skipping preserves the invariant. A nonzero is appended at `write`; because reads move left-to-right, append order is source order, and because `write <= read`, the copy cannot overwrite future input. At termination the prefix is exactly every original nonzero in order. Clearing the remaining `n - write` cells creates the required zero suffix without touching that prefix.
+
+**Why not swap with the far end?** A bidirectional partition can violate stability: swapping the first zero in `[0, 1, 2, 0, 3]` with the final `3` produces a prefix beginning `[3, 1, 2]`. The source's same-direction swap is stable and correct, but it can perform two writes for every displaced nonzero. Copy-then-clear makes the two phases explicit; the executable version skips assignments that would leave a cell unchanged and records at most `n` changed-cell writes.
+
+Time is `O(n)`: the scan reads each element once and the clear phase touches at most the suffix. Auxiliary space is `O(1)`. The extra-array baseline is also `O(n)` time but uses `O(n)` space. Repeatedly shifting after each zero is stable but can degrade to `O(n²)` on alternating input.
+
+Interview variations change the predicate, not the proof shape: move all values failing `keep(value)` to the end, return the compacted length, or preserve only the first `k` copies. If the discarded suffix need not be normalized, stop after compaction and return `write`; if stability is not required, a bidirectional partition becomes legal.
+
+Executable evidence is in `MoveZeroesContracts.java`. It checks the four cases above plus empty input, alternating values, null rejection, and 20,000 seeded arrays against an independent extra-array oracle. It also checks the reported nonzero count and the at-most-`n` changed-cell assignment bound.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -875,11 +952,13 @@ Executable evidence is in `ArrayCorePatterns.java`. It checks 28 explicit scenar
 - [Java Language Specification, Java SE 17, Chapter 5](https://docs.oracle.com/javase/specs/jls/se17/html/jls-5.html) — boxing/unboxing and numeric-promotion rules behind object equality and cast-before-arithmetic guidance.
 - [Java Language Specification, Java SE 17, §15.18.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.18.1) — integer addition and overflow semantics; the examples promote sums to `long` before addition.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — `max`/`min` contracts and exact-arithmetic alternatives when overflow must raise instead of being prevented by widening.
+- [Java SE 25 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html) — the range-`fill` contract corresponding to the suffix-clear phase; the guide uses an explicit loop so assignment evidence is observable.
+- [LeetCode, “Move Zeroes”](https://leetcode.com/problems/move-zeroes/) — primary problem statement for stable in-place zero movement.
 - [Boyer and Moore, “A Linear Time Majority Vote Algorithm”](https://www.cs.utexas.edu/~moore/best-ideas/mjrty/) — primary description and history of the cancellation algorithm used to produce the majority candidate.
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus the bounded Section 4 opening slice at lines 253–634 (problems 1–4). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 extracted lines 65–165 plus the bounded Section 4 opening slice at lines 169–418. Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 5 at lines 253–724. Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 extracted lines 65–165 plus Section 4 through problem 5 at extracted lines 169–479. Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problems 1–4 are promoted through Markdown line 634 / DOCX extracted line 418; problem 5, “Move Zeroes,” begins at Markdown anchor line 635 / DOCX extracted line 419.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problems 1–5 are promoted through Markdown line 724 / DOCX extracted line 479; problem 6, “Remove Duplicates from Sorted Array,” begins at Markdown line 725 / DOCX extracted line 480.
