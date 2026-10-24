@@ -4,7 +4,7 @@ Last updated: 2026-10-23.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapters 1–5 complete**.
+State: **PROMOTED incrementally; Chapters 1–6 complete**.
 
 Canonical pair:
 
@@ -25,8 +25,10 @@ Source comparison:
 - Deepened Chapter 4 with four retrieval examples, exact identifier/ANN/RRF/reranker traces, five diagrams, current primary references, and an executable Java 17 contract for BM25, tenant-scoped exact vectors, checked capacity, deterministic RRF, and authorization-first bounded reranking with timeout fallback.
 - Compared Chapter 5 in selected master lines 169–204 and editable companion lines 180–222; both specify the pgvector schema pattern, fixed example dimension, parameterized cosine query, tenant/generation scope, ACL caveat, and datastore-selection criteria, so no duplicate guide was created.
 - Deepened Chapter 5 with four PostgreSQL/RAG data-design examples, retry/publication/query/migration traces, five diagrams, current primary references, and an executable Java 17 state-machine contract for immutable chunk identity, generation-wide embedding specifications, guarded publication, authorization-first exact search, bounded top-k, and monotonic tombstones.
+- Compared Chapter 6 in selected master lines 205–226 and editable companion lines 224–256; both specify host-built evidence envelopes, untrusted retrieved content, citation membership and support checks, calibrated abstention, conflict handling, and separation of advice from action, so no duplicate guide was created.
+- Deepened Chapter 6 with four context/citation/abstention examples, envelope/citation/decision/action traces, five diagrams, current primary references, and an executable Java 17 contract for authorization-first context construction, exact citation support, server-rendered provenance, typed abstention/conflict, and a separate action boundary, plus 10,000 seeded evidence-set trials.
 
-Next bounded section: Chapter 6, **Context construction, citations and abstention**, after the recorded domain rotation.
+Next bounded section: Chapter 7, **Evaluation: isolate failures by stage**, after the recorded domain rotation.
 
 ## AI foundations, RAG and CAG
 
@@ -54,6 +56,6 @@ Validation is recorded in the enrichment queue and the promotion commit.
 Next action:
 
 1. Rotate fairly after this AI-platform pass.
-2. On the next AI-platform pass, process Chapter 6 only.
+2. On the next AI-platform pass, process Chapter 7 only.
 3. On a later AI-foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment.
 4. Keep project source code in the existing Spring Boot AI repositories; this repository holds learning documentation only.

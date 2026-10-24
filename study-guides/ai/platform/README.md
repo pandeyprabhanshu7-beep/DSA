@@ -7,5 +7,6 @@
 - [Executable Java 17 ingestion contract](IngestionContracts.java)
 - [Executable Java 17 retrieval contract](RetrievalContracts.java)
 - [Executable Java 17 PostgreSQL/RAG contract](PostgresRagContracts.java)
+- [Executable Java 17 context-grounding contract](ContextGroundingContracts.java)
 
-This is an incremental canonical guide. Chapters 1–5 are promoted; Chapter 6 is the next bounded AI-platform source section after the recorded domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
+This is an incremental canonical guide. Chapters 1–6 are promoted; Chapter 7 is the next bounded AI-platform source section after the recorded domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.

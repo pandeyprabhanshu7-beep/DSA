@@ -7,7 +7,7 @@ Canonical study material is promoted by conceptual topic. Historical source file
 | Topic | Markdown | Searchable HTML | Status |
 |---|---|---|---|
 | AI foundations, RAG and CAG | [guide.md](foundations-rag-cag/guide.md) | [guide.html](foundations-rag-cag/guide.html) | Promoted; ongoing deep enrichment |
-| AI platform engineering | [guide.md](platform/guide.md) | [guide.html](platform/guide.html) | Chapters 1–5 promoted; incremental enrichment |
+| AI platform engineering | [guide.md](platform/guide.md) | [guide.html](platform/guide.html) | Chapters 1–6 promoted; incremental enrichment |
 
 ## Build
 
