@@ -1,6 +1,6 @@
 # Spring AI and Python APIs
 
-This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–5, lines 6–263.
+This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–6, lines 6–427.
 
 ## Section 1 — Choose the layer before choosing the library
 
@@ -966,4 +966,164 @@ Verified on 23 October 2026:
 
 ### Source provenance and continuation
 
-The confirmed editable range is source lines 203–263, ending immediately before Section 6. The matching standalone HTML range is lines 388–434, with Section 6 beginning at line 435; its substance agrees with the editable member, so no duplicate guide was created. Section 5 preserves the source's Ollama and Spring `ChatClient` model-call boundary, then adds four requirement-driven traces, phase/deadline arithmetic, replay-aware failure states, layered validation, capacity/cost evidence, four diagrams and paired 30-scenario contracts. Section 6, **Embedding calls and response validation**, begins at source line 264. Sections 6–25 remain queued; the source is not complete.
+The confirmed editable range is source lines 203–263, ending immediately before Section 6. The matching standalone HTML range is lines 388–434, with Section 6 beginning at line 435; its substance agrees with the editable member, so no duplicate guide was created. Section 5 preserves the source's Ollama and Spring `ChatClient` model-call boundary, then adds four requirement-driven traces, phase/deadline arithmetic, replay-aware failure states, layered validation, capacity/cost evidence, four diagrams and paired 30-scenario contracts. Section 6, **Complete Python RAG endpoint: trace every subcomponent**, begins at source line 264 and is promoted below; the source is not complete.
+
+## 6. Complete Python RAG endpoint: trace every subcomponent
+
+This endpoint is a deliberately small, local RAG laboratory: FastAPI owns HTTP integration and lifespan, Pydantic bounds DTO fields, one process-scoped HTTPX client talks to Ollama, and standard-library functions validate vectors, ranking and citations. The corpus is fixed to a synthetic `acme` scope. That is a safe demo boundary, not authenticated tenancy; production retrieval must derive scope from validated identity and enforce it before search.
+
+The contract is explicit:
+
+- startup either publishes one complete immutable retrieval snapshot or fails readiness;
+- a parsed question is 3–2,000 characters and nonblank, while the server/proxy separately bounds request bytes before parsing;
+- admission waits at most 50 ms for one of four process-local permits;
+- a 12-second outer deadline contains admission, embedding, retrieval, generation and validation; HTTPX phase timeouts remain separate guards;
+- embeddings must have the expected count, one nonzero dimension, finite coordinates and nonzero norms;
+- ranking is descending cosine with document ID as the deterministic tie-breaker;
+- an uncalibrated “always top two” demo is not a production no-answer policy;
+- supplied citation membership and semantic support are separate checks; and
+- every acquired permit is released exactly once, including error and cancellation paths.
+
+### Example 1 — publish an all-or-nothing startup snapshot
+
+Given three documents, `/api/embed` must return three vectors. Validate all vectors into temporary state first; only then publish the document/vector pair used by requests. If vector 2 contains `NaN`, vector 3 has a different dimension, or the response contains only two vectors, startup fails and the old or absent snapshot remains authoritative. Never expose “documents from revision B with vectors from revision A.”
+
+```python
+def checked_snapshot(documents, vectors):
+    if not documents or len(vectors) != len(documents):
+        raise ValueError("embedding count mismatch")
+    dimension = len(vectors[0])
+    if dimension == 0:
+        raise ValueError("empty embedding")
+    frozen = []
+    for vector in vectors:
+        if len(vector) != dimension or not all(math.isfinite(x) for x in vector):
+            raise ValueError("invalid embedding shape or coordinate")
+        if math.sqrt(sum(x * x for x in vector)) == 0:
+            raise ValueError("zero-norm embedding")
+        frozen.append(tuple(vector))
+    return tuple(documents), tuple(frozen), dimension  # publish this object atomically
+```
+
+```mermaid
+stateDiagram-v2
+  [*] --> Loading
+  Loading --> Validating: embed all documents
+  Validating --> Ready: publish complete snapshot
+  Validating --> Failed: count, shape, finite or norm check fails
+  Ready --> Serving
+  Failed --> [*]
+```
+
+FastAPI lifespan code before `yield` runs before the application accepts requests, and code after `yield` performs cleanup. Use that boundary to create one reusable client and one coherent snapshot per process. A successful upstream status is necessary but not sufficient evidence that an embedding response is usable.
+
+### Example 2 — bound queueing and the whole attempt
+
+For three Uvicorn workers and four permits per worker, the process-local upper bound is `3 × 4 = 12` admitted handlers, not four globally. It is also not a provider quota: Pods and replicas multiply it again. Enforce a fleet-wide budget at an upstream admission layer or distributed limiter when that is the requirement.
+
+| Observation | Endpoint result | Why |
+|---|---:|---|
+| blank or field longer than 2,000 characters | `422` | request contract failed |
+| no permit within 50 ms | `429` | bounded load shedding; do not hide an unbounded queue |
+| HTTPX connect/read/write/pool failure | `502` | dependency transport failed |
+| any admitted attempt exceeds 12 seconds | `504` | application deadline expired |
+| valid request but calibrated retrieval finds no evidence | `200` abstention | expected domain outcome, not an infrastructure error |
+
+```mermaid
+flowchart TB
+  Q["Validated question"] --> A{"Permit within 50 ms?"}
+  A -->|no| R["429: shed"]
+  A -->|yes| D["12 s outer deadline"]
+  D --> E["embed → retrieve → generate → validate"]
+  E --> O["answer or typed abstention"]
+  D -->|expires| T["504"]
+```
+
+Python documents that a semaphore decrements on acquisition and increments on release; its preferred manual equivalent uses `try/finally`. `asyncio.timeout()` cancels the current task when its deadline expires and converts cancellation to `TimeoutError` outside the context. HTTPX connect, read, write and pool timeouts constrain individual network phases; none alone is an end-to-end request deadline. Local cancellation also does not prove the upstream stopped computing.
+
+### Example 3 — deterministic retrieval, untrusted context and two gates
+
+Suppose a normalized query produces these scores:
+
+| Document | Cosine | Rank |
+|---|---:|---:|
+| `payments-r7` | `1.000` | 1 |
+| `runbook-r2` | `0.970` | 2 |
+| `catalog-r1` | `-1.000` | 3 |
+
+Descending score selects the first two. If equal scores occur, ascending stable document ID breaks the tie, making tests and incident replay deterministic. Context retains document IDs and revisions and is delimited as untrusted data; a sentence inside evidence that says “ignore the system message” is not executable instruction.
+
+The output passes two different gates:
+
+1. **Membership:** every cited ID exists in the selected snapshot, and at least one citation is present.
+2. **Support:** the cited evidence actually entails the answer claim.
+
+Membership can be exact code. Support needs a domain-specific verifier, reviewed structured extraction, or a conservative abstention policy; a citation-shaped token is not proof. If the best score is below a versioned, evaluated threshold, return a typed `ABSTAIN` without calling generation. Record the embedding model, corpus revision and threshold version with the decision.
+
+```mermaid
+flowchart TB
+  V["Validated query vector"] --> C["Exact cosine for one snapshot"]
+  C --> S["Sort: score desc, ID asc"]
+  S --> H{"Best score ≥ threshold?"}
+  H -->|no| AB["ABSTAIN"]
+  H -->|yes| G["Generate from delimited evidence"]
+  G --> M{"Citations are selected IDs?"}
+  M -->|no| X["502 malformed dependency output"]
+  M -->|yes| P{"Claims supported?"}
+  P -->|no| AB
+  P -->|yes| OK["ANSWER"]
+```
+
+Ollama's `/api/embed` accepts one string or a list and returns an `embeddings` array. Use the same pinned embedding model for corpus and query vectors. The API currently documents L2-normalized output, but local validation still protects the application from malformed, mismatched or substituted responses.
+
+### Example 4 — map failure by meaning and release once
+
+Acquire a permit only after request validation, set `acquired = True` immediately after success, and release in `finally` only when that flag is true. This avoids both leaks and over-release. `asyncio.BoundedSemaphore` can additionally expose over-release during development, but it remains process-local.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Waiting
+  Waiting --> Shed: admission timeout
+  Waiting --> Held: acquired
+  Held --> Answer: validated supported result
+  Held --> Abstain: no supported evidence
+  Held --> BadGateway: transport or malformed dependency output
+  Held --> GatewayTimeout: outer deadline
+  Answer --> Released
+  Abstain --> Released
+  BadGateway --> Released
+  GatewayTimeout --> Released
+  Released --> [*]
+```
+
+Do not collapse all failures into `500`, and do not convert no-evidence into `502`. A malformed embedding/chat envelope or an invented citation is a dependency-contract failure (`502`); the outer deadline is `504`; admission exhaustion is `429`; a validated absence of evidence is a successful abstention. Safe telemetry includes trace ID, snapshot/model revisions, queue wait, permit outcome, phase and total latency, selected IDs/scores, validation outcome and status. Do not place raw questions, answers or document text in logs by default.
+
+### Paired executable contract
+
+The dependency-free pair exercises snapshot publication, DTO bounds, exact cosine and tie order, abstention, citation membership/support, fleet-capacity arithmetic, failure mapping and exactly-once release. It also runs 10,000 seeded cosine self-similarity trials:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/PythonRagEndpointContracts.java
+python3 study-guides/backend/spring-ai-python/python_rag_endpoint_contracts.py
+```
+
+Both print this parity trace before their language-specific summary:
+
+```text
+PARITY|READY|ANSWER|ABSTAIN|429|504|502|RELEASED
+```
+
+The pair proves the pure decision contracts without third-party packages or sockets. It does not prove FastAPI/Pydantic serialization, ASGI body limits, HTTPX/Ollama integration, cancellation propagation, authentication, multi-process coordination, threshold quality or semantic support.
+
+### Current primary references
+
+Verified on 23 October 2026:
+
+- [FastAPI lifespan events](https://fastapi.tiangolo.com/advanced/events/) — before/after-`yield` startup and shutdown boundaries for shared resources.
+- [Python `asyncio` synchronization primitives](https://docs.python.org/3/library/asyncio-sync.html) and [timeouts](https://docs.python.org/3/library/asyncio-task.html#timeouts) — semaphore acquire/release behavior, `try/finally`, timeout cancellation and `TimeoutError` conversion.
+- [HTTPX async support](https://www.python-httpx.org/async/), [timeouts](https://www.python-httpx.org/advanced/timeouts/), [resource limits](https://www.python-httpx.org/advanced/resource-limits/) and [exceptions](https://www.python-httpx.org/exceptions/) — reusable async clients, connection bounds, phase-specific timeout semantics and transport failure taxonomy.
+- [Ollama embedding API](https://docs.ollama.com/api/embed) and [embedding capability guide](https://docs.ollama.com/capabilities/embeddings) — batch `input`, returned `embeddings`, normalized-vector behavior and consistent-model guidance.
+
+### Source provenance and continuation
+
+The confirmed editable range is source lines 264–427, ending immediately before Section 7. The matching standalone HTML range is lines 435–579, with Section 7 beginning at line 580; it describes the same endpoint and was used as a comparison, not promoted as a duplicate. Section 6 retains the source's complete FastAPI/Pydantic/HTTPX/Ollama path and local-run boundary, then adds four requirement-driven traces, calibrated-abstention semantics, failure/status mapping, four diagrams and paired 32-scenario/10,000-trial contracts. Section 7, **Complete Spring AI RAG path**, begins at source line 428. Sections 7–25 remain queued; the source is not complete.
