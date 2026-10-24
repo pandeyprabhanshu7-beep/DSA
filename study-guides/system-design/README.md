@@ -7,7 +7,7 @@ Canonical study material is promoted by conceptual topic. Historical filenames a
 | Topic | Markdown | Searchable HTML | Status |
 |---|---|---|---|
 | Fundamentals | [guide.md](fundamentals/guide.md) | [guide.html](fundamentals/guide.html) | Promoted; ongoing deep enrichment |
-| Interview blueprints | [guide.md](blueprints/guide.md) | [guide.html](blueprints/guide.html) | All five named blueprints promoted; source practice supplement remains queued |
+| Interview blueprints | [guide.md](blueprints/guide.md) | [guide.html](blueprints/guide.html) | All five named blueprints and the cross-blueprint design-defense supplement are promoted; confirmed source exhausted |
 
 ## Build
 

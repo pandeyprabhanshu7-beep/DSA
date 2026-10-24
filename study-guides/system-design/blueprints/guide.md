@@ -1,6 +1,6 @@
 # System Design Blueprints
 
-This is the canonical incremental guide. Each blueprint makes its requirements, arithmetic, ownership boundaries, failure behavior, and verification evidence explicit. All five named source blueprints are promoted; the source's cross-question and practice supplement remains queued.
+This is the canonical incremental guide. Each blueprint makes its requirements, arithmetic, ownership boundaries, failure behavior, and verification evidence explicit. All five named source blueprints and the cross-question design-defense supplement are promoted; the confirmed source is processed through its end.
 
 ## Blueprint 1 — Global video streaming
 
@@ -944,3 +944,225 @@ The UUID helper accepts preselected random/counter bits to keep the test determi
 ### 10. Source provenance and continuation
 
 The confirmed Library source remains `top_5_system_design_interview_blueprints.md`, revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. This bounded pass promotes exactly source lines 903–1125 and deepens them with explicit contracts, four worked examples, four failure/decision diagrams, executable Java and primary-source verification refreshed on 2026-10-23. All five named source blueprints are now promoted, but the source's cross-question and practice supplement at lines 1127–1264 remains unprocessed and the wider intake/backlog is not complete.
+
+## Cross-blueprint design defense — primitives, proof and failure drills
+
+### 1. Answer in an order that exposes assumptions
+
+The source's five designs reuse the same forces: authority, partition locality, idempotency, backpressure, derived views and safe degradation. A strong interview answer does not start with a cloud-product diagram. It moves through a falsifiable sequence:
+
+1. **Clarify the operation.** Name the user-visible flow, scale, latency, durability, ordering and geographic boundary.
+2. **Calculate one limiting resource.** Convert peak demand to an absolute rate, bandwidth, storage or concurrent-work number.
+3. **Declare authority.** Identify the record that may decide the invariant and label caches, indexes, logs and projections as derived.
+4. **Localize the invariant.** Choose a partition key that keeps the critical decision local, then state the skew and resharding plan.
+5. **Separate write and read paths.** The authoritative write path and cheap read path usually have different stores and failure behavior.
+6. **Walk one failure before naming products.** Cover timeout-after-commit, duplicate delivery, overload, stale projection, hot partition and regional loss.
+7. **Attach evidence.** Give the SLO, queue-age limit, invariant alarm, reconciliation signal and capacity headroom that prove the design works.
+
+```mermaid
+flowchart TD
+  C["Clarify operation and SLO"] --> E["Estimate limiting resource"]
+  E --> A["Declare authority and derived state"]
+  A --> P["Choose partition and transaction boundary"]
+  P --> F["Trace timeout, overload and region loss"]
+  F --> M["Name evidence, then map products"]
+```
+
+The ordering matters. If a candidate selects Kafka, Redis or a globally distributed database before defining the invariant, there is no way to evaluate whether the choice preserves the required semantics.
+
+| Design | Authoritative decision | Useful derived state | Safe degradation |
+|---|---|---|---|
+| video | entitlement and published asset revision | CDN copies, catalog/search rows, QoE aggregates | reduce bitrate/features; never bypass entitlement |
+| ride hailing | one atomic driver assignment/version | geospatial candidates, ETA, connection routing | widen ETA or reject new rides; never double-assign |
+| ledger | balanced immutable journal transaction | balance/history projection, search, notifications | show pending or reject; never guess a money outcome |
+| crawler | host-scoped eligibility plus durable frontier state | Bloom filter, parsed/indexed documents | reduce crawl rate/rendering; preserve robots and safety |
+| ID generator | live fenced worker/range ownership plus local tuple state | decoded timestamp and monitoring samples | stop stale worker; never reuse a tuple |
+
+### 2. Example 1 — capacity plus queue age reveals hidden overload
+
+Assume a regional event consumer normally receives and processes 40,000 events/s. A release causes 80,000 events/s for 30 seconds. The queue can hold 1,000,000 events.
+
+```text
+excess rate = 80,000 - 40,000 = 40,000 events/s
+backlog     = 40,000 * 30 = 1,200,000 events
+```
+
+The queue overflows before the burst ends. Even if storage were expanded, capacity is not repaired—it is delayed. After the burst, suppose consumers can run at 90,000/s while arrivals return to 80,000/s:
+
+```text
+spare drain rate = 90,000 - 80,000 = 10,000 events/s
+drain time       = 1,200,000 / 10,000 = 120 seconds
+```
+
+If the freshness SLO is 10 seconds, a 1.2-million-item durable queue is still an SLO failure. The design needs bounded admission, producer slowdown, priority shedding, more service capacity, or a deliberately lossy telemetry path. It must not apply the same loss policy to ledger postings or driver assignments.
+
+```mermaid
+flowchart LR
+  IN["80k/s arrivals"] --> Q["Queue: cap 1.0M"]
+  Q --> OUT["40k/s service"]
+  Q --> AGE{"Queue age within SLO?"}
+  AGE -->|yes| KEEP["Continue and monitor"]
+  AGE -->|no| SHED["Throttle, shed or add bounded capacity"]
+```
+
+Google's SRE guidance makes the semantic point explicit: an overloaded backend should accept only what it can process and reject the rest gracefully. Degraded responses can be correct for video/search-like reads; correctness-sensitive writes need fail-closed admission instead of an invented result.
+
+Interview trace:
+
+| Step | Evidence | Decision |
+|---|---:|---|
+| normal | arrival 40k/s, service 40k/s, queue age near zero | healthy but no burst headroom |
+| burst +10 s | 400k queued | admit only if age/capacity budgets remain |
+| burst +25 s | 1.0M queued | capacity boundary reached; shed or throttle now |
+| recovery | 10k/s spare | 120 s to drain full burst; freshness still violated |
+
+### 3. Example 2 — a fast projection proposes; authority disposes
+
+A rider's geo index says driver `D7` is available in cell `8a2a...`. Two dispatch workers read the same candidate. The index is allowed to be stale because it answers “who might be nearby?”; it must not answer “who owns the driver?”
+
+```text
+projection: cell -> {D7, D9, D11}
+
+worker A: compare-and-set D7 AVAILABLE/v41 -> ASSIGNED trip T1/v42  [wins]
+worker B: compare-and-set D7 AVAILABLE/v41 -> ASSIGNED trip T2/v42  [0 rows]
+worker B: discard candidate and continue
+```
+
+The same reasoning crosses domains:
+
+- a cached balance can serve a clearly labeled read, but only the ledger journal authorizes a debit;
+- a Bloom filter can avoid many crawler lookups, but its false-positive behavior cannot silently become an exact legal/safety decision;
+- an edge can serve a signed video grant, but it cannot manufacture entitlement;
+- a monitoring duplicate detector can stop an ID worker, but it does not allocate worker ownership.
+
+```mermaid
+sequenceDiagram
+  participant W1 as Dispatch A
+  participant G as Geo projection
+  participant S as Driver authority
+  participant W2 as Dispatch B
+  W1->>G: nearby candidates
+  W2->>G: nearby candidates
+  G-->>W1: D7 available (possibly stale)
+  G-->>W2: D7 available (possibly stale)
+  W1->>S: claim D7 if AVAILABLE/v41
+  S-->>W1: success, T1/v42
+  W2->>S: claim D7 if AVAILABLE/v41
+  S-->>W2: conflict; choose another driver
+```
+
+This is the reusable sentence to remember: **the index narrows candidates; the authoritative conditional write decides ownership**. Partition the authority by the key that owns the invariant—driver, account, origin host or worker slot—and measure contention, skew and maximum partition size.
+
+### 4. Example 3 — timeout after commit is an evidence problem
+
+A merchant posts transfer `A -> B, 1,000 USD-minor-units` with scoped idempotency key `K1`. The service atomically records `(merchant-7, K1, request-hash)`, the balanced ledger entries and the canonical result. The response is lost.
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant API as Transfer API
+  participant DB as Authoritative DB
+  C->>API: POST transfer, key K1
+  API->>DB: key + request hash + balanced entries
+  DB-->>API: committed operation op-1
+  API--xC: response lost
+  C->>API: retry same key and request
+  API->>DB: read scoped key K1
+  DB-->>API: existing op-1 / POSTED
+  API-->>C: canonical result op-1
+```
+
+Four cases must be distinct:
+
+| Retry | Safe result |
+|---|---|
+| same caller, key and request hash | return the original operation/result |
+| same caller/key but different amount or destination | reject key reuse; do not reinterpret intent |
+| different caller with the same text key | independent scope; never collide tenants |
+| non-idempotent request with unknown outcome | do not blindly replay; query/reconcile authoritative state |
+
+RFC 9110 defines method idempotency by intended server effect and warns against automatically retrying a non-idempotent request without evidence that it is safe or unapplied. AWS's idempotent-API guidance likewise favors an explicit caller-provided request identifier and requires recording that token consistently with the mutation. Transport success is not business success, and a timeout is not proof of failure.
+
+For event pipelines, “exactly once” is scoped. Kafka can provide ordering within a topic partition and transactions within supported boundaries, but an application that writes an external database or calls a payment rail still needs stable operation identity, deduplication and reconciliation at that boundary.
+
+### 5. Example 4 — the degradation ladder must preserve the invariant
+
+At 10× traffic or during regional loss, choose from a declared ladder rather than improvising:
+
+```mermaid
+flowchart TD
+  H{"Authority healthy?"}
+  H -->|no| C{"Can a bounded stale read be truthful?"}
+  C -->|yes| D["Degrade and label freshness"]
+  C -->|no| R["Reject or report unknown"]
+  H -->|yes| K{"Capacity within budget?"}
+  K -->|yes| S["Serve normally"]
+  K -->|no| P["Prioritize, throttle or shed"]
+  P --> I{"Would degradation violate invariant?"}
+  I -->|yes| R
+  I -->|no| D
+```
+
+| System under pressure | Preserve | Degrade first | Reject/stop when |
+|---|---|---|---|
+| video blockbuster | entitlement, valid manifest revision | lower bitrate, omit recommendations, alternate CDN | authorization cannot be verified |
+| ride-hailing region loss | single driver/trip owner and monotonic trip state | longer ETA, smaller market admission, snapshot on reconnect | assignment authority is unavailable |
+| ledger dependency loss | balanced posting, idempotency and known state | asynchronous notifications/search; show pending | authoritative commit or reconciliation identity is unavailable |
+| crawler 429/503 wave | robots, origin politeness and safe address policy | lower host rate, postpone rendering/low priority | safety/robots eligibility cannot be established |
+| ID lease partition | tuple uniqueness and fenced ownership | exhaust remaining explicitly safe local window only | conservative lease deadline or clock rule is crossed |
+
+A graceful system is not one that always returns `200`. It is one whose reduced behavior is truthful, bounded and cheaper while its invariant remains intact. Use `503` plus an appropriate retry policy for temporary overload, but cap retry attempts and add backoff/jitter so recovery traffic does not become a second outage.
+
+### 6. Executable interview-defense contract
+
+[`DesignDefenseContracts.java`](DesignDefenseContracts.java) makes the supplement's reusable claims executable:
+
+- exact burst backlog and drain-time arithmetic with checked `long` operations;
+- only the declared source of truth may decide an invariant;
+- caller-scoped idempotency returns one logical operation and rejects key/request mismatches;
+- timeout policy distinguishes a known result, reconcilable idempotent request and unsafe replay;
+- overload policy degrades video/crawling reads but rejects unsafe ride, ledger and ID decisions;
+- 10,000 seeded cases independently verify backlog conservation.
+
+Run:
+
+```bash
+java -ea study-guides/system-design/blueprints/DesignDefenseContracts.java
+```
+
+Expected final trace:
+
+```text
+PARITY|BACKLOG=1200000|DRAIN=120|REPLAY=op-1|VIDEO=DEGRADE|LEDGER=REJECT
+```
+
+### 7. A compact review card
+
+Before finishing any system-design answer, be able to point to one concrete artifact for every row:
+
+| Question | Required artifact |
+|---|---|
+| What must never happen? | named invariant and its authoritative record |
+| What scale changes the architecture? | unit-carrying peak calculation and headroom |
+| Where is concurrency serialized? | conditional write, transaction, lease or single owner |
+| What can be stale? | explicit derived view plus freshness/repair policy |
+| What happens after a lost response? | stable operation identity and reconciliation trace |
+| What prevents retry storms? | deadline, bounded attempts, backoff/jitter and admission budget |
+| What is the hot key? | skew estimate, maximum partition and split/migration plan |
+| What fails in a region outage? | routing/fencing decision and reduced truthful service |
+| How do we know it works? | SLO, queue age, invariant alarm, lag and failure drill |
+| Why this product? | semantic requirement first, provider mapping second |
+
+The cloud redraw exercise should preserve these contracts across AWS, Azure, GCP and portable implementations. If swapping a product changes consistency, delivery, topology or operator burden, record the difference; a service-name mapping is not a design proof.
+
+### 8. Current primary references
+
+- [Google SRE: Handling Overload](https://sre.google/sre-book/handling-overload/) — accept only work that can be processed, reject excess gracefully and use semantically safe degraded responses.
+- [AWS Builders' Library: Making retries safe with idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) — caller-provided request identity, duplicate intent and atomic idempotency state.
+- [RFC 9110, HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html#name-idempotent-methods) — safe/idempotent method contracts, retry constraints, `503`, `Retry-After` and timeout semantics.
+- [Apache Kafka documentation](https://kafka.apache.org/documentation/) — partition-key ordering and the documented scope of delivery/processing guarantees.
+- [AWS Well-Architected REL05-BP03](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_mitigate_interaction_failure_limit_retries.html) — bounded retries, exponential backoff and jitter as overload controls.
+
+### 9. Source provenance and continuation
+
+The confirmed Library source remains `top_5_system_design_interview_blueprints.md`, revision 1, SHA-256 `10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03`. This bounded pass promotes exactly the cross-question pattern map, staff-level answer template, references and practice instructions at source lines 1127–1264. It deepens them into four traced examples, four diagrams, an executable Java contract and current primary-source verification refreshed on 2026-10-24. The source is now processed through its final line; the wider repository intake and Java-placeholder backlog remain incomplete.

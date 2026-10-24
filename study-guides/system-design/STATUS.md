@@ -1,6 +1,6 @@
 # System Design Enrichment Status
 
-Last updated: 2026-10-23.
+Last updated: 2026-10-24.
 
 ## Fundamentals
 
@@ -41,7 +41,7 @@ Next action:
 
 ## Interview blueprints
 
-State: **PROMOTED; all five named blueprints complete, source supplement remains**.
+State: **PROMOTED; all five named blueprints and the source supplement are complete**.
 
 Canonical pair:
 
@@ -58,6 +58,8 @@ Blueprint 4, **Large-scale polite web crawler**, promotes source lines 681–902
 
 Blueprint 5, **Distributed unique ID generator**, promotes source lines 903–1125. It defines the uniqueness/order/availability contract and deepens four examples: 41/10/12 bit arithmetic and decode, same-tick saturation plus rollback, leased worker reuse with fencing, and a sequence/range/Snowflake/UUIDv7 decision comparison.
 
+The **Cross-blueprint design-defense supplement** promotes source lines 1127–1264 through the final line. It connects repeated primitives across all five systems and deepens four drills: overload/backlog arithmetic, projection-versus-authority ownership, timeout-after-commit idempotency, and invariant-preserving degradation under 10× traffic or regional loss.
+
 Validation for this promotion:
 
 - Java 17 source-file launch passed the capacity, cache-miss, ABR, progress-ordering and invalid-input scenario groups in `VideoPlaybackContracts.java`.
@@ -65,7 +67,8 @@ Validation for this promotion:
 - Java 17 source-file launch passed 18 ledger scenario groups covering balanced/mixed-currency posting, idempotency replay and mismatch, insufficient funds, stable external identity, reconciliation and inbox deduplication.
 - Java 17 source-file launch passed 25 crawler scenario groups covering URL identity, admission deduplication, robots matching, origin-scoped capacity/delay, `Retry-After`, public-address boundaries and recrawl delay.
 - Java 17 source-file launch passed 24 distributed-ID scenario groups covering 41/10/12 packing and decoding, 4,096 same-tick values, overflow and rollback rejection, expired/stale lease fencing, disjoint ranges, UUIDv7 fields and the signed-long boundary.
-- The deterministic reader embeds the exact 65,291-byte Markdown payload at SHA-256 `c3eb5c5c5ea0ef4cef6b8e5cf5ee82013aeb122d98a89e1f8243bd6642e0f708`; 99 unique IDs, six search entries, all 29 local fragments, 72 balanced fence markers, 20 Mermaid sources and deterministic rebuild identity passed.
+- Java 17 source-file launch passed the design-defense supplement's 21 scenario groups and 10,000 seeded capacity-conservation checks, including exact backlog/drain arithmetic, authority restrictions, idempotent replay, mismatch rejection and fail-closed degradation.
+- The deterministic reader validation for the supplement is recorded in the queue checkpoint with exact Markdown payload recovery, unique IDs, search entries, local fragments, balanced fence markers, Mermaid sources, JavaScript parsing and deterministic rebuild identity.
 - Ride-hailing primary references were refreshed against current H3, Uber Engineering, Redis, PostgreSQL, Apache Kafka, RFC 6455 and Stripe documentation on 2026-10-22.
 - Ledger primary references were refreshed against current Stripe, PostgreSQL and AWS transactional-outbox documentation on 2026-10-23.
 - Crawler primary references were refreshed against current RFC 9309/3986/9110/9111, Google crawling, OWASP SSRF and Java SE 17 documentation on 2026-10-23.
@@ -73,4 +76,4 @@ Validation for this promotion:
 - The live literal DSA Java-marker audit is 170 (Graph 51, Stack/Queue 18, Linked List 27, Trees/BST 47, Hashing 27).
 - Standalone `javac`, browser/assistive-technology integration, and rendered Mermaid visual QA were unavailable and are not represented as passes.
 
-Next action: rotate domains fairly to Spring AI/Python Section 5 beginning at source line 203. On a later system-design pass, review the source cross-question/practice supplement at lines 1127–1264 without duplicating the richer canonical guide. The wider intake and enrichment backlog remain incomplete.
+Next action: the confirmed blueprint source is exhausted. Rotate fairly to Spring AI/Python Section 7 beginning at editable source line 428; retain Arrays problem 7 and AI-platform Chapter 8 for later turns. The wider intake and enrichment backlog remain incomplete.
