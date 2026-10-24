@@ -213,6 +213,12 @@ public final class CacheLatencyCostContracts {
         var wrongScope = new AnswerKey(new RetrievalKey("tenant-a", scopeB, query, "hybrid-r7", 42, 8),
                 "prompt-r11", "answer-r5", tools, 600);
         assert !mayServe(answer, wrongScope, 19, 2_000, Set.of()).serve();
+        var wrongTenant = new AnswerKey(new RetrievalKey("tenant-b", scopeA, query, "hybrid-r7", 42, 8),
+                "prompt-r11", "answer-r5", tools, 600);
+        assert !mayServe(answer, wrongTenant, 19, 2_000, Set.of()).serve();
+        var wrongGeneration = new AnswerKey(new RetrievalKey("tenant-a", scopeA, query, "hybrid-r7", 43, 8),
+                "prompt-r11", "answer-r5", tools, 600);
+        assert !mayServe(answer, wrongGeneration, 19, 2_000, Set.of()).serve();
         assert !embeddingKey("embed-v3", "nfc-v1", "alpha")
                 .equals(embeddingKey("embed-v4", "nfc-v1", "alpha"));
 
@@ -226,6 +232,8 @@ public final class CacheLatencyCostContracts {
         assert !mayRetry(Failure.TIMEOUT_UNKNOWN, true, 1, 3, 8_000, 2_500, 250, 1_000);
         assert !mayRetry(Failure.UNAVAILABLE, false, 1, 3, 8_000, 2_500, 250, 1_000);
         assert !mayRetry(Failure.INVALID, true, 1, 3, 8_000, 2_500, 250, 1_000);
+        assert !mayRetry(Failure.UNAVAILABLE, true, 3, 3, 8_000, 2_500, 250, 1_000);
+        assert fullJitterMillis(25, 5, 0, new Random(1)) == 0;
 
         var rates = new CostRates(2_000_000, 8_000_000, 100_000); // hypothetical dollars as micros
         var workload = new Workload(1_000_000, 2_000, 400, 600_000_000,
