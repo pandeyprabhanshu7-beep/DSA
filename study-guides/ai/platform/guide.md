@@ -1,6 +1,6 @@
 # AI Platform Engineering
 
-> Canonical incremental guide. This pass has processed source Chapters 1–7. Later source chapters remain queued.
+> Canonical incremental guide. This pass has processed source Chapters 1–8. Later source chapters remain queued.
 
 ## 1. Choose prompting, RAG, fine-tuning, and tools by authority
 
@@ -1198,6 +1198,170 @@ java -ea EvaluationGateContracts.java
 
 The new contract checks 16 explicit scenario groups and 10,000 seeded randomized rankings. Its statistical routine is deliberately narrow: it summarizes paired binary changes and does not choose sample size, practical significance, risk tolerance, or a release policy for you.
 
+## 8. Caching, latency, cost and failure controls
+
+Optimization is safe only after identity, authorization, freshness, and failure semantics are explicit. A cache hit is a claim that every behavior-changing input still matches; a retry is a new load-bearing request; and a low per-token price is only one term in the cost of a useful answer.
+
+### Requirements and invariants
+
+1. **Keys encode behavior, not convenience.** An embedding key includes exact model and normalization revisions plus a normalized-text digest. A retrieval key also includes tenant, access scope, query representation, retrieval revision, index generation, and `top-k`. A complete-answer key additionally includes prompt/model revisions, tool snapshot, output bound, and every other input that can change the answer.
+2. **Authorization is rechecked on every serve.** A cached object is not a permission token. Compare the caller's current tenant/scope and ACL epoch before disclosure, even when the payload has not expired.
+3. **Derived artifacts retain dependencies.** Record the source revision IDs behind summaries and answers. Revocation invalidates dependent cache entries; deleting only vector rows is insufficient.
+4. **TTL bounds age, not revocation delay.** An entry may be young and still unauthorized or derived from a revoked source. Immediate policy changes require an authority check, dependency invalidation, or both.
+5. **One deadline flows downward.** Compute remaining time from a monotonic deadline, reserve response validation/finalization, and give each dependency a bounded attempt timeout. Do not restart a full local timeout at every hop.
+6. **Retries are budgeted and safe.** Retry only classified transient failures, only when the operation is read-only or idempotently replayable, and only when backoff + attempt timeout + finalization reserve fit the remaining deadline. Add jitter and a retry cap.
+7. **Overload is a first-class failure.** Bound concurrency, queue depth, response size, tool iterations, and token expenditure. Shed excess work before it consumes scarce generation capacity; retry storms are not recovery.
+8. **Costs keep units and all material terms.** Convert token rates explicitly, then add embedding, retrieval, reranking, storage, network, operations, evaluation, and human-review costs. Compare models by accepted task outcomes, not token price alone.
+
+## Example 1 — make a cache hit prove identity, scope and freshness
+
+An employee asks for the current payments rollback digest. The answer was produced from `runbook:payments:r7` for tenant `tenant-a`, ACL epoch `19`, hybrid index generation `42`, prompt `r11`, answer model `r5`, and a timestamped status-tool snapshot. That dependency set—not the natural-language question alone—is the cache identity.
+
+```mermaid
+flowchart TD
+    Q["Request + current principal"] --> K["Rebuild complete behavior key"]
+    K --> H{"Exact key hit?"}
+    H -->|no| M["Recompute"]
+    H -->|yes| A{"ACL epoch and scope current?"}
+    A -->|no| X["Block + evict"]
+    A -->|yes| D{"Expired or source revoked?"}
+    D -->|yes| X
+    D -->|no| S["Serve cached answer"]
+```
+
+Trace four requests against the same stored bytes:
+
+| Request | Difference from stored entry | TTL valid? | Decision | Why |
+|---|---|---:|---|---|
+| A | none | yes | Serve | key, ACL epoch, dependencies, and age pass |
+| B | caller has `payments-admin`, not the original scope hash | yes | Miss/block | semantically similar question is not the same authorization domain |
+| C | ACL epoch advanced from 19 to 20 | yes | Block/evict | current authority changed after creation |
+| D | `runbook:payments:r7` is revoked | yes | Block/evict | a short age cannot override source revocation |
+
+Embedding caches have a narrower contract: `(modelRevision, normalizationRevision, SHA-256(normalizedText))`. Reusing the same text digest with a different embedding model silently joins incompatible spaces. Retrieval and answer caches need wider identities because query scope, index generation, prompts, tools, and output policy can all change results.
+
+For a large dependency graph, keep an inverted index from source revision to derived cache keys or place entries behind a generation/ACL epoch that can be advanced atomically. Do not scan an unbounded cache during a security incident.
+
+## Example 2 — trace a ten-second deadline instead of adding folklore p99s
+
+The API has a ten-second completion deadline. Its declared sequential reservations are illustrative, not predictions:
+
+| Stage | Reservation | Cumulative debit | Failure action |
+|---|---:|---:|---|
+| Authentication and routing | 100 ms | 100 ms | reject; do not call dependencies |
+| Retrieval | 300 ms | 400 ms | typed retrieval timeout/abstention |
+| Reranking | 500 ms | 900 ms | use a declared bounded fallback if evaluated |
+| Generation | 8,000 ms | 8,900 ms | cancel at its child deadline |
+| Validation + response margin | 1,100 ms | 10,000 ms | never spend this reserve on another generation attempt |
+
+```mermaid
+gantt
+    title One request deadline ledger
+    dateFormat X
+    axisFormat %L ms
+    section Sequential path
+    Auth and route :0, 100
+    Retrieve :100, 300
+    Rerank :400, 500
+    Generate :900, 8000
+    Validate and margin :8900, 1100
+```
+
+At 2,000 ms, suppose generation returns a retryable `503`. There are 8,000 ms left. A 250 ms jittered backoff, a 2,500 ms second-attempt timeout, and a 1,000 ms finalization reserve require 3,750 ms, so one replay-safe retry can fit. If only 3,000 ms remains, the same retry is refused. If the first attempt timed out with an unknown side-effect outcome, a new attempt is refused unless an idempotency key or operation record makes replay safe.
+
+Do not estimate end-to-end p99 by adding every component's independently measured p99. Parallel branches, correlation, queuing, and conditional paths change the distribution. Measure the request-level latency distribution and use traces to identify the actual critical path. High percentiles remain important because means hide the long tail and saturation.
+
+## Example 3 — contain failure amplification with classification, jitter and admission
+
+Assume 200 callers reach a saturated model gateway and each client immediately makes three retries. One upstream failure can become 600 extra calls while the original 200 still occupy queues. Backoff without jitter merely moves the synchronized spike.
+
+```mermaid
+flowchart TD
+    R["Dependency failure"] --> C{"Classified transient?"}
+    C -->|no| F["Fail typed; no retry"]
+    C -->|yes| I{"Read-only or same idempotency key?"}
+    I -->|no| U["Reconcile unknown outcome"]
+    I -->|yes| B{"Budget and retry quota remain?"}
+    B -->|no| F
+    B -->|yes| J["Capped exponential backoff + full jitter"]
+    J --> A{"Admission available?"}
+    A -->|no| F
+    A -->|yes| T["One bounded attempt"]
+```
+
+Classify before policy:
+
+| Failure | Retry? | Reason |
+|---|---|---|
+| `429`/throttled with usable retry guidance | Maybe | transient, but retry consumes quota and must fit the deadline |
+| `503`/unavailable before any side effect | Maybe | replay-safe transient failure |
+| Validation error or malformed request | No | another attempt repeats the defect |
+| Unauthorized/forbidden | No | backoff does not grant permission |
+| Timeout after an ambiguous mutation | Not as a fresh operation | result may already exist; reconcile by stable operation identity |
+| Caller disconnected | No | cancel downstream work where supported |
+
+Use one retry layer for a dependency chain rather than allowing every layer to multiply attempts. Pair the retry budget with a concurrency limiter, bounded queue, per-tenant fairness, and load shedding. A fallback must be cheaper, tested, and semantically acceptable; an unevaluated fallback can amplify load or return unsafe stale data.
+
+The executable contract's core predicate is deliberately small:
+
+```java
+return transientFailure
+    && operationReplaySafe
+    && attemptsStarted < maximumAttempts
+    && backoffMillis + attemptTimeoutMillis + finalizationReserveMillis <= remainingMillis;
+```
+
+Production code must use overflow-safe arithmetic, a monotonic clock, cancellation propagation, server retry hints under policy, and observable attempt/rejection reasons.
+
+## Example 4 — calculate accepted-answer cost with explicit units
+
+Consider a hypothetical month with one million requests, 2,000 input tokens and 400 output tokens per request. The example rates are intentionally fictional: `$2` per million input tokens, `$8` per million output tokens, and `$0.10` per million embedding tokens. Six hundred million embedding tokens are processed once.
+
+| Term | Arithmetic | Cost |
+|---|---|---:|
+| Input generation | `1,000,000 × 2,000 / 1,000,000 × $2` | $4,000 |
+| Output generation | `1,000,000 × 400 / 1,000,000 × $8` | $3,200 |
+| Embeddings | `600,000,000 / 1,000,000 × $0.10` | $60 |
+| Retrieval + storage + operations | measured ledger | $600 |
+| Human review/correction | measured ledger | $2,000 |
+| **Total** | all terms | **$9,860** |
+
+```mermaid
+flowchart LR
+    W["Measured workload"] --> T["Token costs"]
+    W --> D["Data and retrieval"]
+    W --> O["Operations"]
+    W --> H["Human review"]
+    T --> C["Total cost"]
+    D --> C
+    O --> C
+    H --> C
+    C --> A["Cost per accepted outcome"]
+```
+
+If a smaller model saves $2,000 but increases correction cost by $6,000, it is not cheaper for this workload. Likewise, an answer-cache hit is valuable only if it remains authorized and valid; unsafe hits are incidents, not savings. Track cost per accepted answer and per business outcome alongside answer rate, review rate, latency, and hard safety slices.
+
+Self-hosting moves costs into accelerators, idle capacity, redundancy, networking, energy, deployment, observability, and on-call work. Compare at the same reliability and quality target. This guide intentionally links architecture to the provider's current price sheet rather than freezing a live price into the design.
+
+## Executable cache, latency and cost contract
+
+[`CacheLatencyCostContracts.java`](CacheLatencyCostContracts.java) implements complete cache identities, dependency/ACL/TTL validation, a deadline ledger, replay-safe retry admission, bounded full jitter, and overflow-checked micro-unit cost arithmetic.
+
+Run all eight AI-platform contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+java -ea ContextGroundingContracts.java
+java -ea EvaluationGateContracts.java
+java -ea CacheLatencyCostContracts.java
+```
+
+The new contract checks 20 explicit scenario groups and 10,000 seeded jitter bounds. It prints `PARITY|CACHE=HIT|ACL=BLOCK|REVOKE=BLOCK|DEADLINE=10000|RETRY=SAFE|COST_MICROS=9860000000`; the dollar interpretation belongs to the fictional rates above, not a live provider quote.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -1232,6 +1396,11 @@ The new contract checks 16 explicit scenario groups and 10,000 seeded randomized
 | “Duplicate chunks improve recall” | Repeated copies add independent evidence | Deduplicate judgment identity and let repeated ranks consume capacity |
 | “The LLM judge scored it, so it is objective” | An evaluator model is a calibrated oracle | Align/version it against human labels and inspect each risk slice |
 | “92 beats 90” | Unpaired totals prove a robust improvement | Compare the same cases, inspect changed pairs and quantify uncertainty |
+| “The TTL has not expired, so serve it” | Age proves current authorization and source validity | Recheck scope/ACL epoch and source dependencies before disclosure |
+| “Cache by natural-language question” | Similar wording implies identical tenant, evidence, prompt and tools | Key every behavior-changing identity or do not cache the answer |
+| “Retry every 503 three times” | Retries are free and all operations are replay-safe | Classify, budget, jitter, cap and preserve idempotency |
+| “Add every service p99” | Independent percentiles compose arithmetically | Measure request-level percentiles and trace the critical path |
+| “Cheaper tokens mean cheaper answers” | Model charges dominate total useful-outcome cost | Include data, operations, review and failure costs |
 
 ## Primary references
 
@@ -1260,19 +1429,24 @@ The new contract checks 16 explicit scenario groups and 10,000 seeded randomized
 - MLflow, [LLM Judges and Scorers](https://mlflow.org/docs/latest/genai/eval-monitor/scorers/) and [Judge Alignment](https://mlflow.org/docs/latest/genai/eval-monitor/scorers/llm-judge/alignment/) — deterministic scorers, human feedback, failure analysis, alignment, and versioning (accessed 2026-10-24).
 - SciPy, [`scipy.stats.binomtest`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.binomtest.html) — exact binomial-test contract used to cross-check the dependency-free paired sign-test calculation (accessed 2026-10-24).
 - NIST, [AI RMF Generative AI Profile](https://doi.org/10.6028/NIST.AI.600-1), especially pre-deployment TEVV and deployment-context limitations (2024; accessed 2026-10-24).
+- Amazon Builders' Library, [Timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/) and [Making retries safe with idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) — bounded attempts, retry amplification, jitter, and stable request identity (accessed 2026-10-24).
+- Google SRE, [Monitoring Distributed Systems](https://sre.google/sre-book/monitoring-distributed-systems/) and [Service Level Objectives](https://sre.google/sre-book/service-level-objectives/) — latency distributions, high-percentile signals, saturation, and user-visible SLOs (accessed 2026-10-24).
+- OWASP Cheat Sheet Series, [Multi-Tenant Security](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html) — tenant context, isolation, cache key separation, and resource controls (accessed 2026-10-24).
+- Java SE 17, [`HttpRequest.Builder.timeout`](https://docs.oracle.com/en/java/javase/17/docs/api/java.net.http/java/net/http/HttpRequest.Builder.html#timeout(java.time.Duration)) — a concrete per-request timeout API; application-wide deadlines and retry policy remain caller responsibilities (accessed 2026-10-24).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–7, through `Evaluation: isolate failures by stage`, bounded by Chapter 8.
+- Processed range: Chapters 1–8, through `Caching, latency, cost and failure controls`, bounded by Chapter 9.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 5 source comparison: selected master lines 169–204 and editable companion lines 180–222 agree on the pgvector schema pattern, fixed example dimension, parameterized cosine query, tenant/generation scope, ACL caveat, and datastore-selection criteria; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 6 source comparison: selected master lines 205–226 and editable companion lines 224–256 agree on host-built evidence envelopes, untrusted retrieved content, citation-ID validation, claim support, calibrated abstention, conflict handling, and separation of advice from action; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 7 source comparison: selected master lines 227–248 and editable companion lines 257–290 agree on versioned datasets, retrieval metrics, answer dimensions, judge calibration, paired release comparison, critical-slice regression, and reproducibility identities; the companion was used for editable structure, not promoted as a duplicate guide.
-- Next bounded section: Chapter 8, `Caching, latency, cost and failure controls` (after the recorded domain rotation).
+- Chapter 8 source comparison: selected master lines 249–259 and editable companion lines 291–309 agree on cache identity/invalidation, the illustrative ten-second deadline, retry/backoff/cancellation bounds, and complete cost accounting; the companion was used for editable structure, not promoted as a duplicate guide.
+- Next bounded section: Chapter 9, `MCP architecture: host, client, server and model` (after the recorded domain rotation).
 
 
