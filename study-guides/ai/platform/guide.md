@@ -1,6 +1,6 @@
 # AI Platform Engineering
 
-> Canonical incremental guide. This pass has processed source Chapters 1–6. Later source chapters remain queued.
+> Canonical incremental guide. This pass has processed source Chapters 1–7. Later source chapters remain queued.
 
 ## 1. Choose prompting, RAG, fine-tuning, and tools by authority
 
@@ -1014,6 +1014,190 @@ java -ea ContextGroundingContracts.java
 
 `ContextGroundingContracts` exercises the four examples above, validation failures, and 10,000 seeded randomized evidence sets checked against the rule: answer only when authorized evidence supplies exactly one current value. The exact fact map is intentionally simpler than production natural-language entailment; it makes the safety contract testable rather than pretending that string similarity proves support.
 
+## 7. Evaluation: isolate failures by stage
+
+An end-to-end score tells you whether a response passed; it does not tell you what to repair. A useful evaluation packet preserves the same versioned case across four independently inspectable stages:
+
+1. **Retrieval:** did the authorized search scope return the required passages, and were they ranked usefully?
+2. **Answer and grounding:** given the retrieved evidence, did the system produce the required facts, cite support, and abstain when evidence was absent or conflicting?
+3. **Policy and security:** did access control, injection containment, action authorization, and sensitive slices pass their non-negotiable gates?
+4. **Operations:** did the request finish within its latency, cost, token, cancellation, and dependency-failure budgets?
+
+The dataset must record its own revision plus the answerable, unanswerable, superseded, adversarial, and cross-tenant cases it contains. Each run records model, prompt, scorer, retrieval configuration, index generation, code revision, and dependency versions. Without those identities, a score cannot be reproduced or compared honestly.
+
+```mermaid
+flowchart TD
+    D["Versioned cases + judgments"] --> R["Retrieval metrics"]
+    D --> A["Answer / grounding metrics"]
+    D --> S["Policy + security gates"]
+    R --> P["Paired baseline comparison"]
+    A --> P
+    S --> P
+    O["Latency + cost traces"] --> P
+    P --> G{"Every hard gate passes?"}
+    G -->|yes| C["Promote with evidence"]
+    G -->|no| X["Block and inspect changed cases"]
+```
+
+### Requirements and evaluation invariants
+
+- **Same cases, paired runs.** Evaluate baseline and candidate on the same immutable case IDs. Comparing two unrelated samples confounds system change with dataset change.
+- **Judgments match the unit.** Chunk relevance, source-passage relevance, required facts, answer correctness, citation support, and action safety are different labels. Do not silently substitute one for another.
+- **Authorization is part of retrieval correctness.** An unauthorized relevant passage is a disclosure failure, not a true positive.
+- **Duplicates consume ranking capacity.** Repeating one passage cannot stand in for retrieving two required facts.
+- **Expected abstention is success.** An unanswerable case should pass when the system refuses cleanly; answer rate alone rewards fabrication.
+- **Hard slices precede averages.** Overall improvement never compensates for regression on authorization, critical actions, or another declared safety slice.
+- **Judges are measured components.** Version an LLM judge, calibrate it against human labels, and inspect disagreement. Use deterministic code for exact IDs, schemas, arithmetic, budgets, and policy rules.
+- **Production monitoring does not replace pre-release evaluation.** Distribution drift and real incidents supplement, rather than retroactively justify, a weak release gate.
+
+## Example 1 — compute retrieval metrics without rewarding duplicates
+
+For one case, the relevant passage IDs are `{A,B,C}` and the first five retrieved IDs are `{X,A,Y,C,Z}`.
+
+| Rank | Retrieved ID | Relevant? | First relevant occurrence? | Contribution |
+|---:|---|---:|---:|---|
+| 1 | `X` | No | — | none |
+| 2 | `A` | Yes | Yes | hit; reciprocal rank becomes `1/2` |
+| 3 | `Y` | No | — | none |
+| 4 | `C` | Yes | Yes | second distinct hit |
+| 5 | `Z` | No | — | none |
+
+The declared contract gives:
+
+- `precision@5 = 2/5 = 0.4`;
+- `recall@5 = 2/3 ≈ 0.6667`;
+- reciprocal rank `= 1/2` because the first relevant passage is at rank 2;
+- binary `nDCG@5 ≈ 0.6509` when the ideal list places all three relevant passages at ranks 1–3.
+
+The metric implementation uses exponential graded gain `(2^grade - 1) / log2(rank + 1)`. State this convention because DCG variants differ. It counts at most the first occurrence of an ID, while duplicate and missing result slots remain in the denominator. Therefore `{A,A,B}` at `k=3` has full recall for relevant set `{A,B}` but only `2/3` precision and less-than-perfect nDCG: the repeated `A` wasted rank 2.
+
+```mermaid
+flowchart LR
+    Q["Case + relevance grades"] --> K["Inspect first k ranks"]
+    K --> U{"First occurrence?"}
+    U -->|no| W["Wasted slot"]
+    U -->|yes| J{"Grade > 0?"}
+    J -->|yes| H["Distinct hit + discounted gain"]
+    J -->|no| N["Nonrelevant slot"]
+    H --> M["P@k, R@k, RR, nDCG"]
+    W --> M
+    N --> M
+```
+
+Keep a query-level row, not just one aggregate. A candidate may raise mean recall while destroying exact-code or small-tenant slices. Elasticsearch's ranking-evaluation API likewise starts from representative queries plus per-query document ratings and supports metrics such as precision, MRR, and DCG/nDCG.
+
+## Example 2 — trace the same bad answer back to the failed stage
+
+Question: **“Which digest should roll back payments?”** The approved current runbook contains `sha256:7f…`.
+
+| Trace | Retrieved evidence | Generated output | Validation/operation | Stage diagnosis | Repair |
+|---|---|---|---|---|---|
+| A | No current runbook passage | “I cannot determine it” | Correct abstention | `RETRIEVAL_MISS` because eligible evidence existed | inspect scope, index generation, lexical/vector recall |
+| B | Correct passage retrieved | “Use `sha256:6e…`” | Citation ID exists but value is unsupported | `GROUNDING_FAILURE` | inspect prompt, generation, claim-support gate |
+| C | No eligible evidence exists | “I cannot determine it” | Typed abstention returned | `PASS_ABSTAIN` | no repair; answer rate would mislabel this success |
+| D | Correct supported answer | Response misses the deadline | 11.2 s against a 10 s budget | `OPERATIONAL_FAILURE` | inspect the critical path, cancellation, and budgets |
+| E | Cross-tenant passage appears | Even a factually correct answer | ACL check fails | `AUTHORIZATION_FAILURE` | block release and repair scope enforcement |
+
+```mermaid
+sequenceDiagram
+    participant H as Eval harness
+    participant R as Retriever
+    participant M as Answer stage
+    participant V as Validator
+    H->>R: case q17 + trusted scope
+    R-->>H: ranked IDs + timing
+    H->>M: exact retrieved envelope
+    M-->>H: answer + cited IDs
+    H->>V: judgments + trace + budgets
+    V-->>H: one stage outcome + evidence
+```
+
+Classification order matters. Authorization and operational violations remain visible even when the text looks correct. A retrieval miss is recorded only when eligible relevant evidence actually exists; an empty authorized corpus should produce expected abstention instead. This prevents teams from “fixing the model” when the index is stale, or widening retrieval when the real failure is unsupported generation.
+
+## Example 3 — combine deterministic scorers, calibrated judges, and slices
+
+Use the least ambiguous scorer available for each property:
+
+| Property | Preferred first scorer | Why |
+|---|---|---|
+| JSON schema, citation membership, tenant scope, exact amount/digest | Deterministic code | The contract is exact and reproducible |
+| Claim supported by a known structured fact | Deterministic domain rule | A model judge adds needless variance |
+| Free-form completeness or nuanced support | Human label and/or calibrated judge | Semantics may require interpretation |
+| Latency, token use, tool count, cost | Trace arithmetic | These are measured quantities |
+| Tone or helpfulness | Human rubric or calibrated judge | The criterion is subjective but must still be specified |
+
+Suppose a judge agrees with domain experts on 94 of 100 routine cases but only 6 of 10 injected-text cases. The aggregate agreement is `100/110 ≈ 90.9%`; the security slice is only 60%. Do not approve the judge for a release-blocking injection gate. Add labeled adversarial cases, refine the rubric, align/version the judge, and retain human review until the slice meets its own target.
+
+```mermaid
+flowchart TD
+    T["Human-labeled calibration set"] --> J["Versioned judge"]
+    J --> C["Confusion matrix by slice"]
+    C --> A{"Meets every intended-use target?"}
+    A -->|no| R["Refine rubric / labels / judge"]
+    A -->|yes| E["Use with versioned deterministic checks"]
+    E --> D["Inspect disagreements and drift"]
+    D --> T
+```
+
+MLflow's current evaluation documentation distinguishes LLM judges from code-based scorers, recommends human feedback and failure analysis, and treats judge alignment/versioning as part of the workflow. That supports the broader rule: an evaluator is not an oracle merely because it returns a number.
+
+## Example 4 — gate the release with paired evidence, not headline accuracy
+
+The baseline is correct on 90 of 100 cases and the candidate on 92. The two-point gain is necessary information but not enough.
+
+First inspect the paired change table:
+
+| Same 100 cases | Count |
+|---|---:|
+| Both correct or both wrong | 96 |
+| Candidate correct, baseline wrong | 3 |
+| Baseline correct, candidate wrong | 1 |
+
+Only the four changed pairs contain evidence about direction. An exact two-sided sign test under equal win probability gives `p = 0.625`; the small changed set is compatible with chance. This does **not** prove the systems are equal, and a p-value is not a business-safety gate. It says the experiment provides weak statistical evidence for the claimed improvement.
+
+Now inspect hard slices:
+
+| Slice | Baseline | Candidate | Gate |
+|---|---:|---:|---|
+| Overall correctness | 90/100 | 92/100 | meets a declared +2 minimum |
+| Authorization | 10/10 | 9/10 | **fails: regression** |
+| Expected abstention | 12/12 | 12/12 | passes |
+| p95 latency | 2.1 s | 2.0 s | passes a 3 s ceiling |
+
+The candidate is blocked because authorization regressed, regardless of the overall gain. Store the changed case IDs, not only totals; reviewers need to see which success was gained and which safe behavior was lost.
+
+```mermaid
+flowchart TD
+    B["Baseline + candidate on same IDs"] --> P["Pair outcomes"]
+    P --> W["Candidate wins / baseline wins / ties"]
+    W --> Q["Uncertainty evidence"]
+    B --> H["Hard-slice checks"]
+    H --> X{"Any regression?"}
+    Q --> G["Release record"]
+    X -->|yes| Z["Block"]
+    X -->|no| G
+```
+
+NIST's Generative AI Profile recommends iterative, documented test/evaluation/validation/verification and warns that benchmark-only testing can mismatch deployment contexts. Pair offline evidence with realistic field and adversarial testing, then monitor the same outcome and slice definitions after release.
+
+## Executable evaluation-gate contract
+
+[`EvaluationGateContracts.java`](EvaluationGateContracts.java) makes the chapter's exact parts executable without external dependencies. It implements duplicate-aware precision/recall/reciprocal-rank/nDCG, typed stage outcomes, overall-plus-hard-slice gates, and an exact paired sign-test calculation for bounded teaching datasets.
+
+Run all seven AI-platform contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+java -ea ContextGroundingContracts.java
+java -ea EvaluationGateContracts.java
+```
+
+The new contract checks 16 explicit scenario groups and 10,000 seeded randomized rankings. Its statistical routine is deliberately narrow: it summarizes paired binary changes and does not choose sample size, practical significance, risk tolerance, or a release policy for you.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -1043,6 +1227,11 @@ java -ea ContextGroundingContracts.java
 | “One similarity threshold works everywhere” | Scores are calibrated truth probabilities | Calibrate by query class and measure abstention costs |
 | “Conflicting sources can be summarized into one answer” | Fluency resolves authority or revision conflicts | Surface revisions/dates and route the conflict |
 | “The cited runbook authorizes the tool call” | Evidence can grant execution permission | Authorize, validate, approve, and reconcile actions separately |
+| “Overall accuracy rose, so ship it” | An average can hide a critical-slice regression | Apply declared hard gates before the aggregate metric |
+| “The final answer was wrong, so tune the model” | Every error originates in generation | Preserve retrieval, grounding, policy and operational stage outcomes |
+| “Duplicate chunks improve recall” | Repeated copies add independent evidence | Deduplicate judgment identity and let repeated ranks consume capacity |
+| “The LLM judge scored it, so it is objective” | An evaluator model is a calibrated oracle | Align/version it against human labels and inspect each risk slice |
+| “92 beats 90” | Unpaired totals prove a robust improvement | Compare the same cases, inspect changed pairs and quantify uncertainty |
 
 ## Primary references
 
@@ -1067,17 +1256,23 @@ java -ea ContextGroundingContracts.java
 - Sentence Transformers, [retrieve-and-rerank pipeline](https://sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html) (accessed 2026-10-23).
 - PostgreSQL 18, [constraints](https://www.postgresql.org/docs/current/ddl-constraints.html), [row security policies](https://www.postgresql.org/docs/current/ddl-rowsecurity.html), [full-text search](https://www.postgresql.org/docs/current/textsearch.html), and [`SELECT ... FOR UPDATE` locking](https://www.postgresql.org/docs/current/explicit-locking.html) (accessed 2026-10-23).
 - PostgreSQL 18, [`CREATE INDEX`](https://www.postgresql.org/docs/current/sql-createindex.html), [`REINDEX`](https://www.postgresql.org/docs/current/sql-reindex.html), and [index-build progress reporting](https://www.postgresql.org/docs/current/progress-reporting.html#CREATE-INDEX-PROGRESS-REPORTING) (accessed 2026-10-23).
+- Elasticsearch, [Ranking evaluation API](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/search-rank-eval) — representative queries, relevance judgments, precision, mean reciprocal rank, and discounted cumulative gain (accessed 2026-10-24).
+- MLflow, [LLM Judges and Scorers](https://mlflow.org/docs/latest/genai/eval-monitor/scorers/) and [Judge Alignment](https://mlflow.org/docs/latest/genai/eval-monitor/scorers/llm-judge/alignment/) — deterministic scorers, human feedback, failure analysis, alignment, and versioning (accessed 2026-10-24).
+- SciPy, [`scipy.stats.binomtest`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.binomtest.html) — exact binomial-test contract used to cross-check the dependency-free paired sign-test calculation (accessed 2026-10-24).
+- NIST, [AI RMF Generative AI Profile](https://doi.org/10.6028/NIST.AI.600-1), especially pre-deployment TEVV and deployment-context limitations (2024; accessed 2026-10-24).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–6, through `Context construction, citations and abstention`, bounded by Chapter 7.
+- Processed range: Chapters 1–7, through `Evaluation: isolate failures by stage`, bounded by Chapter 8.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 5 source comparison: selected master lines 169–204 and editable companion lines 180–222 agree on the pgvector schema pattern, fixed example dimension, parameterized cosine query, tenant/generation scope, ACL caveat, and datastore-selection criteria; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 6 source comparison: selected master lines 205–226 and editable companion lines 224–256 agree on host-built evidence envelopes, untrusted retrieved content, citation-ID validation, claim support, calibrated abstention, conflict handling, and separation of advice from action; the companion was used for editable structure, not promoted as a duplicate guide.
-- Next bounded section: Chapter 7, `Evaluation: isolate failures by stage` (after the recorded domain rotation).
+- Chapter 7 source comparison: selected master lines 227–248 and editable companion lines 257–290 agree on versioned datasets, retrieval metrics, answer dimensions, judge calibration, paired release comparison, critical-slice regression, and reproducibility identities; the companion was used for editable structure, not promoted as a duplicate guide.
+- Next bounded section: Chapter 8, `Caching, latency, cost and failure controls` (after the recorded domain rotation).
+
 

@@ -4,7 +4,7 @@ Last updated: 2026-10-23.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapters 1–6 complete**.
+State: **PROMOTED incrementally; Chapters 1–7 complete**.
 
 Canonical pair:
 
@@ -27,8 +27,10 @@ Source comparison:
 - Deepened Chapter 5 with four PostgreSQL/RAG data-design examples, retry/publication/query/migration traces, five diagrams, current primary references, and an executable Java 17 state-machine contract for immutable chunk identity, generation-wide embedding specifications, guarded publication, authorization-first exact search, bounded top-k, and monotonic tombstones.
 - Compared Chapter 6 in selected master lines 205–226 and editable companion lines 224–256; both specify host-built evidence envelopes, untrusted retrieved content, citation membership and support checks, calibrated abstention, conflict handling, and separation of advice from action, so no duplicate guide was created.
 - Deepened Chapter 6 with four context/citation/abstention examples, envelope/citation/decision/action traces, five diagrams, current primary references, and an executable Java 17 contract for authorization-first context construction, exact citation support, server-rendered provenance, typed abstention/conflict, and a separate action boundary, plus 10,000 seeded evidence-set trials.
+- Compared Chapter 7 in selected master lines 227–248 and editable companion lines 257–290; both specify versioned evaluation data, retrieval and answer metrics, judge calibration, paired release comparison, critical-slice protection and reproducibility identities, so no duplicate guide was created.
+- Deepened Chapter 7 with four evaluation examples, stage-isolation and release-gate traces, five diagrams, current primary references, and an executable Java 17 contract for duplicate-aware retrieval metrics, typed stage outcomes, hard-slice gates and exact paired sign-test evidence, plus 10,000 seeded ranking checks.
 
-Next bounded section: Chapter 7, **Evaluation: isolate failures by stage**, after the recorded domain rotation.
+Next bounded section: Chapter 8, **Caching, latency, cost and failure controls**, after the recorded domain rotation.
 
 ## AI foundations, RAG and CAG
 
@@ -59,3 +61,4 @@ Next action:
 2. On the next AI-platform pass, process Chapter 7 only.
 3. On a later AI-foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment.
 4. Keep project source code in the existing Spring Boot AI repositories; this repository holds learning documentation only.
+
