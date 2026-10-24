@@ -1,6 +1,6 @@
 # Spring AI and Python APIs
 
-This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–6, lines 6–427.
+This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–7, lines 6–620.
 
 ## Section 1 — Choose the layer before choosing the library
 
@@ -1126,4 +1126,233 @@ Verified on 23 October 2026:
 
 ### Source provenance and continuation
 
-The confirmed editable range is source lines 264–427, ending immediately before Section 7. The matching standalone HTML range is lines 435–579, with Section 7 beginning at line 580; it describes the same endpoint and was used as a comparison, not promoted as a duplicate. Section 6 retains the source's complete FastAPI/Pydantic/HTTPX/Ollama path and local-run boundary, then adds four requirement-driven traces, calibrated-abstention semantics, failure/status mapping, four diagrams and paired 32-scenario/10,000-trial contracts. Section 7, **Complete Spring AI RAG path**, begins at source line 428. Sections 7–25 remain queued; the source is not complete.
+The confirmed editable range is source lines 264–427, ending immediately before Section 7. The matching standalone HTML range is lines 435–579, with Section 7 beginning at line 580; it describes the same endpoint and was used as a comparison, not promoted as a duplicate. Section 6 retains the source's complete FastAPI/Pydantic/HTTPX/Ollama path and local-run boundary, then adds four requirement-driven traces, calibrated-abstention semantics, failure/status mapping, four diagrams and paired 32-scenario/10,000-trial contracts. Section 7, **Complete Spring AI RAG path**, begins at source line 428 and is promoted below. Sections 8–25 remain queued; the source is not complete.
+
+## 7. Complete Spring AI RAG path: make the lifecycle observable
+
+The Spring implementation should satisfy the same business contract as Section 6 without pretending that the framework removes lifecycle, authorization, capacity or grounding decisions. `EmbeddingModel` owns vector-provider integration, `ChatClient` owns the fluent chat call, and Spring Boot owns dependency injection, availability and server shutdown. The application still owns a coherent corpus snapshot, trusted scope, admission, total deadline, deterministic ranking and output acceptance.
+
+Write the contract before wiring beans:
+
+| Boundary | Required invariant | Failure meaning |
+|---|---|---|
+| release identity | resolved Boot/Spring AI versions plus immutable chat and embedding model identities | deployment evidence is incomplete; do not call it reproducible |
+| startup publication | one generation contains matching evidence and validated vectors | remain unready; never publish a partial index |
+| request admission | caller is validated, capacity is acquired once, and one absolute deadline follows the attempt | `429` before send or `504` after deadline, not an unbounded queue |
+| retrieval | trusted scope and one snapshot precede deterministic score/ID ordering | empty calibrated result is `ABSTAIN`, not infrastructure failure |
+| generation | only delimited selected evidence enters the prompt | model output is a proposal, never authority |
+| acceptance | citations are selected IDs and claims are supported | malformed/invented references are dependency failure; unsupported claims abstain |
+| shutdown | readiness refuses new traffic while bounded in-flight work drains | grace expiry is observable cancellation, not proof the provider stopped |
+
+### Example 1 — pin the deployable combination, not an isolated snippet
+
+The Library source used Spring Boot `4.1.1` and Spring AI `2.0.1`. On 24 October 2026 the official stable documentation lists Boot `4.1.2` and Spring AI `2.0.2`. A copied POM can therefore be internally plausible and already stale. Choose a tested combination, commit the lock, and record the resolved dependency graph with the model artifacts. This bounded guide uses the current stable pair as an example, not a promise that every future starter remains compatible:
+
+```xml
+<parent>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-parent</artifactId>
+  <version>4.1.2</version>
+</parent>
+<properties>
+  <java.version>21</java.version>
+  <spring-ai.version>2.0.2</spring-ai.version>
+</properties>
+<dependencyManagement><dependencies><dependency>
+  <groupId>org.springframework.ai</groupId>
+  <artifactId>spring-ai-bom</artifactId>
+  <version>${spring-ai.version}</version><type>pom</type><scope>import</scope>
+</dependency></dependencies></dependencyManagement>
+<dependencies>
+  <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webmvc</artifactId></dependency>
+  <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-validation</artifactId></dependency>
+  <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
+  <dependency><groupId>org.springframework.ai</groupId><artifactId>spring-ai-starter-model-ollama</artifactId></dependency>
+</dependencies>
+```
+
+The BOM aligns Spring AI artifacts; it does not select the chat model, embedding model, Ollama runtime, corpus or prompt. Exclude the MCP server starter unless this service actually exposes an MCP server. Extra starters widen configuration, transport and security surface.
+
+Use current property families and externalize model identity:
+
+```yaml
+spring:
+  ai:
+    model:
+      chat: ollama
+      embedding: ollama
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://127.0.0.1:11434}
+      init:
+        pull-model-strategy: never
+      chat:
+        model: ${CHAT_MODEL}
+        temperature: 0.0
+        num-predict: 400
+      embedding:
+        model: ${EMBED_MODEL}
+        truncate: false
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+management.endpoint.health.probes.enabled: true
+```
+
+Trace one release as `boot=4.1.2`, `spring-ai=2.0.2`, `ollama=<runtime digest>`, `chat=<artifact digest>`, `embedding=<artifact digest>`, `corpus=42`, `prompt=rag-v9`, `threshold=payments-v4`. A model name alone is mutable evidence. `pull-model-strategy: never` keeps an ordinary API restart from silently downloading an artifact; provisioning must prove the required models exist.
+
+```mermaid
+flowchart TB
+  BUILD["Resolved Boot + Spring AI graph"] --> REL["Release evidence"]
+  CHAT["Chat model digest"] --> REL
+  EMB["Embedding model digest"] --> REL
+  CORP["Corpus + prompt + threshold revisions"] --> REL
+  REL --> DEP["Deploy one tested combination"]
+```
+
+### Example 2 — build privately, publish one ready snapshot
+
+Do not perform a large corpus embedding loop in every request or expose a mutable list while startup is still filling it. A production ingestion job usually builds the durable index separately. For this fixed in-memory lab, build temporary evidence/vector state during startup, validate the entire generation, freeze/defensively copy it, then publish one reference and mark readiness accepting traffic.
+
+```java
+record Snapshot(String generation, List<Evidence> evidence,
+                List<double[]> vectors, int dimension) {}
+
+final AtomicReference<Snapshot> current = new AtomicReference<>();
+
+Snapshot buildCandidate(List<Evidence> docs) {
+    List<double[]> vectors = docs.stream()
+        .map(doc -> embeddings.embed(doc.text()))
+        .map(floatVector -> widenAndValidate(floatVector))
+        .toList();
+    return validateAndFreeze("corpus-42/embed-v3", docs, vectors);
+}
+
+void start() {
+    Snapshot candidate = buildCandidate(FIXTURE); // not externally visible
+    current.set(candidate);                       // one publication point
+    availability.publishEvent(new AvailabilityChangeEvent<>(
+        this, ReadinessState.ACCEPTING_TRAFFIC));
+}
+```
+
+If vector 2 has a different dimension, vector 3 contains `NaN`, two evidence IDs collide, or the provider returns only two vectors for three documents, the candidate is rejected and readiness stays closed. Merely having a non-null `EmbeddingModel` bean is liveness, not proof this service can answer from a coherent generation.
+
+Trace for `corpus-42/embed-v3`:
+
+| Step | State | Published snapshot |
+|---:|---|---|
+| 1 | three evidence records loaded | none |
+| 2 | vectors 1–2 valid; vector 3 wrong dimension | none |
+| 3 | startup attempt fails and reports cause | none |
+| 4 | next attempt validates all three and clones arrays | generation `corpus-42/embed-v3` |
+| 5 | readiness becomes accepting | same immutable generation |
+
+```mermaid
+stateDiagram-v2
+  [*] --> Refusing
+  Refusing --> Building: embed fixed corpus
+  Building --> Refusing: any validation fails
+  Building --> Published: all records valid
+  Published --> Accepting: publish readiness
+  Accepting --> Refusing: shutdown begins
+```
+
+### Example 3 — carry one deadline through admission, embedding and chat
+
+The source's immediate `Semaphore.tryAcquire()` is valid fail-fast load shedding. If the API contract allows a 50 ms admission wait, use timed `tryAcquire(50, MILLISECONDS)` and restore interruption rather than silently swallowing it. Release only after successful acquisition and only in `finally`:
+
+```java
+boolean acquired = false;
+long deadline = System.nanoTime() + Duration.ofSeconds(12).toNanos();
+try {
+    acquired = slots.tryAcquire(50, TimeUnit.MILLISECONDS);
+    if (!acquired) throw new Rejected("model concurrency exhausted");
+    long remainingMs = remainingMillis(deadline, System.nanoTime());
+    if (remainingMs == 0) throw new DeadlineExceeded();
+    return answerWithin(question, snapshot(), deadline); // every adapter gets remaining time
+} catch (InterruptedException interrupted) {
+    Thread.currentThread().interrupt();
+    throw new RequestCancelled(interrupted);
+} finally {
+    if (acquired) slots.release();
+}
+```
+
+For three JVM processes and four permits each, the upper bound is `3 × 4 = 12` admitted calls. Four is not a fleet quota; replicas multiply it. Java 21 virtual threads can reduce thread-per-request overhead but do not increase Ollama/GPU capacity. Spring's graceful shutdown refuses new traffic and gives in-flight requests the configured phase timeout; it does not replace the request deadline or guarantee provider cancellation.
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant A as Spring API
+  participant E as EmbeddingModel
+  participant M as ChatClient
+  C->>A: validated question
+  A->>A: permit ≤ 50 ms; deadline = now + 12 s
+  A->>E: embed with remaining budget
+  E-->>A: validated query vector
+  A->>A: rank one snapshot
+  A->>M: bounded evidence + remaining budget
+  M-->>A: proposed answer + citations
+  A->>A: validate, release once
+  A-->>C: answer | abstain | typed failure
+```
+
+Useful low-cardinality telemetry is stage, outcome, model/corpus revision, permit outcome and latency bucket. Spring AI instruments `ChatClient`, `ChatModel`, `EmbeddingModel` and `VectorStore`; do not enable raw prompt/response logging by default because evidence and questions may be sensitive.
+
+### Example 4 — separate model failure, citation membership and support
+
+The source wraps almost every `RuntimeException` as `502`. That is simple, but it can erase application bugs and policy outcomes. Validate the request before admission; use typed adapter exceptions; map the outer deadline separately; and keep successful no-evidence/unsupported outcomes distinct from malformed provider output.
+
+For selected IDs `{payments-r7, runbook-r2}`:
+
+| Candidate output | Membership | Support | Result |
+|---|---|---|---|
+| “Check migration compatibility `[payments-r7]`” | pass | pass | `200 ANSWER` |
+| “Rollback is always safe `[payments-r7]`” | pass | fail | `200 ABSTAIN` |
+| “Use document `[invented-r9]`” | fail | not evaluated | `502 DEPENDENCY_OUTPUT` |
+| empty content or no citation | fail | not evaluated | `502 DEPENDENCY_OUTPUT` |
+| best score below calibrated threshold | no generation call | n/a | `200 ABSTAIN` |
+
+Keep the evidence ID and revision in the returned envelope. Returning all top-k documents even when only one was cited blurs provenance; return cited evidence for the accepted answer and keep the full selected set only in access-controlled trace evidence. A regex can prove token membership, not semantic support. Use domain checks, reviewed structured extraction, calibrated verification or conservative abstention.
+
+```mermaid
+flowchart TB
+  R["Rank one authorized snapshot"] --> T{"Best score passes threshold?"}
+  T -->|no| AB["200 ABSTAIN"]
+  T -->|yes| G["Generate from delimited evidence"]
+  G --> M{"Nonempty citations ⊆ selected IDs?"}
+  M -->|no| D["502 dependency output"]
+  M -->|yes| S{"Every claim supported?"}
+  S -->|no| AB
+  S -->|yes| OK["200 ANSWER + cited evidence"]
+```
+
+### Paired executable contract
+
+The dependency-free Java/Python pair proves release identity, all-or-nothing snapshot publication, defensive vector copies, deterministic ranking, calibrated abstention, citation membership/support, deadline arithmetic, process/fleet capacity and exactly-once release:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/SpringRagPathContracts.java
+python3 study-guides/backend/spring-ai-python/spring_rag_path_contracts.py
+```
+
+Both print:
+
+```text
+PARITY|CONFIGURED|READY|ANSWER|ABSTAIN|429|504|502|RELEASED
+```
+
+Each implementation executes 36 scenario groups and 10,000 seeded cosine checks. These pure contracts do not compile Spring AI, start a servlet container, call Ollama, prove cancellation propagation, calibrate the retrieval threshold, authorize real tenants, render Actuator probes or measure load.
+
+### Current primary references
+
+Verified on 24 October 2026:
+
+- [Spring AI dependency management](https://docs.spring.io/spring-ai/reference/getting-started.html) — the BOM aligns Spring AI modules but is not a plugin or model lock.
+- [Spring AI Ollama chat](https://docs.spring.io/spring-ai/reference/api/chat/ollama-chat.html) and [Embedding Model API](https://docs.spring.io/spring-ai/reference/api/embeddings.html) — current starter/property families, model options and vector dimensionality.
+- [Spring AI ChatClient](https://docs.spring.io/spring-ai/reference/api/chatclient.html) and [observability](https://docs.spring.io/spring-ai/reference/observability/index.html) — fluent calls, advisor logging caution, metrics and traces for AI components.
+- [Spring Boot system requirements](https://docs.spring.io/spring-boot/system-requirements.html), [application availability](https://docs.spring.io/spring-boot/reference/actuator/endpoints.html) and [graceful shutdown](https://docs.spring.io/spring-boot/reference/web/graceful-shutdown.html) — current stable release evidence, readiness transitions and bounded shutdown behavior.
+- [Java `Semaphore`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/Semaphore.html) — immediate/timed acquisition, interruption and application-owned release discipline.
+
+### Source provenance and continuation
+
+The confirmed editable range is source lines 428–620, ending immediately before Section 8. The matching standalone HTML range is lines 580–752, with Section 8 beginning at line 753; dependency, configuration, service and build/run content agree. The canonical section preserves that Spring AI path but updates the dated `4.1.1`/`2.0.1` example to the current documented `4.1.2`/`2.0.2` pair, removes the unrelated MCP starter from the minimal RAG dependency set, and makes lifecycle publication, total deadlines, typed failures, grounding and shutdown behavior testable. Section 8, **Replacing in-memory vectors with durable retrieval**, begins at editable source line 621 / standalone HTML line 753. Sections 8–25 remain queued; the source is not complete.
