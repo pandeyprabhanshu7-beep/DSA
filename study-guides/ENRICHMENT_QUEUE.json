@@ -123,11 +123,11 @@
       "version_id": "1",
       "modified_at": "2026-09-11T21:27:10.870584Z",
       "size_bytes": 37445,
-      "status": "IN_PROGRESS",
-      "last_read_at": "2026-10-23T07:20:57-04:00",
+      "status": "PROMOTED",
+      "last_read_at": "2026-10-24T07:29:48-04:00",
       "sha256": "10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03",
       "canonical_target": "study-guides/system-design/blueprints/guide.md",
-      "selection": "Library revision 1 was read directly. Blueprints 1-4, source lines 5-902, are promoted; Blueprint 5 remains queued."
+      "selection": "Library revision 1 was read directly. Blueprints 1-5 and the cross-question/practice supplement at source lines 1127-1264 are promoted; the confirmed source is exhausted through its final line."
     },
     {
       "name": "system_design_fundamentals_deep_research.md",
@@ -629,17 +629,18 @@
       "domain": "System design/data",
       "canonical_target": "study-guides/system-design/blueprints/",
       "target_exists": true,
-      "status": "IN_PROGRESS",
+      "status": "PROMOTED",
       "source_names": [
         "top_5_system_design_interview_blueprints.md"
       ],
-      "last_processed_at": "2026-10-23T14:52:29-04:00",
+      "last_processed_at": "2026-10-24T07:29:48-04:00",
       "processed_sections": [
         "Blueprint 1: global video streaming — requirements and consistency, CDN/byte-hit arithmetic, entitlement and signed delivery, buffer-aware ABR, sequence-ordered progress, publication and failure evidence",
         "Blueprint 2: real-time ride hailing — freshness and latency contracts, expanding-cell search, ordered locations, single-winner assignment, reconnect recovery and idempotent payment handoff",
         "Blueprint 3: distributed financial ledger — balanced immutable entries, idempotent replay, serialized debits, uncertain external outcomes, outbox/inbox deduplication and reconciliation",
         "Blueprint 4: large-scale web crawler — conservative URL identity, exact admission, origin politeness, robots decisions, safe fetch boundaries, retry timing and conditional recrawl",
-        "Blueprint 5: distributed unique ID generator — explicit uniqueness/order contract, 41/10/12 arithmetic, same-tick saturation and rollback, worker lease fencing, range allocation and UUIDv7 comparison"
+        "Blueprint 5: distributed unique ID generator — explicit uniqueness/order contract, 41/10/12 arithmetic, same-tick saturation and rollback, worker lease fencing, range allocation and UUIDv7 comparison",
+        "Cross-question design-defense supplement: overload/backlog arithmetic, source-of-truth versus projection ownership, timeout-after-commit idempotency, invariant-preserving degradation, review card and executable evidence"
       ],
       "source_revision": {
         "baseline_commit": "3fdd8b15594a440233169cb8e9504ff5cc9b858a",
@@ -647,11 +648,11 @@
         "file_id": "file_00000000214481fdb368917e2f9d55f1",
         "version_id": "1",
         "source_sha256": "10c3b8139474ea47f35e1fed6cb169b2728db48070f3264e1d23dfa776e9bf03",
-        "canonical_sha256_after": "c3eb5c5c5ea0ef4cef6b8e5cf5ee82013aeb122d98a89e1f8243bd6642e0f708"
+        "canonical_sha256_after": "54716af9384ef3ff682e36cea1fb32f5e27fb3416bdde955658a5fa433c2635b"
       },
-      "last_successful_commit": "f02137fe20e4fefd8ef49d115ee203209665ec28",
-      "validation": "The confirmed Library revision was read at exact source lines 903-1125 and bounded before the cross-question supplement at line 1127. Java 17 source-file launch passed 13 video, 22 ride-hailing, 18 financial-ledger, 25 crawler and 24 distributed-ID scenario groups. Deterministic reader generation passed exact 65291-byte payload equality, SHA-256 c3eb5c5c5ea0ef4cef6b8e5cf5ee82013aeb122d98a89e1f8243bd6642e0f708, 99 unique IDs, 6 search entries, 29 local fragments, 72 balanced fence markers, 20 Mermaid sources, JavaScript parsing and deterministic rebuild identity. Six content files were published atomically at f02137fe20e4fefd8ef49d115ee203209665ec28 with an expected-head guard and all remote blob hashes matched. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical Java-marker backlog remains 170.",
-      "next_action": "Rotate fairly to Spring AI/Python Section 5 at source line 203. On a later System-design turn, review the cross-question/practice supplement at source lines 1127-1264 without duplicating the canonical guide.",
+      "last_successful_commit": "d57953a2931d73e0072ebef36a3e2c5be7e1d8f3",
+      "validation": "The confirmed Library revision 1 was read through the exact final supplement at source lines 1127-1264; the cross-question pattern map, staff-level answer template and practice drills were promoted without duplicating the five completed blueprints. Four worked traces, four diagrams, current primary references and a dependency-free Java contract were added. Java 17 source-file launch passed all six blueprint contracts: 13 video, 22 ride-hailing, 18 financial-ledger, 25 crawler, 24 distributed-ID and 21 design-defense scenario groups; DesignDefenseContracts also passed 10,000 seeded capacity-conservation checks with the exact PARITY|BACKLOG=1200000|DRAIN=120|REPLAY=op-1|VIDEO=DEGRADE|LEDGER=REJECT trace. Deterministic reader generation passed exact 79350-byte Markdown recovery, SHA-256 54716af9384ef3ff682e36cea1fb32f5e27fb3416bdde955658a5fa433c2635b, 111 unique HTML IDs, 7 search entries, 30 local fragments, 6 resolved relative links, 92 balanced fence markers, 25 Mermaid sources, inline JavaScript parsing and deterministic rebuild identity. Six content files were atomically published at d57953a2931d73e0072ebef36a3e2c5be7e1d8f3 with an expected-head guard; all remote blob hashes matched and no commit status checks were configured. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+      "next_action": "Confirmed source exhausted through line 1264. Rotate fairly to Spring AI/Python Section 7, Complete Spring AI RAG path, beginning at editable source line 428; retain Arrays problem 7 and AI-platform Chapter 8 for later turns.",
       "priority": 11
     },
     {
@@ -1017,7 +1018,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources and the confirmed database source are processed through their source ends. AI-platform Chapters 1-7, System-design Blueprints 1-5, Spring AI/Python Sections 1-6 and Arrays Section 4 problems 1-6 are promoted; rotate fairly to the System-design cross-question/practice supplement at source lines 1127-1264 before Spring AI/Python Section 7, Arrays problem 7 or AI-platform Chapter 8.",
+    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources, the confirmed database source and the System-design blueprint source are processed through their source ends. AI-platform Chapters 1-7, Spring AI/Python Sections 1-6 and Arrays Section 4 problems 1-6 are promoted; rotate fairly to Spring AI/Python Section 7 at editable source line 428 before Arrays problem 7 or AI-platform Chapter 8.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1143,14 +1144,15 @@
       "AI platform Chapter 6: authorized evidence envelopes, untrusted context, citation membership/support, typed abstention/conflict and a separate action boundary",
       "Spring AI/Python Section 6: atomic startup snapshot, bounded admission/deadlines, deterministic retrieval, calibrated abstention, grounding gates and exactly-once release",
       "DSA Arrays Section 4 problem 6: stable sorted-array unique-prefix compaction, exact trace, atomic validation, proof and assignment-bound oracle",
-      "AI platform Chapter 7: duplicate-aware retrieval metrics, typed stage outcomes, calibrated judges, paired exact evidence, hard-slice release gates and reproducibility identities"
+      "AI platform Chapter 7: duplicate-aware retrieval metrics, typed stage outcomes, calibrated judges, paired exact evidence, hard-slice release gates and reproducibility identities",
+      "System-design cross-question supplement: repeated primitives, answer sequence, overload/authority/idempotency/degradation drills, review card and executable design-defense contract"
     ],
-    "processed_section": "AI-platform Chapter 7, Evaluation: master lines 227-248 / bundled companion lines 257-290, bounded before Chapter 8",
-    "validation": "The selected master and bundled editable companion were compared for bounded Chapter 7 at master lines 227-248 and companion lines 257-290; their evaluation substance agrees and no duplicate guide was created. Four worked examples, five diagrams, current primary references and a dependency-free Java contract were added. Java 17 source-file launch passed all seven AI-platform contracts; EvaluationGateContracts passed 16 explicit groups plus 10,000 seeded ranking checks with the exact PARITY|P@5=0.4|R@5=0.666667|MRR=0.5|PAIR=3-1|p=0.625|AUTH_BLOCKED trace. Deterministic reader generation passed exact 86682-byte Markdown recovery, SHA-256 31ef65f1b53de8e949db6ed56f898d9e2615bdcb708e259d48417b54c8029920, 239 unique HTML IDs, 46 search entries, 167 local fragments, 7 resolved relative links, 92 balanced fence markers, 32 Mermaid sources, inline JavaScript parsing and deterministic rebuild identity. Six content files were atomically published at eb9f84d13682c683352f9c767146da8d534a3113 with an expected-head guard; all remote blob hashes matched and no commit status checks were configured. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-    "estimated_next_tokens": 8000,
-    "estimate_method": "Heuristic only for one bounded System-design cross-question/practice supplement pass with source reconciliation, examples, Java, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "eb9f84d13682c683352f9c767146da8d534a3113",
-    "last_processed_at": "2026-10-24T03:21:14-04:00",
-    "next_batch_decision": "AI-platform Chapter 7 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to the System-design cross-question/practice supplement at source lines 1127-1264; retain Spring AI/Python Section 7, Arrays problem 7 and AI-platform Chapter 8 for later domain turns."
+    "processed_section": "System-design cross-question/practice supplement, source lines 1127-1264 through the final line",
+    "validation": "The confirmed Library revision 1 was read through the exact final supplement at source lines 1127-1264; the cross-question pattern map, staff-level answer template and practice drills were promoted without duplicating the five completed blueprints. Four worked traces, four diagrams, current primary references and a dependency-free Java contract were added. Java 17 source-file launch passed all six blueprint contracts: 13 video, 22 ride-hailing, 18 financial-ledger, 25 crawler, 24 distributed-ID and 21 design-defense scenario groups; DesignDefenseContracts also passed 10,000 seeded capacity-conservation checks with the exact PARITY|BACKLOG=1200000|DRAIN=120|REPLAY=op-1|VIDEO=DEGRADE|LEDGER=REJECT trace. Deterministic reader generation passed exact 79350-byte Markdown recovery, SHA-256 54716af9384ef3ff682e36cea1fb32f5e27fb3416bdde955658a5fa433c2635b, 111 unique HTML IDs, 7 search entries, 30 local fragments, 6 resolved relative links, 92 balanced fence markers, 25 Mermaid sources, inline JavaScript parsing and deterministic rebuild identity. Six content files were atomically published at d57953a2931d73e0072ebef36a3e2c5be7e1d8f3 with an expected-head guard; all remote blob hashes matched and no commit status checks were configured. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+    "estimated_next_tokens": 8500,
+    "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 7 pass with paired-source comparison, examples, Java/Python, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "d57953a2931d73e0072ebef36a3e2c5be7e1d8f3",
+    "last_processed_at": "2026-10-24T07:29:48-04:00",
+    "next_batch_decision": "The System-design supplement is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Its confirmed source is exhausted. Rotate fairly to Spring AI/Python Section 7 at editable source line 428; retain Arrays problem 7 and AI-platform Chapter 8 for later domain turns."
   }
 }
