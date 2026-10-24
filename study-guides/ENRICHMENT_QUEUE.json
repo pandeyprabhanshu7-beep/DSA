@@ -270,9 +270,9 @@
       "modified_at": "2026-09-08T00:10:00.740223Z",
       "size_bytes": 229697,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-10-24T02:14:58-04:00",
+      "last_read_at": "2026-10-24T13:03:12-04:00",
       "sha256": "735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda",
-      "selection": "Selected as the editable structural source; Sections 1-3 lines 141-251 and Section 4 problems 1-6 through line 800 were compared and promoted. Problem 7 begins at line 802."
+      "selection": "Selected as the editable structural source; Sections 1-3 lines 141-251 and Section 4 problems 1-7 through line 891 were compared and promoted. Problem 8 begins at line 895."
     },
     {
       "name": "Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
@@ -345,9 +345,9 @@
       "modified_at": "2026-09-03T01:55:56.718502Z",
       "size_bytes": 125274,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-10-24T02:14:58-04:00",
+      "last_read_at": "2026-10-24T13:03:12-04:00",
       "sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-      "selection": "Compared as the corroborating companion; Sections 1-3 extracted lines 65-165 and Section 4 problems 1-6 through extracted line 522 agree with the Markdown source. Problem 7 begins at extracted line 526. All 116 rendered pages were previously visually inspected; no duplicate guide was created."
+      "selection": "Compared as the corroborating companion; Sections 1-3 and Section 4 problems 1-7 agree with the Markdown source. The prior extraction placed problem 7 at line 526; a fresh Pandoc no-wrap extraction bounded it at lines 743-834, before problem 8 at line 835. All 116 rendered pages were previously visually inspected; no duplicate guide was created."
     },
     {
       "name": "AI_RAG_CAG_Deep_Learning_Developer_Guide.docx",
@@ -502,19 +502,31 @@
         "DSA_Arrays_FAANG_Mermaid_Question_Workbook.md",
         "DSA_Arrays_FAANG_Question_Workbook_Expanded.docx"
       ],
-      "last_processed_at": "2026-10-24T02:14:58-04:00",
+      "last_processed_at": "2026-10-24T13:03:12-04:00",
       "processed_sections": [
         "Section 1: Array Mental Model and Invariants — Markdown lines 141-182 / DOCX extracted lines 65-108",
         "Section 2: Pattern-Recognition Decision Tree — Markdown lines 183-229 / DOCX extracted lines 93-135",
         "Section 3: Java Array Interview Toolkit — Markdown lines 230-251 / DOCX extracted lines 146-165",
         "Section 4 opening slice: problems 1-4 (Two Sum, one stock trade, maximum subarray and verified majority) — Markdown lines 253-634 / DOCX extracted lines 169-418",
         "Section 4 problem 5: Move Zeroes — stable compaction, four cases, exact trace, proof, write accounting and executable oracle — Markdown lines 635-724 / DOCX extracted lines 419-479",
-        "Section 4 problem 6: Remove Duplicates from Sorted Array — stable unique-prefix compaction, four cases, exact trace, proof, validation and assignment-bound oracle — Markdown lines 725-800 / DOCX extracted lines 480-522"
+        "Section 4 problem 6: Remove Duplicates from Sorted Array — stable unique-prefix compaction, four cases, exact trace, proof, validation and assignment-bound oracle — Markdown lines 725-800 / DOCX extracted lines 480-522",
+        "Section 4 problem 7: Squares of a Sorted Array — opposite-endpoint selection, four cases, exact trace, proof, full-width arithmetic and randomized square-sort oracle — Markdown lines 807-891 / corroborating DOCX section"
       ],
-      "last_successful_commit": "cd8a9d338ca5d9f8d7963459757b62cae9dd24b1",
-      "validation": "The paired Arrays workbooks agree on bounded Remove Duplicates from Sorted Array at Markdown lines 725-800 and DOCX extracted lines 480-522, ending before problem 7 at lines 802/526; no duplicate guide was created. The section adds the sorted-input, stable unique-prefix, returned-count and ignored-suffix contracts, four worked cases, three diagrams, an exact trace, proof, reusable atomic precondition validation, assignment accounting and the at-most-m-copies follow-up. Java 17 source-file launch passed 123 explicit scenario groups across all six Arrays contracts plus 100,000 seeded oracle comparisons; RemoveDuplicatesContracts passed 13 groups and 20,000 independent LinkedHashSet comparisons with prefix, strict-order and assignment-bound checks. Deterministic reader generation passed exact 57,851-byte Markdown recovery, SHA-256 9c85c57134e2a41296ee16ee686249dd88ee52fdfa317d781c57ed175d0e5239, 281 unique HTML IDs, 34 search entries, 32 local fragments, 80 balanced fence markers, 23 Mermaid sources, inline JavaScript parsing and deterministic rebuild identity. Six content files were atomically published at cd8a9d338ca5d9f8d7963459757b62cae9dd24b1 with an expected-head guard; all remote blob hashes matched and no commit status checks were configured. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-      "next_action": "Rotate fairly to AI-platform Chapter 7, Evaluation: isolate failures by stage; on the next Arrays pass continue Section 4 with problem 7, Squares of a Sorted Array, at Markdown line 802 / DOCX extracted line 526. Problems 7-47 remain queued.",
-      "priority": 6
+      "last_successful_commit": "479547e6931e187fe83394627c98ade064b6edad",
+      "validation": "The paired Arrays workbooks agree on bounded Squares of a Sorted Array at Markdown lines 807-891 and the corroborating DOCX section (prior extracted start 526; fresh Pandoc no-wrap lines 743-834), ending before problem 8 at Markdown line 895 / fresh DOCX no-wrap line 835; no duplicate guide was created. The section adds a sorted-input/new-output/nonmutation contract, four worked cases, three diagrams, an exact pointer trace, endpoint invariant and proof, full-width long arithmetic, and an executable oracle that avoids Math.abs(Integer.MIN_VALUE) and int multiplication overflow. Java 17 source-file launch passed 137 explicit scenario groups across all seven Arrays contracts plus 120,000 seeded oracle comparisons; SortedSquaresContracts passed 14 groups and 20,000 independent square-then-sort comparisons. Deterministic reader generation passed exact 64893-byte Markdown recovery, SHA-256 c2742bc9ac82f50981aaf9d1e7c03663cec9791428941a3bee000ede39b2706c, 310 unique HTML IDs, 35 search entries, 277 local fragments, 88 balanced fence markers, 26 Mermaid sources, JSON and JavaScript parsing, and deterministic rebuild identity. Six content files were atomically published at 479547e6931e187fe83394627c98ade064b6edad with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+      "next_action": "Rotate fairly to AI-platform Chapter 8; on the next Arrays pass continue Section 4 with problem 8, 3Sum, at Markdown line 895 / fresh DOCX no-wrap line 835. Problems 8-47 remain queued.",
+      "priority": 6,
+      "source_revision": {
+        "baseline_commit": "4545b07ed28174556f9242b2d9861b15f47dea67",
+        "selected_library_file_id": "libfile_ec0215b953208191b254acfc4fc39f1a",
+        "selected_file_id": "file_00000000a05881fdb093fccba59318e6",
+        "selected_sha256": "735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda",
+        "compared_library_file_id": "libfile_7956d8107f2081919f2bf02bb4e620ec",
+        "compared_file_id": "file_00000000672882118a9ca69f00c30be7",
+        "compared_version_id": "1",
+        "compared_sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
+        "canonical_sha256_after": "c2742bc9ac82f50981aaf9d1e7c03663cec9791428941a3bee000ede39b2706c"
+      }
     },
     {
       "id": "advanced-trees",
@@ -1019,7 +1031,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources, the confirmed database source and the System-design blueprint source are processed through their source ends. AI-platform Chapters 1-7, Spring AI/Python Sections 1-7 and Arrays Section 4 problems 1-6 are promoted; rotate fairly to Arrays problem 7 at Markdown/DOCX lines 802/526 before AI-platform Chapter 8 or Spring AI/Python Section 8.",
+    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources, the confirmed database source and the System-design blueprint source are processed through their source ends. AI-platform Chapters 1-7, Spring AI/Python Sections 1-7 and Arrays Section 4 problems 1-7 are promoted; rotate fairly to AI-platform Chapter 8 before Spring AI/Python Section 8 or Arrays problem 8.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1147,15 +1159,16 @@
       "DSA Arrays Section 4 problem 6: stable sorted-array unique-prefix compaction, exact trace, atomic validation, proof and assignment-bound oracle",
       "AI platform Chapter 7: duplicate-aware retrieval metrics, typed stage outcomes, calibrated judges, paired exact evidence, hard-slice release gates and reproducibility identities",
       "System-design cross-question supplement: repeated primitives, answer sequence, overload/authority/idempotency/degradation drills, review card and executable design-defense contract",
-      "Spring AI/Python Section 7: current release identity, minimal RAG dependencies, atomic readiness publication, deadline/admission propagation, typed grounding outcomes and graceful shutdown"
+      "Spring AI/Python Section 7: current release identity, minimal RAG dependencies, atomic readiness publication, deadline/admission propagation, typed grounding outcomes and graceful shutdown",
+      "DSA Arrays Section 4 problem 7: sorted-square endpoint selection, full-width arithmetic, exact trace, proof and randomized square-sort oracle"
     ],
-    "processed_section": "Spring AI/Python Section 7, Complete Spring AI RAG path, editable source lines 428-620 / standalone HTML lines 580-752",
-    "validation": "The selected ZIP member at editable source lines 428-620 and standalone HTML lines 580-752 were compared and bounded before Section 8; their dependency, configuration, service and run-path substance agrees and no duplicate guide was created. The dated source versions were reconciled to the current documented stable pair, and four requirement-driven examples, four diagrams, current primary references and paired dependency-free contracts were added. Java 17 source-file launch and Python 3 passed all seven contract suites; the new pair produced identical PARITY|CONFIGURED|READY|ANSWER|ABSTAIN|429|504|502|RELEASED traces, 36 scenario groups and 10,000 seeded trials per language. Deterministic reader generation passed exact 88729-byte Markdown recovery, SHA-256 617039b5a72bd0b228bc82e57f78abe53080195dbcdec8526fd7afc1d07dadf3, 260 unique HTML IDs, 8 search entries, 169 local fragments, 110 balanced fence markers, 28 Mermaid sources, JSON and JavaScript parsing and deterministic rebuild identity. Seven content files were atomically published at 3fc2da6d1c8e7419b64e15e85bb184e503f8d6cd with an expected-head guard; all remote blob hashes matched and no commit status checks were configured. Standalone javac, Maven/framework dependency compilation, live Spring Boot/Ollama integration, multi-process load tests, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-    "estimated_next_tokens": 7800,
-    "estimate_method": "Heuristic only for one bounded Arrays problem 7 pass with paired-source comparison, examples, Java, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "3fc2da6d1c8e7419b64e15e85bb184e503f8d6cd",
-    "last_processed_at": "2026-10-24T08:46:59-04:00",
-    "next_batch_decision": "Spring AI/Python Section 7 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to Arrays problem 7 at Markdown/DOCX lines 802/526; retain AI-platform Chapter 8 and Spring AI/Python Section 8 for later domain turns."
+    "processed_section": "DSA Arrays Section 4 problem 7, Squares of a Sorted Array, Markdown lines 807-891 / corroborating DOCX section",
+    "validation": "The paired Arrays workbooks agree on bounded Squares of a Sorted Array at Markdown lines 807-891 and the corroborating DOCX section (prior extracted start 526; fresh Pandoc no-wrap lines 743-834), ending before problem 8 at Markdown line 895 / fresh DOCX no-wrap line 835; no duplicate guide was created. The section adds a sorted-input/new-output/nonmutation contract, four worked cases, three diagrams, an exact pointer trace, endpoint invariant and proof, full-width long arithmetic, and an executable oracle that avoids Math.abs(Integer.MIN_VALUE) and int multiplication overflow. Java 17 source-file launch passed 137 explicit scenario groups across all seven Arrays contracts plus 120,000 seeded oracle comparisons; SortedSquaresContracts passed 14 groups and 20,000 independent square-then-sort comparisons. Deterministic reader generation passed exact 64893-byte Markdown recovery, SHA-256 c2742bc9ac82f50981aaf9d1e7c03663cec9791428941a3bee000ede39b2706c, 310 unique HTML IDs, 35 search entries, 277 local fragments, 88 balanced fence markers, 26 Mermaid sources, JSON and JavaScript parsing, and deterministic rebuild identity. Six content files were atomically published at 479547e6931e187fe83394627c98ade064b6edad with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+    "estimated_next_tokens": 8800,
+    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 8 pass with paired-source comparison, examples, Java, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "479547e6931e187fe83394627c98ade064b6edad",
+    "last_processed_at": "2026-10-24T13:03:12-04:00",
+    "next_batch_decision": "Arrays problem 7 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to AI-platform Chapter 8; retain Spring AI/Python Section 8 and Arrays problem 8 for later domain turns."
   }
 }
 

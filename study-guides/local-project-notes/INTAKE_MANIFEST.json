@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "3fc2da6d1c8e7419b64e15e85bb184e503f8d6cd",
+  "last_successful_commit": "479547e6931e187fe83394627c98ade064b6edad",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -862,11 +862,11 @@
     }
   ],
   "next_batch": {
-    "source": "Array_Interview_Mermaid_Workbook.md / Array_Interview_Workbook.docx",
-    "section": "Section 4 problem 7, beginning at Markdown line 802 / DOCX extracted line 526",
+    "source": "ai_platform_master_guide.html / ai_platform_engineering_complete_bundle.zip",
+    "section": "Chapter 8, next bounded AI-platform section after Chapters 1-7",
     "status": "QUEUED",
-    "estimated_tokens": 7800,
-    "estimate_method": "Heuristic only for one bounded Arrays problem pass with paired-source comparison, examples, Java, reader validation and checkpoint reserves. No weekly/hourly quota telemetry was exposed.",
+    "estimated_tokens": 8800,
+    "estimate_method": "Heuristic only for one bounded AI-platform chapter pass with paired-source comparison, examples, Java, reader validation and checkpoint reserves. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
@@ -972,20 +972,20 @@
     "estimate_method": "Heuristic only for one bounded Arrays problem pass; no reliable quota percentages were exposed"
   },
   "dsa_arrays_intake_checkpoint": {
-    "last_processed_at": "2026-10-24T02:14:58-04:00",
+    "last_processed_at": "2026-10-24T13:03:12-04:00",
     "selected_markdown_library_file_id": "libfile_ec0215b953208191b254acfc4fc39f1a",
     "selected_markdown_file_id": "file_00000000a05881fdb093fccba59318e6",
     "selected_markdown_sha256": "735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda",
     "corroborating_docx_library_file_id": "libfile_7956d8107f2081919f2bf02bb4e620ec",
     "corroborating_docx_file_id": "file_00000000672882118a9ca69f00c30be7",
     "corroborating_docx_sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-    "canonical_markdown_sha256": "9c85c57134e2a41296ee16ee686249dd88ee52fdfa317d781c57ed175d0e5239",
-    "processed": "Sections 1-3 plus Section 4 problems 1-6 through Markdown line 800 and DOCX extracted line 522; latest bounded problem is Remove Duplicates from Sorted Array at Markdown lines 725-800 / DOCX extracted lines 480-522, ending before problem 7 at lines 802/526",
+    "canonical_markdown_sha256": "c2742bc9ac82f50981aaf9d1e7c03663cec9791428941a3bee000ede39b2706c",
+    "processed": "Sections 1-3 plus Section 4 problems 1-7 through Markdown line 891; latest bounded problem is Squares of a Sorted Array at Markdown lines 807-891 / corroborating DOCX section, ending before problem 8 at Markdown line 895 / fresh DOCX no-wrap line 835",
     "status": "IN_PROGRESS",
-    "validation": "The paired Arrays workbooks agree on bounded Remove Duplicates from Sorted Array at Markdown lines 725-800 and DOCX extracted lines 480-522, ending before problem 7 at lines 802/526; no duplicate guide was created. The section adds the sorted-input, stable unique-prefix, returned-count and ignored-suffix contracts, four worked cases, three diagrams, an exact trace, proof, reusable atomic precondition validation, assignment accounting and the at-most-m-copies follow-up. Java 17 source-file launch passed 123 explicit scenario groups across all six Arrays contracts plus 100,000 seeded oracle comparisons; RemoveDuplicatesContracts passed 13 groups and 20,000 independent LinkedHashSet comparisons with prefix, strict-order and assignment-bound checks. Deterministic reader generation passed exact 57,851-byte Markdown recovery, SHA-256 9c85c57134e2a41296ee16ee686249dd88ee52fdfa317d781c57ed175d0e5239, 281 unique HTML IDs, 34 search entries, 32 local fragments, 80 balanced fence markers, 23 Mermaid sources, inline JavaScript parsing and deterministic rebuild identity. Six content files were atomically published at cd8a9d338ca5d9f8d7963459757b62cae9dd24b1 with an expected-head guard; all remote blob hashes matched and no commit status checks were configured. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-    "content_commit": "cd8a9d338ca5d9f8d7963459757b62cae9dd24b1",
-    "next_section": "Rotate to AI-platform Chapter 7; on the next Arrays turn, process Section 4 problem 7, Squares of a Sorted Array, beginning at Markdown line 802 / DOCX extracted line 526",
-    "estimated_next_tokens": 8200,
+    "validation": "The paired Arrays workbooks agree on bounded Squares of a Sorted Array at Markdown lines 807-891 and the corroborating DOCX section (prior extracted start 526; fresh Pandoc no-wrap lines 743-834), ending before problem 8 at Markdown line 895 / fresh DOCX no-wrap line 835; no duplicate guide was created. The section adds a sorted-input/new-output/nonmutation contract, four worked cases, three diagrams, an exact pointer trace, endpoint invariant and proof, full-width long arithmetic, and an executable oracle that avoids Math.abs(Integer.MIN_VALUE) and int multiplication overflow. Java 17 source-file launch passed 137 explicit scenario groups across all seven Arrays contracts plus 120,000 seeded oracle comparisons; SortedSquaresContracts passed 14 groups and 20,000 independent square-then-sort comparisons. Deterministic reader generation passed exact 64893-byte Markdown recovery, SHA-256 c2742bc9ac82f50981aaf9d1e7c03663cec9791428941a3bee000ede39b2706c, 310 unique HTML IDs, 35 search entries, 277 local fragments, 88 balanced fence markers, 26 Mermaid sources, JSON and JavaScript parsing, and deterministic rebuild identity. Six content files were atomically published at 479547e6931e187fe83394627c98ade064b6edad with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+    "content_commit": "479547e6931e187fe83394627c98ade064b6edad",
+    "next_section": "Rotate fairly to AI-platform Chapter 8; on the next Arrays turn, process Section 4 problem 8, 3Sum, beginning at Markdown line 895 / fresh DOCX no-wrap line 835",
+    "estimated_next_tokens": 8800,
     "estimate_method": "Heuristic only for one bounded AI-platform chapter pass; no reliable quota percentages were exposed"
   }
 }
