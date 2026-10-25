@@ -920,21 +920,21 @@
     "estimate_method": "Heuristic for bounded Section 44 source review, primary-reference reconciliation, examples, executable Java, reader synchronization and validation/checkpoint reserves; not actual quota percentage"
   },
   "ai_platform_intake_checkpoint": {
-    "last_processed_at": "2026-10-24T13:54:31-04:00",
+    "last_processed_at": "2026-10-24T20:41:09-04:00",
     "selected_source_sha256": "c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a",
     "selected_library_file_id": "libfile_1c4d3d95d7408191ba154228767f0886",
     "selected_file_id": "file_00000000493c81f783ae7443074f1c91",
     "companion_archive_sha256": "78548fdcdb08af668299b9fe1815a4f13c7063b54a34dff487d24c8d9f0e5c43",
     "companion_markdown_sha256": "45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05",
     "compared_illustrated_sha256": "006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9",
-    "processed": "Chapters 1-8 through Caching, latency, cost and failure controls; latest bounded range is master lines 249-259 and companion lines 291-309, ending before Chapter 9",
+    "processed": "Chapters 1-9 through MCP architecture: host, client, server and model; latest bounded range is selected master lines 260-377 and archive companion lines 311-414, ending before Chapter 10",
     "status": "IN_PROGRESS",
-    "validation": "The selected master Library lines 249-259 and bundled editable companion lines 291-309 were compared and agree on cache identity/invalidation, the ten-second deadline example, bounded retries/cancellation and complete cost accounting; no duplicate guide was created. Four worked examples, four diagrams, current primary references and a dependency-free Java contract were added. Java 17 source-file launch passed all eight AI-platform contracts; CacheLatencyCostContracts passed 20 explicit scenario groups plus 10,000 seeded jitter-bound checks with the exact PARITY|CACHE=HIT|ACL=BLOCK|REVOKE=BLOCK|DEADLINE=10000|RETRY=SAFE|COST_MICROS=9860000000 trace. Deterministic reader generation passed exact 99994-byte Markdown recovery, SHA-256 8306add8975b8e84c2e7294e5a6d7040c5926a76e7418b267ef6a10dcd5f9923, 260 unique HTML IDs, 52 search entries, 179 local fragments, 8 resolved relative links, 104 balanced fence markers, 36 Mermaid sources, JSON and both JavaScript blocks, and deterministic rebuild identity. Six content files were atomically published at db70f7d087a936129c541e491eeaf4ebb8edcb2e with an expected-head guard. Standalone javac, live provider/cache/gateway integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-    "content_commit": "65111c1c98a9767daf89ca28570a36daa1b1734f",
-    "next_section": "Process AI-platform Chapter 9, MCP architecture: host, client, server and model, after the completed Spring Section 8 and Arrays problem 8 rotations",
-    "estimated_next_tokens": 9200,
-    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 9 pass; no reliable quota percentages were exposed",
-    "canonical_markdown_sha256": "8306add8975b8e84c2e7294e5a6d7040c5926a76e7418b267ef6a10dcd5f9923"
+    "validation": "The selected master Library lines 260-377 and archive companion lines 311-414 were read and compared; they agree on host/client/server/model boundaries, tools/resources/prompts, explicitly separate modern and legacy protocol eras, current HTTP request metadata, and stdio versus Streamable HTTP, ending before Chapter 10. Four worked examples, four diagrams, current primary references and a dependency-free Java contract were added without creating a duplicate guide. Java 17 source-file launch passed all nine AI-platform contracts; McpArchitectureContracts passed 24 explicit scenario groups plus 10,000 seeded authority/correlation trials with the exact PARITY|ERA=MODERN|TOOLS=YES|MODEL=PROPOSE_ONLY|HOST=ALLOW|SERVER=DENY|CANCEL=41|LATE=DISCARD|TRANSPORT=HTTP trace. Deterministic reader generation passed exact 113151-byte Markdown recovery, SHA-256 071cbf1fbc081de66f57b294ca216312c79c69489629dca7079872885456902a, 277 unique HTML IDs, 58 search entries, 188 local fragments, 9 resolved relative links, 114 balanced fence markers, 40 Mermaid sources, JSON and both JavaScript blocks, and deterministic rebuild identity. Six content files were atomically published at 00d6263160fa36b0b39572bf4e0ca21e7125cd14 with an expected-head guard. Standalone javac, live MCP transport/server integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+    "content_commit": "00d6263160fa36b0b39572bf4e0ca21e7125cd14",
+    "next_section": "Rotate fairly to Spring AI/Python Section 9 at editable line 678 / standalone HTML line 796; on the next AI-platform turn process Chapter 10, Authorization, injection and tool side effects",
+    "estimated_next_tokens": 9000,
+    "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 9 pass; no reliable quota percentages were exposed",
+    "canonical_markdown_sha256": "071cbf1fbc081de66f57b294ca216312c79c69489629dca7079872885456902a"
   },
   "system_design_blueprints_intake_checkpoint": {
     "last_processed_at": "2026-10-24T07:29:48-04:00",
@@ -989,5 +989,4 @@
     "estimate_method": "Heuristic only for one bounded AI-platform Chapter 9 pass; no reliable quota percentages were exposed"
   }
 }
-
 
