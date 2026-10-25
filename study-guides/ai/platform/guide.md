@@ -1641,6 +1641,173 @@ java -ea ToolSafetyContracts.java
 
 The new contract checks 27 explicit scenario groups and 10,000 seeded authorization trials. Its stable summary is `SCENARIOS=27|TRIALS=10000|AUDIENCE=BOUND|EVIDENCE=DATA|APPROVAL=FINGERPRINTED|TIMEOUT=UNKNOWN|LEDGER=COMMITTED|BUDGET=EXHAUSTED`.
 
+## 11. Putting RAG and MCP together without unnecessary agents
+
+An agent is a control-flow choice, not a synonym for “uses an LLM” or “calls a tool.” If the product path is known—classify, retrieve one authorized runbook, optionally read live status, assemble evidence, generate, validate—encode that path directly. It is cheaper to test, easier to resume, and has fewer legal transitions. Add bounded model-directed planning only when intermediate results genuinely determine which of several permitted steps is next.
+
+### Requirements and invariants
+
+1. **Start with the smallest explicit plan.** Each state has declared inputs, outputs, failure classes, retry policy, deadline share and allowed successors. A model may fill a typed value without owning the whole transition graph.
+2. **Agentic choice needs a measurable reason.** Use it when the next permitted step cannot be selected from trusted application facts before an intermediate result arrives. “The framework supports agents” and “the prompt is complex” are not requirements.
+3. **Planning never expands authority.** The host still allowlists tools and transitions; each server reauthorizes the exact resource. Retrieved text and tool output may influence a proposal but cannot add a tool, destination, tenant or permission.
+4. **Budgets are host-owned state.** Calls, elapsed time, retries, tokens/cost and output bytes are decremented with checked arithmetic before work begins. Reaching zero is a normal terminal result, not permission to improvise another step.
+5. **Failures are typed before fallback is chosen.** A read-only status timeout may yield an explicitly degraded answer from already authorized evidence. Authentication, tenant-scope and policy failures fail closed. A timed-out mutation remains `UNKNOWN` until its operation record is reconciled.
+6. **Durable state is explicit.** Persist the run ID, current state, configuration revision, evidence identities, remaining budget and side-effect operation records. For a mutation, checkpoint the approved intent before execution and the observed/committed result after it.
+7. **Resume is fenced.** A continuation is valid only for the same tenant, workflow definition, policy/config revision or an explicitly compatible migration, and expected current state. Replaying a stale node against a changed resource must not repeat a side effect.
+8. **Terminal ownership is singular.** Once a run is complete, denied, cancelled or expired, late model/tool results cannot reopen it. Cancellation stops useful work when practical; it does not prove that an external mutation rolled back.
+9. **The trace explains decisions without leaking secrets.** Correlate run and trace IDs across retrieval, model and MCP calls; record stage status, evidence revisions, operation IDs, budget deltas and the released answer class. Do not log bearer tokens, raw sensitive prompts or unrestricted tool payloads.
+10. **Validate the outcome, not just graph completion.** A syntactically complete graph can still disclose the wrong tenant, cite unsupported evidence, hide an unavailable live check or commit the same mutation twice.
+
+### Example 1 — keep a known support path deterministic
+
+An operator asks, “What is the documented payments restart procedure, and is production healthy now?” The application already knows the only valid path. A model can classify the request and draft the answer, but it does not need to invent the workflow.
+
+```mermaid
+flowchart TD
+    Q["Authorized question"] --> C["Classify: procedure + live status"]
+    C --> R["Retrieve runbook revision 7"]
+    R --> S["Read allowed status tool"]
+    S --> E["Assemble typed evidence"]
+    E --> G["Generate bounded answer"]
+    G --> V{"Citations, disclosure and policy pass?"}
+    V -->|yes| O["Release answer"]
+    V -->|no| X["Abstain or route"]
+```
+
+The plan is data-aware without being open-ended:
+
+| State | Trusted input | Output | Allowed next state |
+|---|---|---|---|
+| classify | user intent, authenticated product context | `needsProcedure=true`, `needsLive=true` | retrieve |
+| retrieve | tenant/ACL, active source generation | `runbook:payments@7` | status or assemble |
+| status | fixed read-only tool and remaining deadline | typed health result or timeout | one retry or assemble |
+| assemble | authorized evidence plus typed tool result | evidence envelope | generate |
+| generate | envelope and prompt revision | draft | validate |
+| validate | draft, claims, citations, policy | accepted, degraded or abstained result | complete |
+
+The model cannot jump from `classify` to an arbitrary shell tool, and a runbook sentence cannot add a successor. If the product later adds a second approved status backend, the application can make that explicit rather than delegating destination discovery to the model.
+
+### Example 2 — degrade a read failure without inventing live health
+
+The runbook retrieval succeeds at revision 7. The live status call times out with 620 ms left; policy permits one read retry costing 150 ms. The retry times out too. The correct answer still explains the documented procedure, cites revision 7, and says the live health check was unavailable.
+
+```mermaid
+sequenceDiagram
+    participant H as Host
+    participant R as Retriever
+    participant T as Status tool
+    participant M as Model
+    H->>R: authorized lookup
+    R-->>H: runbook:payments@7
+    H->>T: read status, attempt 1
+    T--xH: timeout
+    H->>T: read status, attempt 2
+    T--xH: timeout
+    H->>M: evidence + liveStatus=UNAVAILABLE
+    M-->>H: procedure + explicit disclosure
+```
+
+The failure matrix prevents unsafe “fallback”:
+
+| Failure | Result | Why |
+|---|---|---|
+| live read times out after bounded retry | `DEGRADED`; disclose unavailable live check | authorized static evidence is still valid |
+| authentication invalid/expired | `DENIED` | there is no authenticated subject to serve |
+| requested document belongs to another tenant | `DENIED` | removing the tenant predicate would violate the requirement |
+| mutating tool response is lost | `UNKNOWN`; reconcile operation record | a timeout does not prove no commit |
+| evidence is missing or conflicts on the requested claim | abstain or route | fluency cannot manufacture authority |
+
+This is deliberately different from a general “try something else” agent loop. The host classifies the error and chooses the only permitted terminal or successor state.
+
+### Example 3 — checkpoint around a consequential side effect
+
+An incident workflow eventually proposes `create_ticket`. Before execution, persist the exact approved intent: tenant, operation ID, canonical fingerprint, expected policy/config revision and current state. After the server commits `INC-1042`, persist the result. If the response is lost, resume by the same business identity and reconcile; do not generate a fresh key.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Proposed
+    Proposed --> Paused: trusted approval required
+    Paused --> IntentRecorded: fingerprint + version match
+    IntentRecorded --> Committed: server stores result
+    Committed --> Complete: host records INC-1042
+    IntentRecorded --> Unknown: caller loses response
+    Unknown --> Complete: status finds INC-1042
+    Unknown --> Paused: status still inconclusive
+```
+
+A safe checkpoint can be represented as immutable application data:
+
+```json
+{
+  "runId": "run-314",
+  "tenant": "tenant-a",
+  "state": "INTENT_RECORDED",
+  "workflowRevision": "support-flow-5",
+  "policyRevision": "policy-22",
+  "operationId": "op-ticket-91",
+  "fingerprint": "sha256:canonical-create-ticket-intent",
+  "remainingBudget": {"calls": 1, "millis": 900, "costUnits": 3},
+  "evidence": ["runbook:payments@7"]
+}
+```
+
+On resume, reject a different tenant, operation fingerprint, expected state or incompatible workflow revision. A persistence library can save state, but it does not decide whether the saved operation is still authorized or semantically replay-safe.
+
+### Example 4 — add a bounded agent only for real data-dependent branching
+
+Suppose an investigation may need one of three read-only tools: deployment status, log summary, or change history. Which read is useful depends on the previous typed result. This is a defensible bounded-agent case, but the model still chooses only among edges admitted by deterministic policy.
+
+```mermaid
+flowchart TD
+    B["Budget: 4 calls, 8 cost units, 3 s"] --> P["Model proposes next read"]
+    P --> A{"Host admits tool, resource and edge?"}
+    A -->|no| D["Deny proposal; do not widen graph"]
+    A -->|yes| T["Server reauthorizes exact resource"]
+    T --> U["Persist typed observation + budget"]
+    U --> C{"Enough evidence or terminal budget?"}
+    C -->|continue| P
+    C -->|stop| V["Generate and validate"]
+```
+
+The planner receives typed observations such as `deployment=HEALTHY` or `logs=UNAVAILABLE`, not authority-bearing prose. It has no mutation tools, cannot revisit more than the declared cap, and cannot turn a timeout into permission to query another tenant. If a later step needs a consequential action, the run exits the read graph and enters a separately approved workflow.
+
+### Worked trace — the source failure sequence made operational
+
+| Step | Remaining calls | Remaining ms | Durable/trace event | Decision |
+|---:|---:|---:|---|---|
+| 0 | 7 | 1,000 | `run-314`, `atlas-r18`, tenant `a` | admit known plan |
+| 1 | 6 | 990 | `CLASSIFY=OK` | procedure + live status |
+| 2 | 5 | 970 | `RETRIEVE=OK`, `runbook:payments@7` | evidence is authorized |
+| 3 | 4 | 870 | `STATUS=TIMEOUT`, attempt 1 | retry allowed |
+| 4 | 3 | 770 | `STATUS=TIMEOUT`, attempt 2 | retry cap reached |
+| 5 | 2 | 760 | `ASSEMBLE=EVIDENCE_ONLY` | mark live unavailable |
+| 6 | 1 | 740 | `GENERATE=OK` | answer from revision 7 |
+| 7 | 0 | 730 | `VALIDATE=ACCEPT_WITH_DISCLOSURE` | release degraded answer |
+
+The final trace is useful because it preserves stage outcomes and exact evidence identity. A single `agent_error=true` counter would hide whether retrieval failed, the status dependency timed out, policy denied the request, or validation rejected an unsupported claim.
+
+## Executable orchestration contract
+
+[`OrchestrationContracts.java`](OrchestrationContracts.java) models deterministic-first selection, an explicit transition graph, host-owned budgets, typed degradation, fail-closed authorization, before/after mutation checkpoints, operation reconciliation and correlated safe stage events.
+
+Run all eleven AI-platform contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+java -ea ContextGroundingContracts.java
+java -ea EvaluationGateContracts.java
+java -ea CacheLatencyCostContracts.java
+java -ea McpArchitectureContracts.java
+java -ea ToolSafetyContracts.java
+java -ea OrchestrationContracts.java
+```
+
+The new contract checks 29 explicit scenario groups and 10,000 seeded planner-oracle trials. Its stable summary is `SCENARIOS=29|TRIALS=10000|PLAN=DETERMINISTIC_FIRST|DEGRADE=DISCLOSED|AUTH=FAIL_CLOSED|MUTATION=RECONCILE|CHECKPOINT=BEFORE_AND_AFTER|TRACE=CORRELATED`.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -1689,6 +1856,10 @@ The new contract checks 27 explicit scenario groups and 10,000 seeded authorizat
 | “The user approved rollback” | Approval survives changed arguments or newer state | Bind approval to a canonical action fingerprint and enforce a version fence |
 | “The mutation timed out, so retry it” | No response proves no commit | Reuse the operation key and reconcile the durable status before any new action |
 | “The tool annotation says read-only” | Descriptive metadata constrains backend behavior | Enforce permissions, schemas, destinations and budgets independently |
+| “It uses an LLM, so it needs an agent” | Probabilistic content requires probabilistic control flow | Encode known transitions directly; add bounded planning only for genuine intermediate-result choice |
+| “The graph checkpointed, so resume is safe” | Persistence preserves authorization and semantic replay safety | Fence tenant, state, workflow/policy revision and operation fingerprint before resuming |
+| “Status failed, so give the best guess” | Every fallback is safer than failure | Degrade only from still-authoritative evidence and disclose the missing live fact; fail closed on auth/scope |
+| “Graph complete means task correct” | Reaching a terminal node proves citations, scope and side effects | Validate the released outcome and preserve stage-specific evidence |
 
 ## Primary references
 
@@ -1728,13 +1899,17 @@ The new contract checks 27 explicit scenario groups and 10,000 seeded authorizat
 - IETF, [RFC 8707: Resource Indicators for OAuth 2.0](https://www.rfc-editor.org/rfc/rfc8707) and [RFC 9700: Best Current Practice for OAuth 2.0 Security](https://www.rfc-editor.org/rfc/rfc9700) — explicit protected-resource identity and audience-restricted access tokens (accessed 2026-10-25).
 - OWASP Cheat Sheet Series, [LLM Prompt Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html), [AI Agent Security](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html), [MCP Security](https://cheatsheetseries.owasp.org/cheatsheets/MCP_Security_Cheat_Sheet.html), and [RAG Security](https://cheatsheetseries.owasp.org/cheatsheets/RAG_Security_Cheat_Sheet.html) — untrusted external content, deterministic tool gates, least privilege, explicit approval and fail-closed behavior (accessed 2026-10-25).
 - Amazon Builders' Library, [Making retries safe with idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) — stable client request identity, semantic equivalence and reconcilable duplicate outcomes (accessed 2026-10-25).
+- LangGraph, [overview](https://docs.langchain.com/oss/python/langgraph/overview), [persistence](https://docs.langchain.com/oss/python/langgraph/persistence), and [interrupts](https://docs.langchain.com/oss/python/langgraph/interrupts) — deterministic and agentic steps can share a graph, while checkpoints, thread identity and explicit resume input support durable human-in-the-loop execution (accessed 2026-10-25).
+- OpenTelemetry, [context propagation](https://opentelemetry.io/docs/concepts/context-propagation/) and [traces](https://opentelemetry.io/docs/concepts/signals/traces/) — propagated trace context correlates causal work across process and service boundaries; correlation is observability, not authorization (accessed 2026-10-25).
+- Model Context Protocol `2026-07-28`, [cancellation](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/cancellation) and [transport cancellation](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) — request cancellation is explicit and transport-specific; it does not supply application rollback semantics (accessed 2026-10-25).
+- Amazon Builders' Library, [Timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/) and [Challenges with distributed systems](https://aws.amazon.com/builders-library/challenges-with-distributed-systems/) — bounded retries, retry amplification, and the rule that an unobserved response leaves an outcome unknown (accessed 2026-10-25).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–10, through `Authorization, injection and tool side effects`, bounded by Chapter 11.
+- Processed range: Chapters 1–11, through `Putting RAG and MCP together without unnecessary agents`, bounded by Chapter 12.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
@@ -1744,7 +1919,8 @@ The new contract checks 27 explicit scenario groups and 10,000 seeded authorizat
 - Chapter 8 source comparison: selected master lines 249–259 and editable companion lines 291–309 agree on cache identity/invalidation, the illustrative ten-second deadline, retry/backoff/cancellation bounds, and complete cost accounting; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 9 source comparison: selected master lines 260–377 and editable companion lines 311–414 agree on host/client/server/model boundaries, tool/resource/prompt discovery, explicitly separate modern and legacy protocol eras, current HTTP request metadata, request correlation, and stdio versus Streamable HTTP; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 10 source comparison: selected master lines 388–398 and editable companion lines 415–433 agree on token/resource authorization, object ownership, prompt-injection containment, least tool exposure, explicit approval, idempotency, uncertain outcomes, version-fenced compensation, bounded execution and redacted audit fields; the companion was used for editable structure, not promoted as a duplicate guide.
-- Next bounded section: Chapter 11, `Observability and operations`, after fair domain rotation.
+- Chapter 11 source comparison: selected master lines 399–411 and editable companion lines 435–449 agree on deterministic-first orchestration, using an agent only for intermediate-result-driven choice, explicit durable state around side effects, bounded read retry, disclosed degradation, and fail-closed authorization/tenant isolation; the checkpoint's prior `Observability and operations` label was reconciled to the sources' actual heading rather than deepening the wrong topic.
+- Next bounded section: Chapter 12, `Managed services and independent stacks`, after fair domain rotation.
 
 
 

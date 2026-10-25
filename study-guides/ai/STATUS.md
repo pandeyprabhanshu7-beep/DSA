@@ -4,7 +4,7 @@ Last updated: 2026-10-25.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapters 1–10 complete**.
+State: **PROMOTED incrementally; Chapters 1–11 complete**.
 
 Canonical pair:
 
@@ -35,8 +35,10 @@ Source comparison:
 - Deepened Chapter 9 with four ownership/discovery/cancellation/transport examples, four diagrams, current primary references, and an executable Java 17 contract for modern metadata, capability admission, model/host/server authority composition, separately gated legacy lifecycle, request correlation, transport cancellation, and terminal-state ownership, plus 10,000 seeded trials.
 - Compared Chapter 10 in selected master lines 388–398 and editable companion lines 415–433; both cover token/resource authorization, object ownership, prompt-injection containment, least tool exposure, explicit approval, idempotency, uncertain outcomes, version-fenced compensation, bounded execution and redacted audit fields, so no duplicate guide was created.
 - Deepened Chapter 10 with four authorization/injection/approval/idempotency examples, four diagrams, current primary references, and an executable Java 17 contract for exact issuer/audience/scope and resource checks, fixed destinations, approval fingerprints, version fences, durable operation reconciliation and bounded execution, plus 10,000 seeded authorization trials.
+- Reconciled the queued `Observability and operations` label against both confirmed sources: selected master lines 399–411 and editable companion lines 435–449 identify Chapter 11 as `Putting RAG and MCP together without unnecessary agents`, ending before Chapter 12. No duplicate or off-sequence topic was promoted.
+- Deepened Chapter 11 with four deterministic/degradation/checkpoint/bounded-agent examples, four diagrams, an exact budgeted failure trace, current primary references, and an executable Java 17 contract for deterministic-first plan selection, typed failures, explicit transitions, fenced side-effect state, safe correlated events and 10,000 seeded planner-oracle trials.
 
-Next bounded section: Chapter 11, **Observability and operations**, after fair domain rotation.
+Next bounded section: Chapter 12, **Managed services and independent stacks**, after fair domain rotation.
 
 ## AI foundations, RAG and CAG
 
@@ -64,7 +66,7 @@ Validation is recorded in the enrichment queue and the promotion commit.
 Next action:
 
 1. Rotate fairly after this AI-platform pass.
-2. On the next AI-platform pass, process Chapter 11 only.
+2. On the next AI-platform pass, process Chapter 12 only.
 3. On a later AI-foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment.
 4. Keep project source code in the existing Spring Boot AI repositories; this repository holds learning documentation only.
 

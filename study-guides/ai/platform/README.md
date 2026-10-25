@@ -12,7 +12,8 @@
 - [Executable Java 17 cache/latency/cost contract](CacheLatencyCostContracts.java)
 - [Executable Java 17 MCP architecture contract](McpArchitectureContracts.java)
 - [Executable Java 17 authorization/tool-safety contract](ToolSafetyContracts.java)
+- [Executable Java 17 orchestration contract](OrchestrationContracts.java)
 
-This is an incremental canonical guide. Chapters 1–10 are promoted; Chapter 11 is the next bounded AI-platform source section after fair domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
+This is an incremental canonical guide. Chapters 1–11 are promoted; Chapter 12 is the next bounded AI-platform source section after fair domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
 
 
