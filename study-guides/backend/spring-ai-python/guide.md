@@ -1978,3 +1978,192 @@ Verified on 25 October 2026:
 ### Source provenance and continuation
 
 The selected editable bundle member's Section 10 is source lines 716–783; Section 11 begins at line 785. The matching standalone HTML is lines 825–881; Section 11 begins at line 882. Both sources contain the same Python v2 server, synthetic deployment-status contract, revisioned runbook resource, Spring `@McpTool` example, unauthenticated-by-default HTTP warning and local-callback-versus-MCP distinction. This canonical section retains that substance while adding boundary-selection rules, trusted caller/object checks, delivered-shape and transport admission, four worked examples, four diagrams and paired executable contracts. Section 11, **Streaming, concurrency and cancellation**, begins at editable source line 785 / standalone HTML line 882. Sections 11–25 remain queued; the source is not complete.
+
+## 11. Streaming, concurrency and cancellation: make partial delivery an explicit state machine
+
+Streaming changes latency and failure shape; it does not turn fragments into a validated answer. A Spring AI `Flux<String>` or an asynchronous Python generator may emit arbitrary chunks: half a word, part of a JSON string, a tool-call delta or provider metadata. Treat every delta as provisional until the stream ends and the application has run the same citation, authorization and business checks required for a nonstreaming answer.
+
+### Requirements and invariants
+
+1. **Choose the least powerful transport that fits.** Use SSE for authenticated server-to-client text events when ordinary HTTP request/response semantics are enough. Use WebSocket only when the application needs ongoing client-to-server messages, binary messages or an application protocol that cannot be represented cleanly as separate HTTP requests.
+2. **Define an application protocol.** Every event or message needs a type, request ID, monotonically ordered sequence within that request and a terminal outcome. TCP order does not define what `delta`, `final`, `cancelled` or `error` means.
+3. **Bound every queue and lifetime.** Limit admitted streams, pending outbound frames, event/message size, total output, idle time and the end-to-end deadline. A reactive type or `async def` does not create provider quota, memory or database capacity.
+4. **Make replay truthful.** An SSE `id` is a replay cursor only if events are retained durably for a documented window. Validate `Last-Event-ID`; replay the missing interval, return an explicit reset when it has expired, and never silently present a gap as continuous output.
+5. **Separate provisional and final.** The client may render low-risk deltas as provisional, but only a terminal event produced after validation may say `complete`. Structured or high-risk output should be buffered until it passes its whole-object checks.
+6. **Cancellation is cooperative and observable.** Stop local work, cancel upstream where the client/provider supports it, release permits exactly once and record `abandoned`. A disconnect does not prove that a tool call or other side effect rolled back.
+7. **Authenticate before opening; authorize every operation.** A successful WebSocket handshake is not authorization for every later message. SSE reconnect and WebSocket resume must remain bound to the same principal, tenant and request object. Do not put bearer tokens in URLs.
+8. **Design for intermediaries.** Configure proxy buffering, idle timeouts and heartbeats deliberately. A heartbeat proves only that some path was live recently; it is not an answer, an acknowledgement of a business operation or proof that the provider stopped.
+
+### Example 1 — choose SSE for one-way deltas and frame every event
+
+An answer endpoint receives one prompt and sends progress, token and terminal events. The client does not need to send commands on the same connection, so SSE preserves ordinary HTTP admission and reconnect semantics without inventing a duplex protocol.
+
+```mermaid
+flowchart TD
+    R["Streaming requirement"] --> C{"Client sends messages while open?"}
+    C -->|no| B{"Text server events over HTTP?"}
+    B -->|yes| S["SSE + typed events"]
+    B -->|no| H["Ordinary HTTP or file stream"]
+    C -->|yes| W["WebSocket + application protocol"]
+    W --> Q["Bounded outbound queue"]
+```
+
+The wire format is a sequence of UTF-8 fields terminated by a blank line. Multiline payloads require one `data:` field per logical line; raw user text must not be concatenated into the `event:` or `id:` fields.
+
+```text
+event: delta
+id: 42
+data: {"requestId":"r-17","sequence":42,"text":"partial"}
+
+event: final
+id: 43
+data: {"requestId":"r-17","sequence":43,"status":"validated"}
+
+```
+
+A WebFlux controller can return `Flux<ServerSentEvent<StreamEvent>>` and declare `text/event-stream`. Keep transport mapping thin: admission, tenant policy, replay lookup and final validation belong to explicit services. Spring AI provides the chunk source:
+
+```java
+Flux<String> chunks = chatClient.prompt().user(question).stream().content();
+
+return chunks
+    .index()
+    .map(item -> ServerSentEvent.<StreamEvent>builder()
+        .event("delta")
+        .id(Long.toString(item.getT1() + 1))
+        .data(StreamEvent.delta(requestId, item.getT1() + 1, item.getT2()))
+        .build())
+    .doOnCancel(() -> lifecycle.abandon(requestId));
+```
+
+That sketch shows event mapping, not a durable replay ledger. If the service cannot replay event `42` after a reconnect, it must not imply that the ID is a durable resume contract. In current FastAPI, `EventSourceResponse` and `ServerSentEvent` provide SSE-aware framing; a generic `StreamingResponse` streams iterator bytes but leaves the event protocol to the application. In either framework, a producer must reach cancellation points and must not block its event-loop thread with synchronous provider calls or CPU-heavy parsing.
+
+### Example 2 — reconnect by cursor, or reset visibly
+
+Suppose request `r-17` retained events 40–57. The browser reconnects with `Last-Event-ID: 43`. After authenticating and checking ownership of `r-17`, the server replays 44–57 and then follows the live tail. A cursor of 12 is outside the retention window, so the server returns a typed reset instead of silently jumping to 58.
+
+```mermaid
+sequenceDiagram
+    participant U as EventSource client
+    participant A as SSE endpoint
+    participant L as Event ledger
+    participant G as Generation
+    U->>A: GET r-17 + Last-Event-ID 43
+    A->>A: authenticate + authorize request
+    A->>L: read 44 through latest
+    L-->>A: events 44..57
+    A-->>U: replay 44..57
+    G-->>A: event 58
+    A->>L: append 58
+    A-->>U: live event 58
+```
+
+| Cursor | Retained window | Outcome | Why |
+|---:|---:|---|---|
+| absent | 40–57 | start the documented live/new-request behavior | there is no replay claim |
+| 43 | 40–57 | replay 44–57, then follow live | the complete suffix exists |
+| 57 | 40–57 | follow live | client already has the latest retained event |
+| 12 | 40–57 | `reset_required` | the missing interval is gone |
+| `43x` | 40–57 | reject the cursor | cursors are untrusted input |
+
+An ID orders events only inside the application contract that issued it. Do not compare IDs from different requests or tenants. Retain terminal events long enough for the documented reconnect window, and make the final event self-describing so a reconnecting client can distinguish `validated`, `invalid`, `incomplete` and `abandoned`.
+
+### Example 3 — use WebSocket for duplex control, with a bounded queue
+
+A collaborative client needs to start a request, acknowledge rendered output and cancel generation without opening separate HTTP requests. WebSocket fits, but the protocol still needs exact schemas and state transitions.
+
+```json
+{"type":"start","requestId":"r-22","prompt":"...","deadlineMs":20000}
+{"type":"ack","requestId":"r-22","sequence":18}
+{"type":"cancel","requestId":"r-22","reason":"user"}
+```
+
+Server messages use a disjoint set such as `accepted`, `delta`, `final`, `error` and `cancelled`. Validate maximum message bytes, exact fields, request ownership and the legal state for every message. A second `start` with an active `requestId` is a protocol error, not a second hidden generation.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant W as WebSocket handler
+    participant Q as Queue max 32
+    participant P as Provider
+    C->>W: start r-22
+    W->>W: authorize + admit
+    W->>P: begin with deadline
+    P-->>Q: delta sequence 1
+    Q-->>C: delta sequence 1
+    C->>W: cancel r-22
+    W->>P: cooperative cancel
+    W-->>C: cancelled or terminal error
+```
+
+Backpressure is not “keep appending to a list until the browser catches up.” Give each connection a bounded outbound queue. If it is full, the contract pair in this repository rejects the new frame and closes with registered code `1013` (`Try Again Later`). Other policies are possible—drop only explicitly lossy telemetry or coalesce replaceable progress—but never drop answer deltas and still claim a complete answer.
+
+Reactive Streams demand can bound compatible upstream publishers. It cannot force a remote model provider, socket callback or blocking library to honor demand. Bridge such producers through a documented bounded buffer and overflow policy. Similarly, `asyncio.Queue(maxsize=n)` is useful only if producers await `put()` or handle overload; `put_nowait()` plus an unbounded retry list just moves the leak.
+
+### Example 4 — cancel locally, reconcile effects, and release only a validated final
+
+The client closes after seeing five deltas. The server should cancel its subscription/task, attempt provider cancellation where supported, release the stream permit exactly once and record an `abandoned` terminal outcome. It must not infer that an already-started tool side effect was undone.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Admitted
+    Admitted --> Streaming
+    Streaming --> Provisional: delta
+    Provisional --> Provisional: more deltas
+    Provisional --> ValidatedFinal: end + all gates pass
+    Provisional --> InvalidFinal: end + gate fails
+    Provisional --> Incomplete: deadline or budget
+    Provisional --> Abandoned: disconnect or cancel
+    ValidatedFinal --> [*]
+    InvalidFinal --> [*]
+    Incomplete --> [*]
+    Abandoned --> Reconcile: inspect side-effect keys
+    Reconcile --> [*]
+```
+
+For Python, cancellation is delivered at an `await`. Cleanup may catch `asyncio.CancelledError`, but it should normally re-raise it after releasing local resources; swallowing it can break `TaskGroup` and timeout semantics. For Reactor, attach cancellation/termination cleanup deliberately and keep blocking JDBC, synchronous SDK calls and CPU-heavy work off event-loop threads. Virtual threads can make suitable blocking Java code cheaper to schedule, but they do not raise provider quotas or database pool size.
+
+The visible completion rules are precise:
+
+| Observed state | Client-visible terminal status | Side-effect conclusion |
+|---|---|---|
+| stream still open after deltas | `provisional` | none |
+| upstream ended; citations and business checks pass | `validated` | report only recorded effects |
+| upstream ended; a final gate fails | `invalid` | do not relabel deltas as a valid answer |
+| deadline/token/output budget exceeded | `incomplete` | reconcile any issued idempotency keys |
+| disconnect or explicit cancellation | `abandoned` | unknown until reconciled |
+
+A deadline covers queue wait, retrieval, tools, provider generation and final validation. Heartbeats may keep an idle connection observable, but they do not extend that business deadline. Track at least admitted, active, queue wait, first-event latency, terminal outcome, abandoned work, overflow and upstream-cancel acknowledgement with bounded metric labels.
+
+### Paired executable contract
+
+The dependency-free pair models transport selection, safe SSE framing, replay windows, bounded WebSocket queues, provisional/final states and the fact that disconnect does not prove rollback:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/StreamingTransportContracts.java
+python3 study-guides/backend/spring-ai-python/streaming_transport_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|ONE_WAY=SSE|DUPLEX=WEBSOCKET|RESUME=REPLAY|OVERFLOW=CLOSE_1013|DISCONNECT=ABANDONED|FINAL=VALIDATED|ACCEPTED=3439
+```
+
+Each implementation passes 36 explicit scenario groups and 10,000 seeded queue-admission trials. These pure contracts do not start Spring Boot or FastAPI, open sockets, authenticate a proxy, call a live model, prove provider-side cancellation, load-test concurrency, render a browser client or verify a production replay store. Those require framework and integration environments and must not be inferred from source-file execution.
+
+### Current primary references
+
+Verified on 25 October 2026:
+
+- [Spring AI `ChatClient`](https://docs.spring.io/spring-ai/reference/api/chatclient.html) and [Chat Model](https://docs.spring.io/spring-ai/reference/api/chatmodel.html) — synchronous/streaming APIs, `Flux` responses and the distinction between chunks and aggregated responses.
+- Spring Framework, [WebFlux controller return values](https://docs.spring.io/spring-framework/reference/web/webflux/controller/ann-methods/return-types.html), [WebFlux overview](https://docs.spring.io/spring-framework/reference/web/webflux.html) and [WebSocket support](https://docs.spring.io/spring-framework/reference/web/webflux-websocket.html) — `Flux<ServerSentEvent>`, `text/event-stream`, Reactive Streams backpressure and full-duplex WebSocket handling.
+- [FastAPI SSE](https://fastapi.tiangolo.com/tutorial/server-sent-events/), [streaming responses](https://fastapi.tiangolo.com/advanced/custom-response/) and [WebSockets](https://fastapi.tiangolo.com/advanced/websockets/) — SSE field framing, generator cancellation points and WebSocket accept/send/receive/disconnect handling.
+- WHATWG HTML, [server-sent events](https://html.spec.whatwg.org/dev/server-sent-events.html) — `text/event-stream`, event grammar, IDs, reconnect behavior and `Last-Event-ID`.
+- IETF [RFC 6455](https://www.rfc-editor.org/rfc/rfc6455.html) and the [IANA WebSocket registries](https://www.iana.org/assignments/websocket) — opening/closing behavior, control frames and registered close code `1013`.
+- Project Reactor, [backpressure](https://projectreactor.io/docs/core/release/reference/subscribe-backpressure.html) and [programmatic sequence cleanup](https://projectreactor.io/docs/core/release/reference/coreFeatures/programmatically-creating-sequence.html) — demand propagation, cancellation and disposal callbacks.
+- Python, [`asyncio` tasks and cancellation](https://docs.python.org/3/library/asyncio-task.html) — cancellation at suspension points, `CancelledError`, timeouts and structured-concurrency behavior.
+
+### Source provenance and continuation
+
+The selected editable bundle member's Section 11 is source lines 785–814; Section 12 begins at line 816. The matching standalone HTML is lines 882–901; Section 12 begins at line 902. Both sources contain the same request-budget diagram, Spring AI `Flux<String>` and ASGI-generator boundary, provisional-display warning, cancellation propagation, WebFlux blocking caveat, Python cooperative-async caveat and measured view of the GIL. This canonical section retains that substance while adding SSE-versus-WebSocket selection, exact event framing, authenticated replay cursors, bounded queues and overflow, terminal-state semantics, four worked examples, four diagrams and paired executable contracts. Section 12, **More Python AI: embeddings, reranking and classical ML**, begins at editable source line 816 / standalone HTML line 902. Sections 12–25 remain queued; the source is not complete.

@@ -4,7 +4,7 @@ Last updated: 2026-10-25.
 
 ## Spring AI and Python APIs
 
-State: **IN PROGRESS; Sections 1–10 promoted**.
+State: **IN PROGRESS; Sections 1–11 promoted**.
 
 Canonical pair:
 
@@ -15,7 +15,7 @@ Source comparison:
 
 - Selected `atlas_guides/spring_ai_python_api_interview_guide.md` from `ai_cicd_spring_python_guides_complete.zip`, bundle SHA-256 `c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31`, member SHA-256 `af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553`.
 - Compared standalone `spring_ai_python_api_interview_guide.html`, SHA-256 `6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3`; it is byte-identical to the generated HTML inside the bundle, so it was not promoted as a duplicate source.
-- Section 10 is exactly editable-source lines 716–783 and standalone-HTML lines 825–881, ending before Section 11 at respective lines 785 and 882.
+- Section 11 is exactly editable-source lines 785–814 and standalone-HTML lines 882–901, ending before Section 12 at respective lines 816 and 902.
 - The ZIP passed integrity and path-traversal checks.
 
 Completed sections:
@@ -30,12 +30,13 @@ Completed sections:
 8. **Replacing in-memory vectors with durable retrieval** (source lines 621–677) — generation-safe cutover, fixed vector identity, scoped parameterized retrieval, exact-versus-ANN recall gates, pool/deadline ownership, four diagrams and paired 34-scenario/10,000-trial contracts.
 9. **Structured outputs: validate syntax, shape and business meaning** (source lines 678–714) — strict duplicate-aware parsing, exact schemas, server-owned provenance, request-specific service/evidence checks, bounded repair, four diagrams and paired 36-scenario/10,000-trial contracts.
 10. **MCP implementations in Python and Java** (source lines 716–783) — local-callback-versus-MCP selection, exact tool schemas, synthetic/live provenance, revisioned resources, trusted scope/tenant checks, stdio/HTTP admission, nonauthoritative hints, four diagrams and paired 32-scenario/10,000-trial contracts.
+11. **Streaming, concurrency and cancellation** (source lines 785–814) — SSE-versus-WebSocket selection, exact event framing, authenticated replay cursors, bounded queues and overflow, provisional/final terminal states, cooperative cancellation and side-effect reconciliation, four diagrams and paired 36-scenario/10,000-trial contracts.
 
 Validation:
 
-- Java 17 source-file launch and Python 3 passed every paired contract; Section 10 produced the identical `PARITY|LOCAL=CALLBACK|REMOTE=MCP_TOOL|RESOURCE=runbook://payments/7|FIXTURE=NONLIVE|HTTP=AUTH_REQUIRED|HINT=NONAUTH|ALLOWED=2456` trace, 32 scenario groups and 10,000 seeded trials per language.
+- Java 17 source-file launch and Python 3 passed every paired contract; Section 11 produced the identical `PARITY|ONE_WAY=SSE|DUPLEX=WEBSOCKET|RESUME=REPLAY|OVERFLOW=CLOSE_1013|DISCONNECT=ABANDONED|FINAL=VALIDATED|ACCEPTED=3439` trace, 36 scenario groups and 10,000 seeded trials per language.
 - Deterministic reader generation, exact embedded-Markdown recovery, hashes, unique IDs, search entries, balanced fences, Mermaid sources, local links/fragments, JSON, reader JavaScript and rebuild identity were validated after the content change.
 - The live literal DSA Java-marker audit remains 170.
 - Standalone `javac`, framework/native dependency compilation, live model/provider calls, browser/accessibility integration, pool/load tests and rendered Mermaid QA were unavailable and are not represented as passes.
 
-Next action: rotate fairly to Arrays Section 4 problem 10, **Trapping Rain Water**, beginning at Markdown line 1093 / DOCX parsed-text line 730. On the next Spring/Python turn, process Section 11, **Streaming, concurrency and cancellation**, beginning at editable source line 785 / standalone HTML line 882. Do not imply the 25-section source is complete.
+Next action: rotate fairly to Arrays Section 4 problem 11, **Minimum Size Subarray Sum**, beginning at Markdown line 1207 / DOCX parsed-text line 819. On the next Spring/Python turn, process Section 12, **More Python AI: embeddings, reranking and classical ML**, beginning at editable source line 816 / standalone HTML line 902. Do not imply the 25-section source is complete.
