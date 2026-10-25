@@ -13,7 +13,8 @@
 - [Executable Java 17 MCP architecture contract](McpArchitectureContracts.java)
 - [Executable Java 17 authorization/tool-safety contract](ToolSafetyContracts.java)
 - [Executable Java 17 orchestration contract](OrchestrationContracts.java)
+- [Executable Java 17 stack-selection/migration contract](StackSelectionContracts.java)
 
-This is an incremental canonical guide. Chapters 1–11 are promoted; Chapter 12 is the next bounded AI-platform source section after fair domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
+This is an incremental canonical guide. Chapters 1–12 are promoted; Chapter 13 is the next bounded AI-platform source section after fair domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
 
 

@@ -1,6 +1,6 @@
 # AI Platform Engineering
 
-> Canonical incremental guide. This pass has processed source Chapters 1–10. Later source chapters remain queued.
+> Canonical incremental guide. Source Chapters 1–12 are processed. Later source chapters remain queued.
 
 ## 1. Choose prompting, RAG, fine-tuning, and tools by authority
 
@@ -1808,6 +1808,149 @@ java -ea OrchestrationContracts.java
 
 The new contract checks 29 explicit scenario groups and 10,000 seeded planner-oracle trials. Its stable summary is `SCENARIOS=29|TRIALS=10000|PLAN=DETERMINISTIC_FIRST|DEGRADE=DISCLOSED|AUTH=FAIL_CLOSED|MUTATION=RECONCILE|CHECKPOINT=BEFORE_AND_AFTER|TRACE=CORRELATED`.
 
+## 12. Managed services and independent stacks
+
+“Managed” and “independent” describe who operates each layer; they do not decide whether an architecture is secure, accurate, portable, or economical. A managed retrieval service can own index availability while the product team still owns source correctness, identity, authorization, evaluation, deletion semantics, and the released answer. An independent stack makes infrastructure ownership explicit as well. Choose by qualifying hard requirements against one reproducible workload, then compare useful outcomes and operational burden.
+
+```mermaid
+flowchart TD
+    W["Versioned workload + hard requirements"] --> Q{"Candidate qualifies?"}
+    Q -->|no| X["Reject; do not average hard failures"]
+    Q -->|yes| E["Same corpus, ACLs, query slices, concurrency"]
+    E --> M["Quality + latency + recovery + total cost"]
+    M --> D["Recorded decision and exit plan"]
+```
+
+### Requirements and invariants
+
+1. **Define the workload before naming a vendor or component.** Version the corpus, query set and slices, tenant/ACL fixtures, update and deletion events, concurrency profile, regions, model/embedding identities, and latency/availability objectives.
+2. **Hard constraints qualify; soft measures rank.** Region/data-residency, private connectivity, tenant filtering, deletion proof, exportability, and required telemetry are pass/fail. Do not let a cheap average compensate for a missing authorization or deletion capability.
+3. **Management never transfers application authority.** The product still derives identity from authenticated context, authorizes documents and actions, validates citations and claims, publishes source revisions, and proves revocation. Provider filters are useful enforcement mechanisms, not the source of truth.
+4. **Record ownership per failure domain.** For ingestion, index, model serving, network, keys, quotas, backups, patching, recovery, source quality, policy, evaluation, and incident response, name the provider/team owner and the evidence used to verify the boundary.
+5. **Compare like with like.** Run the same canonical corpus, chunk/embedding specification, ACL fixtures, query judgments, update/delete sequence, warm-up, concurrency and measurement window. If a candidate forces a different design, report the difference instead of calling the scores directly comparable.
+6. **Measure user outcomes and tail behavior.** Report retrieval recall by critical slice, supported-answer acceptance and abstention, p50/p95/p99 latency, time to first token where relevant, error/degradation rate, recovery time, operator hours, and cost per accepted supported answer.
+7. **Capacity and filtered recall remain empirical.** A self-hosted model server needs queue, accelerator and recovery headroom. Approximate vector search under selective tenant filters can under-fill or lose recall; compare it with an exact, identically scoped oracle.
+8. **Portability means portable assets and semantics.** Preserve canonical documents, immutable revisions, metadata/ACL schema, evaluation cases, prompt/config identities, operation records and exports. Do not pretend provider APIs, ranking behavior, model availability or regional features are identical.
+9. **Availability features must preserve policy.** A cross-region managed fallback or independent failover is eligible only if identity, tenant scope, data residency, model/config revision, tombstones, quotas, audit and response validation remain compatible.
+10. **Migrate as a reversible release.** Backfill and dual-write, shadow with no user-visible authority, compare critical slices and deletion/revocation, canary, then guarded cutover. Retain a tested rollback until the new path is authoritative and reconciled.
+
+### Example 1 — managed retrieval still leaves policy with the product
+
+A support assistant has two million chunks, strict tenant ACLs, a four-second p95 objective and a small operations team. A managed knowledge/retrieval service is attractive because it can operate ingestion, storage/index integration and retrieval capacity. The application still supplies trusted tenant scope, checks the returned document identities against authoritative ACL and active-revision state, and sends only eligible text to generation.
+
+```mermaid
+sequenceDiagram
+    participant U as Authenticated client
+    participant A as Product application
+    participant K as Managed knowledge service
+    participant M as Model endpoint
+    U->>A: question + session
+    A->>A: derive tenant and ACL scope
+    A->>K: query + eligible scope + corpus revision
+    K-->>A: ranked IDs and passages
+    A->>A: recheck ACL, tombstone, revision
+    A->>M: bounded authorized evidence
+    M-->>A: draft with citation IDs
+    A-->>U: validated answer or abstention
+```
+
+| Boundary | Service may manage | Product team must prove |
+|---|---|---|
+| ingestion/index | jobs, storage integration, index capacity | accepted source revision, parse/chunk policy, complete publication |
+| retrieval | candidate generation, ranking features, scaling | trusted scope, filtered recall, active revision, bounded evidence |
+| model access | endpoint capacity and provider controls | prompt/evidence policy, citation support, release validation |
+| deletion | deletion API/job execution | monotonic tombstone, cache suppression, eventual derived-data cleanup |
+
+Trace a revocation rather than trusting a feature label: at `10:00` ACL epoch 12 allows `doc-7`; at `10:01` authority advances to 13 and denies it; at `10:01:01` a cached service result still contains `doc-7`; the application recheck suppresses it; the asynchronous delete/index job later removes the derived copy. The managed component reduced operational work, but the product's immediate denial did not depend on that job finishing.
+
+### Example 2 — independent stack buys control and the team owns recovery
+
+A regulated workload must remain in one approved region and already has PostgreSQL authority data. The team selects PostgreSQL/pgvector for retrieval, a Sentence Transformers bi-encoder and reranker, and vLLM for model serving. This can make schema, filters, model revisions and network placement inspectable, but the team now owns patching, index maintenance, accelerator scheduling, saturation, backups, restore tests and failover.
+
+For a measured peak of 30 requests/second and 2,000 ms service time, Little's-law-style in-flight demand is `30 × 2 = 60`. A declared 2.0 safety factor yields **120 concurrent slots**. This is an admission estimate, not proof of throughput: load-test the actual prompt lengths, batching, token rates, queue discipline and failure recovery. `StackSelectionContracts.requiredConcurrency(30, 2000, 200)` performs the same unit-safe, overflow-checked calculation.
+
+```mermaid
+flowchart TD
+    A["Application: identity, policy, evidence"] --> P["PostgreSQL + pgvector"]
+    A --> R["Reranker"]
+    A --> V["vLLM model serving"]
+    P --> O["Team operations: patch, backup, recall, recovery"]
+    R --> O
+    V --> O
+    O --> S{"SLO and policy evidence pass?"}
+    S -->|no| B["Block release or shed load"]
+    S -->|yes| C["Admit bounded traffic"]
+```
+
+Filtered approximate retrieval needs its own gate. pgvector documents that approximate-index filtering can occur after the index scan and may return too few results; iterative scans, larger search settings, partial indexes or partitioning can help. None justifies dropping the tenant predicate. vLLM exposes serving and request metrics, but those do not prove document authorization or complete a RAG application.
+
+### Example 3 — a reproducible bake-off changes the cost conclusion
+
+Create `support-eval@42`: 1,000 labeled queries with ordinary, rare-code, revoked-document, cross-tenant, stale-revision and abstention slices; the same two-million-chunk snapshot; the same ACL fixtures; an update/delete sequence; 120 concurrent requests; and a 30-day cost/operations window. Warm each candidate using a declared procedure, randomize case order, repeat runs, and retain per-case outputs and traces.
+
+| Gate/measure | Managed A | Independent B | Decision use |
+|---|---:|---:|---|
+| critical-slice recall | 0.94 | 0.96 | both pass floor 0.90 |
+| accepted supported-answer rate | 0.82 | 0.80 | both pass floor 0.78 |
+| p95 end-to-end latency | 2.7 s | 2.2 s | both pass 4.0 s |
+| revoke/delete proof | pass | pass | mandatory |
+| operator hours/month | 38 | 92 | report, do not hide in compute cost |
+| monthly total | $12,000 | $8,000 | B has the lower invoice |
+| accepted supported answers | 120,000 | 70,000 | outcome denominator |
+| cost per accepted answer | $0.1000 | $0.1143 | A is lower on this unit |
+
+The arithmetic is `total monthly cost / accepted supported answers`. A cheaper token or compute bill can lose after operations, failed requests, review and lower acceptance are included. Do not collapse the table into one weighted score until all hard gates pass, and publish the chosen weights plus a sensitivity check. A public leaderboard is useful context, not a substitute for this corpus, policy and concurrency profile.
+
+### Example 4 — migrate without making the new stack authoritative too early
+
+The team moves from managed A to independent B while keeping `support-corpus@42` canonical. It exports documents and metadata, verifies hashes and ACL mappings, backfills B, dual-writes new revisions/tombstones, shadows queries, canaries 5% of eligible traffic, then changes one guarded routing pointer. A mismatch at any comparison gate returns to the old authoritative path.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Prepare
+    Prepare --> DualWrite: export + hash/ACL verify
+    DualWrite --> Shadow: backfill reconciled
+    Shadow --> Canary: quality, ACL, delete gates pass
+    Canary --> Cutover: SLO and slices pass
+    Cutover --> Complete: reconciliation window passes
+    DualWrite --> Rollback: mismatch
+    Shadow --> Rollback: mismatch
+    Canary --> Rollback: regression
+    Cutover --> Rollback: regression
+```
+
+| Phase | New stack may do | Required evidence before advancing |
+|---|---|---|
+| dual-write | receive identical revision/tombstone events | no missing/extra identities; hashes and ACL epochs match |
+| shadow | process copied queries, never answer users | paired slice metrics, trace completeness, no cross-tenant disclosure |
+| canary | answer a bounded eligible cohort | p95/p99, errors, quality, cost, deletion and rollback drills |
+| cutover | become primary behind a versioned pointer | old path remains compatible and reconciliation is current |
+
+Rollback never resurrects content: the old stack must consume every tombstone and ACL epoch during the migration. “We can export vectors” is also insufficient portability if the canonical document revision, embedding specification, judgments and authorization metadata cannot be reconstructed.
+
+### Executable stack-selection contract
+
+[`StackSelectionContracts.java`](StackSelectionContracts.java) models hard capability qualification, team/provider ownership, critical quality/latency/operations gates, cost per accepted answer, checked concurrency arithmetic and a migration state machine whose forward edges require corpus, ACL, deletion and slice evidence.
+
+Run all twelve AI-platform contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+java -ea ContextGroundingContracts.java
+java -ea EvaluationGateContracts.java
+java -ea CacheLatencyCostContracts.java
+java -ea McpArchitectureContracts.java
+java -ea ToolSafetyContracts.java
+java -ea OrchestrationContracts.java
+java -ea StackSelectionContracts.java
+```
+
+The new contract checks 29 explicit scenario groups and 10,000 seeded capacity-oracle trials. Its stable summary is `SCENARIOS=29|TRIALS=10000|DECISION=QUALIFY_THEN_SCORE|MANAGED=TEAM_OWNS_POLICY|INDEPENDENT=TEAM_OWNS_OPERATIONS|MIGRATION=SHADOW_CANARY`.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -1860,6 +2003,11 @@ The new contract checks 29 explicit scenario groups and 10,000 seeded planner-or
 | “The graph checkpointed, so resume is safe” | Persistence preserves authorization and semantic replay safety | Fence tenant, state, workflow/policy revision and operation fingerprint before resuming |
 | “Status failed, so give the best guess” | Every fallback is safer than failure | Degrade only from still-authoritative evidence and disclose the missing live fact; fail closed on auth/scope |
 | “Graph complete means task correct” | Reaching a terminal node proves citations, scope and side effects | Validate the released outcome and preserve stage-specific evidence |
+| “Managed means policy is managed” | Operating an index or endpoint transfers application authority | Keep identity, ACL, source revision, validation and deletion proof with the product |
+| “Self-hosted means portable” | Owning servers guarantees exportable semantics and artifacts | Preserve canonical sources, metadata, evaluations, configs and operation identities |
+| “The cheaper monthly bill wins” | Every candidate produces the same number of useful outcomes | Compare total cost per accepted supported answer after hard gates |
+| “A leaderboard chose the stack” | Public averages reproduce this corpus, ACLs, regions and load | Run a versioned, slice-aware workload with operational evidence |
+| “Shadow traffic means safe migration” | Matching average answers proves ACL and deletion parity | Gate corpus, ACL, tombstone, critical-slice and rollback evidence separately |
 
 ## Primary references
 
@@ -1903,13 +2051,19 @@ The new contract checks 29 explicit scenario groups and 10,000 seeded planner-or
 - OpenTelemetry, [context propagation](https://opentelemetry.io/docs/concepts/context-propagation/) and [traces](https://opentelemetry.io/docs/concepts/signals/traces/) — propagated trace context correlates causal work across process and service boundaries; correlation is observability, not authorization (accessed 2026-10-25).
 - Model Context Protocol `2026-07-28`, [cancellation](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/cancellation) and [transport cancellation](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) — request cancellation is explicit and transport-specific; it does not supply application rollback semantics (accessed 2026-10-25).
 - Amazon Builders' Library, [Timeouts, retries, and backoff with jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/) and [Challenges with distributed systems](https://aws.amazon.com/builders-library/challenges-with-distributed-systems/) — bounded retries, retry amplification, and the rule that an unobserved response leaves an outcome unknown (accessed 2026-10-25).
+- AWS, [Knowledge Bases for Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html) and [Amazon Bedrock overview](https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html) — managed ingestion/retrieval capabilities and provider-specific model/region constraints; application authorization and evaluation remain caller responsibilities (accessed 2026-10-25).
+- Microsoft, [Retrieval-augmented generation in Azure AI Search](https://learn.microsoft.com/en-us/azure/search/retrieval-augmented-generation-overview) and [vector search](https://learn.microsoft.com/en-us/azure/search/vector-search-overview) — classic and agentic retrieval, hybrid/vector search, semantic ranking, citations, security and governance considerations (accessed 2026-10-25).
+- Google Cloud, [Vertex AI RAG Engine overview](https://cloud.google.com/vertex-ai/generative-ai/docs/rag-engine/rag-overview) — managed RAG ingestion, retrieval and generation integration; supported regions, models and quotas are release-time inputs (accessed 2026-10-25).
+- pgvector, [filtering, iterative scans, partial indexes and partitioning](https://github.com/pgvector/pgvector#filtering) — approximate-index filtering can reduce returned candidates, so filtered recall needs an exact scoped baseline (accessed 2026-10-25).
+- Sentence Transformers, [Retrieve & Re-Rank](https://www.sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html) — efficient first-stage retrieval followed by bounded cross-encoder reranking (accessed 2026-10-25).
+- vLLM, [metrics](https://docs.vllm.ai/en/latest/design/metrics/) and [production metrics examples](https://docs.vllm.ai/en/latest/examples/online_serving/prometheus_grafana/) — queue, request, time-to-first-token and serving telemetry for an independently operated model endpoint (accessed 2026-10-25).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–11, through `Putting RAG and MCP together without unnecessary agents`, bounded by Chapter 12.
+- Processed range: Chapters 1–12, through `Managed services and independent stacks`, bounded by Chapter 13.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
@@ -1920,7 +2074,8 @@ The new contract checks 29 explicit scenario groups and 10,000 seeded planner-or
 - Chapter 9 source comparison: selected master lines 260–377 and editable companion lines 311–414 agree on host/client/server/model boundaries, tool/resource/prompt discovery, explicitly separate modern and legacy protocol eras, current HTTP request metadata, request correlation, and stdio versus Streamable HTTP; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 10 source comparison: selected master lines 388–398 and editable companion lines 415–433 agree on token/resource authorization, object ownership, prompt-injection containment, least tool exposure, explicit approval, idempotency, uncertain outcomes, version-fenced compensation, bounded execution and redacted audit fields; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 11 source comparison: selected master lines 399–411 and editable companion lines 435–449 agree on deterministic-first orchestration, using an agent only for intermediate-result-driven choice, explicit durable state around side effects, bounded read retry, disclosed degradation, and fail-closed authorization/tenant isolation; the checkpoint's prior `Observability and operations` label was reconciled to the sources' actual heading rather than deepening the wrong topic.
-- Next bounded section: Chapter 12, `Managed services and independent stacks`, after fair domain rotation.
+- Chapter 12 source comparison: selected master lines 483–487 and editable companion lines 453–457 agree on managed AWS/Azure/Google retrieval capabilities, an independent pgvector/Sentence Transformers/vLLM stack, retained team ownership, regional constraints, and a reproducible workload comparison; the companion was used for editable structure, not promoted as a duplicate guide.
+- Next bounded section: Chapter 13, `Exercises`, after fair domain rotation.
 
 
 

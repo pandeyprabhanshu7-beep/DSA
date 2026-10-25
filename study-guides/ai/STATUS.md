@@ -4,7 +4,7 @@ Last updated: 2026-10-25.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapters 1–11 complete**.
+State: **PROMOTED incrementally; Chapters 1–12 complete**.
 
 Canonical pair:
 
@@ -37,8 +37,10 @@ Source comparison:
 - Deepened Chapter 10 with four authorization/injection/approval/idempotency examples, four diagrams, current primary references, and an executable Java 17 contract for exact issuer/audience/scope and resource checks, fixed destinations, approval fingerprints, version fences, durable operation reconciliation and bounded execution, plus 10,000 seeded authorization trials.
 - Reconciled the queued `Observability and operations` label against both confirmed sources: selected master lines 399–411 and editable companion lines 435–449 identify Chapter 11 as `Putting RAG and MCP together without unnecessary agents`, ending before Chapter 12. No duplicate or off-sequence topic was promoted.
 - Deepened Chapter 11 with four deterministic/degradation/checkpoint/bounded-agent examples, four diagrams, an exact budgeted failure trace, current primary references, and an executable Java 17 contract for deterministic-first plan selection, typed failures, explicit transitions, fenced side-effect state, safe correlated events and 10,000 seeded planner-oracle trials.
+- Compared Chapter 12 in selected master lines 483–487 and editable companion lines 453–457; both cover managed AWS/Azure/Google retrieval services, an independent pgvector/Sentence Transformers/vLLM stack, retained team ownership, regional constraints and a reproducible comparison, so no duplicate guide was created.
+- Deepened Chapter 12 with four managed/independent/bake-off/migration examples, four diagrams, ownership, capacity, cost and migration traces, current primary references, and an executable Java 17 contract for hard capability qualification, team/provider ownership, outcome-based cost, checked capacity and reversible migration, plus 10,000 seeded capacity-oracle trials.
 
-Next bounded section: Chapter 12, **Managed services and independent stacks**, after fair domain rotation.
+Next bounded section: Chapter 13, **Exercises**, after fair domain rotation.
 
 ## AI foundations, RAG and CAG
 
@@ -66,7 +68,7 @@ Validation is recorded in the enrichment queue and the promotion commit.
 Next action:
 
 1. Rotate fairly after this AI-platform pass.
-2. On the next AI-platform pass, process Chapter 12 only.
+2. On the next AI-platform pass, process Chapter 13 only.
 3. On a later AI-foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment.
 4. Keep project source code in the existing Spring Boot AI repositories; this repository holds learning documentation only.
 
