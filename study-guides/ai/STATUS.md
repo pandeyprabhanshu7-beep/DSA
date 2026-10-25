@@ -4,7 +4,7 @@ Last updated: 2026-10-24.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapters 1–8 complete**.
+State: **PROMOTED incrementally; Chapters 1–9 complete**.
 
 Canonical pair:
 
@@ -31,8 +31,10 @@ Source comparison:
 - Deepened Chapter 7 with four evaluation examples, stage-isolation and release-gate traces, five diagrams, current primary references, and an executable Java 17 contract for duplicate-aware retrieval metrics, typed stage outcomes, hard-slice gates and exact paired sign-test evidence, plus 10,000 seeded ranking checks.
 - Compared Chapter 8 in selected master lines 249–259 and editable companion lines 291–309; both cover cache identity/invalidation, a ten-second latency-budget example, bounded retry/cancellation controls, and complete cost accounting, so no duplicate guide was created.
 - Deepened Chapter 8 with four cache/deadline/failure/cost examples, four diagrams, cache and retry traces, current primary references, and an executable Java 17 contract for behavior-complete keys, ACL/source invalidation, deadline arithmetic, replay-safe retry admission, bounded full jitter, and unit-safe cost totals, plus 10,000 seeded jitter checks.
+- Compared Chapter 9 in selected master lines 260–377 and editable companion lines 311–414; both cover host/client/server/model boundaries, tools/resources/prompts, explicitly separate modern and legacy protocol eras, current HTTP request metadata, and stdio versus Streamable HTTP, so no duplicate guide was created.
+- Deepened Chapter 9 with four ownership/discovery/cancellation/transport examples, four diagrams, current primary references, and an executable Java 17 contract for modern metadata, capability admission, model/host/server authority composition, separately gated legacy lifecycle, request correlation, transport cancellation, and terminal-state ownership, plus 10,000 seeded trials.
 
-Next bounded section: Chapter 9, **MCP architecture: host, client, server and model**, after the recorded domain rotation.
+Next bounded section: Chapter 10, **Authorization, injection and tool side effects**, after fair domain rotation.
 
 ## AI foundations, RAG and CAG
 
@@ -60,7 +62,8 @@ Validation is recorded in the enrichment queue and the promotion commit.
 Next action:
 
 1. Rotate fairly after this AI-platform pass.
-2. On the next AI-platform pass, process Chapter 9 only.
+2. On the next AI-platform pass, process Chapter 10 only.
 3. On a later AI-foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment.
 4. Keep project source code in the existing Spring Boot AI repositories; this repository holds learning documentation only.
+
 

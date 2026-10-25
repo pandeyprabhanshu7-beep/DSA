@@ -1362,6 +1362,154 @@ java -ea CacheLatencyCostContracts.java
 
 The new contract checks 20 explicit scenario groups and 10,000 seeded jitter bounds. It prints `PARITY|CACHE=HIT|ACL=BLOCK|REVOKE=BLOCK|DEADLINE=10000|RETRY=SAFE|COST_MICROS=9860000000`; the dollar interpretation belongs to the fictional rates above, not a live provider quote.
 
+## 9. MCP architecture: host, client, server, and model
+
+MCP is a protocol boundary, not an authorization shortcut or an autonomous-agent requirement. In the current `2026-07-28` specification, a **host** creates and manages client instances, applies user-consent and security policy, coordinates model access, and aggregates context. A **client** translates an approved host operation into versioned MCP messages. A **server** publishes protocol capabilities and performs the requested operation against its own authoritative systems. A **model** can propose a tool call or select context, but its output is untrusted input until the host admits it and the server validates it.
+
+The current protocol is stateless: each request is self-contained and carries protocol version and client capabilities. That differs materially from the `2025-11-25` lifecycle, which negotiated a connection/session with `initialize` and `notifications/initialized`. Keep the eras explicit in code, tests, telemetry, and runbooks; changing only a version string does not migrate the message semantics.
+
+### Requirements and invariants
+
+1. **The host owns dispatch.** A model proposal is never permission. The host checks enabled server, allowed tool, user intent/consent, call budget, deadline, and result handling before asking a client to send anything.
+2. **The server owns operation enforcement.** Tool discovery and annotations describe behavior; the server still validates the input schema, authenticates the caller where applicable, authorizes the concrete resource, and constrains the backend operation.
+3. **Every modern request proves protocol context.** The request carries a supported version, client identity, and client capabilities. For Streamable HTTP, mirrored headers and body metadata must agree; the body remains authoritative.
+4. **Capability absence means unavailable.** Do not call `tools/list`, `resources/list`, or `prompts/list` unless the server advertises the corresponding capability. Treat self-reported server information as diagnostics, not security evidence.
+5. **Transport changes framing, not policy.** stdio requires one valid newline-delimited protocol message per stdout line and sends logs to stderr. Streamable HTTP uses one POST per request and returns JSON or a request-scoped SSE stream. Both need bounds, correlation, cancellation, and typed failures.
+6. **Cancellation changes ownership, not history.** Cancel by request ID, stop waiting, and release capacity. A late completion must not be attached to a different request. Cancellation does not prove that an external side effect did not occur.
+7. **Protocol state is not business state.** The modern HTTP transport has no protocol-level session. Cross-call workflow state belongs in an explicit, authorized server-minted handle or an application data store; a mutating operation still needs its own idempotency design.
+
+## Example 1 — separate model proposal, host admission, and server authority
+
+An operations assistant exposes `deployment_status(service)` to the model. The model proposes `service=payments`; it does not invoke the function directly.
+
+| Boundary | Input | Required decision | Authority it must not assume |
+|---|---|---|---|
+| Model | question + visible tool schema | propose a typed call | user consent or backend access |
+| Host | proposal + user/session policy | admit, deny, or ask for confirmation | server-side resource ownership |
+| MCP client | approved call + protocol context | serialize and correlate | business authorization |
+| MCP server | caller credential + concrete arguments | validate and authorize | host approval proves backend permission |
+| Backend | scoped operation | return current status | model text is a trusted query |
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant H as Host
+    participant M as Model
+    participant C as MCP client
+    participant S as MCP server
+    U->>H: Ask for payments status
+    H->>M: Allowed schema and question
+    M-->>H: Proposal: deployment_status(payments)
+    H->>H: Check consent, tool, budget, deadline
+    H->>C: Approved invocation + request ID 41
+    C->>S: Versioned tools/call
+    S->>S: Validate schema, caller, service scope
+    S-->>C: Typed result + request ID 41
+    C-->>H: Correlated result
+    H->>M: Result as untrusted evidence
+    M-->>H: Answer for user
+```
+
+Four concrete outcomes expose the boundary:
+
+| Case | Host | Server | Result |
+|---|---|---|---|
+| Allowed read | admits `deployment_status` | caller may read `payments` | execute and return typed status |
+| Hidden tool | tool was not exposed for this conversation | not contacted | deny before transport |
+| Wrong team | host admits a general status read | caller lacks `payments` membership | server denies without backend disclosure |
+| Mutation proposal | tool requires confirmation but none exists | not contacted | host returns `CONSENT_REQUIRED` |
+
+Least privilege applies twice: expose only the capabilities needed for the interaction, then reauthorize the concrete operation at the server. A narrow schema reduces ambiguity, but schema validity is not proof of intent or permission.
+
+## Example 2 — discover a modern server without replaying a legacy handshake
+
+For a modern stdio server, a client can probe `server/discover`; for modern HTTP, it can send a self-contained request and interpret a recognized modern response or error. A successful discovery reports supported versions and capabilities. The host selects one supported version, caches the era only for the server process/origin, and includes required metadata on every later request.
+
+```mermaid
+flowchart TD
+    A["Unknown server era"] --> P{"Modern probe recognized?"}
+    P -->|yes| D["Read supported versions and capabilities"]
+    D --> V{"Required version and feature overlap?"}
+    V -->|yes| R["Send self-contained modern requests"]
+    V -->|no| X["Fail unsupported; do not invent capability"]
+    P -->|no or legacy timeout| L["Explicit legacy initialize path"]
+    L --> N["Initialize → response → initialized"]
+```
+
+Suppose discovery returns versions `2026-07-28` and `2026-04-15`, with `tools` and `resources` but no `prompts` capability. The client selects `2026-07-28`; it may list tools and resources, but a `prompts/list` call is a client defect. A diagnostic `serverInfo.name="trusted-prod"` changes no authorization decision because server metadata is self-reported.
+
+Keep the legacy trace isolated:
+
+1. send `initialize` with `protocolVersion=2025-11-25`;
+2. receive the selected revision and connection capabilities;
+3. send `notifications/initialized`;
+4. only then list or call a negotiated feature.
+
+A dual-era adapter can support both flows, but a single request must belong to exactly one era. Tests should reject a modern per-request envelope that also depends on legacy session negotiation.
+
+## Example 3 — correlate cancellation, timeout, and a late result
+
+The host starts read-only request `41` with a 900 ms child deadline. At 700 ms the user cancels. The client cancels the same in-flight request: close that request's Streamable HTTP response stream, or send `notifications/cancelled` referencing `41` on stdio. The host marks `41` terminal and releases its concurrency slot.
+
+```mermaid
+stateDiagram-v2
+    [*] --> InFlight: send request 41
+    InFlight --> Completed: matching result before deadline
+    InFlight --> Cancelled: user cancel or timeout
+    Cancelled --> Cancelled: late result is discarded
+    Completed --> Completed: duplicate result is ignored
+    Cancelled --> [*]: release capacity
+    Completed --> [*]: consume once
+```
+
+If a result for `41` arrives at 850 ms, it is discarded and logged as late; it must never complete request `42`. If this were a mutation, cancellation would still mean only “the caller stopped waiting.” The host would reconcile the operation by its business idempotency key or status record before deciding whether any new action is safe.
+
+Progress notifications may justify extending a soft timer, but a maximum timeout remains. Request IDs must be unique among in-flight requests, cancellation must name an actually issued request believed to be active, and terminal states must be one-way.
+
+## Example 4 — choose stdio or Streamable HTTP by deployment boundary
+
+The protocol features are shared; operational ownership differs.
+
+| Concern | stdio local subprocess | Streamable HTTP remote service |
+|---|---|---|
+| Lifecycle | host launches and terminates server process | independent service lifecycle |
+| Framing | one JSON-RPC message per line; no embedded newline | one POST per request; JSON or request-scoped SSE response |
+| Diagnostics | stderr only; stdout is protocol bytes | structured service logs, traces, and metrics |
+| Credentials | intentional environment/process boundary | TLS plus HTTP authentication/authorization policy |
+| Cancellation | `notifications/cancelled` for request ID | close only that request's response stream |
+| Scaling | process count and local resource limits | admission, rate limits, load balancing, and backend capacity |
+
+```mermaid
+flowchart LR
+    H["Host policy"] --> C["MCP client"]
+    C -->|"newline JSON-RPC"| P["Local stdio process"]
+    C -->|"POST + request-scoped response"| W["Remote HTTP server"]
+    P --> B["Scoped backend"]
+    W --> B
+```
+
+For stdio, passing the entire parent environment or allowing arbitrary filesystem access defeats the apparent local boundary. For HTTP, removing protocol sessions does not make the application stateless: a workflow continuation must use an explicit handle whose tenant, expiry, and allowed transition are validated on every request. Neither transport makes `execute_anything(command)` a sound tool design.
+
+## Executable MCP architecture contract
+
+[`McpArchitectureContracts.java`](McpArchitectureContracts.java) models modern request metadata, capability admission, the model/host/server authority split, transport-specific cancellation, terminal request ownership, and a separately gated legacy lifecycle.
+
+Run all nine AI-platform contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+java -ea ContextGroundingContracts.java
+java -ea EvaluationGateContracts.java
+java -ea CacheLatencyCostContracts.java
+java -ea McpArchitectureContracts.java
+```
+
+The new contract checks 24 explicit scenario groups and 10,000 seeded authority/correlation trials. Its stable summary is `PARITY|ERA=MODERN|TOOLS=YES|MODEL=PROPOSE_ONLY|HOST=ALLOW|SERVER=DENY|CANCEL=41|LATE=DISCARD|TRANSPORT=HTTP`.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -1401,12 +1549,19 @@ The new contract checks 20 explicit scenario groups and 10,000 seeded jitter bou
 | “Retry every 503 three times” | Retries are free and all operations are replay-safe | Classify, budget, jitter, cap and preserve idempotency |
 | “Add every service p99” | Independent percentiles compose arithmetically | Measure request-level percentiles and trace the critical path |
 | “Cheaper tokens mean cheaper answers” | Model charges dominate total useful-outcome cost | Include data, operations, review and failure costs |
+| “The model chose the tool, so call it” | A proposal carries user intent and permission | Let the host admit the proposal and the server reauthorize the resource |
+| “The tool says read-only” | An annotation constrains implementation behavior | Enforce read-only semantics and backend permissions independently |
+| “MCP always starts with `initialize`” | All protocol revisions share one lifecycle | Keep modern self-contained requests separate from the versioned legacy handshake |
+| “The request was cancelled, so nothing happened” | Transport cancellation rolls back external work | Make terminal request ownership explicit and reconcile side effects by business identity |
 
 ## Primary references
 
 - Lewis et al., [Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks](https://arxiv.org/abs/2005.11401) (2020).
 - Model Context Protocol, [Architecture overview](https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture) and [2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28).
 - Model Context Protocol, [Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) and [authorization guidance](https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/authorization).
+- Model Context Protocol `2026-07-28`, [architecture](https://modelcontextprotocol.io/specification/2026-07-28/architecture), [server discovery](https://modelcontextprotocol.io/specification/2026-07-28/server/discover), and [version compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning) — host/client/server ownership, self-contained request metadata, capability discovery, and explicit legacy fallback (accessed 2026-10-24).
+- Model Context Protocol `2026-07-28`, [stdio](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio), [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http), and [cancellation](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/cancellation) — framing, request-scoped streams, cancellation, and timeout ownership (accessed 2026-10-24).
+- Model Context Protocol `2026-07-28`, [server primitives](https://modelcontextprotocol.io/specification/2026-07-28/server), [tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools), [resources](https://modelcontextprotocol.io/specification/2026-07-28/server/resources), and [prompts](https://modelcontextprotocol.io/specification/2026-07-28/server/prompts) — discovery and interaction contracts for executable, contextual, and templated capabilities (accessed 2026-10-24).
 - OpenAI, [Model optimization](https://developers.openai.com/api/docs/guides/model-optimization) and [supervised fine-tuning](https://developers.openai.com/api/docs/guides/supervised-fine-tuning). Product availability is time-sensitive; the architectural rule here is provider-independent.
 - OpenAI, [`tiktoken`](https://github.com/openai/tiktoken) tokenizer and [encoding API](https://github.com/openai/tiktoken/blob/main/tiktoken/core.py).
 - OpenAI, [Embeddings guide](https://developers.openai.com/api/docs/guides/embeddings), [embeddings API](https://developers.openai.com/api/reference/resources/embeddings/methods/create), and [retrieval guide](https://platform.openai.com/docs/guides/retrieval). Provider-specific dimensions and limits are configuration, not architectural constants.
@@ -1439,7 +1594,7 @@ The new contract checks 20 explicit scenario groups and 10,000 seeded jitter bou
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–8, through `Caching, latency, cost and failure controls`, bounded by Chapter 9.
+- Processed range: Chapters 1–9, through `MCP architecture: host, client, server and model`, bounded by Chapter 10.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
@@ -1447,6 +1602,8 @@ The new contract checks 20 explicit scenario groups and 10,000 seeded jitter bou
 - Chapter 6 source comparison: selected master lines 205–226 and editable companion lines 224–256 agree on host-built evidence envelopes, untrusted retrieved content, citation-ID validation, claim support, calibrated abstention, conflict handling, and separation of advice from action; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 7 source comparison: selected master lines 227–248 and editable companion lines 257–290 agree on versioned datasets, retrieval metrics, answer dimensions, judge calibration, paired release comparison, critical-slice regression, and reproducibility identities; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 8 source comparison: selected master lines 249–259 and editable companion lines 291–309 agree on cache identity/invalidation, the illustrative ten-second deadline, retry/backoff/cancellation bounds, and complete cost accounting; the companion was used for editable structure, not promoted as a duplicate guide.
-- Next bounded section: Chapter 9, `MCP architecture: host, client, server and model` (after the recorded domain rotation).
+- Chapter 9 source comparison: selected master lines 260–377 and editable companion lines 311–414 agree on host/client/server/model boundaries, tool/resource/prompt discovery, explicitly separate modern and legacy protocol eras, current HTTP request metadata, request correlation, and stdio versus Streamable HTTP; the companion was used for editable structure, not promoted as a duplicate guide.
+- Next bounded section: Chapter 10, `Authorization, injection and tool side effects`, after fair domain rotation.
+
 
 
