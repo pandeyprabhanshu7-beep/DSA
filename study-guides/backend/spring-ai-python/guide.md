@@ -1,6 +1,6 @@
 # Spring AI and Python APIs
 
-This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–7, lines 6–620.
+This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–10, lines 6–783.
 
 ## Section 1 — Choose the layer before choosing the library
 
@@ -1794,3 +1794,187 @@ Verified on 25 October 2026:
 ### Source provenance and continuation
 
 The selected editable bundle member's Section 9 is source lines 678–714; Section 10 begins at line 715. The matching standalone HTML is lines 796–831; Section 10 begins at line 832. Both sources agree on the incident-summary fields, Pydantic validation, Spring AI record conversion, explicit business checks and bounded repair loop. This canonical section preserves that intent while separating syntax, structural schema, request-specific meaning and grounding; adding duplicate/extra-field policy, server-owned provenance, four worked traces, four diagrams and paired executable contracts. Section 10, **MCP implementations in Python and Java**, begins at editable source line 715 / standalone HTML line 832. Sections 10–25 remain queued; the source is not complete.
+
+## 10. MCP implementations in Python and Java: expose a contract, not ambient authority
+
+MCP standardizes how a host discovers and invokes server capabilities; it does not decide whether a function should be remote, authenticate the caller, authorize a resource, make tool annotations truthful, or turn fixture data into live operational truth. Start from the business boundary, then choose a local callback, an MCP tool or an MCP resource.
+
+### Requirements and invariants
+
+1. **Choose exposure by ownership.** Keep a function as a local application callback when one application owns its lifecycle and no interoperable discovery is needed. Use an MCP tool when multiple hosts need a standardized executable capability. Use an MCP resource for addressable, read-oriented content such as `runbook://payments/7`.
+2. **Separate the protocol declaration from the business service.** The decorator or annotation declares a tool name, schema and metadata; a small adapter validates delivered arguments, obtains trusted caller context, invokes a framework-independent service, and maps the typed result.
+3. **Treat schemas as shape gates, not policy.** Generated input/output schemas help clients and reject malformed calls. They do not prove tenant access, object ownership, freshness, human intent or semantic correctness.
+4. **State provenance explicitly.** Training data returns `source=synthetic-training-fixture` and `live=false`. A live adapter must own backend authorization, deadlines, error/freshness semantics and an observation timestamp before it may claim live state.
+5. **Authorize the exact capability and object.** Validate token issuer/audience/expiry outside these teaching contracts, require the capability scope, and check the service or resource tenant inside the trusted server boundary. Never accept tenant or approval authority from model arguments.
+6. **Transport changes the deployment boundary.** For stdio, the host launches the intended process and protocol bytes alone use stdout; diagnostics go to stderr. Streamable HTTP is a network endpoint and requires an explicit security layer, even on a framework-generated route.
+7. **Annotations are client hints.** `readOnlyHint`, `destructiveHint`, `idempotentHint` and `openWorldHint` can improve review UX when the server is trusted. They never grant permission or constrain the implementation by themselves.
+8. **Test both the adapter and the delivered shape.** Direct function tests cover business logic; contract tests also exercise exact tool names, required/unknown fields, URI identity, authorization failures, transport admission, nonlive provenance and Java/Python parity.
+
+### Example 1 — decide whether the function should be MCP at all
+
+The payments application owns `lookupRunbook`. If only its `ChatClient` uses the function in the same process, a Spring AI `@Tool` or ordinary callback is enough. Adding a server, client, transport and discovery lifecycle would add failure modes without adding ownership value.
+
+When an IDE host, an operations host and a support host all need the same versioned capability, expose a thin MCP adapter over the existing service. The underlying method remains independently testable.
+
+```mermaid
+flowchart TD
+    F["Business function"] --> Q{"Several independent hosts need discovery?"}
+    Q -->|no| L["Local callback / @Tool"]
+    Q -->|yes| K{"Executable action?"}
+    K -->|yes| T["MCP tool adapter"]
+    K -->|no, addressable content| R["MCP resource adapter"]
+```
+
+| Need | Correct boundary | Why |
+|---|---|---|
+| one Spring application calls `lookupRunbook` | local callback | one owner; no protocol hop |
+| several MCP hosts request deployment status | MCP tool | discoverable typed execution |
+| hosts read immutable runbook revision 7 | MCP resource | stable URI and read semantics |
+| model invents `runbook://payments/latest` | reject | mutable aliases hide revision/freshness identity |
+
+MCP is valuable when interoperability is a requirement, not as a synonym for every model-callable Java or Python function.
+
+### Example 2 — build the Python v2 server around a typed adapter
+
+The official Python SDK v2 uses `MCPServer`. A minimal adapter can retain the source's safe training behavior while keeping authorization and business work outside the decorator:
+
+```python
+from mcp.server import MCPServer
+
+mcp = MCPServer("Atlas training tools")
+
+@mcp.tool()
+def deployment_status(service: str) -> dict:
+    caller = trusted_request_context()       # transport/auth middleware, not model input
+    authorize(caller, "status:read", service)
+    if service not in {"payments", "catalog"}:
+        raise ValueError("unknown training service")
+    return {"service": service, "ready": 3, "desired": 3,
+            "source": "synthetic-training-fixture", "live": False}
+
+@mcp.resource("runbook://payments/7")
+def payments_runbook() -> str:
+    caller = trusted_request_context()
+    authorize(caller, "runbook:read", "runbook://payments/7")
+    return "Training runbook revision 7: verify migration compatibility."
+```
+
+```mermaid
+sequenceDiagram
+    participant H as MCP host
+    participant A as Python adapter
+    participant P as Policy
+    participant S as Business service
+    H->>A: deployment_status(service=payments)
+    A->>A: validate delivered schema
+    A->>P: trusted caller + capability + object
+    P-->>A: allow tenant-a
+    A->>S: read bounded status
+    S-->>A: typed fixture result
+    A-->>H: source=fixture, live=false
+```
+
+Exact outcomes make the boundary teachable:
+
+- `{service: "payments"}` plus the correct audience, scope and tenant returns a nonlive fixture;
+- an extra argument is `BAD_SCHEMA`, even if the business method would ignore it;
+- `orders` is `UNKNOWN_SERVICE`, not a guessed backend name;
+- a valid shape with the wrong tenant is `TENANT_DENIED`;
+- `runbook://payments/7` is allowed while an unregistered or mutable URI is denied.
+
+For stdio, start the program through a compatible MCP host. It is a protocol process, not a terminal chat interface, and application logging must not corrupt protocol stdout. For Streamable HTTP, use the SDK's supported transport and place authentication/authorization at the network boundary.
+
+### Example 3 — make the Spring `@McpTool` adapter explicit
+
+Spring AI can scan `@McpTool` methods and generate schemas. Keep the annotated method small and make the policy dependency visible:
+
+```java
+@Component
+final class StatusTools {
+    private final StatusService service;
+    private final CapabilityPolicy policy;
+
+    @McpTool(
+        name = "deployment_status",
+        description = "Return bounded deployment status for an authorized service.",
+        generateOutputSchema = true,
+        annotations = @McpTool.McpAnnotations(
+            readOnlyHint = true, destructiveHint = false,
+            idempotentHint = true, openWorldHint = false))
+    Status deploymentStatus(
+        @McpToolParam(description = "payments or catalog", required = true)
+        String serviceName) {
+        Caller caller = policy.currentCaller();
+        policy.require(caller, "status:read", serviceName);
+        return service.fixture(serviceName); // source=synthetic..., live=false
+    }
+}
+```
+
+```mermaid
+flowchart LR
+    D["@McpTool declaration"] --> S["Generated schemas + hints"]
+    C["Trusted caller context"] --> P["Capability/object policy"]
+    S --> A["Thin adapter"]
+    P --> A
+    A --> B["Framework-independent service"]
+    B --> O["Typed result + provenance"]
+```
+
+`generateOutputSchema=true` describes the nonprimitive return shape; it does not run employee authorization. Likewise, `readOnlyHint=true` helps a trusted client reason about interaction risk but cannot stop code from mutating a database. Backend credentials, service methods and policy checks must make the hint true.
+
+An application `@Tool` passed to `ChatClient` and an `@McpTool` exported from an MCP server may call the same `StatusService`, but they are different adapters. That separation lets the local application avoid a needless network hop while remote hosts use the interoperable contract.
+
+### Example 4 — admit stdio and HTTP by different evidence
+
+Stdio trust starts with process ownership: the host launches a pinned command, supplies a minimal environment, writes protocol requests to stdin, reads protocol responses from stdout and treats stderr as diagnostics. A random process already attached to a terminal is not equivalent.
+
+Streamable HTTP trust starts with the network request: TLS, authenticated caller, token audience for this MCP resource server, expiry, rate/admission limits and object authorization. The Spring MCP starter wires the endpoint but does not authenticate it automatically.
+
+```mermaid
+flowchart TD
+    R["Incoming tool call"] --> T{"Transport"}
+    T -->|stdio| P{"Host spawned + stdout clean?"}
+    T -->|HTTP| A{"Authenticated + intended audience?"}
+    P -->|no| X["Reject unsafe channel"]
+    A -->|no| Y["401 / deny"]
+    P -->|yes| Z["Validate schema and policy"]
+    A -->|yes| Z
+    Z --> O{"Exact object authorized?"}
+    O -->|no| D["403 / deny"]
+    O -->|yes| E["Execute bounded adapter"]
+```
+
+Do not use annotations as a shortcut around this flow. An untrusted server can falsely advertise a mutating tool as read-only; a trusted server can still contain a bug. The host may use hints to choose a confirmation UI, but deterministic policy and server-side authorization own the decision.
+
+### Paired executable contract
+
+The dependency-free pair models local-versus-MCP selection, exact tool shape, synthetic provenance, URI resources, scope/tenant checks, transport admission and nonauthoritative hints:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/McpImplementationContracts.java
+python3 study-guides/backend/spring-ai-python/mcp_implementation_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|LOCAL=CALLBACK|REMOTE=MCP_TOOL|RESOURCE=runbook://payments/7|FIXTURE=NONLIVE|HTTP=AUTH_REQUIRED|HINT=NONAUTH|ALLOWED=2456
+```
+
+Each implementation passes 32 explicit scenario groups and 10,000 seeded service/tenant trials. These pure contracts do not import the MCP SDK, start Spring Boot, inspect real generated schemas, authenticate a live HTTP endpoint, launch an MCP host, validate JSON-RPC bytes or query Kubernetes. Those require dependency and integration environments and must not be inferred from source-file execution.
+
+### Current primary references
+
+Verified on 25 October 2026:
+
+- [Official MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk), [v2 documentation](https://modelcontextprotocol.github.io/python-sdk/) and [v2 changes](https://github.com/modelcontextprotocol/python-sdk/blob/main/docs/whats-new.md) — `MCPServer`, tool/resource decorators, Python requirements and supported transports.
+- [Spring AI MCP overview](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-overview.html), [server annotations](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-annotations-server.html) and [`McpTool` API](https://docs.spring.io/spring-ai/docs/current/api/org/springframework/ai/mcp/annotation/McpTool.html) — declarative server capabilities, generated schemas and annotation fields.
+- [Spring AI MCP server starter](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-server-boot-starter-docs.html) — stdio, Streamable HTTP and stateless transports, plus the explicit unauthenticated-by-default HTTP boundary.
+- [Spring AI tool calling](https://docs.spring.io/spring-ai/reference/api/tools.html) — the application owns execution; local tool callbacks and MCP exports are different integration boundaries.
+- Model Context Protocol, [tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) and [authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization) — tool declarations/calls, user control and resource-server authorization requirements.
+- Model Context Protocol, [tool annotations as risk vocabulary](https://blog.modelcontextprotocol.io/posts/2026-03-16-tool-annotations/) — annotations are hints and are not trustworthy policy when the server itself is untrusted.
+
+### Source provenance and continuation
+
+The selected editable bundle member's Section 10 is source lines 716–783; Section 11 begins at line 785. The matching standalone HTML is lines 825–881; Section 11 begins at line 882. Both sources contain the same Python v2 server, synthetic deployment-status contract, revisioned runbook resource, Spring `@McpTool` example, unauthenticated-by-default HTTP warning and local-callback-versus-MCP distinction. This canonical section retains that substance while adding boundary-selection rules, trusted caller/object checks, delivered-shape and transport admission, four worked examples, four diagrams and paired executable contracts. Section 11, **Streaming, concurrency and cancellation**, begins at editable source line 785 / standalone HTML line 882. Sections 11–25 remain queued; the source is not complete.
