@@ -1517,6 +1517,114 @@ flowchart TD
 
 Executable evidence is in `TrappingRainWaterContracts.java`. It checks 18 scenario groups, including all four worked behaviors, monotone/flat inputs, validation, nonmutation and full-width accumulation, then compares 20,000 seeded arrays with an independent per-index left/right scan.
 
+### Example 11 — Minimum Size Subarray Sum: shrink only after reaching the target
+
+**Requirement:** given a positive `target` and an array of positive integers, return the minimum length of a contiguous subarray whose sum is at least `target`; return `0` when no such subarray exists. The reusable method rejects `null`, non-positive targets, and non-positive elements, preserves the input, and accumulates into `long` so its arithmetic remains correct for the full positive `int` domain.
+
+The positivity precondition is the reason a variable-size sliding window works. Extending `right` strictly increases the sum, while advancing `left` strictly decreases it. That monotonic motion lets one window represent all useful candidates without backtracking.
+
+```mermaid
+flowchart TD
+    A["add nums[right] to the window"] --> C{"sum ≥ target?"}
+    C -->|no| R["advance right"]
+    C -->|yes| B["record the current length"]
+    B --> S["subtract nums[left]; left++"]
+    S --> C
+    R --> D{"right exhausted?"}
+    D -->|no| A
+    D -->|yes| O["return best, or 0 if absent"]
+```
+
+```java
+static int minSubArrayLen(int target, int[] nums) {
+    if (target <= 0) throw new IllegalArgumentException("target must be positive");
+    if (nums == null) throw new IllegalArgumentException("nums must not be null");
+    for (int value : nums) {
+        if (value <= 0) throw new IllegalArgumentException("values must be positive");
+    }
+
+    int left = 0;
+    int best = nums.length + 1;
+    long sum = 0L;
+    for (int right = 0; right < nums.length; right++) {
+        sum += nums[right];
+        while (sum >= target) {
+            best = Math.min(best, right - left + 1);
+            sum -= nums[left++];
+        }
+    }
+    return best == nums.length + 1 ? 0 : best;
+}
+```
+
+The sentinel `nums.length + 1` cannot be a valid subarray length. It separates “no answer recorded” from every legal answer without special-casing the first match.
+
+#### Worked case 1 — canonical full trace
+
+For `target = 7` and `[2,3,1,2,4,3]`, the state changes are:
+
+| action | window after action | sum | best |
+|---|---|---:|---:|
+| add index 0 (`2`) | `[0..0] = [2]` | 2 | — |
+| add index 1 (`3`) | `[0..1] = [2,3]` | 5 | — |
+| add index 2 (`1`) | `[0..2] = [2,3,1]` | 6 | — |
+| add index 3 (`2`) | `[0..3] = [2,3,1,2]` | 8 | 4 |
+| remove index 0 (`2`) | `[1..3] = [3,1,2]` | 6 | 4 |
+| add index 4 (`4`) | `[1..4] = [3,1,2,4]` | 10 | 4 |
+| remove index 1 (`3`) | `[2..4] = [1,2,4]` | 7 | 3 |
+| remove index 2 (`1`) | `[3..4] = [2,4]` | 6 | 3 |
+| add index 5 (`3`) | `[3..5] = [2,4,3]` | 9 | 3 |
+| remove index 3 (`2`) | `[4..5] = [4,3]` | 7 | 2 |
+| remove index 4 (`4`) | `[5..5] = [3]` | 3 | 2 |
+
+The answer is `2`, produced by `[4,3]`. Recording before each removal is essential: a valid window can remain valid through several left moves, and every one may improve the minimum.
+
+```mermaid
+flowchart LR
+    A["[2,3,1,2] sum 8; best 4"] --> B["[3,1,2,4] sum 10"]
+    B --> C["[1,2,4] sum 7; best 3"]
+    C --> D["[2,4,3] sum 9"]
+    D --> E["[4,3] sum 7; best 2"]
+```
+
+#### Worked case 2 — one element can be optimal
+
+`target = 7`, `nums = [7]` returns `1`. After adding the only element, the loop records length 1 and removes it. Because no nonempty subarray can be shorter, an implementation may return early at `best == 1`, but the simple version above keeps one uniform control flow.
+
+#### Worked case 3 — no valid window
+
+`target = 10`, `nums = [1,1,1,1]` returns `0`. The sum never reaches the threshold, the shrink loop never executes, and the sentinel remains unchanged. An empty array also returns `0`; it contains no nonempty candidate and needs no special branch.
+
+#### Worked case 4 — the reusable domain needs a wide sum
+
+`target = 2_000_000_000`, `nums = [1_500_000_000,1_500_000_000]` returns `2`. The mathematical window sum is three billion. An `int sum` wraps negative and can incorrectly report no solution; `long sum` preserves the comparison. The original problem bounds happen to keep the maximum sum within `int`, but a reusable `int[]` method should not silently depend on those narrower bounds.
+
+```mermaid
+flowchart TD
+    P{"Are all elements positive?"}
+    P -->|yes| W["variable window: O(n) time, O(1) space"]
+    P -->|zeros allowed| Z["same window works; state the relaxed contract"]
+    P -->|negative values possible| N["do not use this proof; choose a prefix-sum method"]
+```
+
+**Why each recorded window is the shortest one ending at `right`.** Fix a right endpoint after it is added. While the sum is at least the target, every left move makes the window shorter, so the algorithm records every still-valid suffix of that window. The first removal that makes the sum too small proves no even shorter window ending at this `right` can qualify: all remaining elements are positive, so removing more only lowers the sum. Thus the last length recorded for each `right` is its shortest valid window.
+
+**Global correctness.** Every valid subarray has some right endpoint. The previous argument shows that the algorithm records a candidate no longer than any valid subarray with that endpoint. Taking the minimum across all right endpoints therefore returns the global minimum. If no window ever reaches the target, there is no valid subarray and the untouched sentinel maps to `0`.
+
+```mermaid
+flowchart TD
+    I["Before adding right: window is below target"] --> E["extend once; sum only increases"]
+    E --> V["record and shrink while valid"]
+    V --> F["finish with sum below target"]
+    F --> I
+```
+
+**Complexity.** `right` advances exactly `n` times and `left` at most `n` times, so the scan is `O(n)` rather than `O(n²)`. Validation is another `O(n)` pass, auxiliary space is `O(1)`, and the input is unchanged. A binary-search-on-prefix-sums solution is `O(n log n)` and useful as a follow-up, but positivity makes the linear window strictly simpler.
+
+**Common interview errors:** shrinking only once with `if` instead of exhaustively with `while`; updating the minimum after removing the left value; returning the sentinel instead of `0`; applying the proof to signed inputs; using a non-contiguous subsequence; or storing the reusable sum in `int`. If zeros are intentionally admitted, the same algorithm remains correct, but that is a different contract from the strict positive-input problem.
+
+Executable evidence is in `MinimumSizeSubarrayContracts.java`. It checks 15 scenario groups, including all four worked behaviors, empty input, validation and nonmutation, then compares 20,000 seeded positive arrays with an independent quadratic oracle.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -1535,6 +1643,7 @@ Executable evidence is in `TrappingRainWaterContracts.java`. It checks 18 scenar
 - [LeetCode, “3Sum”](https://leetcode.com/problems/3sum/) — distinct-index, zero-sum and duplicate-free value-triplet contract.
 - [LeetCode, “Container With Most Water”](https://leetcode.com/problems/container-with-most-water/) — primary pair-selection contract, examples and original input bounds.
 - [LeetCode, “Trapping Rain Water”](https://leetcode.com/problems/trapping-rain-water/) — primary unit-width, non-negative elevation-map and total trapped-water contract.
+- [LeetCode, “Minimum Size Subarray Sum”](https://leetcode.com/problems/minimum-size-subarray-sum/) — primary positive-input, contiguous-window, minimum-length and zero-when-absent contract, plus the `O(n log n)` follow-up.
 - [Java Language Specification, Java SE 17, §15.17](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17) — multiplicative operators and binary numeric promotion; the implementation widens an operand before multiplication.
 - [Java Language Specification, Java SE 17, Chapter 4](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — integer operators use 32- or 64-bit precision according to promotion and do not signal ordinary overflow.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — `addExact(long,long)` reports an overflow instead of silently wrapping.
@@ -1542,9 +1651,9 @@ Executable evidence is in `TrappingRainWaterContracts.java`. It checks 18 scenar
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 10 at lines 253–1204 (problem 10 is lines 1093–1204). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 10 (direct Library parsed-text lines 730–815 for problem 10, followed by page metadata before problem 11 at line 819). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 11 at lines 253–1290 (problem 11 is lines 1207–1290). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 11 (direct Library parsed-text starts problem 11 at line 819; local Pandoc extraction places its matching body at lines 1595–1723). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 10, “Trapping Rain Water,” is promoted from Markdown lines 1093–1204 and the corresponding DOCX parsed-text lines 730–815; problem 11, “Minimum Size Subarray Sum,” begins at Markdown line 1207 / DOCX parsed-text line 819.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 11, “Minimum Size Subarray Sum,” is promoted from Markdown lines 1207–1290 and the corresponding DOCX section beginning at direct Library parsed-text line 819; problem 12, “Fruit Into Baskets,” follows in both sources.
 
 

@@ -46,6 +46,7 @@
 | Arrays §4 Problem 8 — 3Sum | ✅ | ✅ | Duplicate-safe anchor/two-pointer elimination, four worked behaviors, exact trace, proof, overflow-safe sums and randomized cubic oracle |
 | Arrays §4 Problem 9 — Container With Most Water | ✅ | ✅ | Dominated-endpoint elimination, four worked cases, exact trace, proof, widened area arithmetic and randomized all-pairs oracle |
 | Arrays §4 Problem 10 — Trapping Rain Water | ✅ | ✅ | Smaller-boundary finalization, four worked cases, full trace, proof, widened accumulation and randomized per-index oracle |
+| Arrays §4 Problem 11 — Minimum Size Subarray Sum | ✅ | ✅ | Positive-input sliding window, four worked cases, full trace, proof, widened sum and randomized quadratic oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -197,5 +198,11 @@ Fresh literal-marker audit remains **170**: this bounded source problem did not 
 Arrays Section 4 problem 10 now separates per-index trapped-water accumulation from the single-pair container objective; states the nonnegative-height, nonmutation and widened-result contracts; and adds four worked cases, a full 12-step trace, four diagrams, the smaller-running-boundary proof and checked `long` accumulation. `TrappingRainWaterContracts` validates 18 scenario groups plus 20,000 seeded arrays against an independent per-index left/right-max oracle. The responsive reader embeds the exact canonical Markdown bytes.
 
 Fresh literal-marker audit remains **170**: this bounded source problem did not contain a placeholder card. Section 4 problem 11 and the broader intake remain incomplete.
+
+## Arrays Minimum Size Subarray Sum enrichment — 2026-10-25 ET
+
+Arrays Section 4 problem 11 now states the positive-target, positive-element, contiguous-window, zero-when-absent and nonmutation contracts; adds four worked cases, a full expand/shrink trace, four diagrams, the fixed-right-endpoint proof and a `long` running sum for the reusable full-positive-`int` domain. `MinimumSizeSubarrayContracts` validates 15 scenario groups plus 20,000 seeded arrays against an independent quadratic oracle. The responsive reader embeds the exact canonical Markdown bytes.
+
+Fresh literal-marker audit remains **170**: this bounded source problem did not contain a placeholder card. Section 4 problem 12 and the broader intake remain incomplete.
 
 
