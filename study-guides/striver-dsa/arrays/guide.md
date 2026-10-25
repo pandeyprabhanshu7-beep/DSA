@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–8 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 9–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–10 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 11–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first eight solved problems](#4-core-pattern-lab--first-eight-solved-problems)
+- [4. Core pattern lab — first ten solved problems](#4-core-pattern-lab--first-ten-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -37,6 +37,8 @@
   - [Example 6 — Remove Duplicates: finalize a unique prefix](#example-6--remove-duplicates-finalize-a-unique-prefix)
   - [Example 7 — Sorted Squares: consume the largest magnitude](#example-7--sorted-squares-consume-the-largest-magnitude)
   - [Example 8 — 3Sum: anchor once, eliminate pairs monotonically](#example-8--3sum-anchor-once-eliminate-pairs-monotonically)
+  - [Example 9 — Container With Most Water: discard the dominated endpoint](#example-9--container-with-most-water-discard-the-dominated-endpoint)
+  - [Example 10 — Trapping Rain Water: finalize the smaller boundary](#example-10--trapping-rain-water-finalize-the-smaller-boundary)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -662,9 +664,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first eight solved problems
+## 4. Core pattern lab — first ten solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first seven: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, and Squares of a Sorted Array. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude. Problems 8–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first ten: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, Squares of a Sorted Array, 3Sum, Container With Most Water, and Trapping Rain Water. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude; problems 8–10 use sorted or boundary monotonicity to discard state safely. Problems 11–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -679,6 +681,9 @@ Before selecting code, pin down the result and the guarantee that makes discarde
 | Move Zeroes | mutate the same array: stable nonzeros, then zero suffix | next output slot `write` | before `read`, the compact prefix is final and `write <= read` | null is rejected; empty and already-valid arrays are no-ops |
 | Remove Duplicates | return the length of the stable unique prefix | last accepted value and `write` | sorted runs are contiguous, so one representative completes each run | validate sortedness before mutation at reusable boundaries; suffix is unspecified |
 | Sorted Squares | a new nondecreasing array of mathematical squares | unconsumed interval `[left, right]` and backward `write` | the largest remaining magnitude is at an interval endpoint | input is validated and not mutated; `long` preserves every squared `int` |
+| 3Sum | unique value triplets from distinct indices whose mathematical sum is zero | sorted suffix plus anchor and two pointers | comparison eliminates one monotone side; duplicate runs emit once | sort a copy, widen sums, and return deterministic lexicographic triplets |
+| Container With Most Water | maximum area from one pair of boundaries | current endpoint pair and best area | every pair retaining the shorter endpoint is dominated | reject negative heights, do not mutate, and widen before multiplication |
+| Trapping Rain Water | total per-index retained water | unresolved interval plus left/right maxima | the side with the smaller running boundary has an exact final cap | reject negative heights, do not mutate, and accumulate in checked `long` |
 
 ```mermaid
 flowchart TD
@@ -1383,6 +1388,135 @@ Time is `O(n)`: input validation and the pointer scan are each linear. Auxiliary
 
 Executable evidence is in `ContainerWaterContracts.java`. It checks the four worked behaviors, monotone and equal-height arrays, null/short/negative rejection, nonmutation, full-width arithmetic, and 20,000 seeded arrays against an independent all-pairs oracle.
 
+### Example 10 — Trapping Rain Water: finalize the smaller boundary
+
+**Requirement:** given an elevation map of unit-width, non-negative bars, return the total water retained after rain. This reusable Java contract rejects `null` and negative heights, does not mutate the array, returns `0` for fewer than three bars, and returns `long` so a legal Java `int[]` is not forced into an `int` aggregate.
+
+This is not the previous container problem. A container chooses one pair and maximizes one rectangle. Trapping Rain Water sums a separate vertical contribution above every index:
+
+`waterAt(i) = min(max(height[0..i]), max(height[i..n-1])) - height[i]`.
+
+The maxima include `i`, so the contribution is never negative.
+
+```mermaid
+flowchart LR
+    H["height[i]"] --> C["cap = min(leftMax, rightMax)"]
+    L["max on 0..i"] --> C
+    R["max on i..n-1"] --> C
+    C --> W["waterAt = cap - height[i]"]
+```
+
+#### Choose the implementation from the constraint
+
+| Approach | Retained state | Time | Extra space | Best use |
+|---|---|---:|---:|---|
+| Scan both sides for every index | none | `O(n²)` | `O(1)` | independent test oracle |
+| Prefix and suffix maxima | two length-`n` arrays | `O(n)` | `O(n)` | clearest direct formula and per-index explanation |
+| Monotonic decreasing stack | unresolved indices | `O(n)` | `O(n)` | when the interviewer asks for the bounded-region/stack view |
+| Two running maxima | two pointers and two maxima | `O(n)` | `O(1)` | optimal aggregate when only the total is required |
+
+```mermaid
+flowchart TD
+    Q{"What evidence is needed?"}
+    Q -->|"simple oracle"| B["scan left and right"]
+    Q -->|"per-index caps"| P["prefix + suffix maxima"]
+    Q -->|"bounded regions"| S["monotonic stack"]
+    Q -->|"total with O(1) space"| T["two running maxima"]
+```
+
+The optimized method compares the running boundaries, not adjacent bars. When `leftMax <= rightMax`, the current left position is final:
+
+- if `height[left] <= leftMax`, an actual right boundary of at least `rightMax` exists, so the limiting cap is exactly `leftMax`;
+- if `height[left] > leftMax`, this bar becomes the new `leftMax` and contributes zero.
+
+The argument is symmetric when `rightMax < leftMax`. Each step finalizes exactly one index, so no contribution is guessed and no index is revisited.
+
+```java
+static long trap(int[] height) {
+    if (height == null) throw new IllegalArgumentException("height must not be null");
+    for (int value : height) {
+        if (value < 0) throw new IllegalArgumentException("heights must be non-negative");
+    }
+
+    int left = 0, right = height.length - 1;
+    int leftMax = 0, rightMax = 0;
+    long water = 0L;
+
+    while (left <= right) {
+        if (leftMax <= rightMax) {
+            leftMax = Math.max(leftMax, height[left]);
+            water = Math.addExact(water, (long) leftMax - height[left]);
+            left++;
+        } else {
+            rightMax = Math.max(rightMax, height[right]);
+            water = Math.addExact(water, (long) rightMax - height[right]);
+            right--;
+        }
+    }
+    return water;
+}
+```
+
+```mermaid
+flowchart TD
+    A["left=0, right=n-1, maxima=0, water=0"] --> C{"leftMax <= rightMax?"}
+    C -->|yes| L["raise leftMax; add leftMax-height[left]; left++"]
+    C -->|no| R["raise rightMax; add rightMax-height[right]; right--"]
+    L --> D{"left <= right?"}
+    R --> D
+    D -->|yes| C
+    D -->|no| O["return water"]
+```
+
+#### Worked case 1 — canonical full trace
+
+For `[0,1,0,2,1,0,1,3,2,1,2,1]`, the exact scan is:
+
+| step | `left:right` | `h[left]:h[right]` | maxima after update | side finalized | added | total |
+|---:|---|---|---|---|---:|---:|
+| 1 | `0:11` | `0:1` | `0:0` | left | 0 | 0 |
+| 2 | `1:11` | `1:1` | `1:0` | left | 0 | 0 |
+| 3 | `2:11` | `0:1` | `1:1` | right | 0 | 0 |
+| 4 | `2:10` | `0:2` | `1:1` | left | 1 | 1 |
+| 5 | `3:10` | `2:2` | `2:1` | left | 0 | 1 |
+| 6 | `4:10` | `1:2` | `2:2` | right | 0 | 1 |
+| 7 | `4:9` | `1:1` | `2:2` | left | 1 | 2 |
+| 8 | `5:9` | `0:1` | `2:2` | left | 2 | 4 |
+| 9 | `6:9` | `1:1` | `2:2` | left | 1 | 5 |
+| 10 | `7:9` | `3:1` | `3:2` | left | 0 | 5 |
+| 11 | `8:9` | `2:1` | `3:2` | right | 1 | 6 |
+| 12 | `8:8` | `2:2` | `3:2` | right | 0 | 6 |
+
+The result is `6`. The table records the maxima *after* the selected side is updated; that convention makes new boundaries visibly contribute zero.
+
+```mermaid
+flowchart TD
+    A["steps 1-3: establish leftMax=1, rightMax=1"] --> B["steps 4-6: collect 1, establish maxima 2:2"]
+    B --> C["steps 7-9: collect 1+2+1"]
+    C --> D["steps 10-12: establish leftMax=3, collect final 1"]
+    D --> E["total = 6"]
+```
+
+#### Worked case 2 — both basins share boundaries
+
+`[4,2,0,3,2,5]` returns `9`. The per-index contributions are `[0,2,4,1,2,0]`. This case catches “nearest taller bar” solutions: the correct cap comes from the tallest boundary on each side, not necessarily the nearest one.
+
+#### Worked case 3 — no basin means zero
+
+`[]`, `[7]`, `[7,7]`, `[1,2,3,4,5]`, `[5,4,3,2,1]`, and `[3,3,3,3]` all return `0`. Plateaus update or preserve a boundary; they never create negative water. Fewer than three bars cannot have a position with boundaries on both sides.
+
+#### Worked case 4 — aggregate width can overflow `int`
+
+`[Integer.MAX_VALUE,0,0,Integer.MAX_VALUE]` returns `4_294_967_294L`. Each interior index contributes `2_147_483_647`, so an `int water` silently wraps even though each height is a valid `int`. The implementation widens each contribution before accumulation and uses `Math.addExact` to make an unexpected `long` overflow explicit.
+
+**Correctness argument.** Maintain four facts before each iteration: indices outside `[left,right]` are finalized exactly once; `leftMax` is the maximum encountered from the original left; `rightMax` is the maximum encountered from the original right; and `water` is the exact sum for finalized indices. If `leftMax <= rightMax`, an unprocessed left value below `leftMax` is capped by `leftMax`, while a value above it becomes a zero-contribution boundary. Finalizing it therefore preserves all facts. The right branch is symmetric. The interval shrinks every iteration and eventually becomes empty, at which point every index has its exact formula contribution in `water`.
+
+**Complexity.** Validation and the pointer scan are each `O(n)`, every index is finalized once, and auxiliary space is `O(1)`. The input is unchanged. The independent oracle is deliberately `O(n²)` and structurally different, which makes it useful for randomized differential testing.
+
+**Common interview errors:** computing only adjacent valleys; confusing this sum with one container area; moving both pointers on equality and skipping a position; adding before updating the selected maximum; using `int` for the reusable aggregate; or accepting negative heights without defining what they mean. If the width or rainfall model changes, restate the contribution formula before reusing the proof.
+
+Executable evidence is in `TrappingRainWaterContracts.java`. It checks 18 scenario groups, including all four worked behaviors, monotone/flat inputs, validation, nonmutation and full-width accumulation, then compares 20,000 seeded arrays with an independent per-index left/right scan.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -1400,14 +1534,17 @@ Executable evidence is in `ContainerWaterContracts.java`. It checks the four wor
 - [LeetCode, “Squares of a Sorted Array”](https://leetcode.com/problems/squares-of-a-sorted-array/) — sorted-input and nondecreasing squared-output contract, original numeric bounds, and the linear-time follow-up.
 - [LeetCode, “3Sum”](https://leetcode.com/problems/3sum/) — distinct-index, zero-sum and duplicate-free value-triplet contract.
 - [LeetCode, “Container With Most Water”](https://leetcode.com/problems/container-with-most-water/) — primary pair-selection contract, examples and original input bounds.
+- [LeetCode, “Trapping Rain Water”](https://leetcode.com/problems/trapping-rain-water/) — primary unit-width, non-negative elevation-map and total trapped-water contract.
 - [Java Language Specification, Java SE 17, §15.17](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17) — multiplicative operators and binary numeric promotion; the implementation widens an operand before multiplication.
+- [Java Language Specification, Java SE 17, Chapter 4](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — integer operators use 32- or 64-bit precision according to promotion and do not signal ordinary overflow.
+- [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — `addExact(long,long)` reports an overflow instead of silently wrapping.
 - [Boyer and Moore, “A Linear Time Majority Vote Algorithm”](https://www.cs.utexas.edu/~moore/best-ideas/mjrty/) — primary description and history of the cancellation algorithm used to produce the majority candidate.
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 9 at lines 253–1092 (problem 9 is lines 1000–1092). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 9 (direct Library parsed-text lines 671–729 for problem 9). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 10 at lines 253–1204 (problem 10 is lines 1093–1204). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 10 (direct Library parsed-text lines 730–815 for problem 10, followed by page metadata before problem 11 at line 819). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 9, “Container With Most Water,” is promoted from Markdown lines 1000–1092 and the corresponding DOCX parsed-text lines 671–729; problem 10, “Trapping Rain Water,” begins at Markdown line 1093 / DOCX parsed-text line 730.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 10, “Trapping Rain Water,” is promoted from Markdown lines 1093–1204 and the corresponding DOCX parsed-text lines 730–815; problem 11, “Minimum Size Subarray Sum,” begins at Markdown line 1207 / DOCX parsed-text line 819.
 
 
