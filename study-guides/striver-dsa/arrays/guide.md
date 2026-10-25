@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–7 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 8–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–8 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 9–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first seven solved problems](#4-core-pattern-lab--first-seven-solved-problems)
+- [4. Core pattern lab — first eight solved problems](#4-core-pattern-lab--first-eight-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -36,6 +36,7 @@
   - [Example 5 — Move Zeroes: stable compaction, then clear](#example-5--move-zeroes-stable-compaction-then-clear)
   - [Example 6 — Remove Duplicates: finalize a unique prefix](#example-6--remove-duplicates-finalize-a-unique-prefix)
   - [Example 7 — Sorted Squares: consume the largest magnitude](#example-7--sorted-squares-consume-the-largest-magnitude)
+  - [Example 8 — 3Sum: anchor once, eliminate pairs monotonically](#example-8--3sum-anchor-once-eliminate-pairs-monotonically)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -661,7 +662,7 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first seven solved problems
+## 4. Core pattern lab — first eight solved problems
 
 The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first seven: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, and Squares of a Sorted Array. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude. Problems 8–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
@@ -1151,6 +1152,136 @@ Time is `O(n)`: validation and construction are each one pass. The returned arra
 
 Executable evidence is in `SortedSquaresContracts.java`. It checks the four cases above, empty/singleton/zero inputs, null and unsorted rejection, input immutability, and 20,000 seeded sorted arrays against an independent square-then-sort oracle.
 
+### Example 8 — 3Sum: anchor once, eliminate pairs monotonically
+
+**Requirement:** given an `int[]`, return every distinct value triplet `(a, b, c)` with `a <= b <= c` and mathematical sum zero. The three values must come from three distinct input indices. Duplicate index choices that produce the same values do not create another result. This reusable contract rejects null, preserves the caller's array, returns triplets in deterministic lexicographic order, and returns an empty list when fewer than three values or no solution exists.
+
+Sorting turns the three-variable search into a sequence of sorted Two Sum searches. Fix one distinct anchor at `i`, then search only `i + 1..n - 1`. For that anchor:
+
+- if the widened sum is negative, every pair using the current `left` and any index no farther right is also too small, so advance `left`;
+- if the sum is positive, every pair using the current `right` and any index no farther left is also too large, so decrement `right`;
+- if the sum is zero, emit the value triplet once, then skip the complete equal-value runs at both pointers.
+
+```mermaid
+flowchart TD
+    S["Sort a copy"] --> A["Choose next distinct anchor i"]
+    A --> P["left = i + 1; right = n - 1"]
+    P --> C{"long sum sign"}
+    C -->|negative| L["left++"]
+    C -->|positive| R["right--"]
+    C -->|zero| E["emit; skip equal left and right runs"]
+    L --> C
+    R --> C
+    E --> C
+```
+
+The reusable implementation uses a record so sortedness and uniqueness are part of the result type rather than conventions hidden inside nested lists:
+
+```java
+record Triplet(int first, int second, int third) {}
+
+static List<Triplet> threeSum(int[] input) {
+    Objects.requireNonNull(input, "input");
+    int[] values = input.clone();              // preserve the caller's order
+    Arrays.sort(values);
+    List<Triplet> result = new ArrayList<>();
+
+    for (int i = 0; i + 2 < values.length; i++) {
+        if (i > 0 && values[i] == values[i - 1]) continue;
+        if (values[i] > 0) break;
+
+        long smallest = (long) values[i] + values[i + 1] + values[i + 2];
+        if (smallest > 0) break;
+        long largest = (long) values[i]
+                + values[values.length - 2] + values[values.length - 1];
+        if (largest < 0) continue;
+
+        int left = i + 1, right = values.length - 1;
+        while (left < right) {
+            long sum = (long) values[i] + values[left] + values[right];
+            if (sum < 0) {
+                left++;
+            } else if (sum > 0) {
+                right--;
+            } else {
+                result.add(new Triplet(values[i], values[left], values[right]));
+                int leftValue = values[left], rightValue = values[right];
+                while (left < right && values[left] == leftValue) left++;
+                while (left < right && values[right] == rightValue) right--;
+            }
+        }
+    }
+    return List.copyOf(result);
+}
+```
+
+The cast is before the first addition. Without it, Java performs `int` addition first and can wrap before a later conversion. The two bound checks are optional optimizations, but their proof is the same sorted monotonicity as pointer movement: the next two values form the smallest possible suffix pair, while the final two form the largest.
+
+#### Worked case 1 — canonical duplicates and the full pointer trace
+
+Input `[-1,0,1,2,-1,-4]` sorts to `[-4,-1,-1,0,1,2]`.
+
+| anchor `i:value` | `left:value` | `right:value` | widened sum | decision |
+|---|---|---|---:|---|
+| `0:-4` | `1:-1` | `5:2` | -3 | advance left |
+| `0:-4` | `2:-1` | `5:2` | -3 | advance left |
+| `0:-4` | `3:0` | `5:2` | -2 | advance left |
+| `0:-4` | `4:1` | `5:2` | -1 | anchor exhausted |
+| `1:-1` | `2:-1` | `5:2` | 0 | emit `(-1,-1,2)`; skip runs |
+| `1:-1` | `3:0` | `4:1` | 0 | emit `(-1,0,1)`; skip runs |
+| `2:-1` | — | — | — | duplicate anchor; skip |
+
+Result: `[(-1,-1,2), (-1,0,1)]`. Original index choices may differ, but the value combinations are unique.
+
+```mermaid
+flowchart LR
+    A["anchor -1"] --> P1["pair -1 and 2"]
+    A --> P2["pair 0 and 1"]
+    P1 --> T1["(-1,-1,2)"]
+    P2 --> T2["(-1,0,1)"]
+    D["next anchor -1"] -. duplicate .-> X["skip"]
+```
+
+#### Worked case 2 — one value combination, many index combinations
+
+`[0,0,0,0]` has four choose three index triples, but all produce the same value triplet. Emit `(0,0,0)` once, then skipping the left and right zero runs ends the search. Returning four copies would confuse **index multiplicity** with the requested **value-set uniqueness**.
+
+```mermaid
+flowchart TD
+    I["four zero occurrences"] --> C["many distinct index triples"]
+    C --> V["one normalized value triplet (0,0,0)"]
+    V --> O["emit once; skip equal runs"]
+```
+
+#### Worked case 3 — duplicate runs on both sides
+
+`[-2,0,0,2,2]` returns only `(-2,0,2)`. After emission, advancing past both zeroes and both twos is necessary. Skipping only the anchor prevents repeated anchor values, but it does not prevent repeated pairs for the same anchor.
+
+| State | remaining left run | remaining right run | action |
+|---|---|---|---|
+| before match | `0,0` | `2,2` | sum is zero |
+| after emit | `0,0` | `2,2` | remember boundary values |
+| after run skips | empty | empty | pointer search ends |
+
+#### Worked case 4 — overflow must not invent a solution
+
+`[Integer.MIN_VALUE, Integer.MIN_VALUE, 0]` has mathematical sum `-4_294_967_296`, so the result is empty. In 32-bit `int` arithmetic, however, `Integer.MIN_VALUE + Integer.MIN_VALUE` wraps to zero; an `int sum` would falsely emit a triplet. Conversely, `[Integer.MIN_VALUE, 1, Integer.MAX_VALUE]` is a real zero-sum triplet. Widening before addition distinguishes both cases.
+
+**Invariant for one anchor.** Before each pointer comparison, every candidate pair outside `[left, right]` has either been emitted or proved impossible for the fixed anchor, and every not-yet-classified candidate uses two distinct indices inside that interval. A negative sum rules out the current left value with every remaining right value at or before `right`; a positive sum symmetrically rules out the current right value. A zero sum is emitted, and equal-value runs may be removed because they can only reproduce that same normalized triplet.
+
+**Global correctness.** Every triplet has a smallest sorted index, so it belongs to exactly one anchor iteration. Distinct-anchor skipping chooses one representative of each equal anchor run. The fixed-anchor invariant finds every feasible suffix pair and no infeasible pair. Post-match run skipping suppresses repeated pair values. Therefore the output is complete and contains each value triplet exactly once.
+
+**Complexity and trade-offs.** Sorting costs `O(n log n)`; at most `n` anchors each perform one linear inward scan, so total time is `O(n²)`. The reusable copy costs `O(n)` auxiliary storage, excluding output and the primitive-sort implementation stack. If mutation is explicitly allowed, sorting the input removes that copy and the two-pointer state is `O(1)`. A cubic triple enumeration is easier to derive but costs `O(n³)`; a per-anchor hash set remains `O(n²)` expected time but uses `O(n)` extra storage and still needs careful normalization and deduplication.
+
+Interview variations:
+
+- **target 3Sum:** replace zero with a `long target` and compare the widened sum to it;
+- **3Sum Closest:** retain the best widened distance instead of emitting exact matches;
+- **4Sum / k-Sum:** recursively fix distinct anchors until the two-pointer base case, while preserving bound and duplicate rules;
+- **return original indices:** sorting values loses direct identity, so sort `(value,index)` pairs or use a different ownership contract.
+
+Executable evidence is in `ThreeSumContracts.java`. It checks the four worked behaviors, short/no-answer/null contracts, deterministic ordering, input immutability, and 20,000 seeded arrays against an independent cubic `TreeSet` oracle that widens before addition.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -1166,12 +1297,14 @@ Executable evidence is in `SortedSquaresContracts.java`. It checks the four case
 - [LeetCode, “Move Zeroes”](https://leetcode.com/problems/move-zeroes/) — primary problem statement for stable in-place zero movement.
 - [LeetCode, “Remove Duplicates from Sorted Array”](https://leetcode.com/problems/remove-duplicates-from-sorted-array/) — sorted-input, stable in-place unique-prefix, returned-count and ignored-suffix contract.
 - [LeetCode, “Squares of a Sorted Array”](https://leetcode.com/problems/squares-of-a-sorted-array/) — sorted-input and nondecreasing squared-output contract, original numeric bounds, and the linear-time follow-up.
+- [LeetCode, “3Sum”](https://leetcode.com/problems/3sum/) — distinct-index, zero-sum and duplicate-free value-triplet contract.
 - [Boyer and Moore, “A Linear Time Majority Vote Algorithm”](https://www.cs.utexas.edu/~moore/best-ideas/mjrty/) — primary description and history of the cancellation algorithm used to produce the majority candidate.
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 7 at lines 253–891 (problem 7's anchor/content is lines 807–891). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 7 (the prior extraction records problem 7 beginning at line 526; a fresh Pandoc no-wrap extraction places its bounded text at lines 743–834). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 8 at lines 253–999 (problem 8 is lines 895–999). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 8 (direct Library parsed-text lines 594–670; the earlier no-wrap extraction placed its start at line 835). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 7, “Squares of a Sorted Array,” is promoted from Markdown lines 807–891 and the corresponding DOCX section; problem 8, “3Sum,” begins at Markdown line 895 (fresh DOCX no-wrap line 835).
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 8, “3Sum,” is promoted from Markdown lines 895–999 and the corresponding DOCX parsed-text lines 594–670; problem 9, “Container With Most Water,” begins at Markdown line 1000 / DOCX parsed-text line 671.
+
 

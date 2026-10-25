@@ -43,6 +43,7 @@
 | Arrays §4 Problem 5 — Move Zeroes | ✅ | ✅ | Stable in-place compaction, four worked cases, pointer trace, proof, assignment accounting and randomized Java oracle |
 | Arrays §4 Problem 6 — Remove Duplicates | ✅ | ✅ | Stable unique-prefix compaction, four worked cases, trace, proof, precondition validation, assignment accounting and randomized Java oracle |
 | Arrays §4 Problem 7 — Sorted Squares | ✅ | ✅ | Opposite-endpoint selection, four worked cases, exact trace, proof, full-width arithmetic contract and randomized Java oracle |
+| Arrays §4 Problem 8 — 3Sum | ✅ | ✅ | Duplicate-safe anchor/two-pointer elimination, four worked behaviors, exact trace, proof, overflow-safe sums and randomized cubic oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -176,4 +177,11 @@ Fresh literal-marker audit remains **170**: this bounded source problem did not 
 Arrays Section 4 problem 7 now states the sorted-input, new-output and nonmutation contracts; replaces unsafe `Math.abs(int)` reasoning with widened endpoint squares; and adds four worked cases, a full pointer trace, three diagrams, proof and full-width `long` arithmetic. `SortedSquaresContracts` validates explicit boundaries plus 20,000 seeded sorted arrays against an independent square-then-sort oracle. The responsive reader embeds the exact canonical Markdown bytes.
 
 Fresh literal-marker audit remains **170**: this bounded source problem did not contain a placeholder card. Section 4 problem 8 and the broader intake remain incomplete.
+
+## Arrays 3Sum enrichment — 2026-10-24 ET
+
+Arrays Section 4 problem 8 now states the distinct-index, duplicate-free value-triplet, deterministic-order and nonmutation contracts; adds four worked behaviors, an exact pointer trace, three diagrams, a fixed-anchor invariant and proof, bound pruning, and widened arithmetic that prevents phantom matches at integer extremes. `ThreeSumContracts` validates explicit duplicate/overflow/boundary cases plus 20,000 seeded arrays against an independent cubic `TreeSet` oracle. The responsive reader embeds the exact canonical Markdown bytes.
+
+Fresh literal-marker audit remains **170**: this bounded source problem did not contain a placeholder card. Section 4 problem 9 and the broader intake remain incomplete.
+
 

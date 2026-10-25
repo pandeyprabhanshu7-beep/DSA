@@ -12,6 +12,7 @@ java -ea study-guides/striver-dsa/arrays/ArrayCorePatterns.java
 java -ea study-guides/striver-dsa/arrays/MoveZeroesContracts.java
 java -ea study-guides/striver-dsa/arrays/RemoveDuplicatesContracts.java
 java -ea study-guides/striver-dsa/arrays/SortedSquaresContracts.java
+java -ea study-guides/striver-dsa/arrays/ThreeSumContracts.java
 ```
 
 Rebuild the reader:
@@ -20,5 +21,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–7 are promoted. Section 4 problems 8–47 and later source material remain queued.
+This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–8 are promoted. Section 4 problems 9–47 and later source material remain queued.
+
 
