@@ -1,10 +1,10 @@
 # Backend Enrichment Status
 
-Last updated: 2026-10-24.
+Last updated: 2026-10-25.
 
 ## Spring AI and Python APIs
 
-State: **IN PROGRESS; Sections 1–7 promoted**.
+State: **IN PROGRESS; Sections 1–9 promoted**.
 
 Canonical pair:
 
@@ -15,7 +15,7 @@ Source comparison:
 
 - Selected `atlas_guides/spring_ai_python_api_interview_guide.md` from `ai_cicd_spring_python_guides_complete.zip`, bundle SHA-256 `c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31`, member SHA-256 `af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553`.
 - Compared standalone `spring_ai_python_api_interview_guide.html`, SHA-256 `6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3`; it is byte-identical to the generated HTML inside the bundle, so it was not promoted as a duplicate source.
-- Section 7 is exactly editable-source lines 428–620 and standalone-HTML lines 580–752, ending before Section 8 at respective lines 621 and 753.
+- Section 9 is exactly editable-source lines 678–714 and standalone-HTML lines 796–831, ending before Section 10 at respective lines 715 and 832.
 - The ZIP passed integrity and path-traversal checks.
 
 Completed sections:
@@ -27,12 +27,14 @@ Completed sections:
 5. **A model call at the wire level** (source lines 203–263) — trusted-origin and request contracts, raw HTTP trace, 20-second phase budget, replay-aware retry state, layered completion validation, capacity/cost arithmetic, safe telemetry and paired 30-scenario contracts.
 6. **Complete Python RAG endpoint: trace every subcomponent** (source lines 264–427) — all-or-nothing startup snapshots, process-local admission arithmetic, total/phase deadlines, deterministic retrieval, calibrated abstention, citation membership/support gates, typed failures, exactly-once permit release, four diagrams and paired 32-scenario/10,000-trial contracts.
 7. **Complete Spring AI RAG path: make the lifecycle observable** (source lines 428–620) — current release identity, minimal dependency/configuration boundary, atomic readiness publication, bounded admission and deadline propagation, deterministic retrieval, membership/support gates, typed failure semantics, graceful shutdown reasoning, four diagrams and paired 36-scenario/10,000-trial contracts.
+8. **Replacing in-memory vectors with durable retrieval** (source lines 621–677) — generation-safe cutover, fixed vector identity, scoped parameterized retrieval, exact-versus-ANN recall gates, pool/deadline ownership, four diagrams and paired 34-scenario/10,000-trial contracts.
+9. **Structured outputs: validate syntax, shape and business meaning** (source lines 678–714) — strict duplicate-aware parsing, exact schemas, server-owned provenance, request-specific service/evidence checks, bounded repair, four diagrams and paired 36-scenario/10,000-trial contracts.
 
 Validation:
 
-- Java 17 source-file launch and Python 3 passed every paired contract; Section 7 produced the identical `PARITY|CONFIGURED|READY|ANSWER|ABSTAIN|429|504|502|RELEASED` trace, 36 scenario groups and 10,000 seeded trials per language.
+- Java 17 source-file launch and Python 3 passed every paired contract; Section 9 produced the identical `PARITY|ACCEPTED|SYNTAX_INVALID|SCHEMA_INVALID|BUSINESS_INVALID|EXHAUSTED|3398` trace, 36 scenario groups and 10,000 seeded trials per language.
 - Deterministic reader generation, exact embedded-Markdown recovery, hashes, unique IDs, search entries, balanced fences, Mermaid sources, local links/fragments, JSON, reader JavaScript and rebuild identity were validated after the content change.
 - The live literal DSA Java-marker audit remains 170.
 - Standalone `javac`, framework/native dependency compilation, live model/provider calls, browser/accessibility integration, pool/load tests and rendered Mermaid QA were unavailable and are not represented as passes.
 
-Next action: rotate fairly to Arrays Section 4 problem 7 at Markdown line 802 / DOCX extracted line 526. On the next Spring/Python turn, process Section 8, **Replacing in-memory vectors with durable retrieval**, beginning at editable source line 621 / standalone HTML line 753. Do not imply the 25-section source is complete.
+Next action: rotate fairly to Arrays Section 4 problem 9, **Container With Most Water**, beginning at Markdown line 1000 / DOCX extracted line 671. On the next Spring/Python turn, process Section 10, **MCP implementations in Python and Java**, beginning at editable source line 715 / standalone HTML line 832. Do not imply the 25-section source is complete.

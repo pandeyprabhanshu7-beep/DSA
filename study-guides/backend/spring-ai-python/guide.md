@@ -1578,3 +1578,219 @@ Verified on 24 October 2026:
 ### Source provenance and continuation
 
 The selected editable bundle member's Section 8 is source lines 621–677; Section 9 begins at line 678. The matching standalone HTML is lines 753–795; Section 9 begins at line 796. Both contain the same Spring `VectorStore`, parameterized psycopg and higher-level-advisor substance, so the HTML remains a comparison source rather than a duplicate guide. This canonical section retains those boundaries and adds generation-safe migration, exact-versus-ANN recall gates, deterministic scoped SQL, four worked traces, four diagrams, deadline/pool ownership and paired executable contracts. Section 9, **Structured outputs: validate syntax and business meaning**, begins at editable source line 678 / standalone HTML line 796. Sections 9–25 remain queued; the source is not complete.
+
+## 9. Structured outputs: validate syntax, shape and business meaning
+
+A model's JSON is untrusted input, even when a provider accepts a response schema or a framework maps the response directly to a record. Format instructions improve probability; they do not grant authority. A safe boundary distinguishes five outcomes: invalid JSON syntax, invalid structural schema, invalid application meaning, accepted output and repair exhaustion.
+
+For an incident-summary response, define the contract before prompting:
+
+| Layer | Requirement | Example rejection |
+|---|---|---|
+| envelope | UTF-8 response is at most 2,048 bytes and contains exactly one JSON document | prose before JSON, trailing document or oversized payload |
+| syntax | RFC 8259 JSON; duplicate object names rejected rather than silently overwritten | two `service` fields |
+| structure | exactly `service`, `severity`, `summary`, `evidence_ids`; no missing or unknown fields | model invents `auto_resolve: true` |
+| field constraints | strings have bounds; severity is an enum; evidence is a nonempty unique list of at most eight bounded IDs | empty summary or repeated evidence ID |
+| business meaning | service belongs to the authenticated request's allowed set and every evidence ID is in the exact supplied evidence envelope | valid-looking `foreign-99` citation |
+| server authority | request ID, tenant, release, policy version, reviewer decision and side effects come from trusted application state | output-supplied `approved: true` |
+| repair | each retry receives only bounded diagnostics, shares the original deadline and is fully revalidated | parse succeeds on retry but citation membership fails |
+
+```mermaid
+flowchart TB
+  B["Bounded model bytes"] --> J{"One strict JSON document?"}
+  J -->|no| X1["SYNTAX_INVALID"]
+  J -->|yes| S{"Exact schema and limits?"}
+  S -->|no| X2["SCHEMA_INVALID"]
+  S -->|yes| M{"Trusted-scope meaning valid?"}
+  M -->|no| X3["BUSINESS_INVALID"]
+  M -->|yes| A["ACCEPTED + server provenance"]
+```
+
+Spring AI 2.0.2 describes `StructuredOutputConverter` as best effort and recommends schema validation. `BeanOutputConverter` derives Draft 2020-12 JSON Schema and maps JSON to a target type; `.entity(IncidentSummary.class)` is convenient syntax over that conversion. Neither successful deserialization nor a Java record constructor proves request-specific authorization, evidence provenance or domain policy. Likewise, Pydantic guarantees that its resulting model conforms to configured types and constraints; coercion is enabled in many ordinary configurations, so an external trust boundary should choose strictness and extra-field behavior deliberately.
+
+### Example 1 — accept one fully traced summary
+
+Trusted request state:
+
+```text
+request_id       = req-73                 # server generated
+allowed_services = {payments}             # authentication + authorization
+evidence_ids     = {evt-17, log-22}        # exact retrieved envelope
+release          = corpus-43/qwen3:8b      # server deployment state
+```
+
+Candidate model output:
+
+```json
+{"service":"payments","severity":"HIGH","summary":"Payment errors rose after deploy.","evidence_ids":["evt-17","log-22"]}
+```
+
+Trace:
+
+1. The 127 UTF-8 bytes are below the 2,048-byte cap; the strict decoder consumes one document and finds no duplicate names.
+2. The key set is exact. Three scalar fields are strings, severity is in the four-value enum, and the evidence list is bounded and unique.
+3. `payments` belongs to the trusted allowed-service set. Both proposed IDs are members of the evidence envelope supplied to this model call.
+4. The application returns `ACCEPTED` and attaches `req-73`, the authenticated tenant, `corpus-43/qwen3:8b` and the validator policy version from server state. Those fields were never offered to the model as decision authority.
+
+```mermaid
+sequenceDiagram
+  participant A as Authorized API
+  participant R as Retriever
+  participant M as Model
+  participant V as Strict validator
+  A->>R: trusted tenant + active generation
+  R-->>A: evt-17, log-22
+  A->>M: delimited evidence + response schema
+  M-->>V: proposed JSON only
+  A->>V: allowed service and evidence sets
+  V-->>A: ACCEPTED structured value
+  A->>A: attach request/release provenance
+```
+
+Membership is still not entailment. If the summary says “database loss occurred” while both passages discuss only elevated latency, citation membership passes but claim-to-passage support fails in a subsequent grounded-output gate. Keep syntax, structure, membership and support observable as separate checks so an incident can be attributed to the right stage.
+
+### Example 2 — reject parser and schema traps before domain code
+
+These candidates must not converge to the same generic “bad response” metric:
+
+| Candidate | Typed result | Why |
+|---|---|---|
+| `{` | `SYNTAX_INVALID` | truncated document |
+| valid object followed by `{} ` | `SYNTAX_INVALID` | trailing second value |
+| two `service` names | `SYNTAX_INVALID` | duplicate-name ambiguity; last-value-wins is unsafe |
+| `{"service":1,...}` | `SCHEMA_INVALID` | no implicit number-to-string conversion |
+| exact fields plus `"auto_resolve":true` | `SCHEMA_INVALID` | unknown capability-like field |
+| nine evidence IDs | `SCHEMA_INVALID` | cardinality exceeds the reviewed prompt/evaluation bound |
+| `"summary":" x"` | `SCHEMA_INVALID` | noncanonical leading whitespace |
+
+The Python standard decoder exposes `object_pairs_hook`, which lets the boundary reject duplicate names instead of accepting the final value. Pydantic can then express the declarative portion without silently accepting extras or coercing types:
+
+```python
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+class IncidentSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    service: str = Field(min_length=1, max_length=64)
+    severity: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    summary: str = Field(min_length=1, max_length=240)
+    evidence_ids: list[str] = Field(min_length=1, max_length=8)
+
+    @field_validator("summary")
+    @classmethod
+    def canonical_summary(cls, value: str) -> str:
+        if value != value.strip():
+            raise ValueError("summary must be trimmed")
+        return value
+
+    @field_validator("evidence_ids")
+    @classmethod
+    def unique_evidence(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("duplicate evidence ID")
+        return value
+```
+
+Run a byte-limited, duplicate-aware JSON decoder first, then `IncidentSummary.model_validate(decoded, strict=True)`. Calling `model_construct()` would intentionally bypass validation and is therefore wrong for model output. JSON Schema can express required fields, enums, maximum lengths, `uniqueItems` and `unevaluatedProperties: false`; it cannot express every request-specific semantic relationship. That is why structural and general-purpose semantic validation remain separate phases.
+
+```mermaid
+flowchart LR
+  R["Raw response"] --> D["Duplicate-aware decoder"]
+  D --> P["Pydantic strict model"]
+  P --> C["Request-context checks"]
+  C --> G["Grounded-claim checks"]
+  G --> O["Typed outcome"]
+```
+
+### Example 3 — mapping is not authorization or automatic Jakarta Validation
+
+This candidate is structurally valid:
+
+```json
+{"service":"orders","severity":"HIGH","summary":"Rollback advised.","evidence_ids":["foreign-99"]}
+```
+
+For the request in Example 1 it is `BUSINESS_INVALID` twice: `orders` is outside the allowed service set, and `foreign-99` was not supplied as evidence. Expanding either set from model output would reverse the trust boundary.
+
+A Java record can carry structural annotations, but mapping JSON into the record does not universally mean that Jakarta Validation has run. Invoke the configured `Validator` explicitly and then apply request-context checks:
+
+```java
+record IncidentSummary(
+    @jakarta.validation.constraints.Size(min = 1, max = 64) String service,
+    Severity severity,
+    @jakarta.validation.constraints.Size(min = 1, max = 240) String summary,
+    @jakarta.validation.constraints.Size(min = 1, max = 8) List<String> evidenceIds) {}
+
+IncidentSummary candidate = chatClient.prompt(prompt).call().entity(IncidentSummary.class);
+Set<ConstraintViolation<IncidentSummary>> violations = validator.validate(candidate);
+if (!violations.isEmpty()) throw new SchemaInvalid(violations);
+if (!allowedServices.contains(candidate.service())) throw new BusinessInvalid("service");
+if (!allowedEvidence.containsAll(candidate.evidenceIds())) throw new BusinessInvalid("evidence");
+```
+
+`validator.validate` covers the constraints actually declared and supported by the configured provider. Application code still owns uniqueness, request-specific subset relationships, policy lookups and evidence support. A converter exception maps to syntax/shape failure; a constraint violation maps to schema failure; a failed trusted-set comparison maps to business failure. Preserve those distinctions in logs and metrics without logging the full incident text by default.
+
+```mermaid
+flowchart TB
+  E["entity(IncidentSummary.class)"] --> V["validator.validate(candidate)"]
+  V --> U["Uniqueness and canonical-form rules"]
+  U --> T["Trusted service/evidence subset"]
+  T --> Q["Claim support / review policy"]
+  Q --> P["Server-owned provenance + publish"]
+```
+
+### Example 4 — repair is a bounded state machine, not a loop until parse succeeds
+
+Assume two attempts, 60 ms of validator/repair budget, a modeled 20 ms cost per attempt and a 10 ms response reserve:
+
+| Attempt | Candidate | Validation result | Remaining budget | Decision |
+|---:|---|---|---:|---|
+| 1 | truncated `{` | `SYNTAX_INVALID` | 40 ms | one repair is still affordable |
+| 2 | valid payments summary citing `evt-17` | `ACCEPTED` after all layers | 20 ms | return structured value |
+
+If attempt 2 instead cites `foreign-99`, it is not “close enough”; final status is `EXHAUSTED` with the last internal reason recorded as business-invalid. If only 25 ms was available initially, the 20 ms attempt plus 10 ms reserve would not fit and no attempt would start. The outer request deadline wins over every nominal retry count.
+
+```mermaid
+stateDiagram-v2
+  [*] --> CheckBudget
+  CheckBudget --> Exhausted: no attempt or reserve budget
+  CheckBudget --> Validate: attempt fits and limit remains
+  Validate --> Accepted: every layer passes
+  Validate --> CheckBudget: typed failure and repair allowed
+  Validate --> Exhausted: limit reached or deadline spent
+  Accepted --> [*]
+  Exhausted --> [*]
+```
+
+A repair prompt should contain the stable schema and a bounded error code such as `SCHEMA_INVALID:evidence_ids_unique`; do not echo arbitrary parser text, secrets or the full previous output. Repaired output returns to byte and syntax validation first. Never resume midway because a repair can change fields that previously passed.
+
+### Paired executable contract
+
+The dependency-free Java/Python pair implements a strict, duplicate-aware flat JSON boundary, exact fields, enum/length/cardinality/uniqueness rules, trusted service/evidence subsets and deadline-aware repair:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/StructuredOutputContracts.java
+python3 study-guides/backend/spring-ai-python/structured_output_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|ACCEPTED|SYNTAX_INVALID|SCHEMA_INVALID|BUSINESS_INVALID|EXHAUSTED|3398
+```
+
+Each implementation passes 36 explicit scenario groups and 10,000 seeded scope/evidence trials. The Java parser is deliberately limited to this flat teaching schema rather than presented as a replacement for a maintained JSON library. These contracts do not call a model, prove provider-native schema enforcement, run Spring/Jackson/Jakarta/Pydantic integration, evaluate entailment, render prompts safely or calibrate repair cost under production load.
+
+### Current primary references
+
+Verified on 25 October 2026:
+
+- [Spring AI output converters](https://docs.spring.io/spring-ai/reference/api/structured-output/converters.html) and [structured-output schema validation](https://docs.spring.io/spring-ai/reference/api/structured-output/schema-validation.html) — converter best-effort behavior, Draft 2020-12 schema generation, provider schema mode and validation switches.
+- [Pydantic models](https://docs.pydantic.dev/latest/concepts/models/), [strict mode](https://docs.pydantic.dev/latest/concepts/strict_mode/) and [validators](https://docs.pydantic.dev/latest/concepts/validators/) — validated model construction, deliberate coercion controls, extra-field policy and field/model validators.
+- [Python `json`](https://docs.python.org/3/library/json.html) — `JSONDecodeError`, strict document decoding, nonstandard numeric behavior and `object_pairs_hook` for duplicate-name policy.
+- [JSON Schema Draft 2020-12 validation vocabulary](https://json-schema.org/draft/2020-12/json-schema-validation) and [Understanding JSON Schema](https://json-schema.org/understanding-json-schema/) — structural keywords and the explicit structural-versus-semantic validation boundary.
+- [Jakarta Validation 3.1 specification](https://jakarta.ee/specifications/bean-validation/3.1/) — constraint declaration, validation routines, groups and violation reporting; mapping and validation are separate responsibilities.
+
+### Source provenance and continuation
+
+The selected editable bundle member's Section 9 is source lines 678–714; Section 10 begins at line 715. The matching standalone HTML is lines 796–831; Section 10 begins at line 832. Both sources agree on the incident-summary fields, Pydantic validation, Spring AI record conversion, explicit business checks and bounded repair loop. This canonical section preserves that intent while separating syntax, structural schema, request-specific meaning and grounding; adding duplicate/extra-field policy, server-owned provenance, four worked traces, four diagrams and paired executable contracts. Section 10, **MCP implementations in Python and Java**, begins at editable source line 715 / standalone HTML line 832. Sections 10–25 remain queued; the source is not complete.
