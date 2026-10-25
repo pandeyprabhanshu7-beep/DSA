@@ -1,10 +1,10 @@
 # AI Enrichment Status
 
-Last updated: 2026-10-24.
+Last updated: 2026-10-25.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapters 1–9 complete**.
+State: **PROMOTED incrementally; Chapters 1–10 complete**.
 
 Canonical pair:
 
@@ -33,8 +33,10 @@ Source comparison:
 - Deepened Chapter 8 with four cache/deadline/failure/cost examples, four diagrams, cache and retry traces, current primary references, and an executable Java 17 contract for behavior-complete keys, ACL/source invalidation, deadline arithmetic, replay-safe retry admission, bounded full jitter, and unit-safe cost totals, plus 10,000 seeded jitter checks.
 - Compared Chapter 9 in selected master lines 260–377 and editable companion lines 311–414; both cover host/client/server/model boundaries, tools/resources/prompts, explicitly separate modern and legacy protocol eras, current HTTP request metadata, and stdio versus Streamable HTTP, so no duplicate guide was created.
 - Deepened Chapter 9 with four ownership/discovery/cancellation/transport examples, four diagrams, current primary references, and an executable Java 17 contract for modern metadata, capability admission, model/host/server authority composition, separately gated legacy lifecycle, request correlation, transport cancellation, and terminal-state ownership, plus 10,000 seeded trials.
+- Compared Chapter 10 in selected master lines 388–398 and editable companion lines 415–433; both cover token/resource authorization, object ownership, prompt-injection containment, least tool exposure, explicit approval, idempotency, uncertain outcomes, version-fenced compensation, bounded execution and redacted audit fields, so no duplicate guide was created.
+- Deepened Chapter 10 with four authorization/injection/approval/idempotency examples, four diagrams, current primary references, and an executable Java 17 contract for exact issuer/audience/scope and resource checks, fixed destinations, approval fingerprints, version fences, durable operation reconciliation and bounded execution, plus 10,000 seeded authorization trials.
 
-Next bounded section: Chapter 10, **Authorization, injection and tool side effects**, after fair domain rotation.
+Next bounded section: Chapter 11, **Observability and operations**, after fair domain rotation.
 
 ## AI foundations, RAG and CAG
 
@@ -62,7 +64,7 @@ Validation is recorded in the enrichment queue and the promotion commit.
 Next action:
 
 1. Rotate fairly after this AI-platform pass.
-2. On the next AI-platform pass, process Chapter 10 only.
+2. On the next AI-platform pass, process Chapter 11 only.
 3. On a later AI-foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment.
 4. Keep project source code in the existing Spring Boot AI repositories; this repository holds learning documentation only.
 
