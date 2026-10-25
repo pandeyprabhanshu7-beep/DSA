@@ -44,6 +44,7 @@
 | Arrays §4 Problem 6 — Remove Duplicates | ✅ | ✅ | Stable unique-prefix compaction, four worked cases, trace, proof, precondition validation, assignment accounting and randomized Java oracle |
 | Arrays §4 Problem 7 — Sorted Squares | ✅ | ✅ | Opposite-endpoint selection, four worked cases, exact trace, proof, full-width arithmetic contract and randomized Java oracle |
 | Arrays §4 Problem 8 — 3Sum | ✅ | ✅ | Duplicate-safe anchor/two-pointer elimination, four worked behaviors, exact trace, proof, overflow-safe sums and randomized cubic oracle |
+| Arrays §4 Problem 9 — Container With Most Water | ✅ | ✅ | Dominated-endpoint elimination, four worked cases, exact trace, proof, widened area arithmetic and randomized all-pairs oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -183,5 +184,11 @@ Fresh literal-marker audit remains **170**: this bounded source problem did not 
 Arrays Section 4 problem 8 now states the distinct-index, duplicate-free value-triplet, deterministic-order and nonmutation contracts; adds four worked behaviors, an exact pointer trace, three diagrams, a fixed-anchor invariant and proof, bound pruning, and widened arithmetic that prevents phantom matches at integer extremes. `ThreeSumContracts` validates explicit duplicate/overflow/boundary cases plus 20,000 seeded arrays against an independent cubic `TreeSet` oracle. The responsive reader embeds the exact canonical Markdown bytes.
 
 Fresh literal-marker audit remains **170**: this bounded source problem did not contain a placeholder card. Section 4 problem 9 and the broader intake remain incomplete.
+
+## Arrays Container With Most Water enrichment — 2026-10-25 ET
+
+Arrays Section 4 problem 9 now states the pair-selection, nonnegative-height and nonmutation contracts; separates one-container area from trapped-water accumulation; and adds four worked cases, an exact pointer trace, three diagrams, the endpoint-dominance proof and widened multiplication for the reusable full-`int` domain. `ContainerWaterContracts` validates 14 explicit scenario groups plus 20,000 seeded arrays against an independent all-pairs oracle. The responsive reader embeds the exact canonical Markdown bytes.
+
+Fresh literal-marker audit remains **170**: this bounded source problem did not contain a placeholder card. Section 4 problem 10 and the broader intake remain incomplete.
 
 

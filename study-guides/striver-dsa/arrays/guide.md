@@ -1282,6 +1282,107 @@ Interview variations:
 
 Executable evidence is in `ThreeSumContracts.java`. It checks the four worked behaviors, short/no-answer/null contracts, deterministic ordering, input immutability, and 20,000 seeded arrays against an independent cubic `TreeSet` oracle that widens before addition.
 
+### Example 9 — Container With Most Water: discard the dominated endpoint
+
+**Requirement:** given a non-null array of at least two nonnegative heights, choose distinct indices `left < right` and maximize
+
+`(right - left) * min(height[left], height[right])`.
+
+The width is the index distance, the shorter boundary limits the water level, and intermediate lines neither block nor subtract water. The reusable method below preserves the input and returns `long`. The original problem bounds make an `int` result safe, but widening before multiplication keeps the contract correct for the full nonnegative `int` height domain.
+
+```mermaid
+flowchart TD
+    H["height = min(left, right)"] --> A["area = width × height"]
+    W["width = right - left"] --> A
+    M["middle lines do not change this container"] --> A
+```
+
+A quadratic baseline evaluates every pair. The linear scan begins with maximum width. After evaluating the current pair, move only a shortest boundary inward:
+
+```java
+static long maxArea(int[] height) {
+    Objects.requireNonNull(height, "height");
+    if (height.length < 2) throw new IllegalArgumentException("need two heights");
+    for (int value : height) {
+        if (value < 0) throw new IllegalArgumentException("negative height");
+    }
+
+    int left = 0, right = height.length - 1;
+    long best = 0;
+    while (left < right) {
+        long area = (long) (right - left) * Math.min(height[left], height[right]);
+        best = Math.max(best, area);
+        if (height[left] <= height[right]) {
+            left++;
+        } else {
+            right--;
+        }
+    }
+    return best;
+}
+```
+
+The equality rule is deterministic but not special: when both boundaries are equally short, either one may be discarded. Moving the left pointer on equality keeps the implementation and trace reproducible.
+
+```mermaid
+flowchart TD
+    E["Evaluate (left, right) with long area"] --> C{"left height ≤ right height?"}
+    C -->|yes| L["discard left; left++"]
+    C -->|no| R["discard right; right--"]
+    L --> N{"left < right?"}
+    R --> N
+    N -->|yes| E
+    N -->|no| O["return best"]
+```
+
+#### Worked case 1 — canonical full trace
+
+For `[1,8,6,2,5,4,8,3,7]`, the scan is:
+
+| step | `left:value` | `right:value` | width | area | best | discarded boundary |
+|---:|---|---|---:|---:|---:|---|
+| 1 | `0:1` | `8:7` | 8 | 8 | 8 | left |
+| 2 | `1:8` | `8:7` | 7 | 49 | 49 | right |
+| 3 | `1:8` | `7:3` | 6 | 18 | 49 | right |
+| 4 | `1:8` | `6:8` | 5 | 40 | 49 | left on equality |
+| 5 | `2:6` | `6:8` | 4 | 24 | 49 | left |
+| 6 | `3:2` | `6:8` | 3 | 6 | 49 | left |
+| 7 | `4:5` | `6:8` | 2 | 10 | 49 | left |
+| 8 | `5:4` | `6:8` | 1 | 4 | 49 | left |
+
+The maximum is `49`, formed by indices 1 and 8: width 7 times limiting height 7.
+
+#### Worked case 2 — the widest pair can be optimal
+
+`[4,3,2,1,4]` returns `16`. The endpoint pair has width 4 and limiting height 4. Every inward move reduces width, so nothing can beat it. This example is useful because “move the shorter line” does not mean “always improve immediately”; it means “discard only an endpoint that cannot participate in a better unseen pair.”
+
+#### Worked case 3 — middle lines do not leak or obstruct
+
+`[5,0,0,5]` returns `15`, using the two fives at distance 3. The zero-height lines in the middle are irrelevant to this pair. This is not Trapping Rain Water: the objective selects one pair of boundaries and computes one rectangle, rather than summing water above every index.
+
+```mermaid
+flowchart LR
+    C["Container With Most Water"] --> P["choose one pair"]
+    P --> R["one rectangle: distance × shorter boundary"]
+    T["Trapping Rain Water"] --> S["sum contributions across positions"]
+```
+
+#### Worked case 4 — zero area and reusable-domain overflow
+
+`[0,0]` returns `0`. At the other numeric extreme, `[Integer.MAX_VALUE,0,Integer.MAX_VALUE]` returns `4_294_967_294L`: width 2 times `2_147_483_647`. An `int` multiplication would wrap before assignment to `long`; the cast must affect an operand before `*`. Under the original constraints `n <= 100_000` and `height[i] <= 10_000`, the maximum is below one billion, but the wider reusable contract does not depend on those limits.
+
+**Why discarding the shorter endpoint is complete.** Suppose `height[left] <= height[right]`. For every `k` with `left < k < right`,
+
+`area(left, k) <= (k - left) * height[left] <= (right - left) * height[left] = area(left, right)`.
+
+So no unseen container that keeps `left` can beat the pair just evaluated; discarding `left` loses no better answer. The argument is symmetric when the right boundary is shorter. On equal heights, both arguments apply, so the deterministic equality rule is safe.
+
+**Loop invariant.** Before each iteration, `best` is the maximum area among evaluated pairs, and every pair excluded by an earlier pointer move is bounded by an evaluated pair and therefore cannot exceed `best`. The dominance argument preserves the invariant after either move. When the pointers meet, every pair is evaluated or dominated, so `best` is the global maximum.
+
+Time is `O(n)`: input validation and the pointer scan are each linear. Auxiliary space is `O(1)`, and the input is unchanged. The all-pairs oracle is `O(n²)` time and is valuable in tests because its control structure is independent of the optimized proof.
+
+Executable evidence is in `ContainerWaterContracts.java`. It checks the four worked behaviors, monotone and equal-height arrays, null/short/negative rejection, nonmutation, full-width arithmetic, and 20,000 seeded arrays against an independent all-pairs oracle.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -1298,13 +1399,15 @@ Executable evidence is in `ThreeSumContracts.java`. It checks the four worked be
 - [LeetCode, “Remove Duplicates from Sorted Array”](https://leetcode.com/problems/remove-duplicates-from-sorted-array/) — sorted-input, stable in-place unique-prefix, returned-count and ignored-suffix contract.
 - [LeetCode, “Squares of a Sorted Array”](https://leetcode.com/problems/squares-of-a-sorted-array/) — sorted-input and nondecreasing squared-output contract, original numeric bounds, and the linear-time follow-up.
 - [LeetCode, “3Sum”](https://leetcode.com/problems/3sum/) — distinct-index, zero-sum and duplicate-free value-triplet contract.
+- [LeetCode, “Container With Most Water”](https://leetcode.com/problems/container-with-most-water/) — primary pair-selection contract, examples and original input bounds.
+- [Java Language Specification, Java SE 17, §15.17](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17) — multiplicative operators and binary numeric promotion; the implementation widens an operand before multiplication.
 - [Boyer and Moore, “A Linear Time Majority Vote Algorithm”](https://www.cs.utexas.edu/~moore/best-ideas/mjrty/) — primary description and history of the cancellation algorithm used to produce the majority candidate.
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 8 at lines 253–999 (problem 8 is lines 895–999). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 8 (direct Library parsed-text lines 594–670; the earlier no-wrap extraction placed its start at line 835). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 9 at lines 253–1092 (problem 9 is lines 1000–1092). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 9 (direct Library parsed-text lines 671–729 for problem 9). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 8, “3Sum,” is promoted from Markdown lines 895–999 and the corresponding DOCX parsed-text lines 594–670; problem 9, “Container With Most Water,” begins at Markdown line 1000 / DOCX parsed-text line 671.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 9, “Container With Most Water,” is promoted from Markdown lines 1000–1092 and the corresponding DOCX parsed-text lines 671–729; problem 10, “Trapping Rain Water,” begins at Markdown line 1093 / DOCX parsed-text line 730.
 
 

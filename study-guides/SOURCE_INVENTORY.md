@@ -36,10 +36,10 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | MASTER_PROMPT.md | 2026-10-06T19:51:18.409209Z | DISCOVERED |
 | spring-boot-ai-journey.zip | 2026-10-06T19:51:18.370213Z | DISCOVERED |
 | cicd_aws_azure_teamcity_jenkins_guide.html | 2026-09-17T05:55:55.269830Z | READY — compared; byte-identical to bundled generated HTML |
-| ai_cicd_spring_python_guides_complete.zip | 2026-09-17T05:55:54.714170Z | IN PROGRESS — CI/CD source promoted; Spring/Python Sections 1–9 processed from the editable Markdown member and Sections 10–25 queued |
-| ai_platform_master_guide.html | 2026-09-17T05:55:54.695794Z | PROMOTED — selected 21-chapter source; Chapters 1–9 processed |
+| ai_cicd_spring_python_guides_complete.zip | 2026-09-17T05:55:54.714170Z | IN PROGRESS — CI/CD source promoted; Spring/Python Sections 1–8 processed from the editable Markdown member and Sections 9–25 queued |
+| ai_platform_master_guide.html | 2026-09-17T05:55:54.695794Z | PROMOTED — selected 21-chapter source; Chapters 1–8 processed |
 | spring_ai_python_api_interview_guide.html | 2026-09-17T05:55:54.480720Z | READY — compared; byte-identical to the bundle's generated HTML and not promoted as a duplicate |
-| ai_platform_engineering_complete_bundle.zip | 2026-09-16T16:22:16.910779Z | IN PROGRESS — editable RAG/MCP companion selected; Chapters 1–9 processed |
+| ai_platform_engineering_complete_bundle.zip | 2026-09-16T16:22:16.910779Z | IN PROGRESS — editable RAG/MCP companion selected; Chapters 1–8 processed |
 | ai_platform_engineering_illustrated.html | 2026-09-16T16:22:16.059506Z | READY — compared; byte-identical to bundled illustrated HTML |
 | database_internals_caching_java_master_guide.md | 2026-09-16T05:20:18.877277Z | PROMOTED — Sections 1–44 lines 62–2402 processed through source end |
 | top_5_system_design_interview_blueprints.md | 2026-09-11T21:27:10.870584Z | PROMOTED — Blueprints 1–5 plus cross-question/practice supplement lines 1127–1264 promoted through source end |
@@ -56,7 +56,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | Angular_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.775386Z | PROMOTED — Q1–Q74, rapid-fire items 1–39 and Final Revision Sheet processed through source end at line 1751 |
 | JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.753196Z | PROMOTED — Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet compared/promoted through source end at line 2041 |
 | DSA_Tree_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.743385Z | DISCOVERED |
-| DSA_Arrays_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.740223Z | IN PROGRESS — selected editable source; Sections 1–3 lines 141–251 and Section 4 problems 1–8 through line 999 promoted; problem 9 begins at line 1000 |
+| DSA_Arrays_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.740223Z | IN PROGRESS — selected editable source; Sections 1–3 lines 141–251 and Section 4 problems 1–9 through line 1092 promoted; problem 10 begins at line 1093 |
 | Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md | 2026-09-07T23:36:35.951649Z | DISCOVERED |
 | Take_U_Forward_Stack_Queue_Mermaid_Guide.md | 2026-09-07T18:00:03.911417Z | DISCOVERED |
 | GITHUB_PUSH_COMMANDS.md | 2026-09-07T17:39:56.663357Z | DISCOVERED |
@@ -64,7 +64,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | enterprise-rag-assistant.zip | 2026-09-07T17:39:49.442548Z | DISCOVERED |
 | Take_U_Forward_Stack_Queue_Java_Deep_Workbook.docx | 2026-09-07T17:07:54.535717Z | DISCOVERED |
 | Stack_Queue_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T05:33:07.971008Z | DISCOVERED |
-| DSA_Arrays_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T01:55:56.718502Z | IN PROGRESS — Sections 1–3 and Section 4 problems 1–8 corroborated; direct Library parsed-text lines 594–670 bound 3Sum before problem 9 at line 671; 116-page rendering previously inspected |
+| DSA_Arrays_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T01:55:56.718502Z | IN PROGRESS — Sections 1–3 and Section 4 problems 1–9 corroborated; direct Library parsed-text lines 671–729 bound Container With Most Water before problem 10 at line 730; 116-page rendering previously inspected |
 | AI_RAG_CAG_Deep_Learning_Developer_Guide.docx | 2026-09-02T04:40:53.490553Z | READY — compared; two useful original figures retained |
 | Angular_Interview_Workbook.docx | 2026-08-31T14:40:43.673563Z | PROMOTED — Q1–Q74, rapid-fire items 1–39 and Final Revision Sheet processed through extracted source end at line 1177 |
 | JavaScript_HTML_CSS_Interview_Workbook.docx | 2026-08-31T14:40:39.905787Z | PROMOTED — corroborated Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet through rendered source end at line 1445 |
@@ -81,9 +81,9 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 - Section 42 now extends that database guide with a seven-slot falsifiable component contract plus outbox-relay, cache-loader and connection-pool ownership/failure traces.
 - Section 43 now extends that database guide with four executable incident-diagnosis labs covering all ten source exercises.
 - AI foundations, RAG and CAG now has one canonical [Markdown/HTML guide](ai/); the broader Mermaid source won the content comparison, while two useful original workbook figures were retained without duplicating its redundant flow diagrams.
-- AI platform engineering now has one incremental canonical [Markdown/HTML guide](ai/platform/). The expanded 21-chapter master won the comparison, the bundle's RAG/MCP Markdown supplies the editable companion, and the separate illustrated HTML is not duplicated because it is byte-identical to the bundle member. Chapters 1–9 are promoted; Chapter 10, Authorization, injection and tool side effects, is the next bounded AI-platform section after fair domain rotation.
+- AI platform engineering now has one incremental canonical [Markdown/HTML guide](ai/platform/). The expanded 21-chapter master won the comparison, the bundle's RAG/MCP Markdown supplies the editable companion, and the separate illustrated HTML is not duplicated because it is byte-identical to the bundle member. Chapters 1–8 are promoted; Chapter 9, MCP architecture: host, client, server and model, is the next bounded AI-platform section after fair domain rotation.
 - CI/CD, Kubernetes and cloud delivery now has one canonical [Markdown/HTML guide](devops/); the bundle supplied its authoritative Markdown and nine figures, while the standalone HTML was verified as an exact generated duplicate rather than promoted separately.
-- Spring AI/Python API engineering now has one incremental canonical [Markdown/HTML guide](backend/spring-ai-python/). The bundle's editable Markdown was selected, while the standalone HTML was compared through the same Section 9 boundary and is not duplicated. Sections 1–9 are promoted with current release identity, atomic readiness publication, bounded admission/deadlines, deterministic retrieval, grounding gates, durable retrieval, strict structured-output validation, server-owned provenance, trusted service/evidence checks and paired Java/Python contracts. Section 10, MCP implementations in Python and Java, begins at editable line 715 / standalone HTML line 832.
+- Spring AI/Python API engineering now has one incremental canonical [Markdown/HTML guide](backend/spring-ai-python/). The bundle's editable Markdown was selected, while the standalone HTML was compared through the same Section 8 boundary and is not duplicated. Sections 1–8 are promoted with current release identity, atomic readiness publication, bounded admission/deadlines, deterministic retrieval, grounding gates, generation-safe durable retrieval, scoped exact/ANN evaluation, pool ownership and paired Java/Python contracts. Section 9, Structured outputs: validate syntax and business meaning, begins at editable line 678 / standalone HTML line 796.
 - Graph/tree/stack editions and matching DOCX documents are grouped into one destination; latest coverage must be chosen after reading.
 - The AI/CI-CD/Spring-Python ZIP may contain Markdown and assets for three separate topics; inspect archive contents before deciding.
 - The AI-platform illustrated edition may hold useful material missing from a later master guide. Compare content; merge the best coverage in place.
@@ -100,8 +100,7 @@ See [pipeline rules](ENHANCEMENT_PIPELINE.md) and [machine-readable queue](ENRIC
 
 Angular Q1–Q74 plus rapid-fire items 1–39 are tracked at [frontend/angular](frontend/angular/). The fourth rapid-fire module was reconciled from both workbooks on 2026-10-14; the Final Revision Sheet remains unprocessed.
 
-JavaScript/HTML/CSS Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The final trigger-map/speaking-template module was reconciled from both workbooks on 2026-10-16, completing this paired-source intake. Database/caching Sections 1–44 are tracked at [databases/caching-java](databases/caching-java/); its confirmed source is exhausted through line 2402. Angular's paired source is also exhausted. AI-platform Chapters 1–9, all five System-design Blueprints plus their cross-question supplement, Spring AI/Python Sections 1–9, DSA Arrays Sections 1–3 and the bounded Arrays Section 4 problems 1–8 slice are promoted. Rotate next to Arrays problem 9 at Markdown/DOCX parsed-text lines 1000/671; AI-platform Chapter 10 and Spring AI/Python Section 10 remain queued after fair domain rotation. The wider collection and 170-item Java-placeholder backlog remain incomplete.
-
+JavaScript/HTML/CSS Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The final trigger-map/speaking-template module was reconciled from both workbooks on 2026-10-16, completing this paired-source intake. Database/caching Sections 1–44 are tracked at [databases/caching-java](databases/caching-java/); its confirmed source is exhausted through line 2402. Angular's paired source is also exhausted. AI-platform Chapters 1–9, all five System-design Blueprints plus their cross-question supplement, Spring AI/Python Sections 1–9, DSA Arrays Sections 1–3 and the bounded Arrays Section 4 problems 1–9 slice are promoted. Rotate next to AI-platform Chapter 10; Spring AI/Python Section 10 and Arrays problem 10 at Markdown/DOCX parsed-text lines 1093/730 remain queued after fair domain rotation. The wider collection and 170-item Java-placeholder backlog remain incomplete.
 
 
 
