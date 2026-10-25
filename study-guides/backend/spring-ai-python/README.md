@@ -16,6 +16,7 @@ java -ea study-guides/backend/spring-ai-python/DurableRetrievalContracts.java
 java -ea study-guides/backend/spring-ai-python/StructuredOutputContracts.java
 java -ea study-guides/backend/spring-ai-python/McpImplementationContracts.java
 java -ea study-guides/backend/spring-ai-python/StreamingTransportContracts.java
+java -ea study-guides/backend/spring-ai-python/EmbeddingRerankingContracts.java
 python3 study-guides/backend/spring-ai-python/layer_selection_contracts.py
 python3 study-guides/backend/spring-ai-python/library_selection_contracts.py
 python3 study-guides/backend/spring-ai-python/java_library_map_contracts.py
@@ -27,6 +28,7 @@ python3 study-guides/backend/spring-ai-python/durable_retrieval_contracts.py
 python3 study-guides/backend/spring-ai-python/structured_output_contracts.py
 python3 study-guides/backend/spring-ai-python/mcp_implementation_contracts.py
 python3 study-guides/backend/spring-ai-python/streaming_transport_contracts.py
+python3 study-guides/backend/spring-ai-python/embedding_reranking_contracts.py
 ```
 
-This is an incremental guide. Sections 1–11 are promoted; Sections 12–25 remain queued.
+This is an incremental guide. Sections 1–12 are promoted; Sections 13–25 remain queued.

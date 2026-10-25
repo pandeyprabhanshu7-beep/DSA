@@ -2167,3 +2167,212 @@ Verified on 25 October 2026:
 ### Source provenance and continuation
 
 The selected editable bundle member's Section 11 is source lines 785–814; Section 12 begins at line 816. The matching standalone HTML is lines 882–901; Section 12 begins at line 902. Both sources contain the same request-budget diagram, Spring AI `Flux<String>` and ASGI-generator boundary, provisional-display warning, cancellation propagation, WebFlux blocking caveat, Python cooperative-async caveat and measured view of the GIL. This canonical section retains that substance while adding SSE-versus-WebSocket selection, exact event framing, authenticated replay cursors, bounded queues and overflow, terminal-state semantics, four worked examples, four diagrams and paired executable contracts. Section 12, **More Python AI: embeddings, reranking and classical ML**, begins at editable source line 816 / standalone HTML line 902. Sections 12–25 remain queued; the source is not complete.
+
+## 12. More Python AI: embeddings, reranking and classical ML
+
+The question is not whether a neural model is more fashionable than a linear model. It is which measurable task needs to be solved, what data and runtime boundaries are allowed, and which candidate earns promotion against the smallest honest baseline. Embedding retrieval, pairwise reranking, classical classification and generative answering are different jobs; combining them without separate evaluation hides where quality, latency or authorization failed.
+
+### Requirements and invariants
+
+1. **Name the task and unit of truth.** Retrieval ranks versioned document IDs for a query; reranking reorders only that authorized candidate set; classification chooses from a fixed label policy; generation creates new text. Give each stage its own metric and failure outcome.
+2. **Keep identity complete.** Pin the encoder, tokenizer, reranker and any classifier by immutable revision or digest. Record library/runtime version, preprocessing configuration, embedding dimension, normalization, distance convention, label map and operator/device configuration.
+3. **Validate vectors before scoring.** Require the configured dimension, finite values and nonzero norms when cosine normalization needs them. A cosine score is meaningful only for embeddings produced by the compatible model and preprocessing contract.
+4. **Retrieve broadly, rerank narrowly.** A bi-encoder can precompute document vectors and cheaply search many items. A cross-encoder jointly scores each query–document pair, so run it only on a bounded, already-authorized shortlist. Reranking must not introduce a document that retrieval and policy did not admit.
+5. **Split before anything learns.** Freeze train/validation/test membership before fitting TF-IDF, imputers, feature selectors, thresholds or model parameters. Group near-duplicates and related users/incidents together; use a time split when production predicts the future.
+6. **Tune on validation, report once on test.** Repeatedly choosing models or thresholds from test results turns the test set into training information. Store row/group IDs and dataset revision so the split is auditable.
+7. **Promote on task value and operational budgets.** Compare quality slices, false-positive/false-negative cost, p95 latency, memory, artifact size and throughput against the baseline. A higher offline score that violates the serving budget is not a successful replacement.
+8. **Treat export as a new release.** Python service, DJL and ONNX Runtime are deployment choices, not proof of equivalence. Re-run golden inputs through the exact tokenizer/preprocessor, input names/dtypes/shapes, model and label/postprocessing logic; gate promotion on tolerance and semantic parity.
+
+### Example 1 — retrieve with a bi-encoder, then rerank the authorized shortlist
+
+Requirement: search 500,000 tenant-scoped runbook chunks and return the best three evidence IDs within 180 ms p95. The corpus changes hourly, while the query changes per request. Precompute normalized document embeddings with one pinned bi-encoder, retrieve a bounded top 40, then apply a pinned cross-encoder to those 40 query–chunk pairs. The cross-encoder never sees candidates outside the caller's policy scope.
+
+```mermaid
+flowchart LR
+    Q["Query + trusted scope"] --> E["Pinned query encoder"]
+    E --> R["Scoped vector search: top 40"]
+    R --> C["Authorized candidate IDs"]
+    C --> X["Cross-encoder pair scores"]
+    X --> K["Stable top 3 + evidence IDs"]
+```
+
+```python
+from sentence_transformers import CrossEncoder, SentenceTransformer
+
+ENCODER_ID = "sentence-transformers/all-MiniLM-L6-v2"
+RERANKER_ID = "cross-encoder/ms-marco-MiniLM-L6-v2"
+# Production: resolve and record immutable revisions/digests for both artifacts.
+encoder = SentenceTransformer(ENCODER_ID)
+reranker = CrossEncoder(RERANKER_ID)
+
+query_vector = encoder.encode([query], normalize_embeddings=True)[0]
+candidates = scoped_index.search(
+    vector=query_vector, tenant_id=trusted_tenant, limit=40
+)  # each item has id, text and retrieval_score
+pair_scores = reranker.predict([(query, item.text) for item in candidates])
+ranked = sorted(
+    zip(candidates, pair_scores), key=lambda pair: (-float(pair[1]), pair[0].id)
+)[:3]
+```
+
+This is an integration sketch, not a license or quality recommendation for those example model IDs. The production loader must pin artifacts, check model cards and licenses, enforce input limits, bound batch and shortlist sizes, and fail readiness when dimensions or revisions do not match the active index.
+
+Worked trace for three already-authorized candidates:
+
+| Candidate | Cosine retrieval score | Retrieval rank | Pair score | Final rank |
+|---|---:|---:|---:|---:|
+| `runbook/payments/v7#rollback` | 0.81 | 2 | 4.7 | 1 |
+| `runbook/cache/v3#ttl` | 0.87 | 1 | -1.2 | 3 |
+| `runbook/payments/v6#deploy` | 0.74 | 3 | 2.1 | 2 |
+
+The pair score is model-specific; do not call it a calibrated probability unless calibration was measured for this model and domain. Use retrieval recall at candidate `k` to decide whether the desired evidence reaches the reranker, and nDCG/MRR or task-specific ranking judgments to decide whether reranking helps. End-to-end answer quality cannot diagnose a missing candidate by itself.
+
+### Example 2 — make the classical baseline hard to beat honestly
+
+Requirement: route support tickets into stable `billing`, `identity` and `delivery` queues. No text generation is required. A TF-IDF plus logistic-regression pipeline is the first candidate because it is cheap, inspectable and directly aligned with fixed labels.
+
+```python
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import make_pipeline
+
+# split_ids was frozen first; duplicate incidents share one group.
+pipeline = make_pipeline(
+    TfidfVectorizer(ngram_range=(1, 2), min_df=2, sublinear_tf=True),
+    LogisticRegression(max_iter=1_000, class_weight="balanced", random_state=7),
+)
+pipeline.fit(train_text, train_label)       # vocabulary and weights learn from train only
+validation_score = pipeline.predict_proba(validation_text)
+# choose model/thresholds on validation; evaluate the locked release once on test
+```
+
+```mermaid
+flowchart TD
+    D["Versioned rows + group/time keys"] --> S["Freeze train / validation / test IDs"]
+    S --> T["Fit TF-IDF + classifier on train"]
+    T --> V["Choose model and thresholds on validation"]
+    V --> L["Lock artifact + label map"]
+    L --> H["One final test evaluation"]
+```
+
+Assume the untouched test set has 1,000 tickets. Candidate A reaches 91% accuracy but misses 18 of 40 urgent identity cases. Candidate B reaches 89% accuracy and misses 3 urgent cases. If an urgent miss costs 20 units and an ordinary error costs 1, the aggregate accuracy winner may be the business loser. Report the confusion matrix and slices, then state the cost rule before looking at model results.
+
+| Checkpoint | Evidence | Reject when |
+|---:|---|---|
+| 1 | dataset revision, label policy, group/time keys | label provenance is unknown |
+| 2 | immutable split IDs | preprocessing or duplicate grouping saw holdout rows |
+| 3 | train-only fitted pipeline | vocabulary, scaler or selector fit on all rows |
+| 4 | validation decisions and thresholds | test score influenced another choice |
+| 5 | per-class metrics, cost, latency and artifact manifest | only aggregate accuracy is reported |
+
+Use probability calibration only when downstream decisions need meaningful probabilities, and evaluate that calibration on unseen data. A `predict_proba` method name alone does not make scores calibrated or thresholds portable across changing class prevalence.
+
+### Example 3 — run a pinned PyTorch model without mixing training and serving state
+
+Requirement: compare a pretrained local classifier with the classical baseline. The release manifest binds tokenizer/model revisions, task head and label map to Python, Transformers, PyTorch and device/backend versions. Load once during process startup, call `eval()` for modules such as dropout and batch normalization, and use inference mode for work that will not participate in autograd.
+
+```python
+import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+MODEL_ID = "org/ticket-classifier"
+REVISION = "immutable-commit-sha"
+tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, revision=REVISION)
+model = AutoModelForSequenceClassification.from_pretrained(
+    MODEL_ID, revision=REVISION
+).eval().to(device)
+
+def classify(texts: list[str]) -> torch.Tensor:
+    encoded = tokenizer(
+        texts, padding=True, truncation=True, max_length=256, return_tensors="pt"
+    ).to(device)
+    with torch.inference_mode():
+        return model(**encoded).logits.cpu()
+```
+
+`eval()` changes the behavior of modules that distinguish training and evaluation; `inference_mode()` disables additional autograd tracking. They solve different problems, so one is not a substitute for the other. Bound request text, batch size, token length and queue delay. Warm up the exact shapes you expect, measure p50/p95/p99 and peak memory, and treat an out-of-memory failure as an admission/capacity problem rather than blindly retrying the same batch.
+
+```mermaid
+sequenceDiagram
+    participant R as Release builder
+    participant A as Artifact registry
+    participant S as Python service
+    participant E as Evaluation gate
+    R->>A: pin tokenizer, model, config and digests
+    S->>A: resolve exact manifest
+    S->>S: load, eval, warm up and health-check
+    E->>S: golden + holdout batches
+    S-->>E: logits, latency and memory
+    E-->>R: promote or reject with evidence
+```
+
+Reproducibility is bounded: identical seeds do not guarantee identical results across releases, platforms and devices. Preserve the environment and resolved artifact identities, set deterministic controls where required, and define numeric tolerances rather than claiming bitwise identity without evidence.
+
+### Example 4 — move inference to Java only after whole-pipeline parity
+
+Requirement: a Java service must infer locally because a separate Python service violates the deployment topology. ONNX Runtime provides a JVM binding for supported exported graphs; DJL can provide a higher-level Java inference boundary with an engine and translator. Neither automatically reproduces Python tokenization, truncation, padding, label ordering or postprocessing.
+
+```mermaid
+flowchart TD
+    N{"Must inference live in JVM?"} -->|no| P["Versioned Python service contract"]
+    N -->|yes| J{"Supported export/engine?"}
+    J -->|no| X["Reject migration"]
+    J -->|yes| G["Golden whole-pipeline parity"]
+    G -->|fails| X
+    G -->|passes| C["Shadow traffic + capacity gate"]
+    C -->|passes| O["Canary JVM runtime"]
+```
+
+```java
+try (var environment = ai.onnxruntime.OrtEnvironment.getEnvironment();
+     var options = new ai.onnxruntime.OrtSession.SessionOptions();
+     var session = environment.createSession("classifier.onnx", options);
+     var inputIds = ai.onnxruntime.OnnxTensor.createTensor(environment, ids, shape);
+     var mask = ai.onnxruntime.OnnxTensor.createTensor(environment, masks, shape);
+     var result = session.run(java.util.Map.of(
+         "input_ids", inputIds, "attention_mask", mask))) {
+    // Verify configured output name/shape, then apply the versioned label map.
+}
+```
+
+Before canarying, assert exact input/output names, integer/float dtypes, dynamic axes, maximum lengths, special tokens, label order and finite outputs. A useful parity suite includes empty/minimal input, Unicode, truncation boundary, maximum batch, every label and adversarial near-ties. Compare logits within a justified absolute/relative tolerance and require identical final labels at the released threshold. Then shadow realistic traffic and measure latency, memory, throughput and native-resource cleanup.
+
+| Boundary | Must match | Failure example |
+|---|---|---|
+| tokenizer/preprocessor | revision, normalization, vocabulary, special tokens, truncation/padding | different token IDs |
+| graph/session | model digest, opset/operators, input names/dtypes/shapes, execution provider | load failure or different logits |
+| postprocessor | output name, label order, activation and thresholds | valid tensor mapped to wrong label |
+| service | batching, deadline, overload and error semantics | fast model hidden behind an unbounded queue |
+
+If exact preprocessing cannot be reproduced safely in the JVM, keep a narrow, versioned Python inference service rather than shipping a silently different model. Network separation has cost, but semantic mismatch is not portability.
+
+### Paired executable contract
+
+The dependency-free pair makes vector validation, stable top-k, shortlist-only reranking, leakage checks, deployment parity and quality/latency promotion gates executable without downloading a model:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/EmbeddingRerankingContracts.java
+python3 study-guides/backend/spring-ai-python/embedding_reranking_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|FIRST=CLASSICAL_BASELINE|RETRIEVAL=BI_ENCODER|RERANK=CROSS_ENCODER|SPLIT=BEFORE_FIT|JVM=PARITY_GATED|PROMOTED=3094
+```
+
+Each implementation passes 29 explicit scenario groups and 10,000 seeded quality/latency trials. These contracts use tiny in-memory vectors; they do not download Sentence Transformers, fit scikit-learn, load PyTorch/Transformers or ONNX Runtime, inspect an exported graph, compare native numerical kernels, call a vector database, benchmark an accelerator or prove model quality. Those claims require the pinned dependency, artifact, data and serving environments.
+
+### Current primary references
+
+Verified on 25 October 2026:
+
+- Sentence Transformers, [semantic search](https://sbert.net/examples/sentence_transformer/applications/semantic-search/README.html), [retrieve and rerank](https://sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html) and [CrossEncoder API](https://sbert.net/docs/package_reference/cross_encoder/model.html) — bi-encoder retrieval, pairwise cross-encoder scoring and why reranking is bounded to a candidate set.
+- scikit-learn, [common pitfalls](https://scikit-learn.org/stable/common_pitfalls.html), [pipelines](https://scikit-learn.org/stable/modules/compose.html) and [cross-validation](https://scikit-learn.org/stable/modules/cross_validation.html) — split-before-fit, leakage prevention and keeping a final test set outside model selection.
+- PyTorch, [`Module.eval()`](https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html), [`inference_mode`](https://docs.pytorch.org/docs/stable/generated/torch.autograd.grad_mode.inference_mode.html) and [reproducibility](https://docs.pytorch.org/docs/stable/notes/randomness.html) — evaluation behavior, disabled autograd tracking and the limits of cross-platform/release reproducibility.
+- ONNX Runtime, [Java binding](https://onnxruntime.ai/docs/get-started/with-java) and [Java API](https://onnxruntime.ai/docs/api/java/) — session/input/output ownership, supported JVM packages and native-value cleanup.
+- Deep Java Library, [main documentation](https://docs.djl.ai/) and [inference performance guidance](https://docs.djl.ai/master/docs/development/inference_performance_optimization.html) — Java engine/translator abstraction and predictor lifecycle/performance considerations.
+
+### Source provenance and continuation
+
+The selected editable bundle member's Section 12 is source lines 816–867; Section 13 begins at line 869. The matching standalone HTML begins Section 12 at line 902 and Section 13 at line 942. Both sources contain the same local Sentence Transformer/CrossEncoder example, warning to pin revisions and inspect licenses, TF-IDF/logistic-regression baseline, leakage warning, PyTorch/Transformers inference guidance and Java service/DJL/ONNX alternatives. This canonical section retains that substance while adding task and identity invariants, authorized shortlist-only reranking, explicit evaluation and cost traces, Python serving gates, whole-pipeline JVM parity, four worked examples, four diagrams and paired executable contracts. Section 13, **Provider adapters and portability**, begins at editable source line 869 / standalone HTML line 942. Sections 13–25 remain queued; the source is not complete.
