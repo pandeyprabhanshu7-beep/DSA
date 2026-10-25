@@ -502,7 +502,7 @@
         "DSA_Arrays_FAANG_Mermaid_Question_Workbook.md",
         "DSA_Arrays_FAANG_Question_Workbook_Expanded.docx"
       ],
-      "last_processed_at": "2026-10-24T20:08:08-04:00",
+      "last_processed_at": "2026-10-25T02:20:38-04:00",
       "processed_sections": [
         "Section 1: Array Mental Model and Invariants — Markdown lines 141-182 / DOCX extracted lines 65-108",
         "Section 2: Pattern-Recognition Decision Tree — Markdown lines 183-229 / DOCX extracted lines 93-135",
@@ -511,11 +511,12 @@
         "Section 4 problem 5: Move Zeroes — stable compaction, four cases, exact trace, proof, write accounting and executable oracle — Markdown lines 635-724 / DOCX extracted lines 419-479",
         "Section 4 problem 6: Remove Duplicates from Sorted Array — stable unique-prefix compaction, four cases, exact trace, proof, validation and assignment-bound oracle — Markdown lines 725-800 / DOCX extracted lines 480-522",
         "Section 4 problem 7: Squares of a Sorted Array — opposite-endpoint selection, four cases, exact trace, proof, full-width arithmetic and randomized square-sort oracle — Markdown lines 807-891 / corroborating DOCX section",
-        "Section 4 problem 8: 3Sum — duplicate-safe anchor/two-pointer elimination, four worked behaviors, exact trace, proof, overflow-safe sums and randomized cubic oracle — Markdown lines 895-999 / DOCX parsed-text lines 594-670"
+        "Section 4 problem 8: 3Sum — duplicate-safe anchor/two-pointer elimination, four worked behaviors, exact trace, proof, overflow-safe sums and randomized cubic oracle — Markdown lines 895-999 / DOCX parsed-text lines 594-670",
+        "Section 4 problem 9: Container With Most Water — dominated-endpoint elimination, four worked cases, exact trace, proof, overflow-safe area and randomized all-pairs oracle — Markdown lines 1000-1092 / DOCX parsed-text lines 671-729"
       ],
-      "last_successful_commit": "744991248a7c2f7b366797c29b47a1adbcdef71e",
-      "validation": "The paired Arrays workbooks agree on bounded 3Sum at Markdown lines 895-999 and direct Library DOCX parsed-text lines 594-670, ending before problem 9 at Markdown line 1000 / DOCX parsed-text line 671; no duplicate guide was created. The section adds a distinct-index/unique-value/nonmutation contract, four worked behaviors, three diagrams, an exact pointer trace, fixed-anchor invariant and proof, bound pruning, and long arithmetic that prevents int-overflow phantom matches. Java 17 source-file launch passed 147 reported scenario groups across all eight Arrays contracts plus 140,000 seeded oracle comparisons; ThreeSumContracts passed 10 explicit groups and 20,000 independent cubic TreeSet comparisons. Deterministic reader generation passed exact 73075-byte Markdown recovery, SHA-256 d2c6a31a8d77f24cbaf2686b189488fa9e35dbbb29a5aa922b8268a686b1d316, 351 unique HTML IDs, 36 search entries, 313 local fragments, 96 balanced fence markers, 29 Mermaid sources, JSON and both JavaScript blocks, and deterministic rebuild identity. Six content files were atomically published at 744991248a7c2f7b366797c29b47a1adbcdef71e with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-      "next_action": "Rotate fairly to AI-platform Chapter 9; on the next Arrays pass continue Section 4 with problem 9, Container With Most Water, at Markdown line 1000 / DOCX parsed-text line 671. Problems 9-47 remain queued.",
+      "last_successful_commit": "7a639933f4887b26ebbdb7630bfa1748c451ae1f",
+      "validation": "The paired Arrays workbooks agree on bounded Container With Most Water at Markdown lines 1000-1092 and direct Library DOCX parsed-text lines 671-729, ending before problem 10 at Markdown line 1093 / DOCX parsed-text line 730; no duplicate guide was created. The section adds pair-selection/nonnegative-height/nonmutation contracts, four worked cases, three diagrams, an exact pointer trace, the dominated-endpoint proof and long multiplication for the reusable full-int domain. Java 17 source-file launch passed 161 reported scenario groups across all nine Arrays contracts plus 160,000 seeded oracle comparisons; ContainerWaterContracts passed 14 explicit groups and 20,000 independent all-pairs comparisons. Deterministic reader generation passed exact 79062-byte Markdown recovery, SHA-256 9c0144cdc113ce335a73da5cdfe38f52a61da4309ad65d76554a98b433da8b14, 377 unique HTML IDs, 37 search entries, 333 local fragments, 104 balanced fence markers, 32 Mermaid sources, JSON and both JavaScript blocks, and deterministic rebuild identity. Seven content files were atomically published at 7a639933f4887b26ebbdb7630bfa1748c451ae1f with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+      "next_action": "Rotate fairly to AI-platform Chapter 10; on the next Arrays pass continue Section 4 with problem 10, Trapping Rain Water, at Markdown line 1093 / DOCX parsed-text line 730. Problems 10-47 remain queued.",
       "priority": 6,
       "source_revision": {
         "baseline_commit": "a9f582b5dbe8b6fcda6e275054f217350a810d52",
@@ -526,7 +527,7 @@
         "compared_file_id": "file_00000000672882118a9ca69f00c30be7",
         "compared_version_id": "1",
         "compared_sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-        "canonical_sha256_after": "d2c6a31a8d77f24cbaf2686b189488fa9e35dbbb29a5aa922b8268a686b1d316"
+        "canonical_sha256_after": "9c0144cdc113ce335a73da5cdfe38f52a61da4309ad65d76554a98b433da8b14"
       }
     },
     {
@@ -1036,7 +1037,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources, the confirmed database source and the System-design blueprint source are processed through their source ends. AI-platform Chapters 1-9, Spring AI/Python Sections 1-9 and Arrays Section 4 problems 1-8 are promoted; rotate fairly to Arrays problem 9 before AI-platform Chapter 10 or Spring AI/Python Section 10.",
+    "next_action": "Core advanced-tree sections 1-10, both paired frontend sources, the confirmed database source and the System-design blueprint source are processed through their source ends. AI-platform Chapters 1-9, Spring AI/Python Sections 1-9 and Arrays Section 4 problems 1-9 are promoted; rotate fairly to AI-platform Chapter 10 before Spring AI/Python Section 10 or Arrays problem 10.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1169,14 +1170,15 @@
       "AI platform Chapter 8: behavior-complete cache identities, ACL/source invalidation, deadline-ledger retries, jitter/admission controls and unit-safe outcome cost",
       "Spring AI/Python Section 8: generation-safe durable retrieval, trusted-scope parameterization, exact-versus-ANN recall gates, bounded pool/deadline ownership and paired contracts",
       "AI platform Chapter 9: modern/legacy MCP protocol boundaries, capability admission, host/server authority, cancellation/correlation and transport contracts",
-      "Spring AI/Python Section 9: duplicate-aware strict parsing, exact schemas, server-owned provenance, trusted service/evidence subsets, bounded repair and paired contracts"
+      "Spring AI/Python Section 9: duplicate-aware strict parsing, exact schemas, server-owned provenance, trusted service/evidence subsets, bounded repair and paired contracts",
+      "DSA Arrays Section 4 problem 9: dominated-endpoint container scan, full-width area arithmetic, exact trace, proof and randomized all-pairs oracle"
     ],
-    "processed_section": "Spring AI/Python Section 9, Structured outputs, editable lines 678-714 / standalone HTML lines 796-831",
-    "validation": "The selected ZIP member at editable source lines 678-714 and standalone HTML lines 796-831 were compared and bounded before Section 10; their incident-summary fields, Pydantic validation, Spring AI record mapping, explicit business checks and bounded repair guidance agree and no duplicate guide was created. Four requirement-driven examples, four diagrams, current primary references and paired dependency-free contracts were added for duplicate-aware syntax parsing, exact schemas, server-owned provenance, trusted service/evidence subsets and deadline-aware repair. Java 17 source-file launch and Python 3 passed all nine contract pairs; the new pair produced identical PARITY|ACCEPTED|SYNTAX_INVALID|SCHEMA_INVALID|BUSINESS_INVALID|EXHAUSTED|3398 traces, 36 scenario groups and 10,000 seeded trials per language. Deterministic reader generation passed exact 118078-byte Markdown recovery, SHA-256 1987567d1dbe03b7bd6ac99c9c988eb42a3bdc56683e724c4eaad01b7cd34210, 382 unique HTML IDs, 10 search entries, 266 local fragments, 152 balanced fence markers, 37 Mermaid sources, JSON and both JavaScript blocks, and deterministic rebuild identity. Seven content files were atomically published at 08f3b34f375641d1ab9238bb8c1bb0178fd09726 with an expected-head guard. Standalone javac, Maven/framework dependency compilation, live Spring AI/Jackson/Jakarta/Pydantic/model integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-    "estimated_next_tokens": 9200,
-    "estimate_method": "Heuristic only for one bounded Arrays Section 4 problem 9 pass with paired-source comparison, examples, Java, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "08f3b34f375641d1ab9238bb8c1bb0178fd09726",
-    "last_processed_at": "2026-10-25T00:11:33-04:00",
-    "next_batch_decision": "Spring AI/Python Section 9 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to Arrays problem 9; retain AI-platform Chapter 10 and Spring AI/Python Section 10 for later turns."
+    "processed_section": "DSA Arrays Section 4 problem 9, Container With Most Water, Markdown lines 1000-1092 / DOCX parsed-text lines 671-729",
+    "validation": "The paired Arrays workbooks agree on bounded Container With Most Water at Markdown lines 1000-1092 and direct Library DOCX parsed-text lines 671-729, ending before problem 10 at Markdown line 1093 / DOCX parsed-text line 730; no duplicate guide was created. The section adds pair-selection/nonnegative-height/nonmutation contracts, four worked cases, three diagrams, an exact pointer trace, the dominated-endpoint proof and long multiplication for the reusable full-int domain. Java 17 source-file launch passed 161 reported scenario groups across all nine Arrays contracts plus 160,000 seeded oracle comparisons; ContainerWaterContracts passed 14 explicit groups and 20,000 independent all-pairs comparisons. Deterministic reader generation passed exact 79062-byte Markdown recovery, SHA-256 9c0144cdc113ce335a73da5cdfe38f52a61da4309ad65d76554a98b433da8b14, 377 unique HTML IDs, 37 search entries, 333 local fragments, 104 balanced fence markers, 32 Mermaid sources, JSON and both JavaScript blocks, and deterministic rebuild identity. Seven content files were atomically published at 7a639933f4887b26ebbdb7630bfa1748c451ae1f with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+    "estimated_next_tokens": 9000,
+    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 10 pass with paired-source comparison, examples, Java, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "7a639933f4887b26ebbdb7630bfa1748c451ae1f",
+    "last_processed_at": "2026-10-25T02:20:38-04:00",
+    "next_batch_decision": "Arrays problem 9 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to AI-platform Chapter 10; retain Spring AI/Python Section 10 and Arrays problem 10 for later turns."
   }
 }
