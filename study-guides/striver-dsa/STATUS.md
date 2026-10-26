@@ -48,6 +48,7 @@
 | Arrays §4 Problem 10 — Trapping Rain Water | ✅ | ✅ | Smaller-boundary finalization, four worked cases, full trace, proof, widened accumulation and randomized per-index oracle |
 | Arrays §4 Problem 11 — Minimum Size Subarray Sum | ✅ | ✅ | Positive-input sliding window, four worked cases, full trace, proof, widened sum and randomized quadratic oracle |
 | Arrays §4 Problem 12 — Fruit Into Baskets | ✅ | ✅ | At-most-two-types sliding window, four worked cases, full trace, proof, zero-count key removal and randomized quadratic oracle |
+| Arrays §4 Problem 13 — Sliding Window Maximum | ✅ | ✅ | Monotonic index deque, four worked cases, full trace, domination proof, validation and randomized brute-force oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -211,5 +212,11 @@ Fresh literal-marker audit remains **170**: this bounded source problem did not 
 Arrays Section 4 problem 12 now states the contiguous at-most-two-types, empty-input, arbitrary-identifier and nonmutation contracts; distinguishes a legal window from the two global modes; and adds four worked cases, a full add/repair trace, four diagrams, the leftmost-valid-window proof and exact zero-count key removal. `FruitIntoBasketsContracts` validates 18 scenario groups plus 20,000 seeded arrays against an independent quadratic start-and-extend oracle. The responsive reader embeds the exact canonical Markdown bytes.
 
 Fresh literal-marker audit remains **170**: this bounded source problem did not contain a placeholder card. Section 4 problem 13 and the broader intake remain incomplete.
+
+## Arrays Sliding Window Maximum enrichment — 2026-10-26 ET
+
+Arrays Section 4 problem 13 now states the fixed-size contiguous-window, strict-`k`, output-cardinality and nonmutation contracts; compares brute force, heap and monotonic deque; and adds four worked cases, a complete expiry/domination trace, four diagrams, the dominated-candidate proof and explicit newer-equal handling. `SlidingWindowMaximumContracts` validates 16 scenario groups plus 20,000 seeded arrays against an independent `O(nk)` oracle. The responsive reader embeds the exact canonical Markdown bytes. Direct comparison of both confirmed sources corrected the stale checkpoint label: their problem 13 is Sliding Window Maximum, while problem 14 is Range Sum Query — Immutable.
+
+Fresh literal-marker audit is **175** across the five canonical placeholder-bearing DSA guides: this bounded source problem added none. Section 4 problem 14 and the broader intake remain incomplete.
 
 

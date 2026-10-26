@@ -1736,6 +1736,121 @@ flowchart TD
 
 Executable evidence is in `FruitIntoBasketsContracts.java`. It checks 18 scenario groups covering the four worked behaviors, arbitrary identifiers, boundaries, rejection and nonmutation, then compares 20,000 seeded arrays with an independent quadratic start-and-extend oracle.
 
+### Example 13 — Sliding Window Maximum: retain only undominated candidates
+
+**Requirement:** given a non-null, non-empty `int[] nums` and an integer `k` with `1 <= k <= nums.length`, return the maximum of every contiguous length-`k` window from left to right. There are exactly `nums.length - k + 1` answers. The method rejects invalid `k`, does not mutate `nums`, and supports the full Java `int` range because it compares values without arithmetic. The original problem bounds are narrower, but they are not required by the algorithm.
+
+The obvious `O(nk)` scan repeats most comparisons in overlapping windows. A max heap can retain candidates, but stale entries need indices and lazy removal, giving `O(n log n)` time. A monotonic deque keeps only indices that can still win: indices increase from front to back, while their values strictly decrease. Its front is therefore the current maximum.
+
+```mermaid
+flowchart TD
+    A["process index right"] --> E["remove expired front indices"]
+    E --> D["remove tail values <= nums[right]"]
+    D --> P["append right"]
+    P --> F{"first full window reached?"}
+    F -->|yes| O["emit value at deque front"]
+    F -->|no| N["advance right"]
+    O --> N
+```
+
+```java
+static int[] maxSlidingWindow(int[] nums, int k) {
+    if (nums == null) throw new IllegalArgumentException("nums must not be null");
+    if (k < 1 || k > nums.length) {
+        throw new IllegalArgumentException("k must be in [1, nums.length]");
+    }
+
+    int[] maxima = new int[nums.length - k + 1];
+    Deque<Integer> candidates = new ArrayDeque<>();
+    int output = 0;
+
+    for (int right = 0; right < nums.length; right++) {
+        while (!candidates.isEmpty() && candidates.peekFirst() <= right - k) {
+            candidates.removeFirst();
+        }
+        while (!candidates.isEmpty()
+                && nums[candidates.peekLast()] <= nums[right]) {
+            candidates.removeLast();
+        }
+        candidates.addLast(right);
+
+        if (right >= k - 1) {
+            maxima[output++] = nums[candidates.peekFirst()];
+        }
+    }
+    return maxima;
+}
+```
+
+Store **indices**, not only values. Expiration depends on position. Removing equal tail values with `<=` intentionally keeps the newer equal index: it produces the same maximum and expires later, so the older duplicate can never become useful again.
+
+#### Worked case 1 — mixed values and changing maxima
+
+For `nums = [1,3,-1,-3,5,3,6,7]` and `k = 3`, the result is `[3,3,5,5,6,7]`. The maximum `3` survives the first two windows; when `5` arrives, every remaining candidate is smaller and is dominated.
+
+#### Worked case 2 — decreasing input retains several candidates
+
+For `[9,8,7,6,5]` with `k = 3`, the result is `[9,8,7]`. No entering value dominates a tail, so the deque temporarily contains all three window indices. Each old maximum leaves only when it expires from the front.
+
+#### Worked case 3 — equal maxima prefer the newer index
+
+For `[4,1,4,1,4]` with `k = 3`, the result is `[4,4,4]`. When a new `4` arrives, `<=` removes the older `4`; the newer equal value represents the same answer for every shared window and remains eligible one step longer.
+
+#### Worked case 4 — boundaries and full-width values
+
+With `k = 1`, `[3,1,2]` returns `[3,1,2]`; with `k = n`, `[9,8,7]` returns `[9]`. `nums = [Integer.MIN_VALUE,Integer.MAX_VALUE,Integer.MAX_VALUE]`, `k = 2`, returns two `Integer.MAX_VALUE` values without overflow. `null`, an empty array, `k = 0`, and `k > nums.length` are rejected under this reusable contract.
+
+#### Complete trace
+
+Each row records the deque after expiration, domination removal, and insertion. Entries are `index:value`.
+
+| `right:value` | expired front | dominated tails | deque after insert | emitted maximum |
+|---|---|---|---|---:|
+| `0:1` | — | — | `[0:1]` | — |
+| `1:3` | — | `0:1` | `[1:3]` | — |
+| `2:-1` | — | — | `[1:3, 2:-1]` | 3 |
+| `3:-3` | — | — | `[1:3, 2:-1, 3:-3]` | 3 |
+| `4:5` | `1:3` | `3:-3`, `2:-1` | `[4:5]` | 5 |
+| `5:3` | — | — | `[4:5, 5:3]` | 5 |
+| `6:6` | — | `5:3`, `4:5` | `[6:6]` | 6 |
+| `7:7` | — | `6:6` | `[7:7]` | 7 |
+
+```mermaid
+flowchart LR
+    A["[1:3, 2:-1, 3:-3]"] -->|"right=4; expire 1:3"| B["[2:-1, 3:-3]"]
+    B -->|"5 dominates both tails"| C["[]"]
+    C -->|"append 4:5"| D["[4:5] => emit 5"]
+```
+
+**Invariant after processing `right`:** every deque index lies in the current window; indices strictly increase; represented values strictly decrease; and every discarded index is dominated by a newer index with an equal or larger value. The first property follows from front expiration. Appending at the right preserves index order. Tail removal followed by append establishes strict value order.
+
+```mermaid
+flowchart TD
+    C{"Why may tail j be removed?"}
+    C --> V["nums[right] >= nums[j]"]
+    C --> T["right is newer than j"]
+    V --> W["right is at least as large in shared windows"]
+    T --> L["right remains eligible at least as long"]
+    W --> X["j can never win again"]
+    L --> X
+```
+
+**Correctness.** An expired index cannot belong to the current or any later window. A tail removed as dominated cannot be a future maximum: the current index is at least as large and lies to its right, so it remains present for every future window that could still contain the removed index. Thus every discarded candidate is impossible. The decreasing value order makes the front at least as large as every retained candidate; since an actual maximum is never discarded without a dominating replacement, the front equals the window maximum when emitted. Processing all right endpoints therefore emits exactly every required maximum in order.
+
+**Complexity.** Every index is appended once and removed at most once from each end; the total deque work is `O(n)`, not `O(nk)`. The deque holds at most `k` indices, so auxiliary space is `O(k)` plus the required `O(n-k+1)` output. The input remains unchanged.
+
+```mermaid
+flowchart TD
+    Q{"Required query pattern?"}
+    Q -->|"one pass, fixed k, max/min"| D["monotonic deque: O(n)"]
+    Q -->|"online inserts plus arbitrary deletes"| H["balanced tree or indexed heap"]
+    Q -->|"many immutable range queries"| R["sparse table or segment tree"]
+```
+
+**Common interview errors:** storing values and losing expiration evidence; emitting before the first full window; expiring with `< right-k` instead of `<= right-k`; removing from the wrong deque end; using an increasing deque for maxima; treating the deque as if it must contain all `k` indices; or accepting invalid `k` and failing during output allocation. Keeping older equal values with `<` is still correct if expiration is implemented carefully, but `<=` yields the smaller, simpler candidate set.
+
+Executable evidence is in `SlidingWindowMaximumContracts.java`. It checks 16 scenario groups covering the four worked behaviors, monotonic and duplicate-heavy inputs, full-width values, rejection and nonmutation, then compares 20,000 seeded arrays with an independent `O(nk)` oracle.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -1756,6 +1871,8 @@ Executable evidence is in `FruitIntoBasketsContracts.java`. It checks 18 scenari
 - [LeetCode, “Trapping Rain Water”](https://leetcode.com/problems/trapping-rain-water/) — primary unit-width, non-negative elevation-map and total trapped-water contract.
 - [LeetCode, “Minimum Size Subarray Sum”](https://leetcode.com/problems/minimum-size-subarray-sum/) — primary positive-input, contiguous-window, minimum-length and zero-when-absent contract, plus the `O(n log n)` follow-up.
 - [LeetCode, “Fruit Into Baskets”](https://leetcode.com/problems/fruit-into-baskets/) — primary contiguous-picking, two-basket/type, examples and original input bounds.
+- [LeetCode, “Sliding Window Maximum”](https://leetcode.com/problems/sliding-window-maximum/) — primary fixed-size-window contract, examples, bounds and deque hint.
+- [Java SE 17 `java.util.Deque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Deque.html) — double-ended queue operations used for front expiration and tail domination removal.
 - [Java Language Specification, Java SE 17, §15.17](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17) — multiplicative operators and binary numeric promotion; the implementation widens an operand before multiplication.
 - [Java Language Specification, Java SE 17, Chapter 4](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — integer operators use 32- or 64-bit precision according to promotion and do not signal ordinary overflow.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — `addExact(long,long)` reports an overflow instead of silently wrapping.
@@ -1763,9 +1880,9 @@ Executable evidence is in `FruitIntoBasketsContracts.java`. It checks 18 scenari
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 12 at lines 253–1381 (problem 12 is lines 1292–1381). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 12 (local Pandoc extraction places problem 12 at lines 1463–1574). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 13 at lines 253–1496 (problem 13 is lines 1383–1496). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 13 (local Pandoc extraction places problem 13 at lines 1521–1648). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 12, “Fruit Into Baskets,” is promoted from Markdown lines 1292–1381 and matching DOCX extracted lines 1463–1574; problem 13, “Longest Substring Without Repeating Characters,” follows in both sources.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 13, “Sliding Window Maximum,” is promoted from Markdown lines 1383–1496 and matching DOCX extracted lines 1521–1648; problem 14, “Range Sum Query — Immutable,” follows in both sources. The earlier checkpoint label naming problem 13 as “Longest Substring Without Repeating Characters” was stale and is corrected by this direct source comparison.
 
 

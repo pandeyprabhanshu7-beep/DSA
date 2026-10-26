@@ -11,7 +11,7 @@ Canonical interview-study guides live here. Each topic keeps one latest Markdown
 | Trees & BST | [Guide](trees-bst/markdown/Striver_Trees_BST_FINAL_Deep_Dive.md) | [Reader](trees-bst/html/index.html) | traversal reasoning, recursion, BST and tree interview patterns |
 | HashMap & Hashing | [Guide](hashmap-hashing/markdown/HashMap_Hashing_FINAL_Deep_Dive.md) | [Reader](hashmap-hashing/html/index.html) | frequency, lookup, prefix-state and hashing patterns |
 | Graph DSA | [Guide](graph-dsa/markdown/Striver_Graph_DSA_FINAL_Deep_Dive.md) | [Reader](graph-dsa/html/index.html) | traversal, topo, shortest paths, MST/DSU, SCC and low-link |
-| Arrays | [Guide](arrays/guide.md) | [Reader](arrays/guide.html) | array contracts, decision gates, Java toolkit, stable compaction, endpoint squares, duplicate-safe 3Sum, dominated containers and boundary-finalized rain water |
+| Arrays | [Guide](arrays/guide.md) | [Reader](arrays/guide.html) | array contracts, decision gates, Java toolkit, stable compaction, endpoint squares, duplicate-safe 3Sum, monotonic windows, dominated containers and boundary-finalized rain water |
 
 Graph also contains a focused [Bellman–Ford Markdown deep dive](graph-dsa/markdown/bellman-ford-deep-dive.md) with a matching [HTML reader](graph-dsa/html/bellman-ford-deep-dive.html).
 
@@ -35,7 +35,7 @@ The HTML readers provide responsive layouts, searchable section navigation, tabl
 - A focused subtopic deep dive is acceptable only when it adds substantial material and its Markdown/HTML pair is maintained intentionally.
 - Preserve source attribution boundaries: external references validate algorithms and claims; added examples, memory tricks, proofs, diagrams, and interview notes are labeled as study-guide material.
 
-The Arrays guide is incremental: source Sections 1–3 and Section 4 problems 1–11 are promoted; problems 12–47 and later material remain queued.
+The Arrays guide is incremental: source Sections 1–3 and Section 4 problems 1–13 are promoted; problems 14–47 and later material remain queued.
 
 See [STATUS.md](STATUS.md) for promotion and deep-enrichment progress.
 
