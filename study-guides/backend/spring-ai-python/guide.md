@@ -1,6 +1,6 @@
 # Spring AI and Python APIs
 
-This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–14, lines 6–915.
+This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–15, lines 6–930.
 
 ## Section 1 — Choose the layer before choosing the library
 
@@ -2741,3 +2741,185 @@ Verified on 26 October 2026:
 ### Source provenance and continuation
 
 The selected editable bundle member's complete Section 14 is source lines 882–915, bounded before Section 15 at line 917. The matching standalone HTML is lines 980–1002, bounded before Chapter 15 at line 1003. Both contain the same request/retrieval/tool/model trace, release and usage fields, content-sensitivity warning, metric-cardinality rule, OpenTelemetry/Resilience4j boundary, and five debugging prompts. The canonical section preserves all five prompts in four connected worked examples, adds explicit invariants, trace schemas, four diagrams and paired executable contracts, and does not copy the older generated layout as a second guide. Section 15, **Testing pyramid for this repository**, begins at editable line 917 / standalone HTML line 1003. Sections 15–25 remain queued; the source is not complete.
+
+## 15. Testing pyramid for this repository: make every claim earn its environment
+
+The source's six layers are not six interchangeable ways to say “tests passed.” Each layer is the least expensive environment that can produce evidence for a different claim. A unit test can prove deterministic RRF arithmetic; it cannot prove a PostgreSQL tenant predicate, a provider's current wire behavior, an SLO under load or a Kubernetes rollout.
+
+| Layer | Representative target | Evidence it can produce | Claim it must not make |
+|---|---|---|---|
+| Pure unit | RRF, scope predicate, citation membership, budget arithmetic | deterministic input/output and invariants | database, network or framework wiring works |
+| Adapter contract | HTTP request/response mapping, timeout, 429/5xx, stream framing | owned serialization and typed failure behavior | the live provider still behaves that way |
+| Database integration | migration, pgvector query, generation and tenant filter | driver/schema/operator/transaction interaction | retrieval is relevant for every question |
+| Model evaluation | frozen corpus, questions, expected evidence and slices | measured retrieval/answer quality for one workload revision | all future prompts or judge infallibility |
+| Load test | mixed prompt/output lengths, cancellation and concurrency | latency, errors and resource release under the tested load | unlimited capacity or another environment's performance |
+| Cluster smoke | image, config, secret references, probes and a small request | this release can start and serve in this cluster | backup restore, regional failover or disaster recovery |
+
+### Requirements and invariants
+
+1. **Name the claim before selecting the test.** Use the lowest layer that can observe the real boundary; do not mock away the property under test.
+2. **Fast tests own deterministic breadth.** Run pure logic and adapter cases on every change, including invalid, empty, timeout, cancellation and authorization-negative paths.
+3. **Mocks stop at an owned boundary.** A provider stub is useful for the request you send and response you parse. It is not evidence about current provider availability, quotas, model quality or pricing.
+4. **Integration means the real protocol and feature.** For pgvector, run the actual PostgreSQL extension, migration, vector dimension/operator and tenant/generation predicate rather than substituting an in-memory map.
+5. **Evaluation data is an artifact.** Version corpus, questions, expected evidence, protected slices, metric code, judge prompt/model and thresholds. Keep release data separate from tuning data.
+6. **Security failures fail closed at every layer.** Cross-tenant rows, unauthorized tools, leaked secrets or missing negative tests block promotion even when average quality and latency pass.
+7. **Load uses a workload identity.** Record arrival pattern, concurrency, prompt/output distributions, cache state, cancellation rate, data generation, release and load-generator capacity.
+8. **A threshold is a release predicate.** Publish the exact numerator, denominator, percentile and comparison; “looks good” is not a gate.
+9. **Cluster probes have separate meanings.** Startup protects slow initialization, readiness controls traffic eligibility and liveness requests a restart. A single always-200 endpoint cannot prove all three.
+10. **Promotion requires same-release evidence.** Do not combine unit results from `r15`, evaluation from `r14` and a cluster smoke from an unlabelled image.
+
+### Example 1 — fast unit and adapter tests catch different regressions
+
+Atlas has a deterministic authorized-retrieval core and an HTTP provider adapter. A change accidentally reverses the tie-breaker for equal RRF scores and maps a provider timeout to a generic 500. Two focused suites locate the failures without starting Spring Boot, Python ASGI, a database or a model.
+
+| Case | Input | Expected evidence | Layer |
+|---|---|---|---|
+| deterministic tie | `p-high=0.91`, `p-tie=0.91` | IDs ordered stably: `p-high,p-tie` | unit |
+| tenant-negative | request tenant `payments`, candidate tenant `executive` | candidate absent before ranking/context | unit |
+| timeout | no response before owned deadline | typed `TIMEOUT`, no blind retry after cancellation | adapter |
+| throttling | HTTP 429 + bounded retry metadata | typed `RATE_LIMITED` with parsed delay bounded by deadline | adapter |
+| malformed success | HTTP 200, missing required output field | `INVALID_RESPONSE`, not success | adapter |
+
+```mermaid
+flowchart LR
+    C["Changed code"] --> U["Pure unit: logic + invariants"]
+    C --> A["Adapter contract: owned wire boundary"]
+    U -->|tie failure| R["Repair ranking code"]
+    A -->|timeout mapping failure| W["Repair adapter mapping"]
+    U -->|pass| N["Does not prove transport"]
+    A -->|pass| P["Does not prove live provider"]
+```
+
+The Java side can test a controller or application slice with Spring's focused test facilities, while Python can parametrize the same behavior table with `pytest.mark.parametrize`. If the purpose is the HTTP client's real codec, headers and network-error behavior, use a mock web server rather than replacing the client itself with a method mock. The resulting evidence should include the tested schema/release identity and every typed outcome, not merely a coverage percentage.
+
+### Example 2 — a disposable real pgvector database proves scope and query behavior
+
+An in-memory fake accepts arbitrary vector lengths and sorts a Java/Python list after retrieval. Production PostgreSQL does neither. The database test starts a pinned pgvector image, runs the real migration and inserts these rows:
+
+| ID | Tenant | Generation | Similarity to query | Expected for `payments/g43` |
+|---|---|---|---:|---|
+| `p-high` | payments | g43 | 0.91 | rank 1 |
+| `p-low` | payments | g43 | 0.71 | rank 2 |
+| `exec` | executive | g43 | 0.99 | **never returned** |
+| `old` | payments | g42 | 0.96 | **never returned** |
+
+Run the production query shape, with authority predicates inside the query:
+
+```sql
+SELECT chunk_id, 1 - (embedding <=> CAST(:query AS vector)) AS score
+FROM chunk_embedding
+WHERE tenant_id = :verified_tenant
+  AND generation = :published_generation
+ORDER BY embedding <=> CAST(:query AS vector), chunk_id
+LIMIT :k;
+```
+
+The trace must be `migration → extension/dimension check → seed → parameterized query → IDs [p-high,p-low] → rollback/teardown`. Assert the negative rows explicitly; “two rows returned” is insufficient because the wrong two rows could satisfy that count.
+
+```mermaid
+sequenceDiagram
+    participant T as Integration test
+    participant P as Pinned pgvector container
+    participant D as Production DAO
+    T->>P: start + run migration
+    T->>P: seed two tenants + two generations
+    T->>D: verified tenant=payments, generation=g43
+    D->>P: parameterized vector query
+    P-->>D: p-high, p-low
+    D-->>T: ordered scoped IDs
+    T->>T: assert exec and old are absent
+```
+
+Testcontainers for Java documents both `pgvector/pgvector` compatibility and a `jdbc:tc:pgvector:pg16:///...` path; Testcontainers Python supplies a real PostgreSQL container for the Python driver. Pin the database/extension image and migration revision in evidence. This layer proves the tested driver, schema, vector operator and predicates together. It still does not prove production data quality, managed-database policy, backup recovery or relevance on unseen questions.
+
+### Example 3 — quality evaluation is a versioned release gate, not one judge call
+
+For `evalset-v15`, freeze 100 questions with expected evidence IDs and declared slices: 50 normal answerable, 20 paraphrases, 15 no-answer, 10 authorization-negative and 5 long-context. Evaluate the exact candidate release `r15` against the current baseline `r14`.
+
+| Metric/slice | r14 | r15 | Gate | Result |
+|---|---:|---:|---:|---|
+| retrieval recall@5, all answerable | 0.89 | 0.92 | ≥ 0.90 | pass |
+| citation membership | 0.99 | 1.00 | = 1.00 | pass |
+| authorization-negative leakage | 0/10 | 0/10 | = 0 | pass |
+| no-answer precision | 0.93 | 0.91 | ≥ 0.92 | **block** |
+| calibrated support score | 0.87 | 0.90 | ≥ 0.88 | pass |
+
+Despite a higher overall score, `r15` is blocked by no-answer precision. Repair the behavior, produce a new release identity and rerun the unchanged holdout. Do not repeatedly tune to the release set until it becomes training data.
+
+```mermaid
+flowchart TD
+    R["Pinned release + evalset-v15"] --> X["Retrieval metrics by slice"]
+    R --> A["Answer / citation checks"]
+    R --> J["Calibrated evaluator evidence"]
+    X --> G{"Every hard gate passes?"}
+    A --> G
+    J --> G
+    G -->|no| B["Block and diagnose first failed slice"]
+    G -->|yes| L["Advance to bounded load test"]
+```
+
+Spring AI's `Evaluator` and `RelevancyEvaluator` can contribute one model-based signal using the user input, contextual data and response. They do not replace deterministic membership/authorization checks or a calibrated human-labelled holdout. Record evaluator model, prompt and repeated-run policy because a nondeterministic or upgraded judge can move the gate without application changes.
+
+### Example 4 — load and cluster smoke complete a same-release evidence chain
+
+After functional and quality gates pass, run a representative test for `r15`: 60% short questions, 25% long-context questions, 10% no-answer and 5% cancellations; fixed arrival rate; cold and warm cache phases; 15 minutes after warm-up. The declared release gates are error rate `<1%`, p95 end-to-end `<900 ms`, tenant leakage `=0`, dropped iterations `=0` for the target rate and all cancellation permits released.
+
+| Phase | Evidence | Result |
+|---|---|---|
+| load admission | target 80 requests/s, achieved 80, dropped 0 | pass |
+| latency/errors | p95 720 ms, error rate 0.4% | pass |
+| cancellation | 400 cancellations, 400 terminal releases | pass |
+| cluster startup | startup probe succeeds after model/index load | pass |
+| readiness | pod leaves endpoints during dependency failure | pass |
+| liveness | deadlocked fixture is restarted | pass |
+| authorized smoke | one cited answer and one forbidden request | pass |
+
+```mermaid
+stateDiagram-v2
+    [*] --> FastTests
+    FastTests --> DatabaseIntegration: pass
+    DatabaseIntegration --> Evaluation: pass
+    Evaluation --> Load: hard slices pass
+    Load --> ClusterSmoke: SLO thresholds pass
+    ClusterSmoke --> Promote: same release + probes + auth pass
+    FastTests --> Block: fail
+    DatabaseIntegration --> Block: fail
+    Evaluation --> Block: fail
+    Load --> Block: fail
+    ClusterSmoke --> Block: fail
+```
+
+k6 thresholds are executable pass/fail criteria, so CI should consume its non-zero exit when an SLO threshold fails. Also record the load generator's saturation; a generator at its own limit can distort latency or under-deliver arrivals. In Kubernetes, readiness removes an unready pod from Service traffic, while liveness can restart a broken container and startup prevents premature checks during initialization. Exercise each transition; a manifest review or one `/health` response is not runtime proof.
+
+### Paired executable release-gate contract
+
+[`TestingPyramidContracts.java`](TestingPyramidContracts.java) and [`testing_pyramid_contracts.py`](testing_pyramid_contracts.py) make layer-to-claim selection, adapter outcomes, tenant-scoped row ordering, evidence identity and fail-closed promotion executable without external dependencies:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/TestingPyramidContracts.java
+python3 study-guides/backend/spring-ai-python/testing_pyramid_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|FAST=UNIT_ADAPTER|DB=REAL_PGVECTOR|QUALITY=FIXED_DATASET|LOAD=SLO_THRESHOLDS|CLUSTER=PROBES|RELEASE=EVIDENCE_GATED|PROMOTED=646
+```
+
+Each implementation checks 29 explicit scenario groups and 10,000 seeded release-gate trials. The oracle covers release-identity mismatch, security and functional failures, quality thresholds, load thresholds and promotion precedence. These dependency-free contracts do not start Spring Boot, pytest, PostgreSQL, a model, k6 or Kubernetes; the corresponding layers require their named real environments.
+
+### Current primary references
+
+Verified on 26 October 2026:
+
+- Spring Boot, [Testing](https://docs.spring.io/spring-boot/reference/testing/index.html), [Testing Spring Boot applications](https://docs.spring.io/spring-boot/reference/testing/spring-boot-applications.html) and [Testcontainers](https://docs.spring.io/spring-boot/reference/testing/testcontainers.html) — test support, focused application slices, `@SpringBootTest` web modes and container-managed integration tests.
+- Spring Framework, [WebTestClient](https://docs.spring.io/spring-framework/reference/testing/webtestclient.html) and [Testing client applications](https://docs.spring.io/spring-framework/reference/testing/spring-mvc-test-client.html) — mock-server/controller tests versus real HTTP-client and network-condition evidence.
+- Testcontainers for Java, [PostgreSQL module](https://java.testcontainers.org/modules/databases/postgres/) and [JDBC support](https://java.testcontainers.org/modules/databases/jdbc/) — disposable PostgreSQL plus explicit pgvector image/JDBC support; Testcontainers Python, [PostgresContainer](https://testcontainers-python.readthedocs.io/en/testcontainers-v4.2.0/modules/postgres/README.html) — a real PostgreSQL fixture for Python integration tests.
+- pytest, [fixtures](https://docs.pytest.org/en/stable/explanation/fixtures.html) and [parametrization](https://docs.pytest.org/en/stable/how-to/parametrize.html) — reliable test context and table-driven cases across inputs/configurations.
+- Spring AI, [Evaluation testing](https://docs.spring.io/spring-ai/reference/api/testing.html) — `Evaluator`, `EvaluationRequest` and context-aware relevancy evaluation, used here as one calibrated quality signal rather than authorization truth.
+- Grafana k6, [Thresholds](https://grafana.com/docs/k6/latest/using-k6/thresholds/) and [large-test execution](https://grafana.com/docs/k6/latest/testing-guides/running-large-tests/) — executable SLO pass/fail criteria and load-generator capacity caveats.
+- Kubernetes, [Configure liveness, readiness and startup probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/) — distinct restart, traffic-eligibility and initialization behavior.
+
+### Source provenance and continuation
+
+The selected editable bundle member's complete Section 15 is source lines 917–930, bounded before Section 16 at line 932. The compared standalone HTML is lines 1003–1052, bounded before Chapter 16 at line 1053. Both contain the same six-layer table and the same explicit list of production gaps, so the editable Markdown remains the structural source and no duplicate guide was created. This canonical section retains every source layer while adding claim boundaries, hard security/release-identity gates, four worked traces, four diagrams, real pgvector and workload examples, current primary references and paired executable contracts. Section 16, **A four-week implementation path**, begins at editable line 932 / standalone HTML line 1053. Sections 16–25 remain queued; the source is not complete.
