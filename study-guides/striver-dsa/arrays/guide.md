@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–14 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 15–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–15 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 16–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first fourteen solved problems](#4-core-pattern-lab--first-fourteen-solved-problems)
+- [4. Core pattern lab — first fifteen solved problems](#4-core-pattern-lab--first-fifteen-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -43,6 +43,7 @@
   - [Example 12 — Fruit Into Baskets: keep at most two types](#example-12--fruit-into-baskets-keep-at-most-two-types)
   - [Example 13 — Sliding Window Maximum: retain only undominated candidates](#example-13--sliding-window-maximum-retain-only-undominated-candidates)
   - [Example 14 — Range Sum Query — Immutable: subtract two prefix boundaries](#example-14--range-sum-query--immutable-subtract-two-prefix-boundaries)
+  - [Example 15 — Product of Array Except Self: preserve both exclusive sides](#example-15--product-of-array-except-self-preserve-both-exclusive-sides)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -668,9 +669,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first fourteen solved problems
+## 4. Core pattern lab — first fifteen solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first fourteen: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, Squares of a Sorted Array, 3Sum, Container With Most Water, Trapping Rain Water, Minimum Size Subarray Sum, Fruit Into Baskets, Sliding Window Maximum, and Range Sum Query — Immutable. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude; problems 8–10 use sorted or boundary monotonicity to discard state safely; problems 11–13 maintain just enough window state; and problem 14 precomputes cancellable prefix state for repeated immutable queries. Problems 15–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first fifteen: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, Squares of a Sorted Array, 3Sum, Container With Most Water, Trapping Rain Water, Minimum Size Subarray Sum, Fruit Into Baskets, Sliding Window Maximum, Range Sum Query — Immutable, and Product of Array Except Self. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude; problems 8–10 use sorted or boundary monotonicity to discard state safely; problems 11–13 maintain just enough window state; problem 14 precomputes cancellable prefix state for repeated immutable queries; and problem 15 combines two exclusive directional aggregates without division. Problems 16–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -1977,6 +1978,133 @@ flowchart LR
 
 Executable evidence is in `RangeSumQueryContracts.java`. It checks 18 scenario groups covering the four worked behaviors, empty construction, invalid ranges, defensive snapshot isolation and full-width arithmetic, then compares 20,000 seeded queries with an independent linear scan oracle while mutating every caller array after construction.
 
+### Example 15 — Product of Array Except Self: preserve both exclusive sides
+
+**Requirement:** given a non-null `int[] nums` of length at least 2, return a new array `answer` of the same length where
+
+`answer[i] = nums[0] × ... × nums[i-1] × nums[i+1] × ... × nums[n-1]`.
+
+The input must remain unchanged. The interview contract requires `O(n)` time, forbids division, and asks for `O(1)` auxiliary space when the required output array is excluded. The original problem guarantees that every needed product fits a signed 32-bit integer. This reusable implementation additionally uses `Math.multiplyExact` so inputs outside that numeric contract fail visibly instead of silently wrapping.
+
+The empty product is the identity value `1`: before index 0 there are no factors, so its exclusive prefix is 1; after index `n-1` there are no factors, so its exclusive suffix is also 1.
+
+| Approach | Time | Auxiliary space | Why accept or reject it |
+|---|---:|---:|---|
+| Recompute all other factors for every index | `O(n²)` | `O(1)` | Correct baseline; repeats almost all multiplication |
+| Divide the total product by `nums[i]` | `O(n)` | `O(1)` | Violates the no-division contract and needs separate zero-count logic |
+| Separate prefix and suffix arrays | `O(n)` | `O(n)` | Clear stepping stone, but stores both sides unnecessarily |
+| Output-as-prefix plus scalar suffix | `O(n)` | `O(1)` excluding output | Meets every required bound and handles zeros without branches |
+
+```mermaid
+flowchart TD
+    Q{"Need every product except i?"}
+    Q --> D{"Division allowed and zeros handled?"}
+    D -->|"no"| P["exclusive prefix products"]
+    P --> S["multiply exclusive suffix in reverse"]
+    D -->|"yes"| T["total-product variant"]
+    T --> R["still weaker for this contract"]
+```
+
+For each index `i`, split the wanted factors into two disjoint regions:
+
+```mermaid
+flowchart LR
+    L["indices < i: prefix"] --> A["answer[i]"]
+    R["indices > i: suffix"] --> A
+    X["index i"] -. "excluded" .-> A
+```
+
+The first left-to-right pass writes the product strictly before each index into `answer[i]`. The second right-to-left pass carries one scalar `suffix`, multiplies it into the stored prefix, and only then includes `nums[i]` for the next position to the left.
+
+```java
+static int[] productExceptSelf(int[] nums) {
+    if (nums == null) {
+        throw new IllegalArgumentException("nums must not be null");
+    }
+    if (nums.length < 2) {
+        throw new IllegalArgumentException("nums must contain at least two values");
+    }
+
+    int[] answer = new int[nums.length];
+    int prefix = 1;
+    for (int i = 0; i < nums.length; i++) {
+        answer[i] = prefix;                         // product of nums[0..i)
+        prefix = Math.multiplyExact(prefix, nums[i]);
+    }
+
+    int suffix = 1;
+    for (int i = nums.length - 1; i >= 0; i--) {
+        answer[i] = Math.multiplyExact(answer[i], suffix);
+        suffix = Math.multiplyExact(suffix, nums[i]);
+    }
+    return answer;
+}
+```
+
+```mermaid
+flowchart TD
+    I["prefix = 1"] --> F["store prefix before nums[i]"]
+    F --> U["prefix *= nums[i]"]
+    U --> B["suffix = 1"]
+    B --> M["answer[i] *= suffix"]
+    M --> V["suffix *= nums[i]"]
+```
+
+#### Worked case 1 — ordinary positive values
+
+For `[1,2,3,4]`, return `[24,12,8,6]`. The complete two-pass trace shows why assignment must happen before the current factor is incorporated.
+
+| Pass | `i` | current value | state before | `answer[i]` after | state after |
+|---|---:|---:|---:|---:|---:|
+| prefix | 0 | 1 | `prefix=1` | 1 | `prefix=1` |
+| prefix | 1 | 2 | `prefix=1` | 1 | `prefix=2` |
+| prefix | 2 | 3 | `prefix=2` | 2 | `prefix=6` |
+| prefix | 3 | 4 | `prefix=6` | 6 | `prefix=24` |
+| suffix | 3 | 4 | `suffix=1` | `6×1=6` | `suffix=4` |
+| suffix | 2 | 3 | `suffix=4` | `2×4=8` | `suffix=12` |
+| suffix | 1 | 2 | `suffix=12` | `1×12=12` | `suffix=24` |
+| suffix | 0 | 1 | `suffix=24` | `1×24=24` | `suffix=24` |
+
+The first pass temporarily leaves `[1,1,2,6]`; the reverse pass transforms it into `[24,12,8,6]`.
+
+#### Worked case 2 — exactly one zero
+
+For `[-1,1,0,-3,3]`, return `[0,0,9,0,0]`. Every position other than the zero includes that zero in either its prefix or suffix, so its answer becomes zero. At the zero's own index, neither exclusive side contains the zero: `(-1 × 1) × (-3 × 3) = 9`.
+
+```mermaid
+flowchart TD
+    Z{"How many zero factors?"}
+    Z -->|"none"| N["ordinary signed products"]
+    Z -->|"one"| O["only zero index may be nonzero"]
+    Z -->|"two or more"| A["every answer includes a zero"]
+```
+
+No zero counter or branch appears in the optimized code. Zero behavior follows from ordinary multiplication and the exclusive boundaries.
+
+#### Worked case 3 — two zeros
+
+For `[0,4,0]`, return `[0,0,0]`. Excluding any one position still leaves at least one zero among the remaining factors. A division-based solution cannot form a usable total quotient here; the prefix/suffix invariant remains unchanged.
+
+#### Worked case 4 — signs and the minimum boundary
+
+For `[-2,-3,4,5]`, return `[-60,-40,30,24]`. Each output has the sign determined by the parity of negative factors after excluding its own value. For the smallest legal length, `[5,7]` returns `[7,5]`: each exclusive product contains exactly the other element.
+
+**Prefix invariant.** Immediately before prefix iteration `i`, `prefix` equals the product of `nums[0..i)`. Therefore storing it in `answer[i]` records exactly the factors left of `i`. Multiplying by `nums[i]` establishes the invariant for `i+1`. The base value 1 is the product of the empty range before index 0.
+
+**Suffix invariant.** Immediately before reverse iteration `i`, `suffix` equals the product of `nums(i..n)`, meaning indices `i+1` through `n-1`. The first pass already placed the product of indices left of `i` in `answer[i]`; multiplying the two states includes every index except `i` exactly once. Updating `suffix` with `nums[i]` establishes the invariant for `i-1`. The base value 1 is the empty range after the last index.
+
+**Correctness.** The two disjoint ranges `nums[0..i)` and `nums(i..n)` partition all legal indices except `i`. By the two invariants, the final `answer[i]` is the product of precisely those ranges. This reasoning does not depend on whether factors are positive, negative, or zero, so every required output position is correct.
+
+**Complexity and ownership.** Two full passes take `2n` iterations, hence `O(n)` time. Apart from the required output, only `prefix`, `suffix`, and loop indices are stored, so auxiliary space is `O(1)`. The method never assigns into `nums`, and each output element is finalized in the reverse pass.
+
+**Numeric contract.** Java's ordinary `int` multiplication silently keeps the low-order 32 bits on overflow. The original problem promises safe intermediate prefix/suffix products and safe answers; reusable code should either preserve that precondition explicitly, return a wider/exact type, or detect violations. `Math.multiplyExact` does the latter and throws `ArithmeticException`. Merely switching to `long` extends but does not remove the bound.
+
+**Common interview errors:** including `nums[i]` before storing the exclusive prefix; starting either running product at 0 instead of multiplicative identity 1; overwriting prefix values before the reverse pass consumes them; mutating the input to save space even though the output already supplies reusable storage; counting the required output as auxiliary space when the problem explicitly excludes it; adding brittle zero-specific branches; using division despite the stated constraint; or claiming `int` is safe without citing the problem's numeric guarantee.
+
+**Follow-ups:** if division is allowed, discuss a zero-count variant rather than blindly dividing; if answers may exceed fixed-width types, choose `BigInteger` or a documented modular product; if the operation is over a generic associative monoid without inverses, separate prefix and suffix accumulations generalize the pattern; and if many point updates must be supported, the static two-pass output is no longer sufficient.
+
+Executable evidence is in `ProductExceptSelfContracts.java`. It checks 17 scenario groups covering the four worked behaviors, legal extremes, rejection, overflow detection and nonmutation, then compares 20,000 seeded arrays with an independent quadratic oracle.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -1999,6 +2127,7 @@ Executable evidence is in `RangeSumQueryContracts.java`. It checks 18 scenario g
 - [LeetCode, “Fruit Into Baskets”](https://leetcode.com/problems/fruit-into-baskets/) — primary contiguous-picking, two-basket/type, examples and original input bounds.
 - [LeetCode, “Sliding Window Maximum”](https://leetcode.com/problems/sliding-window-maximum/) — primary fixed-size-window contract, examples, bounds and deque hint.
 - [LeetCode, “Range Sum Query — Immutable”](https://leetcode.com/problems/range-sum-query-immutable/) — primary repeated inclusive-query contract, canonical example and original bounds.
+- [LeetCode, “Product of Array Except Self”](https://leetcode.com/problems/product-of-array-except-self/) — primary no-division, linear-time, output-space-exclusion and 32-bit-product contract.
 - [Java SE 17 `java.util.Deque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Deque.html) — double-ended queue operations used for front expiration and tail domination removal.
 - [Java Language Specification, Java SE 17, §15.17](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17) — multiplicative operators and binary numeric promotion; the implementation widens an operand before multiplication.
 - [Java Language Specification, Java SE 17, Chapter 4](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — integer operators use 32- or 64-bit precision according to promotion and do not signal ordinary overflow.
@@ -2007,9 +2136,9 @@ Executable evidence is in `RangeSumQueryContracts.java`. It checks 18 scenario g
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 14 (problem 14 is lines 1499–1585). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 14 (local Pandoc extraction places problem 14 at lines 1716–1820). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 15 (problem 15 is lines 1586–1680, bounded before the problem 16 anchor at line 1682). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 15 (local Pandoc GFM extraction places problem 15 at lines 1821–1932, bounded before problem 16 at line 1934). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 14, “Range Sum Query — Immutable,” is promoted from Markdown lines 1499–1585 and matching DOCX extracted lines 1716–1820; problem 15, “Product of Array Except Self,” begins at Markdown line 1586 and DOCX extracted line 1821.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 15, “Product of Array Except Self,” is promoted from Markdown lines 1586–1680 and matching DOCX GFM-extracted lines 1821–1932; problem 16, “Subarray Sum Equals K,” begins at Markdown line 1684 and DOCX extracted line 1934.
 
 

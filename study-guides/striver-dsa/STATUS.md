@@ -50,6 +50,7 @@
 | Arrays §4 Problem 12 — Fruit Into Baskets | ✅ | ✅ | At-most-two-types sliding window, four worked cases, full trace, proof, zero-count key removal and randomized quadratic oracle |
 | Arrays §4 Problem 13 — Sliding Window Maximum | ✅ | ✅ | Monotonic index deque, four worked cases, full trace, domination proof, validation and randomized brute-force oracle |
 | Arrays §4 Problem 14 — Range Sum Query — Immutable | ✅ | ✅ | Snapshot ownership, four worked cases, prefix trace, subtraction proof, widened arithmetic and randomized scan oracle |
+| Arrays §4 Problem 15 — Product of Array Except Self | ✅ | ✅ | Exclusive prefix/suffix state, four worked cases, zero behavior, overflow detection, proof and randomized quadratic oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -225,5 +226,11 @@ Fresh literal-marker audit is **170** across the five canonical placeholder-bear
 Arrays Section 4 problem 14 now states the inclusive-range, defensive-snapshot, invalid-range and widened-result contracts; compares scan, prefix and update-capable structures; and adds four worked cases, complete construction/query traces, four diagrams, an inductive prefix invariant and exact subtraction proof. `RangeSumQueryContracts` validates 18 scenario groups plus 20,000 seeded queries against an independent linear oracle while mutating every caller array after construction. The responsive reader embeds the exact canonical Markdown bytes. Both confirmed sources agree on the prefix definition, `prefix[right+1] - prefix[left]`, complexity, empty-prefix boundary and widened accumulation; the editable Markdown remains the structural winner rather than duplicating the older Word companion.
 
 Fresh literal-marker audit remains **170**: this bounded source problem added none. Section 4 problem 15 and the broader intake remain incomplete.
+
+## Arrays Product of Array Except Self enrichment — 2026-10-26 ET
+
+Arrays Section 4 problem 15 now states the no-division, nonmutation, linear-time and output-excluded-space contracts; adds four worked cases, a complete two-pass trace, four diagrams, exclusive prefix/suffix invariants and a partition proof; and makes out-of-contract integer overflow fail visibly with `Math.multiplyExact`. `ProductExceptSelfContracts` validates 17 scenario groups plus 20,000 seeded arrays against an independent quadratic oracle while checking input preservation. The responsive reader embeds the exact canonical Markdown bytes. Both confirmed sources agree on the algorithm, zero behavior and complexity; the editable Markdown remains the structural winner rather than duplicating the older Word companion.
+
+Fresh literal-marker audit remains **170**: this bounded source problem added none. Section 4 problem 16 and the broader intake remain incomplete.
 
 
