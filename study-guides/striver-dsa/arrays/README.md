@@ -16,6 +16,7 @@ java -ea study-guides/striver-dsa/arrays/ThreeSumContracts.java
 java -ea study-guides/striver-dsa/arrays/ContainerWaterContracts.java
 java -ea study-guides/striver-dsa/arrays/TrappingRainWaterContracts.java
 java -ea study-guides/striver-dsa/arrays/MinimumSizeSubarrayContracts.java
+java -ea study-guides/striver-dsa/arrays/FruitIntoBasketsContracts.java
 ```
 
 Rebuild the reader:
@@ -24,6 +25,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–11 are promoted. Section 4 problems 12–47 and later source material remain queued.
+This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–12 are promoted. Section 4 problems 13–47 and later source material remain queued.
 
 

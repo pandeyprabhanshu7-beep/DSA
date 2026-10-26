@@ -47,6 +47,7 @@
 | Arrays §4 Problem 9 — Container With Most Water | ✅ | ✅ | Dominated-endpoint elimination, four worked cases, exact trace, proof, widened area arithmetic and randomized all-pairs oracle |
 | Arrays §4 Problem 10 — Trapping Rain Water | ✅ | ✅ | Smaller-boundary finalization, four worked cases, full trace, proof, widened accumulation and randomized per-index oracle |
 | Arrays §4 Problem 11 — Minimum Size Subarray Sum | ✅ | ✅ | Positive-input sliding window, four worked cases, full trace, proof, widened sum and randomized quadratic oracle |
+| Arrays §4 Problem 12 — Fruit Into Baskets | ✅ | ✅ | At-most-two-types sliding window, four worked cases, full trace, proof, zero-count key removal and randomized quadratic oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -204,5 +205,11 @@ Fresh literal-marker audit remains **170**: this bounded source problem did not 
 Arrays Section 4 problem 11 now states the positive-target, positive-element, contiguous-window, zero-when-absent and nonmutation contracts; adds four worked cases, a full expand/shrink trace, four diagrams, the fixed-right-endpoint proof and a `long` running sum for the reusable full-positive-`int` domain. `MinimumSizeSubarrayContracts` validates 15 scenario groups plus 20,000 seeded arrays against an independent quadratic oracle. The responsive reader embeds the exact canonical Markdown bytes.
 
 Fresh literal-marker audit remains **170**: this bounded source problem did not contain a placeholder card. Section 4 problem 12 and the broader intake remain incomplete.
+
+## Arrays Fruit Into Baskets enrichment — 2026-10-25 ET
+
+Arrays Section 4 problem 12 now states the contiguous at-most-two-types, empty-input, arbitrary-identifier and nonmutation contracts; distinguishes a legal window from the two global modes; and adds four worked cases, a full add/repair trace, four diagrams, the leftmost-valid-window proof and exact zero-count key removal. `FruitIntoBasketsContracts` validates 18 scenario groups plus 20,000 seeded arrays against an independent quadratic start-and-extend oracle. The responsive reader embeds the exact canonical Markdown bytes.
+
+Fresh literal-marker audit remains **170**: this bounded source problem did not contain a placeholder card. Section 4 problem 13 and the broader intake remain incomplete.
 
 

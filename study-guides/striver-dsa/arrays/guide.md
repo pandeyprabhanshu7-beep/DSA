@@ -1625,6 +1625,117 @@ flowchart TD
 
 Executable evidence is in `MinimumSizeSubarrayContracts.java`. It checks 15 scenario groups, including all four worked behaviors, empty input, validation and nonmutation, then compares 20,000 seeded positive arrays with an independent quadratic oracle.
 
+### Example 12 — Fruit Into Baskets: keep at most two types
+
+**Requirement:** given a row of fruit types, choose one contiguous segment containing at most two distinct values and return its maximum length. The story's two unlimited baskets are exactly the two allowed types: after choosing a start, one fruit is taken from every tree until a third type would be required. The original problem has `1 <= fruits.length <= 100_000` and `0 <= fruits[i] < fruits.length`; the reusable Java method below also accepts an empty array and arbitrary `int` type identifiers, rejects `null`, and never mutates the input.
+
+This is a longest-window problem, not a request to pick the two globally most frequent types. A valid answer must be contiguous. The window therefore retains the frequency of every type currently between `left` and `right`. Expanding may introduce a third type; shrinking removes the shortest necessary prefix until the window is legal again.
+
+```mermaid
+flowchart TD
+    A["add fruits[right] to its frequency"] --> C{"more than two keys?"}
+    C -->|yes| S["decrement fruits[left]; remove zero; left++"]
+    S --> C
+    C -->|no| B["best = max(best, right-left+1)"]
+    B --> R["advance right"]
+```
+
+```java
+static int totalFruit(int[] fruits) {
+    if (fruits == null) throw new IllegalArgumentException("fruits must not be null");
+
+    Map<Integer, Integer> frequencies = new HashMap<>();
+    int left = 0;
+    int best = 0;
+
+    for (int right = 0; right < fruits.length; right++) {
+        frequencies.merge(fruits[right], 1, Integer::sum);
+
+        while (frequencies.size() > 2) {
+            int departing = fruits[left++];
+            int remaining = frequencies.get(departing) - 1;
+            if (remaining == 0) {
+                frequencies.remove(departing);
+            } else {
+                frequencies.put(departing, remaining);
+            }
+        }
+        best = Math.max(best, right - left + 1);
+    }
+    return best;
+}
+```
+
+Removing a zero-count key is part of the algorithm, not cleanup for style. `frequencies.size()` must equal the number of distinct values in the *current* window; leaving a zero entry behind would keep the window falsely invalid and over-shrink it.
+
+#### Worked case 1 — all trees fit
+
+`[1,2,1]` returns `3`. The window never holds more than the two keys `{1,2}`, so it grows across the full row.
+
+#### Worked case 2 — discard only the invalid prefix
+
+`[0,1,2,2]` returns `3`, from `[1,2,2]`. When type `2` enters at index 2, the leftmost `0` is the only value that must leave before the three-key window becomes valid again.
+
+#### Worked case 3 — a later run extends the best window
+
+`[1,2,3,2,2]` returns `4`, from `[2,3,2,2]`. The arrival of `3` removes type `1`, but the later `2` values extend the legal `{2,3}` window.
+
+#### Worked case 4 — reusable boundary behavior
+
+`[]` returns `0`, `[7]` returns `1`, and `[-1,-2,-1,-1]` returns `4`. Fruit values are opaque type identifiers, so sign and magnitude do not affect the window logic. `null` is rejected because it is different from an existing row with zero trees.
+
+#### Complete trace
+
+For `[1,2,3,2,2]`, every row below records the state after adding `fruits[right]`, completing any required shrink, and updating `best`:
+
+| `right` | added | invalid intermediate state | shrink action | legal window | frequencies | `best` |
+|---:|---:|---|---|---|---|---:|
+| 0 | 1 | — | none | `[0..0] = [1]` | `{1=1}` | 1 |
+| 1 | 2 | — | none | `[0..1] = [1,2]` | `{1=1, 2=1}` | 2 |
+| 2 | 3 | `{1=1, 2=1, 3=1}` | remove index 0 (`1`) and its zero-count key | `[1..2] = [2,3]` | `{2=1, 3=1}` | 2 |
+| 3 | 2 | — | none | `[1..3] = [2,3,2]` | `{2=2, 3=1}` | 3 |
+| 4 | 2 | — | none | `[1..4] = [2,3,2,2]` | `{2=3, 3=1}` | 4 |
+
+```mermaid
+flowchart LR
+    A["[1,2] valid; best 2"] --> B["add 3: three types"]
+    B --> C["drop 1: [2,3] valid"]
+    C --> D["extend: [2,3,2]"]
+    D --> E["extend: [2,3,2,2]; best 4"]
+```
+
+**Window invariant.** After the shrink loop for each `right`:
+
+1. `frequencies` contains exactly the positive counts in `fruits[left..right]`;
+2. the window contains at most two distinct values;
+3. no earlier left endpoint can form a valid window ending at this `right`.
+
+The first fact holds because expansion increments the entering value, shrinking decrements each departing value, and zero-count mappings are removed. Shrinking stops at the first legal state, which proves the second fact. Immediately before that final removal the window had more than two types, so every strictly earlier left endpoint would still include that invalid prefix; this proves the third fact.
+
+```mermaid
+flowchart TD
+    E["expand right once"] --> F["map equals exact window frequencies"]
+    F --> G["shrink while distinct count exceeds 2"]
+    G --> H["leftmost valid window ending at right"]
+    H --> I["therefore longest valid window ending at right"]
+```
+
+**Global correctness.** Every candidate segment has some right endpoint. By the invariant, after processing that endpoint the algorithm holds the longest valid segment ending there, so updating `best` considers a candidate at least as long as every valid segment with that endpoint. Taking the maximum over all right endpoints returns the global optimum. If the array is empty, there are no candidates and the initialized result `0` is correct.
+
+Each element enters once and leaves at most once. Expected time is `O(n)` with `HashMap`, auxiliary space is `O(1)` under the fixed two-type rule because the repaired map has at most two entries (briefly three immediately after expansion), and the input is unchanged. More generally, “at most `K` distinct” uses the same proof with the threshold changed to `K` and `O(K)` auxiliary space.
+
+```mermaid
+flowchart TD
+    Q{"What is being optimized?"}
+    Q -->|"longest segment, at most K types"| L["one variable window"]
+    Q -->|"number of segments, exactly K types"| C["countAtMost(K) - countAtMost(K-1)"]
+    Q -->|"two globally frequent types"| N["different, non-contiguous problem"]
+```
+
+**Common interview errors:** choosing two global modes and ignoring contiguity; using `if` instead of `while` to repair a window; failing to remove zero-count keys; updating `best` before the window is legal; resetting the whole window when a third type arrives; or assuming fruit IDs are small enough to use as array indices in a reusable API. A two-last-seen-types implementation can also achieve `O(n)` time and constant space, but the frequency-window form generalizes directly to arbitrary `K`.
+
+Executable evidence is in `FruitIntoBasketsContracts.java`. It checks 18 scenario groups covering the four worked behaviors, arbitrary identifiers, boundaries, rejection and nonmutation, then compares 20,000 seeded arrays with an independent quadratic start-and-extend oracle.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -1644,6 +1755,7 @@ Executable evidence is in `MinimumSizeSubarrayContracts.java`. It checks 15 scen
 - [LeetCode, “Container With Most Water”](https://leetcode.com/problems/container-with-most-water/) — primary pair-selection contract, examples and original input bounds.
 - [LeetCode, “Trapping Rain Water”](https://leetcode.com/problems/trapping-rain-water/) — primary unit-width, non-negative elevation-map and total trapped-water contract.
 - [LeetCode, “Minimum Size Subarray Sum”](https://leetcode.com/problems/minimum-size-subarray-sum/) — primary positive-input, contiguous-window, minimum-length and zero-when-absent contract, plus the `O(n log n)` follow-up.
+- [LeetCode, “Fruit Into Baskets”](https://leetcode.com/problems/fruit-into-baskets/) — primary contiguous-picking, two-basket/type, examples and original input bounds.
 - [Java Language Specification, Java SE 17, §15.17](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17) — multiplicative operators and binary numeric promotion; the implementation widens an operand before multiplication.
 - [Java Language Specification, Java SE 17, Chapter 4](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — integer operators use 32- or 64-bit precision according to promotion and do not signal ordinary overflow.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — `addExact(long,long)` reports an overflow instead of silently wrapping.
@@ -1651,9 +1763,9 @@ Executable evidence is in `MinimumSizeSubarrayContracts.java`. It checks 15 scen
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 11 at lines 253–1290 (problem 11 is lines 1207–1290). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 11 (direct Library parsed-text starts problem 11 at line 819; local Pandoc extraction places its matching body at lines 1595–1723). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 12 at lines 253–1381 (problem 12 is lines 1292–1381). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 12 (local Pandoc extraction places problem 12 at lines 1463–1574). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 11, “Minimum Size Subarray Sum,” is promoted from Markdown lines 1207–1290 and the corresponding DOCX section beginning at direct Library parsed-text line 819; problem 12, “Fruit Into Baskets,” follows in both sources.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 12, “Fruit Into Baskets,” is promoted from Markdown lines 1292–1381 and matching DOCX extracted lines 1463–1574; problem 13, “Longest Substring Without Repeating Characters,” follows in both sources.
 
 
