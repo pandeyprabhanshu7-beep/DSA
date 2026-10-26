@@ -1951,6 +1951,168 @@ java -ea StackSelectionContracts.java
 
 The new contract checks 29 explicit scenario groups and 10,000 seeded capacity-oracle trials. Its stable summary is `SCENARIOS=29|TRIALS=10000|DECISION=QUALIFY_THEN_SCORE|MANAGED=TEAM_OWNS_POLICY|INDEPENDENT=TEAM_OWNS_OPERATIONS|MIGRATION=SHADOW_CANARY`.
 
+## 13. Exercises and interview cases
+
+A senior answer is not a product-name recital. State the requirement, identify the authoritative data, place the access boundary, trace the data path, quantify a bottleneck, explain failure and recovery, and name the measurement that would change the design. The four cases below apply that pattern to all five source exercises: wrong-answer diagnosis and retrieval comparison are intentionally combined because a bake-off is useful only after the failing stage is known.
+
+```mermaid
+flowchart TD
+    R["Requirement and authority"] --> B["Boundary and versioned identities"]
+    B --> T["Success and failure trace"]
+    T --> Q["Quantified gate by critical slice"]
+    Q --> D{"Evidence supports release?"}
+    D -->|no| F["Block, reconcile, or abstain"]
+    D -->|yes| P["Promote reversibly"]
+```
+
+### Requirements and invariants
+
+1. **Debug the earliest failed stage.** Preserve extraction, chunking, eligibility, retrieval, reranking, context admission, generation and release outcomes separately. A final wrong answer does not locate the defect.
+2. **Keep embedding spaces generation-scoped.** The identity is model plus revision, dimension, representation, normalization and metric. Equal dimensions do not imply compatible geometry; zero-padding a 768-dimensional vector does not turn it into a model-B 1,024-dimensional embedding.
+3. **Make immediate revocation a serving-path property.** Every disclosure, including a cache hit, must pass current authoritative tenant/object authorization and monotonic ACL/source-epoch checks. Asynchronous deletion may clean derived copies later, but it cannot be the immediate deny mechanism.
+4. **Represent an uncertain mutation as uncertain.** A transport timeout says that the response was not observed; it does not prove whether the server committed. Use a stable idempotency key, durable operation record and status query before retrying.
+5. **Compare retrieval methods on identical, labeled slices.** Lexical, vector and hybrid candidates use the same corpus revision, ACL scope, top-k, judgments and query classes. Averages cannot hide an error-code, multilingual or missing-answer regression.
+6. **Promote only complete evidence.** Backfill counts, paired evaluation, authorization/revocation tests, operation reconciliation, rollback readiness and critical-slice gates are release inputs, not post-release chores.
+7. **Keep measurement identities reproducible.** Record corpus, embedding, index, query-set, judgment, reranker, prompt/model, policy and code revisions with each trace and result.
+
+### Example 1 — diagnose the first broken stage, then compare retrieval fairly
+
+The correct runbook revision contains `PAY-4317`, but the assistant recommends resetting a token. Do not begin by rewriting the prompt. Reproduce one request with immutable identities and record what each stage received and emitted.
+
+| Stage | Expected evidence | Observed | Interpretation |
+|---|---|---|---|
+| extraction | `PAY-4317` and its recovery paragraph | present in `doc-9@17` | parser is not the first failure |
+| chunking | code and recovery steps share a parent/adjacent boundary | split but parent link retained | inspect expansion, but content is recoverable |
+| eligibility | `tenant-a`, ACL epoch 44, active source epoch 81 | eligible | policy did not remove it |
+| lexical top-5 | exact code hit | rank 1 | lexical path succeeds |
+| vector top-5 | semantic neighbors | correct chunk absent | vector path fails this slice |
+| hybrid/RRF top-5 | preserve exact hit and semantic candidates | correct chunk rank 1 | hybrid candidate stage succeeds |
+| rerank/context | correct chunk retained and admitted | retained, then truncated | **first definitive failure: context admission** |
+| generation | grounded recovery response | never received decisive sentence | prompt tuning cannot restore missing evidence |
+
+`InterviewCaseContracts.firstFailure` encodes the same rule: return the earliest failed stage, not the most visible downstream symptom. In production, use one trace with child operations and immutable attributes such as `corpus.revision`, `retrieval.variant`, `acl.epoch`, `top_k`, `reranker.revision` and `context.policy`; a trace correlates facts but never grants authorization.
+
+```mermaid
+sequenceDiagram
+    participant Q as Versioned query
+    participant X as Extract/chunk/ACL
+    participant R as Lexical/vector/hybrid
+    participant C as Rerank/context
+    participant G as Generate/release
+    Q->>X: corpus@81, tenant-a, ACL@44
+    X->>R: eligible chunk identities
+    R->>C: ranked lists + scores + revisions
+    C->>G: admitted evidence or typed failure
+    G-->>Q: supported answer or abstention
+```
+
+Now run the source exercise's retrieval comparison rather than generalizing from this one code. Use four declared slices: exact error codes, paraphrases, multilingual queries and questions whose answer is absent. For each lexical, vector and hybrid variant, retain per-query ranked identities and compute recall@5 for answerable slices plus correct-abstention rate for missing answers. Suppose the paired result is:
+
+| Variant | Error-code recall@5 | Paraphrase recall@5 | Multilingual recall@5 | Missing-answer abstention |
+|---|---:|---:|---:|---:|
+| lexical | 0.98 | 0.78 | 0.61 | 0.96 |
+| vector | 0.70 | 0.94 | 0.91 | 0.90 |
+| hybrid | 0.98 | 0.95 | 0.92 | 0.96 |
+
+Hybrid qualifies only if the predeclared floors—say 0.90 recall and 0.95 abstention—apply to every critical slice and the full answer pipeline also passes. If hybrid scored 0.89 on codes despite the best overall average, it would not qualify. Elasticsearch's ranking-evaluation API similarly requires representative requests and relevance ratings and exposes per-request details; the design rule is broader than one search product.
+
+### Example 2 — migrate 768 to 1,024 dimensions as a new generation
+
+`model-a@3` emits normalized 768-dimensional vectors; `model-b@1` emits normalized 1,024-dimensional vectors. Create `embedding-generation-22` with B's complete specification and a separate index. Keep generation 21 authoritative while backfilling canonical active chunks. Dual-write new revisions and tombstones to both generations, reconcile identities and hashes, shadow the new query path, canary only after paired slice gates pass, then move one guarded active-generation pointer.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Backfill
+    Backfill --> Shadow: counts, hashes, ACL epochs match
+    Shadow --> Canary: paired slices pass
+    Canary --> Active: SLO, revocation, rollback pass
+    Backfill --> Rollback: mismatch
+    Shadow --> Rollback: regression
+    Canary --> Rollback: regression
+    Active --> Rollback: guarded pointer restore
+```
+
+| Step | Generation 21 / A-768 | Generation 22 / B-1024 | Gate |
+|---|---|---|---|
+| backfill | remains authoritative | write every active canonical chunk | expected = backfilled = reconciled |
+| dual-write | accept new revision/tombstone | accept same event identity | no missing, extra or divergent hashes |
+| shadow | serves users | receives copied queries only | paired quality by slice; no ACL/delete regression |
+| canary | fallback remains live | bounded eligible traffic | tail latency, errors, cost and rollback drill |
+| cutover | retained for rollback | guarded pointer becomes active | query and index specs exactly match |
+
+Padding A with 256 zeros preserves A's coordinates in a larger container; it does not run model B or make cross-model cosine scores meaningful. Mixing model identities also makes rollback and evaluation uninterpretable. `EmbeddingSpec` in the executable contract therefore compares the complete specification, while `mayCutOver` requires a complete backfill, passed paired evaluation and a ready rollback. Storage during overlap is approximately `N × (768 + 1024) × 4` bytes for float32 vectors before index overhead; for ten million chunks that is about 71.68 GB (decimal), so overlap capacity is a planned migration cost.
+
+### Example 3 — deny a revoked document even when an answer is cached
+
+At `10:00:00`, user U in `tenant-a` may read `doc-7`; the answer cache records tenant, subject/entitlement identity, ACL epoch 12, source epoch 42, policy/prompt/model revisions and dependencies `{doc-7@42}`. At `10:01:00`, the authority removes U and advances the ACL epoch to 13. At `10:01:01`, a request hits the old cache entry.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as Authority
+    participant C as Answer cache
+    participant I as Index cleanup
+    A-->>C: ACL epoch advances 12 to 13
+    U->>C: same question, cached ACL@12
+    C->>A: authorize U, tenant-a, doc-7 now
+    A-->>C: deny at ACL@13
+    C-->>U: deny; never disclose cached text
+    A->>I: async tombstone and derived-data cleanup
+```
+
+The cache must fail closed because its epoch and current authority disagree; TTL is irrelevant. A reverse dependency index can evict entries mentioning `doc-7`, but the current authorization/epoch check is still required for the race before invalidation arrives. Eventual propagation is acceptable for physical vector deletion, replica compaction, telemetry aggregation and storage reclamation **after** the serving boundary denies. It violates the requirement if any stale cache, reranker, summary store or index can still disclose the document while cleanup is pending.
+
+The contract's `mayServe` requires the request tenant, current authorization, ACL epoch, source epoch and dependency liveness to agree. This intentionally duplicates enforcement across cache lookup and final release: cache isolation prevents accidental sharing, while the authoritative recheck prevents stale authorization from becoming disclosure.
+
+### Example 4 — reconcile an MCP write timeout before retrying
+
+The host invokes `payments/refund` with operation key `refund:order-19:v3` and canonical argument fingerprint `sha256:ab…`. The HTTP request times out after the server may have committed. The host persists `UNKNOWN`, tells the user the result is being reconciled, and queries the operation resource using the same authenticated tenant and key.
+
+```mermaid
+flowchart TD
+    W["Write + stable key"] --> T{"Response observed?"}
+    T -->|yes| Z["Persist terminal result"]
+    T -->|no| U["Persist UNKNOWN; query status"]
+    U --> C{"Durable operation state"}
+    C -->|committed| R["Return original result"]
+    C -->|failed| E["Return recorded failure"]
+    C -->|absent| Y["Retry same intent and key if deadline remains"]
+    C -->|pending/unknown| U
+```
+
+| Status query | Safe host action | User-visible state |
+|---|---|---|
+| `COMMITTED` | return the recorded result; do not execute again | completed |
+| `FAILED` | return the recorded terminal failure | failed |
+| `ABSENT` | retry the same fingerprint and idempotency key if budget remains | retrying |
+| `PENDING` or unavailable | poll/back off within budget; do not invent success or resend blindly | outcome uncertain |
+
+A bounded read may be retried because it has no intended side effect, assuming policy and deadline still allow it. A mutation needs semantic idempotency: the server must bind the key to the same tenant, operation and canonical arguments, reject key reuse with different intent, and return the original terminal result for duplicates. `afterTimeout` in the Java contract returns `RECONCILE` for pending/unknown mutations, `RETRY` only after confirmed absence, and `STOP` when the deadline or key is missing.
+
+### Executable interview-case contract
+
+[`InterviewCaseContracts.java`](InterviewCaseContracts.java) models first-failed-stage diagnosis, complete embedding-generation compatibility, guarded migration cutover, cache admission against current ACL/source epochs, read-versus-mutation timeout decisions, and hard gates across error-code, paraphrase, multilingual and missing-answer retrieval slices.
+
+Run all thirteen AI-platform contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+java -ea ContextGroundingContracts.java
+java -ea EvaluationGateContracts.java
+java -ea CacheLatencyCostContracts.java
+java -ea McpArchitectureContracts.java
+java -ea ToolSafetyContracts.java
+java -ea OrchestrationContracts.java
+java -ea StackSelectionContracts.java
+java -ea InterviewCaseContracts.java
+```
+
+The new contract checks 36 explicit scenario groups and 10,000 seeded first-failure oracle trials. Its stable summary is `SCENARIOS=36|TRIALS=10000|DIAGNOSIS=FIRST_FAILED_STAGE|EMBEDDINGS=GENERATION_FENCED|CACHE=AUTH_EPOCH|MUTATION=RECONCILE_FIRST|RETRIEVAL=SLICE_GATED`.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -2057,13 +2219,17 @@ The new contract checks 29 explicit scenario groups and 10,000 seeded capacity-o
 - pgvector, [filtering, iterative scans, partial indexes and partitioning](https://github.com/pgvector/pgvector#filtering) — approximate-index filtering can reduce returned candidates, so filtered recall needs an exact scoped baseline (accessed 2026-10-25).
 - Sentence Transformers, [Retrieve & Re-Rank](https://www.sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html) — efficient first-stage retrieval followed by bounded cross-encoder reranking (accessed 2026-10-25).
 - vLLM, [metrics](https://docs.vllm.ai/en/latest/design/metrics/) and [production metrics examples](https://docs.vllm.ai/en/latest/examples/online_serving/prometheus_grafana/) — queue, request, time-to-first-token and serving telemetry for an independently operated model endpoint (accessed 2026-10-25).
+- OpenTelemetry, [Traces](https://opentelemetry.io/docs/concepts/signals/traces/) and the stable [Tracing API](https://opentelemetry.io/docs/specs/otel/trace/api/) — request-path spans and attributes support stage-specific diagnosis; telemetry correlation is not an authorization decision (accessed 2026-10-26).
+- Elasticsearch, [Ranking evaluation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/search-rank-eval) and the [`_rank_eval` API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-rank-eval) — representative queries, manual relevance ratings, per-request details, precision, recall, MRR and DCG for reproducible retrieval comparisons (accessed 2026-10-26).
+- OWASP Cheat Sheet Series, [Authorization](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html), [Multi-Tenant Security](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html), and [RAG Security](https://cheatsheetseries.owasp.org/cheatsheets/RAG_Security_Cheat_Sheet.html) — deny-by-default authorization, tenant isolation, cache boundaries and RAG-specific derived-data risk (accessed 2026-10-26).
+- Amazon Builders' Library, [Making retries safe with idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) — caller-provided request identity and semantic equivalence make uncertain mutation outcomes reconcilable without inventing at-most-once transport semantics (accessed 2026-10-26).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–12, through `Managed services and independent stacks`, bounded by Chapter 13.
+- Processed range: Chapters 1–13, through `Exercises and interview cases`, bounded by Chapter 14 in the selected master.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
@@ -2075,7 +2241,8 @@ The new contract checks 29 explicit scenario groups and 10,000 seeded capacity-o
 - Chapter 10 source comparison: selected master lines 388–398 and editable companion lines 415–433 agree on token/resource authorization, object ownership, prompt-injection containment, least tool exposure, explicit approval, idempotency, uncertain outcomes, version-fenced compensation, bounded execution and redacted audit fields; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 11 source comparison: selected master lines 399–411 and editable companion lines 435–449 agree on deterministic-first orchestration, using an agent only for intermediate-result-driven choice, explicit durable state around side effects, bounded read retry, disclosed degradation, and fail-closed authorization/tenant isolation; the checkpoint's prior `Observability and operations` label was reconciled to the sources' actual heading rather than deepening the wrong topic.
 - Chapter 12 source comparison: selected master lines 483–487 and editable companion lines 453–457 agree on managed AWS/Azure/Google retrieval capabilities, an independent pgvector/Sentence Transformers/vLLM stack, retained team ownership, regional constraints, and a reproducible workload comparison; the companion was used for editable structure, not promoted as a duplicate guide.
-- Next bounded section: Chapter 13, `Exercises`, after fair domain rotation.
+- Chapter 13 source comparison: selected master lines 417–423 and editable companion lines 459–471 expose the same five exercises and senior-answer pattern. They cover stage-specific diagnosis, embedding-generation migration, immediate revocation, uncertain MCP writes and slice-aware retrieval comparison; the companion ends after the answer pattern, while the selected master continues to Chapter 14.
+- Next bounded section: Chapter 14, `Design the platform, not just the chatbot`, after fair domain rotation.
 
 
 

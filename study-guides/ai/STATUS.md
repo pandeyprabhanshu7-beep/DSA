@@ -1,10 +1,10 @@
 # AI Enrichment Status
 
-Last updated: 2026-10-25.
+Last updated: 2026-10-26.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapters 1–12 complete**.
+State: **PROMOTED incrementally; Chapters 1–13 complete**.
 
 Canonical pair:
 
@@ -39,8 +39,10 @@ Source comparison:
 - Deepened Chapter 11 with four deterministic/degradation/checkpoint/bounded-agent examples, four diagrams, an exact budgeted failure trace, current primary references, and an executable Java 17 contract for deterministic-first plan selection, typed failures, explicit transitions, fenced side-effect state, safe correlated events and 10,000 seeded planner-oracle trials.
 - Compared Chapter 12 in selected master lines 483–487 and editable companion lines 453–457; both cover managed AWS/Azure/Google retrieval services, an independent pgvector/Sentence Transformers/vLLM stack, retained team ownership, regional constraints and a reproducible comparison, so no duplicate guide was created.
 - Deepened Chapter 12 with four managed/independent/bake-off/migration examples, four diagrams, ownership, capacity, cost and migration traces, current primary references, and an executable Java 17 contract for hard capability qualification, team/provider ownership, outcome-based cost, checked capacity and reversible migration, plus 10,000 seeded capacity-oracle trials.
+- Compared Chapter 13 in selected master lines 417–423 and editable companion lines 459–471; both expose the same five exercises and senior-answer pattern, and the companion ends at that boundary, so no duplicate guide was created.
+- Deepened Chapter 13 with four integrated interview cases covering all five source exercises, five diagrams, diagnosis/migration/revocation/mutation/retrieval traces, current primary references, and an executable Java 17 contract for first-failed-stage diagnosis, generation-fenced embeddings, authorization-epoch cache admission, reconciliation-first mutation retry and hard retrieval-slice gates, plus 10,000 seeded diagnosis-oracle trials.
 
-Next bounded section: Chapter 13, **Exercises**, after fair domain rotation.
+Next bounded section: Chapter 14, **Design the platform, not just the chatbot**, after fair domain rotation.
 
 ## AI foundations, RAG and CAG
 
@@ -68,7 +70,7 @@ Validation is recorded in the enrichment queue and the promotion commit.
 Next action:
 
 1. Rotate fairly after this AI-platform pass.
-2. On the next AI-platform pass, process Chapter 13 only.
+2. On the next AI-platform pass, process Chapter 14 only.
 3. On a later AI-foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment.
 4. Keep project source code in the existing Spring Boot AI repositories; this repository holds learning documentation only.
 
