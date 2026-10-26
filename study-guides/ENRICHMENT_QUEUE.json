@@ -66,7 +66,7 @@
       "status": "PROMOTED",
       "last_read_at": "2026-10-26T12:37:44-04:00",
       "sha256": "c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a",
-      "selection": "Selected as the expanded 21-chapter canonical source after comparison; Chapters 1-15 are promoted through direct HTML line 539 (Pandoc conversion line 661), bounded before Chapter 16."
+      "selection": "Selected as the expanded 21-chapter canonical source after comparison; Chapters 1-16 are promoted through direct HTML line 563 (Pandoc conversion line 705), bounded before Chapter 17."
     },
     {
       "name": "spring_ai_python_api_interview_guide.html",
@@ -522,7 +522,7 @@
       ],
       "last_successful_commit": "d6533130fc5c7b34b225e00467d9533ec8d8b8c6",
       "validation": "The paired Arrays workbooks agree on bounded Product of Array Except Self at Markdown lines 1586-1680 and local Pandoc-extracted DOCX lines 1821-1932; the editable Markdown remains the structural source, no duplicate guide was created and intake stopped before problem 16. The section adds no-division/nonmutation requirements, prefix/suffix approach comparison, four worked cases, four diagrams, a complete two-pass trace, invariants, a partition proof, zero behavior and visible overflow rejection. Java 17 source-file launch passed 263 reported scenario groups across all fifteen Arrays executables plus 280,000 seeded oracle comparisons; ProductExceptSelfContracts passed 17 scenario groups and 20,000 independent quadratic-oracle comparisons while checking input preservation. Deterministic reader generation passed exact 126030-byte Markdown recovery, SHA-256 aea35470c9d63ba81d1cb8ec7017b97c0fd3fd3454b48da950e9528d24650f3e, 554 unique HTML IDs, 43 search entries, 477 fragments, 164 balanced fence markers, 56 Mermaid sources, JSON, JavaScript syntax and deterministic rebuild identity. Seven content files were atomically published at d6533130fc5c7b34b225e00467d9533ec8d8b8c6 with an expected-head guard and matching Git blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder canonical Markdown marker audit remains 170.",
-      "next_action": "Rotate to AI-platform Chapter 16, Four caches that must not be treated as interchangeable. Then process Spring AI/Python Section 16; on the next Arrays turn process problem 16. Problems 16-47 remain queued.",
+      "next_action": "Rotate to Spring AI/Python Section 16, then AI-platform Chapter 17; on the next Arrays turn process problem 16. Problems 16-47 remain queued.",
       "priority": 6,
       "source_revision": {
         "baseline_commit": "a9f582b5dbe8b6fcda6e275054f217350a810d52",
@@ -591,7 +591,7 @@
         "ai_platform_engineering_complete_bundle.zip",
         "ai_platform_engineering_illustrated.html"
       ],
-      "last_processed_at": "2026-10-26T04:11:45-04:00",
+      "last_processed_at": "2026-10-26T19:38:34-04:00",
       "processed_sections": [
         "Chapter 1: prompting versus RAG versus fine-tuning versus tools/MCP — authority requirements, four examples, evidence and mutation traces, executable Java routing contract, failure review and current primary references",
         "Chapter 2: model mechanics — token admission, embedding identity and guarded cosine, generation metadata, four examples and an executable Java contract",
@@ -607,7 +607,8 @@
         "Chapter 12: managed services and independent stacks — explicit ownership, hard capability qualification, reproducible bake-off, outcome-based cost, checked capacity and reversible migration",
         "Chapter 13: exercises and interview cases — first-failed-stage diagnosis, generation-fenced embedding migration, authorization-epoch cache denial, uncertain-write reconciliation and hard retrieval-slice gates",
         "Chapter 14: platform control and data planes — bounded signed snapshots, emergency revocation, capability-gated fallback, verified tenant scope and release-fenced cache identity",
-        "Chapter 15: inference internals — prefill/decode phase evidence, checked KV arithmetic, token- and tenant-bounded admission, exact prefix identity and TTFT/ITL/end-to-end SLOs"
+        "Chapter 15: inference internals — prefill/decode phase evidence, checked KV arithmetic, token- and tenant-bounded admission, exact prefix identity and TTFT/ITL/end-to-end SLOs",
+        "Chapter 16: four cache layers — behavior-complete embedding/retrieval/answer/prefix identities, tenant/ACL/generation scope, semantic-risk admission, stale-publication fencing and exact prefix compatibility"
       ],
       "source_revision": {
         "baseline_commit": "cfe2ace7a2b68f1c377e6bd768c20caa228a838a",
@@ -617,11 +618,11 @@
         "companion_archive_sha256": "78548fdcdb08af668299b9fe1815a4f13c7063b54a34dff487d24c8d9f0e5c43",
         "companion_markdown_sha256": "45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05",
         "compared_illustrated_sha256": "006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9",
-        "canonical_sha256_after": "74b975e6d3ab0382dd8609b4d734f20dcbb2a019118c05a94d9e74539df242cf"
+        "canonical_sha256_after": "e91f8691e5bdc9b105149fcc1e2d5803623d00a4131fff3c690e9f675771f262"
       },
-      "last_successful_commit": "bae3a9620f8eede49cbb5fef96968b0cf24c2da2",
-      "validation": "Selected master direct HTML lines 513-539 (Pandoc conversion lines 617-661) were read and bounded before Chapter 16; the companion Markdown and byte-identical illustrated HTML end after Chapter 13, so no duplicate guide was created. Chapter 15 adds four prefill/decode/KV/batching/prefix-cache examples, four diagrams, latency and scheduler traces, current primary references and a dependency-free Java contract. Java 17 source-file launch passed all fifteen AI-platform contracts; InferenceServingContracts passed 33 explicit scenario groups plus 10,000 seeded reservation/admission oracle trials. Deterministic reader generation passed exact 199379-byte Markdown recovery, SHA-256 74b975e6d3ab0382dd8609b4d734f20dcbb2a019118c05a94d9e74539df242cf, 429 unique HTML IDs, 70 search entries, 288 local fragments, 15 resolved relative links, 184 balanced fence markers, 66 Mermaid sources, parseable search JSON and JavaScript, and deterministic rebuild identity. Seven content files were atomically published at bae3a9620f8eede49cbb5fef96968b0cf24c2da2 with an expected-head guard. Standalone javac, live GPU/provider integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit is 170.",
-      "next_action": "Process Chapter 16, Four caches that must not be treated as interchangeable, next; do not create a duplicate edition.",
+      "last_successful_commit": "b2d85908ea17da9eb1886dc7fc5517117dc2e586",
+      "validation": "Selected master direct HTML lines 540-563 (Pandoc conversion lines 662-705) were read and bounded before Chapter 17; the companion Markdown and byte-identical illustrated HTML end after Chapter 13, so no duplicate guide was created. Chapter 16 adds four embedding/retrieval/answer/prefix-cache examples, four diagrams, authorization and stale-publication traces, current primary references and a dependency-free Java contract. Java 17 source-file launch passed all sixteen AI-platform contracts; CacheLayerContracts passed 28 explicit scenario groups plus 10,000 seeded dual-oracle trials. Deterministic reader generation passed exact 216347-byte Markdown recovery, SHA-256 e91f8691e5bdc9b105149fcc1e2d5803623d00a4131fff3c690e9f675771f262, 473 unique HTML IDs, 71 search entries, 322 local fragments, 16 resolved relative links, 200 balanced fence markers, 71 Mermaid sources, parseable search JSON and JavaScript, and deterministic rebuild identity. Seven content files were atomically published at b2d85908ea17da9eb1886dc7fc5517117dc2e586 with an expected-head guard and matching Git blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Markdown marker audit is 170.",
+      "next_action": "Rotate fairly to Spring AI/Python Section 16, A four-week implementation path. On the next AI-platform turn, process Chapter 17; do not create a duplicate edition.",
       "priority": 9
     },
     {
@@ -824,7 +825,7 @@
       },
       "last_successful_commit": "5116653c1470748ec05a5f9fa018107655787664",
       "validation": "The selected ZIP member at editable source lines 917-930 and standalone HTML lines 1003-1052 were compared and bounded before Section 16; both define the same six-layer testing pyramid and production-test gaps, so no duplicate guide was created. Four worked examples, four diagrams, current primary references and paired dependency-free contracts were added for unit/adapter boundaries, real pgvector scope checks, fixed-dataset quality gates, SLO-backed load tests, Kubernetes probes and same-release evidence. Java 17 source-file launch and Python 3 passed all fifteen contract pairs; the new pair produced the identical PARITY|FAST=UNIT_ADAPTER|DB=REAL_PGVECTOR|QUALITY=FIXED_DATASET|LOAD=SLO_THRESHOLDS|CLUSTER=PROBES|RELEASE=EVIDENCE_GATED|PROMOTED=646 first line, 29 scenario groups and 10,000 seeded trials per language. Deterministic reader generation passed exact 203173-byte Markdown recovery, SHA-256 786fcdfedbaf1aba5d9cdb221d6691a1b98d0b9cd41fa054bbd046137f883ad4, 595 unique HTML IDs, 16 search entries, 408 fragments, 2 resolved relative links, 258 balanced fence markers, 63 Mermaid sources, JSON, JavaScript syntax and deterministic rebuild identity. Eight content files were atomically published at 5116653c1470748ec05a5f9fa018107655787664 with an expected-head guard. Standalone javac, Maven/framework compilation, live pgvector/model/provider/k6/Kubernetes integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live literal-marker audit remains 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this backend section added none.",
-      "next_action": "After AI-platform Chapter 16, process Section 16, A four-week implementation path, beginning at editable line 932 / standalone HTML line 1053. Sections 16-25 remain queued.",
+      "next_action": "Process Section 16, A four-week implementation path, beginning at editable line 932 / standalone HTML line 1053, next. Sections 16-25 remain queued.",
       "priority": 14
     },
     {
@@ -1055,7 +1056,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-15, Spring AI/Python Sections 1-15 and Arrays Section 4 problems 1-15 are promoted. Rotate fairly to AI-platform Chapter 16; retain Spring AI/Python Section 16 and Arrays problem 16 for later fair rotation.",
+    "next_action": "AI-platform Chapters 1-16, Spring AI/Python Sections 1-15 and Arrays Section 4 problems 1-15 are promoted. Rotate fairly to Spring AI/Python Section 16; retain AI-platform Chapter 17 and Arrays problem 16 for later fair rotation.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1207,14 +1208,15 @@
       "DSA Arrays Section 4 problem 14: defensive-snapshot immutable range sums, build/query traces, widened arithmetic, proof and randomized scan oracle",
       "AI platform Chapter 15: prefill/decode phase evidence, checked KV arithmetic, token- and tenant-bounded admission, exact prefix identity and TTFT/ITL/end-to-end SLOs",
       "Spring AI/Python Section 15: claim-to-layer testing pyramid, unit/adapter failures, real pgvector scope checks, fixed quality datasets, SLO-backed load/cluster gates and same-release evidence",
-      "DSA Arrays Section 4 problem 15: exclusive prefix/suffix products, zero behavior, overflow detection, complete two-pass trace, proof and randomized quadratic oracle"
+      "DSA Arrays Section 4 problem 15: exclusive prefix/suffix products, zero behavior, overflow detection, complete two-pass trace, proof and randomized quadratic oracle",
+      "AI platform Chapter 16: behavior-complete embedding/retrieval/answer/prefix cache identities, tenant/ACL/generation scope, semantic-risk gates and stale-publication fencing"
     ],
-    "processed_section": "DSA Arrays Section 4 problem 15, Product of Array Except Self, Markdown lines 1586-1680 / DOCX extracted lines 1821-1932",
-    "validation": "The paired Arrays sources agree on Product of Array Except Self and were stopped before problem 16. Four worked cases, four diagrams, a complete two-pass trace, current primary references and ProductExceptSelfContracts cover exclusive prefix/suffix state, zeros, nonmutation and checked overflow. Java 17 source-file launch passed 263 scenario groups across all fifteen Arrays executables plus 280,000 seeded oracle comparisons; the new contract passed 17 groups and 20,000 quadratic-oracle comparisons. Reader validation passed exact 126030-byte Markdown recovery, SHA-256 aea35470c9d63ba81d1cb8ec7017b97c0fd3fd3454b48da950e9528d24650f3e, 554 unique IDs, 43 search entries, 477 fragments, 164 fences, 56 Mermaid sources, JSON, JavaScript and deterministic rebuilding. Seven content files were atomically published at d6533130fc5c7b34b225e00467d9533ec8d8b8c6 with an expected-head guard and matching Git blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The canonical Markdown marker audit remains 170.",
+    "processed_section": "AI-platform Chapter 16, Four caches that must not be treated as interchangeable, selected master direct HTML lines 540-563 / Pandoc conversion lines 662-705",
+    "validation": "The selected master Chapter 16 was read and bounded before Chapter 17; the companion Markdown and byte-identical illustrated HTML end after Chapter 13, so no duplicate guide was created. Four worked examples, four diagrams, current primary references and CacheLayerContracts.java cover behavior-complete embedding/retrieval/answer/prefix keys, tenant/ACL/generation scope, semantic-risk admission, stale-publication fencing and exact prefix compatibility. Java 17 source-file launch passed all sixteen AI-platform contracts; the new contract passed 28 scenario groups and 10,000 seeded dual-oracle trials. Reader validation passed exact 216347-byte Markdown recovery at SHA-256 e91f8691e5bdc9b105149fcc1e2d5803623d00a4131fff3c690e9f675771f262, 473 IDs, 71 search entries, 322 fragments, 16 relative links, 200 fences, 71 Mermaid sources, parseable search JSON and JavaScript, and deterministic rebuilding. Seven content files were atomically published at b2d85908ea17da9eb1886dc7fc5517117dc2e586 with an expected-head guard and matching Git blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The canonical Markdown marker audit remains 170.",
     "estimated_next_tokens": 9800,
-    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 16 pass with source comparison, four examples, executable contract, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "d6533130fc5c7b34b225e00467d9533ec8d8b8c6",
-    "last_processed_at": "2026-10-26T15:05:13-04:00",
-    "next_batch_decision": "Arrays problem 15 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to AI-platform Chapter 16; retain Spring AI/Python Section 16 and Arrays problem 16 for later rotation."
+    "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 16 pass with paired-source comparison, four examples, paired executable contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "b2d85908ea17da9eb1886dc7fc5517117dc2e586",
+    "last_processed_at": "2026-10-26T19:38:34-04:00",
+    "next_batch_decision": "AI-platform Chapter 16 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to Spring AI/Python Section 16; retain AI-platform Chapter 17 and Arrays problem 16 for later rotation."
   }
 }
