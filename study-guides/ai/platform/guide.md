@@ -1,6 +1,6 @@
 # AI Platform Engineering
 
-> Canonical incremental guide. Source Chapters 1–14 are processed. Later source chapters remain queued.
+> Canonical incremental guide. Source Chapters 1–16 are processed. Later source chapters remain queued.
 
 ## 1. Choose prompting, RAG, fine-tuning, and tools by authority
 
@@ -2478,6 +2478,218 @@ java -ea InferenceServingContracts.java
 
 The new contract checks 33 explicit scenario groups and 10,000 seeded reservation/admission oracle trials. Its stable summary is `SCENARIOS=33|TRIALS=10000|PHASES=PREFILL_AND_DECODE|CAPACITY=KV_TOKEN_BUDGET|SCHEDULER=TENANT_ROUND_ROBIN|CACHE=EXACT_PREFIX_IDENTITY|SLO=TTFT_ITL_E2E`.
 
+## 16. Four caches that must not be treated as interchangeable
+
+“Cache the AI request” is not a complete design. An embedding vector, a retrieval candidate set, a validated answer, and model-runtime prefix state are different objects with different owners, keys, security boundaries, and invalidation events. A hit is safe only when it proves the identity and freshness contract of that particular layer.
+
+| Layer | Reused object | Minimum identity | Primary invalidation or denial |
+|---|---|---|---|
+| Embedding cache | Vector for normalized content | content hash, embedding model/deployment, preprocessing revision | content, normalization, model, representation, dimension, or metric contract changes |
+| Retrieval cache | Authorized candidate/evidence IDs | verified tenant and subject, ACL epoch, corpus generation, normalized query, filters, retrieval/reranker revision | publication, deletion, permission, filter, index, or ranking-contract change |
+| Answer cache | Final validated response plus evidence dependencies | request, tenant/scope, ACL epoch, corpus generation, exact evidence set, prompt/model/options, validation policy | any evidence, policy, permission, model, prompt, tool observation, or freshness dependency changes |
+| Prefix/KV cache | Intermediate model state for an exact token prefix | exact token IDs, model, tokenizer, adapter, runtime format, permitted sharing salt | incompatible identity, different tokens, eviction, runtime restart, or sharing-boundary change |
+
+```mermaid
+flowchart TD
+    Q["Candidate reuse"] --> O{"Which object?"}
+    O -->|vector| E["Embedding identity"]
+    O -->|candidate IDs| R["Tenant + ACL + corpus generation"]
+    O -->|final response| A["Evidence + behavior + freshness"]
+    O -->|model state| P["Exact tokens + runtime compatibility"]
+    E --> V{"All dependencies current?"}
+    R --> V
+    A --> V
+    P --> V
+    V -->|yes| H["Reuse, then reauthorize disclosure"]
+    V -->|no or unknown| M["Miss or recompute"]
+```
+
+### Requirements and invariants
+
+1. **Name the cached object.** “LLM cache” is too vague to review or invalidate.
+2. **Derive scope from verified identity.** A request field may select a tenant only after membership is proven; it cannot create cache authority.
+3. **Put mutable authority in the key or recheck it on every hit.** ACL epochs, corpus generations and policy revisions must prevent stale data from becoming newly authorized.
+4. **Use behavior-complete identities.** Model, tokenizer, prompt, adapter, preprocessing, filters and generation options belong in the layer whose output they change.
+5. **Fence publication as well as lookup.** A worker that started under generation `g42` must not repopulate the active `g43` answer namespace after invalidation.
+6. **Treat semantic reuse as a classifier.** Similarity proposes a candidate; tenant, entity, risk, freshness and evaluation gates decide whether reuse is legal.
+7. **Keep prefix reuse exact.** A prefix/KV hit saves compatible prefill computation; it is not a semantic answer, authorization result, or promise that decode is free.
+8. **Do not make TTL the authority.** TTL bounds age, but a still-young entry may already be forbidden by a revocation, deletion or release switch.
+
+### Example 1 — embedding and retrieval keys fail for different reasons
+
+Suppose the normalized bytes for handbook paragraph `p7` were embedded with `embed@1` and preprocessing `nfc-lines@2`. A second request may reuse the vector only if those three facts still match. Equal vector dimension is insufficient: a new model can map the same text into a different coordinate system while still returning 1,024 numbers.
+
+The retrieval result for **Alice in tenant A** needs more state. It was produced from corpus generation `g42`, ACL epoch `12`, filter `product=payments`, query `reset password`, and retriever `hybrid@3`. After Alice loses access, epoch `13` makes the old candidate set a miss even if its TTL has 20 minutes left.
+
+| Event | Embedding cache | Retrieval cache | Reason |
+|---|---:|---:|---|
+| repeat the same normalized paragraph under `embed@1` | hit | n/a | same vector identity |
+| change only `embed@2` | miss | n/a | coordinate system changed |
+| repeat Alice's query under epoch 12 and `g42` | n/a | hit | scope and evidence generation match |
+| revoke Alice and advance to epoch 13 | n/a | miss | authorization changed |
+| publish `g43` without an ACL change | maybe hit | miss | paragraph vector may be reusable; candidate membership is generation-specific |
+
+```mermaid
+sequenceDiagram
+    participant H as Authorized host
+    participant A as Authority registry
+    participant C as Retrieval cache
+    H->>A: Resolve tenant, subject, ACL epoch, corpus generation
+    A-->>H: tenant-a, Alice, epoch 12, g42
+    H->>C: Lookup complete retrieval key
+    C-->>H: Candidate IDs from g42
+    A->>A: Revoke document; advance epoch 13
+    H->>A: Resolve authority for next request
+    A-->>H: epoch 13, g42
+    H->>C: Lookup different key
+    C-->>H: Miss; retrieve within current scope
+```
+
+Length-framed hashing prevents ambiguous concatenation (`["ab","c"]` versus `["a","bc"]`). The contract uses Java's required SHA-256 implementation and keeps the unhashed typed fields available for audit:
+
+```java
+static String hashFramed(String... fields) {
+    MessageDigest digest = MessageDigest.getInstance("SHA-256");
+    for (String field : fields) {
+        byte[] bytes = field.getBytes(StandardCharsets.UTF_8);
+        digest.update(ByteBuffer.allocate(4).putInt(bytes.length).array());
+        digest.update(bytes);
+    }
+    return HexFormat.of().formatHex(digest.digest());
+}
+```
+
+**Invariant:** an accepted retrieval hit was created for the current verified tenant, subject, authorization epoch, corpus generation, query/filter identity and retrieval implementation. The key is still not permission by itself; disclosure remains server-authorized on this request.
+
+### Example 2 — semantic answer reuse is a high-consequence classification
+
+Consider two questions:
+
+- “Can I delete the **staging** payments database?”
+- “Can I delete the **production** payments database?”
+
+Their embeddings may be very close, yet the environment entity changes the safe answer. A similarity threshold cannot recover a field that the key never modeled. Microsoft explicitly warns that semantic caching can return an incorrect, outdated or unsafe response; its policy supports caller partitioning, but the application still owns workload-specific safeguards.
+
+A bounded admission policy can require all of the following:
+
+```java
+return !candidate.personalized()
+    && !candidate.timeSensitive()
+    && !candidate.mutationDependent()
+    && candidate.tenant().equals(currentTenant)
+    && candidate.aclEpoch() == currentAclEpoch
+    && candidate.corpusGeneration() == currentGeneration
+    && candidate.environment().equals(request.environment())
+    && candidate.product().equals(request.product())
+    && candidate.distance() <= evaluatedMaximumDistance;
+```
+
+| Candidate | Distance | Entity/risk result | Reuse? |
+|---|---:|---|---:|
+| same tenant, `staging`, `payments`, stable explanation | 0.04 | exact entities; low-risk evaluated slice | yes |
+| same tenant, `production`, `payments` | 0.02 | environment mismatch | no |
+| another tenant, otherwise identical | 0.00 | scope mismatch | no |
+| “Did payment settle now?” | 0.01 | live/time-sensitive authority | no; call the read-only status system |
+| “Delete the database” | 0.01 | mutation-dependent | no; authorize and execute separately |
+
+```mermaid
+flowchart TD
+    S["Similarity candidate"] --> T{"Same verified tenant and ACL epoch?"}
+    T -->|no| X["Reject reuse"]
+    T -->|yes| E{"Same structured entities and corpus generation?"}
+    E -->|no| X
+    E -->|yes| R{"Personalized, live, regulated, or mutation-dependent?"}
+    R -->|yes| X
+    R -->|no| G{"Distance passed an evaluated risk-slice gate?"}
+    G -->|no| X
+    G -->|yes| U["Reuse validated answer with provenance"]
+```
+
+Measure false reuse on deliberately confusing pairs, not only aggregate hit rate. A cache that saves 30% of model calls but returns one production answer under a staging question has failed its acceptance contract.
+
+### Example 3 — invalidate lookup and fence stale publication
+
+At `T1`, worker A reads runbook revision 7 under corpus generation `g42`. At `T2`, an editor publishes revision 8, advances the active pointer to `g43`, and invalidates the old namespace. At `T3`, A finishes generation. A simple delete at `T2` does not stop A from resurrecting a stale answer if A writes to an unversioned key.
+
+```mermaid
+sequenceDiagram
+    participant W as Answer worker
+    participant P as Publication registry
+    participant C as Answer cache
+    W->>P: Read active generation
+    P-->>W: g42
+    W->>W: Generate from revision 7
+    P->>P: Publish revision 8; active = g43
+    W->>C: Attempt store tagged g42
+    W->>P: Recheck active generation
+    P-->>W: g43
+    W->>W: Reject stale publication or retry by policy
+```
+
+The safe write is conditional: publish only when the candidate's dependency generation still equals the authoritative active generation. Old entries may remain physically present for cleanup, but new readers cannot address them through the `g43` key. For a reference answer, the product may return revision 7 with an explicit staleness label if policy permits; an authorization decision must fail closed or use a live authority check.
+
+| Time | Active generation | Worker state | Allowed action |
+|---|---|---|---|
+| T1 | g42 | dependencies = g42/r7 | generate |
+| T2 | g43 | still computing g42 | do not cancel merely by deleting a key |
+| T3 | g43 | candidate = g42/r7 | reject active publication; optionally store only in an unreachable audit namespace |
+| T4 | g43 | retried candidate = g43/r8 | publish after validation |
+
+**Proof boundary:** generation names prevent cross-generation lookup, and the compare-before-publish check prevents an older worker from writing into the new namespace. This proves freshness only for declared dependencies; omitted live facts still require their own authority check.
+
+### Example 4 — long context and prefix/KV reuse do not replace retrieval
+
+A team has a 300-page handbook. Prepending the full text to every request may work for a small stable corpus, but it spends input tokens, raises prefill latency, risks weak attention to a small relevant passage, and complicates permission changes. A provider prompt cache or a self-hosted KV prefix cache can reduce repeated prefill computation only when the prefix remains compatible.
+
+| Change | Prefix/KV reuse | Retrieval/answer implication |
+|---|---:|---|
+| same exact token IDs, model, tokenizer, adapter, runtime and tenant salt | possible | still validate document authority and answer dependencies |
+| one policy sentence changes | miss from the changed token onward | corpus generation and dependent answers must change |
+| same visible text, tokenizer revision changes | miss | token IDs/state compatibility is not proven |
+| same tokens, different tenant sharing salt | miss | prevents reuse outside the permitted sharing boundary |
+| long new output after a prefix hit | prefill saved; decode still required | reserve output/KV capacity normally |
+
+```mermaid
+flowchart LR
+    R["Request"] --> I{"Exact prefix identity compatible?"}
+    I -->|yes| K["Reuse permitted KV blocks"]
+    I -->|no| F["Run prefill"]
+    K --> D["Decode every new token"]
+    F --> D
+    D --> V["Validate evidence, scope, freshness and output"]
+```
+
+vLLM documents that automatic prefix caching accelerates prefill and does not reduce decode work. Its block identity includes exact tokens and can include adapter IDs, multimodal hashes, and cache salts for isolation. Amazon Bedrock likewise describes best-effort exact-prefix reuse and notes that changing the prompt prefix causes a miss. These are compute-cache contracts, not answer-cache contracts.
+
+RAG still earns its place when the corpus is large, frequently updated, or permission-partitioned: it selects a bounded authorized evidence set and exposes revision/citation dependencies. Prefix reuse and retrieval can coexist—one avoids repeated compatible prefill, while the other decides what evidence should be in the prompt.
+
+### Executable cache-layer contract
+
+[`CacheLayerContracts.java`](CacheLayerContracts.java) models the four distinct keys, trusted tenant selection, authorization/corpus epochs, length-framed SHA-256 identities, entity- and risk-gated semantic reuse, generation-fenced answer publication, and exact prefix compatibility.
+
+Run all sixteen AI-platform contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+java -ea ContextGroundingContracts.java
+java -ea EvaluationGateContracts.java
+java -ea CacheLatencyCostContracts.java
+java -ea McpArchitectureContracts.java
+java -ea ToolSafetyContracts.java
+java -ea OrchestrationContracts.java
+java -ea StackSelectionContracts.java
+java -ea InterviewCaseContracts.java
+java -ea PlatformControlPlaneContracts.java
+java -ea InferenceServingContracts.java
+java -ea CacheLayerContracts.java
+```
+
+The new contract checks 28 scenario groups and 10,000 seeded dual-oracle trials. Its stable summary is `LAYERS=EMBEDDING_RETRIEVAL_ANSWER_PREFIX|SCOPE=TENANT_ACL_GENERATION|SEMANTIC=ENTITY_AND_RISK_GATED|PUBLICATION=GENERATION_FENCED|PREFIX=EXACT_TOKENS_AND_RUNTIME`.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -2543,6 +2755,12 @@ The new contract checks 33 explicit scenario groups and 10,000 seeded reservatio
 | “The batch is not full, so admit it” | Sequence count proves KV and deadline capacity | Reserve incremental KV blocks and enforce queue, tenant and completion bounds |
 | “A prefix hit makes the whole response cheap” | Reused prefill also generates future tokens | Fence exact compatible state; account every new decode token |
 | “GPU utilization is high, so scaling is healthy” | Throughput implies TTFT, ITL and tail compliance | Gate on queue, phase latency, KV pressure, preemption and accepted outcomes |
+| “It is all one LLM cache” | Vectors, candidate IDs, answers and runtime state share identity and invalidation rules | Name the object and prove its layer-specific dependencies |
+| “The TTL is still valid” | Age proves authorization, publication and policy freshness | Recheck current epochs/generations and advance authority before cleanup |
+| “Same vector dimension means same embedding cache” | Shape proves coordinate-system compatibility | Fence model, representation, preprocessing, dimension and metric revision |
+| “The semantic score is close enough” | Similar language implies the same entities, risk and authority | Treat reuse as a classifier with scope, entity, freshness and hard-risk gates |
+| “Invalidation deleted the stale answer” | An older in-flight worker cannot repopulate it | Namespace by generation and compare again before publication |
+| “A prefix hit returns the answer cheaply” | Reused prefill removes decode and answer validation | Account new decode tokens and keep evidence/scope/output gates |
 
 ## Primary references
 
@@ -2604,13 +2822,18 @@ The new contract checks 33 explicit scenario groups and 10,000 seeded reservatio
 - Kwon et al., [Efficient Memory Management for Large Language Model Serving with PagedAttention](https://arxiv.org/abs/2309.06180) (SOSP 2023) — block-based dynamic KV allocation, scheduler integration, memory sharing and fragmentation evidence (accessed 2026-10-26).
 - vLLM, [Automatic Prefix Caching](https://docs.vllm.ai/en/latest/features/automatic_prefix_caching/), [security / cache salting](https://docs.vllm.ai/en/latest/usage/security/), and [production metrics](https://docs.vllm.ai/en/latest/usage/metrics/) — exact prefix reuse applies to prefill, sharing can be salted, and queue/prefill/decode/KV/TTFT/ITL signals are separately observable (accessed 2026-10-26).
 - NVIDIA TensorRT-LLM, [KV Cache System](https://nvidia.github.io/TensorRT-LLM/latest/features/kvcache.html), and NVIDIA Dynamo, [Disaggregated Serving](https://docs.nvidia.com/dynamo/knowledge-base/concepts/system-architecture/disaggregated-serving) — block-pool KV management and the measured prefill/KV-transfer/decode path (accessed 2026-10-26).
+- OWASP Cheat Sheet Series, [RAG Security](https://cheatsheetseries.owasp.org/cheatsheets/RAG_Security_Cheat_Sheet.html), [Multi-Tenant Security](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html), and [Business Logic Security](https://cheatsheetseries.owasp.org/cheatsheets/Business_Logic_Security_Cheat_Sheet.html) — permission-scoped cache isolation, current authorization on each request, and denial of stale/revoked cached disclosure (accessed 2026-10-26).
+- Microsoft Azure API Management, [semantic cache store policy](https://learn.microsoft.com/en-us/azure/api-management/llm-semantic-cache-store-policy) and [semantic caching setup](https://learn.microsoft.com/en-us/azure/api-management/azure-openai-enable-semantic-caching) — similarity-threshold lookup, caller partitioning, TTL, backend overload protection and explicit incorrect/outdated/unsafe-response warnings (accessed 2026-10-26).
+- vLLM, [Automatic Prefix Caching](https://docs.vllm.ai/en/latest/features/automatic_prefix_caching/) and [prefix-cache design](https://docs.vllm.ai/en/stable/design/prefix_caching/) — prefill-only acceleration, exact token blocks, adapter/multimodal identity and optional salts for multi-tenant isolation (accessed 2026-10-26).
+- Amazon Bedrock, [Prompt caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html) — implicit best-effort and explicit checkpoint caching, exact reusable prompt prefixes, cache metrics and model-specific limits (accessed 2026-10-26).
+- Java SE 17, [`MessageDigest`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/security/MessageDigest.html) and the [JCA reference guide](https://docs.oracle.com/en/java/javase/17/security/java-cryptography-architecture-jca-reference-guide.html) — standard SHA-256 digest construction used by the executable key-framing contract (accessed 2026-10-26).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–15, through `Inference internals: why a model endpoint has unusual scaling behavior`, bounded by Chapter 16 in the selected master.
+- Processed range: Chapters 1–16, through `Four caches that must not be treated as interchangeable`, bounded by Chapter 17 in the selected master.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
@@ -2625,7 +2848,8 @@ The new contract checks 33 explicit scenario groups and 10,000 seeded reservatio
 - Chapter 13 source comparison: selected master lines 417–423 and editable companion lines 459–471 expose the same five exercises and senior-answer pattern. They cover stage-specific diagnosis, embedding-generation migration, immediate revocation, uncertain MCP writes and slice-aware retrieval comparison; the companion ends after the answer pattern, while the selected master continues to Chapter 14.
 - Chapter 14 source comparison: selected master HTML lines 425–512 (Pandoc conversion lines 553–616) defines independently operated request, ingestion and release paths; signed/versioned bounded snapshots; an application-owned route contract; compatible fallback; and verified tenant scope before retrieval. The companion Markdown and byte-identical illustrated HTML end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 14 source and no duplicate guide was created.
 - Chapter 15 source comparison: selected master HTML lines 513–539 (Pandoc conversion lines 617–661) defines tokenization, prefill/decode, TTFT/ITL, conventional KV-cache arithmetic, continuous batching, prefix caching and bounded overload admission. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 15 source and no duplicate guide was created.
-- Next bounded section: Chapter 16, `Four caches that must not be treated as interchangeable`, after fair domain rotation.
+- Chapter 16 source comparison: selected master HTML lines 540–563 (Pandoc conversion lines 662–705) distinguishes embedding, retrieval, answer and prefix/KV caches; semantic versus exact answers; a generation-aware stale-answer race; and long-context trade-offs. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 16 source and no duplicate guide was created.
+- Next bounded section: Chapter 17, `Conversation memory is a database design problem`, after fair domain rotation.
 
 
 

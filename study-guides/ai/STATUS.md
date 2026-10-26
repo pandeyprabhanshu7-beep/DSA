@@ -4,7 +4,7 @@ Last updated: 2026-10-26.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapters 1–15 complete**.
+State: **PROMOTED incrementally; Chapters 1–16 complete**.
 
 Canonical pair:
 
@@ -45,8 +45,10 @@ Source comparison:
 - Deepened Chapter 14 with four control-plane/fallback/tenant/revocation examples, four diagrams, snapshot/route/scope/cache traces, current primary references, and an executable Java 17 contract for bounded signed snapshots, emergency revocation, policy-compatible fallback, verified tenant selection and release-fenced cache identity, plus 10,000 seeded route-admission trials.
 - Compared Chapter 15 in selected master HTML lines 513–539 (Pandoc conversion lines 617–661). The companion Markdown and byte-identical illustrated HTML end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 15 source and no duplicate guide was created.
 - Deepened Chapter 15 with four prefill/decode/KV/batching/prefix-cache examples, four diagrams, latency and scheduler traces, current primary references, and an executable Java 17 contract for checked KV arithmetic, bounded admission, exact prefix identity, tenant-aware scheduling and phase-specific SLO signals, plus 10,000 seeded reservation/admission trials.
+- Compared Chapter 16 in selected master HTML lines 540–563 (Pandoc conversion lines 662–705). The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 16 source and no duplicate guide was created.
+- Deepened Chapter 16 with four embedding/retrieval/answer/prefix-cache examples, four diagrams, authorization and stale-publication traces, current primary references, and an executable Java 17 contract for behavior-complete cache keys, tenant/ACL/generation scope, risk-gated semantic reuse, generation-fenced publication and exact prefix compatibility, plus 10,000 seeded dual-oracle trials.
 
-Next bounded section: Chapter 16, **Four caches that must not be treated as interchangeable**, after fair domain rotation.
+Next bounded AI-platform section: Chapter 17 after fair domain rotation. The immediate cross-domain continuation is Spring AI/Python Section 16.
 
 ## AI foundations, RAG and CAG
 
@@ -73,8 +75,8 @@ Validation is recorded in the enrichment queue and the promotion commit.
 
 Next action:
 
-1. Rotate fairly to Spring AI/Python Section 15 after this AI-platform pass.
-2. On the next AI-platform pass, process Chapter 16 only.
+1. Rotate fairly to Spring AI/Python Section 16 after this AI-platform pass.
+2. On the next AI-platform pass, process Chapter 17 only.
 3. On a later AI-foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment.
 4. Keep project source code in the existing Spring Boot AI repositories; this repository holds learning documentation only.
 

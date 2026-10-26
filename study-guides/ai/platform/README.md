@@ -17,7 +17,8 @@
 - [Executable Java 17 interview-case contract](InterviewCaseContracts.java)
 - [Executable Java 17 platform-control contract](PlatformControlPlaneContracts.java)
 - [Executable Java 17 inference-serving contract](InferenceServingContracts.java)
+- [Executable Java 17 cache-layer contract](CacheLayerContracts.java)
 
-This is an incremental canonical guide. Chapters 1–15 are promoted; Chapter 16, `Four caches that must not be treated as interchangeable`, is the next bounded AI-platform source section after fair domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
+This is an incremental canonical guide. Chapters 1–16 are promoted; Chapter 17 is the next bounded AI-platform source section after fair domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
 
 
