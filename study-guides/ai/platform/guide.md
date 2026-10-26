@@ -2281,6 +2281,203 @@ java -ea PlatformControlPlaneContracts.java
 
 The new contract checks 33 explicit scenario groups and 10,000 seeded route-admission oracle trials. Its stable summary is `SCENARIOS=33|TRIALS=10000|PLANES=SNAPSHOT_BOUNDED|ROUTING=CAPABILITY_GATED|TENANCY=VERIFIED_SCOPE|CACHE=AUTH_AND_RELEASE_FENCED`.
 
+## 15. Inference internals: why a model endpoint has unusual scaling behavior
+
+A model endpoint is not an ordinary stateless request handler. An autoregressive request has two different execution phases, grows per-sequence attention state while it runs, and may share each hardware iteration with requests that arrived at different times and have different lengths.
+
+- **Tokenization** turns the complete request—system instructions, tool schemas, conversation, retrieved evidence, and the new question—into model-specific token IDs. Character count is only an estimate.
+- **Prefill** processes the uncached input tokens in parallel and creates key/value (KV) state. Long prompts primarily pressure time-to-first-token and prefill compute.
+- **Decode** emits new tokens successively. One sequence cannot ordinarily produce token 101 before token 100; long outputs occupy a scheduler slot and KV memory for many iterations.
+- **Completion or cancellation** must release request-owned blocks. Capacity is not recovered merely because a client closed an HTTP connection unless cancellation reaches the engine.
+
+```mermaid
+flowchart TD
+    A["Bounded admission"] --> Q["Tenant-aware queue"]
+    Q --> P["Prefill: input tokens → KV state"]
+    P --> D["Decode: one or more scheduled tokens"]
+    D --> S["Stream output"]
+    D -->|unfinished| D
+    S --> F{"Finished or cancelled?"}
+    F -->|no| D
+    F -->|yes| R["Release request-owned KV blocks"]
+```
+
+The sequential dependency is why “requests per second” is an incomplete capacity unit. A classification request with 200 input tokens and 5 output tokens is not interchangeable with a 12,000-token document prompt requesting 800 output tokens. Keep at least input tokens, uncached prefill tokens, requested/actual output tokens, queue time, prefill time, time to first token (TTFT), inter-token latency (ITL), end-to-end latency, KV usage, preemptions, cancellations, and outcome in workload evidence.
+
+### Requirements and invariants
+
+1. **Use the actual tokenizer when available.** Admission counts every message, schema, evidence item, template token and requested output margin using the qualified model/tokenizer revision.
+2. **Separate the phases.** Queue, tokenize, prefill, first-token computation and later decode intervals remain distinguishable. TTFT, ITL and end-to-end latency answer different questions.
+3. **Reserve from token-shaped capacity.** Admission uses the active model's KV layout and a declared output bound; connection count alone cannot prove memory fits.
+4. **Use KV heads, not query heads, in the conventional cache estimate.** For GQA/MQA models those counts differ. Architecture, cache dtype, sliding windows, compression, paging and parallel placement can change the physical result, so verify it against the selected runtime.
+5. **Bound every queue by useful completion.** Do not enqueue work whose estimated service time already consumes its deadline. Apply per-tenant concurrency or token shares so one caller cannot occupy the whole endpoint.
+6. **Make batching policy explicit.** Cap both scheduled sequences and scheduled tokens; chunking a long prefill can prevent it from blocking every decode step.
+7. **Treat prefix reuse as exact intermediate-state reuse.** At minimum fence by model, tokenizer, adapter/runtime compatibility, exact token prefix, and a sharing salt or equivalent isolation identity. It saves repeated prefill; it does not generate new output tokens.
+8. **Release capacity on every terminal path.** Success, stop sequence, maximum-output limit, policy rejection, timeout, disconnect, cancellation and worker failure must converge on owned-state cleanup or reconciliation.
+9. **Scale from phase evidence.** Queue and TTFT pressure suggests admission or prefill capacity; ITL pressure points to decode contention; high KV usage with waiting requests points to memory-shaped capacity. Autoscaling on HTTP CPU alone can miss all three.
+
+### Example 1 — the same request count produces different bottlenecks
+
+Compare four one-request profiles on the same qualified model. “Uncached input” is the part that must actually be prefetched after an exact prefix-cache lookup.
+
+| Request | Input | Cached prefix | Uncached input | Output limit | Dominant concern |
+|---|---:|---:|---:|---:|---|
+| A: short answer over a handbook | 12,000 | 0 | 12,000 | 32 | prefill compute and TTFT |
+| B: long explanation | 120 | 0 | 120 | 800 | decode iterations and ITL |
+| C: repeated policy prefix | 8,000 | 7,000 | 1,000 | 200 | smaller prefill, but 200 fresh decode steps |
+| D: tiny classification | 200 | 0 | 200 | 5 | queue overhead may dominate |
+
+For A, suppose admission wait is 300 ms, tokenization 20 ms, prefill 480 ms and first-token computation 20 ms. Then TTFT is `300 + 20 + 480 + 20 = 820 ms`. If three later token gaps are 80, 90 and 100 ms, mean ITL is 90 ms and end-to-end latency is `820 + 270 = 1,090 ms`.
+
+| Observation | What it proves | What it does **not** prove |
+|---|---|---|
+| TTFT = 820 ms | delay before the first emitted token | later token cadence |
+| mean ITL = 90 ms | average gap among later emitted tokens | queue/prefill time or tail gaps |
+| end-to-end = 1,090 ms | completion time for this trace | percentile behavior under load |
+| prefix hit for C | 7,000 prompt tokens need not be recomputed | 200 output tokens are free |
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as Admission/queue
+    participant P as Tokenize + prefill
+    participant D as Decode loop
+    C->>A: request + deadline + token limits
+    A->>P: admitted at t=300 ms
+    P->>D: KV state ready at t=800 ms
+    D-->>C: first token at t=820 ms
+    D-->>C: later tokens at +80, +90, +100 ms
+```
+
+The operational comparison must use the real joint distribution of prompt length, cache-hit length, output length, cancellation and tenant. A benchmark containing only fixed short prompts can report excellent throughput while hiding the long-prefill tail seen by production users.
+
+### Example 2 — calculate KV capacity before accepting the sequence
+
+For a conventional attention model that explicitly stores one key and one value per live token, a useful first estimate is:
+
+`KV bytes = 2 × layers × KV heads × head dimension × bytes/element × live tokens`
+
+For 32 layers, 8 KV heads, head dimension 128 and two-byte elements:
+
+`2 × 32 × 8 × 128 × 2 = 131,072 bytes/token = 128 KiB/token`.
+
+An 8,192-token sequence therefore needs `1,073,741,824` bytes—exactly 1 GiB—before allocator/block slack and other runtime workspaces. Sixteen such sequences need roughly 16 GiB of aggregate KV state. The raw weights are a separate pool: eight billion two-byte parameters are about 16 GB decimal before quantization metadata, unquantized layers and runtime workspace.
+
+Now consider a 2 GiB KV pool with 1 GiB already occupied. A new request has 2,000 uncached input tokens and reserves at most 1,000 output tokens:
+
+`3,000 × 131,072 = 393,216,000 bytes`.
+
+It fits the remaining 1 GiB. A 12,000-token prompt plus 32 outputs would require `1,577,058,304` bytes and must not be admitted to that snapshot. If a compatible exact prefix already owns 7,000 of an 8,000-token prompt, this simplified incremental estimate reserves only 1,000 uncached prompt tokens plus the output bound; the shared blocks are already represented in current pool usage. Production engines should use their block manager's authoritative accounting rather than double-counting shared blocks.
+
+```mermaid
+flowchart TD
+    R["Request + qualified model"] --> T["Actual token counts"]
+    T --> B["Incremental KV block demand"]
+    B --> C{"Fits free pool?"}
+    C -->|no| X["Reject or route elsewhere"]
+    C -->|yes| D{"Tenant share + deadline pass?"}
+    D -->|no| X
+    D -->|yes| A["Admit and account blocks"]
+```
+
+Paged KV management reduces fragmentation and avoids reserving one worst-case contiguous buffer per request; it does not create unbounded memory. The PagedAttention paper describes logical-to-physical KV blocks that grow as tokens are generated, and current TensorRT-LLM documentation likewise exposes a block pool. Keep a safety margin for fragmentation, temporary activations, communication buffers, graph capture and runtime-specific overhead instead of setting the admission threshold to every nominal byte.
+
+### Example 3 — continuous batching needs token bounds and fairness
+
+Suppose four requests arrive in this order:
+
+1. tenant alpha: `a-long`, 1,000 uncached prefill tokens;
+2. tenant alpha: `a-next`, already prefetched and ready for one decode token;
+3. tenant beta: `b-decode`, ready for one decode token;
+4. tenant gamma: `c-short`, 40 uncached prefill tokens.
+
+The scheduler allows at most four sequences, at most 200 scheduled tokens in an iteration, and at most 64 prefill tokens from one request in that iteration. One tenant-aware round produces:
+
+| Selection order | Tenant/request | Scheduled now | Running total | Reason |
+|---:|---|---:|---:|---|
+| 1 | alpha / `a-long` | 64 prefill | 64 | alpha's first turn; long prefill is chunked |
+| 2 | beta / `b-decode` | 1 decode | 65 | beta receives a turn |
+| 3 | gamma / `c-short` | 40 prefill | 105 | entire short prefill fits |
+| 4 | alpha / `a-next` | 1 decode | 106 | second round returns to alpha |
+
+Without a prefill chunk bound, `a-long` could consume the 200-token iteration budget and delay active decoders. Without tenant rotation, alpha could repeatedly occupy the sequence slots. This small policy is illustrative rather than a claim about one runtime: real schedulers may prioritize decodes, preempt, reserve blocks, split prefill/decode workers or use more sophisticated fairness. The invariant is that the chosen policy has declared token/sequence limits, measurable starvation behavior and a cancellation path.
+
+```mermaid
+stateDiagram-v2
+    [*] --> TenantRound
+    TenantRound --> CheckTokenBudget
+    CheckTokenBudget --> ScheduleChunk: fits
+    CheckTokenBudget --> Defer: does not fit
+    ScheduleChunk --> NextTenant
+    Defer --> NextTenant
+    NextTenant --> TenantRound: slots and progress remain
+    NextTenant --> Execute: bound reached
+```
+
+Continuous batching improves utilization by admitting and retiring sequences while generation proceeds. Its benefit depends on workload shape: very large batches can increase interactive latency, and high utilization can still be unhealthy if queue age, preemptions or ITL exceed the service objective.
+
+### Example 4 — exact prefix reuse and overload evidence
+
+A cached prefix was produced by `model@7`, `tokenizer@3`, base adapter, sharing salt `tenant-a`, and exact token-prefix hash `sha256:abc…`. Reuse is denied if any field changes. The salt is especially important in a multi-tenant service: current vLLM security guidance supports per-user or per-group cache salts so requests outside the sharing boundary cannot infer or reuse the cached prefix.
+
+| New request | Reuse? | Reason |
+|---|---:|---|
+| same model, tokenizer, adapter, salt and token hash | yes | exact compatible prefix |
+| `model@8` | no | state belongs to another model revision |
+| `tokenizer@4` | no | the apparent text may map to different token IDs |
+| salt `tenant-b` | no | outside the allowed sharing boundary |
+| same words but token hash `sha256:def…` | no | prefix state is not a semantic answer cache |
+
+After admission, monitor the phase evidence together:
+
+| Signal | Example threshold breach | Likely first response |
+|---|---|---|
+| KV usage + capacity waits | 93% usage with waiting requests | stop admitting large reservations; add/reshape memory capacity |
+| queue age | p95 700 ms against 500 ms | shed early, inspect arrival burst and scheduler capacity |
+| TTFT | p95 1.2 s against 1.0 s | inspect queue, tokenizer and prefill saturation |
+| ITL | p95 120 ms against 100 ms | inspect decode contention, batch policy and memory bandwidth |
+| prefix hit tokens | unexpectedly near zero | verify exact prefixes, model/tokenizer identity and cache eviction |
+| preemptions/cancellations | rising with load | reduce over-admission; prove blocks are released |
+
+```mermaid
+flowchart TD
+    M["Queue + TTFT + ITL + KV + preemption"] --> Q{"Which phase misses its SLO?"}
+    Q -->|queue / TTFT| P["Admission or prefill capacity"]
+    Q -->|ITL| D["Decode contention or placement"]
+    Q -->|KV + waiting| K["Memory-shaped capacity"]
+    P --> E["Replay representative mixed-length load"]
+    D --> E
+    K --> E
+```
+
+Prefix caching is not a general answer cache: vLLM documents that it avoids repeated query prefill and does not reduce the work of generating new tokens. Scaling is similarly not one replica-count reaction. A managed API caller can bound prompts, outputs, concurrency, retries and route choice; a self-hosted team additionally owns weights, GPU placement, batch/scheduler parameters, KV policy, cancellation and release. Prefill/decode disaggregation can tune TTFT and ITL independently, but KV transfer and the extra topology are new measured costs, not a universal default.
+
+### Executable inference-serving contract
+
+[`InferenceServingContracts.java`](InferenceServingContracts.java) models checked KV arithmetic, uncached-prefix reservation, deadline/queue/tenant-aware admission, prefill-versus-decode workload shape, exact prefix-cache identity, TTFT/ITL/end-to-end accounting, bounded tenant-round-robin scheduling and phase-aware overload signals.
+
+Run all fifteen AI-platform contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+java -ea ContextGroundingContracts.java
+java -ea EvaluationGateContracts.java
+java -ea CacheLatencyCostContracts.java
+java -ea McpArchitectureContracts.java
+java -ea ToolSafetyContracts.java
+java -ea OrchestrationContracts.java
+java -ea StackSelectionContracts.java
+java -ea InterviewCaseContracts.java
+java -ea PlatformControlPlaneContracts.java
+java -ea InferenceServingContracts.java
+```
+
+The new contract checks 33 explicit scenario groups and 10,000 seeded reservation/admission oracle trials. Its stable summary is `SCENARIOS=33|TRIALS=10000|PHASES=PREFILL_AND_DECODE|CAPACITY=KV_TOKEN_BUDGET|SCHEDULER=TENANT_ROUND_ROBIN|CACHE=EXACT_PREFIX_IDENTITY|SLO=TTFT_ITL_E2E`.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -2342,6 +2539,10 @@ The new contract checks 33 explicit scenario groups and 10,000 seeded route-admi
 | “The primary failed, so any healthy model is better” | A fallback inherits policy compatibility | Re-admit the named fallback against data, region, capability and budget gates |
 | “The request says tenant A” | A client-selected tenant proves membership | Select only from verified identity memberships and carry typed scope end to end |
 | “Revocation can wait for cache eviction” | Physical cleanup is the serving boundary | Advance authority first; make stale epochs unservable before asynchronous cleanup |
+| “One request equals one unit of load” | Prompt, output and live-KV lengths are interchangeable | Preserve the workload's joint token distribution and account phase-specific work |
+| “The batch is not full, so admit it” | Sequence count proves KV and deadline capacity | Reserve incremental KV blocks and enforce queue, tenant and completion bounds |
+| “A prefix hit makes the whole response cheap” | Reused prefill also generates future tokens | Fence exact compatible state; account every new decode token |
+| “GPU utilization is high, so scaling is healthy” | Throughput implies TTFT, ITL and tail compliance | Gate on queue, phase latency, KV pressure, preemption and accepted outcomes |
 
 ## Primary references
 
@@ -2399,13 +2600,17 @@ The new contract checks 33 explicit scenario groups and 10,000 seeded route-admi
 - Open Policy Agent, [Bundles](https://openpolicyagent.org/docs/management-bundles) and [Configuration](https://openpolicyagent.org/docs/configuration) — versioned policy distribution, persistence and explicitly enforced signature verification for local data-plane decisions (accessed 2026-10-26).
 - OWASP Cheat Sheet Series, [Multi-Tenant Security](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html), [Authorization](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html), and [RAG Security](https://cheatsheetseries.owasp.org/cheatsheets/RAG_Security_Cheat_Sheet.html) — verified tenant context, deny-by-default authorization, cache isolation and pre-disclosure retrieval scope (accessed 2026-10-26).
 - AWS Well-Architected SaaS Lens, [SaaS identity](https://docs.aws.amazon.com/wellarchitected/latest/saas-lens/saas-identity.html), [Tenant isolation](https://docs.aws.amazon.com/wellarchitected/latest/saas-lens/tenant-isolation.html), and [Core isolation concepts](https://docs.aws.amazon.com/wellarchitected/latest/saas-lens/core-isolation-concepts.html) — tenant context across layers and silo, pool and hybrid/bridge isolation trade-offs (accessed 2026-10-26).
+- Hugging Face Transformers, [How caching works](https://huggingface.co/docs/transformers/main/cache_explanation) — autoregressive generation appends per-layer key/value state and reuses prior state instead of recomputing it for every new token (accessed 2026-10-26).
+- Kwon et al., [Efficient Memory Management for Large Language Model Serving with PagedAttention](https://arxiv.org/abs/2309.06180) (SOSP 2023) — block-based dynamic KV allocation, scheduler integration, memory sharing and fragmentation evidence (accessed 2026-10-26).
+- vLLM, [Automatic Prefix Caching](https://docs.vllm.ai/en/latest/features/automatic_prefix_caching/), [security / cache salting](https://docs.vllm.ai/en/latest/usage/security/), and [production metrics](https://docs.vllm.ai/en/latest/usage/metrics/) — exact prefix reuse applies to prefill, sharing can be salted, and queue/prefill/decode/KV/TTFT/ITL signals are separately observable (accessed 2026-10-26).
+- NVIDIA TensorRT-LLM, [KV Cache System](https://nvidia.github.io/TensorRT-LLM/latest/features/kvcache.html), and NVIDIA Dynamo, [Disaggregated Serving](https://docs.nvidia.com/dynamo/knowledge-base/concepts/system-architecture/disaggregated-serving) — block-pool KV management and the measured prefill/KV-transfer/decode path (accessed 2026-10-26).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–14, through `Design the platform, not just the chatbot`, bounded by Chapter 15 in the selected master.
+- Processed range: Chapters 1–15, through `Inference internals: why a model endpoint has unusual scaling behavior`, bounded by Chapter 16 in the selected master.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
@@ -2419,7 +2624,8 @@ The new contract checks 33 explicit scenario groups and 10,000 seeded route-admi
 - Chapter 12 source comparison: selected master lines 483–487 and editable companion lines 453–457 agree on managed AWS/Azure/Google retrieval capabilities, an independent pgvector/Sentence Transformers/vLLM stack, retained team ownership, regional constraints, and a reproducible workload comparison; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 13 source comparison: selected master lines 417–423 and editable companion lines 459–471 expose the same five exercises and senior-answer pattern. They cover stage-specific diagnosis, embedding-generation migration, immediate revocation, uncertain MCP writes and slice-aware retrieval comparison; the companion ends after the answer pattern, while the selected master continues to Chapter 14.
 - Chapter 14 source comparison: selected master HTML lines 425–512 (Pandoc conversion lines 553–616) defines independently operated request, ingestion and release paths; signed/versioned bounded snapshots; an application-owned route contract; compatible fallback; and verified tenant scope before retrieval. The companion Markdown and byte-identical illustrated HTML end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 14 source and no duplicate guide was created.
-- Next bounded section: Chapter 15, `Inference internals: why a model endpoint has unusual scaling behavior`, after fair domain rotation.
+- Chapter 15 source comparison: selected master HTML lines 513–539 (Pandoc conversion lines 617–661) defines tokenization, prefill/decode, TTFT/ITL, conventional KV-cache arithmetic, continuous batching, prefix caching and bounded overload admission. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 15 source and no duplicate guide was created.
+- Next bounded section: Chapter 16, `Four caches that must not be treated as interchangeable`, after fair domain rotation.
 
 
 

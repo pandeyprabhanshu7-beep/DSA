@@ -16,7 +16,8 @@
 - [Executable Java 17 stack-selection/migration contract](StackSelectionContracts.java)
 - [Executable Java 17 interview-case contract](InterviewCaseContracts.java)
 - [Executable Java 17 platform-control contract](PlatformControlPlaneContracts.java)
+- [Executable Java 17 inference-serving contract](InferenceServingContracts.java)
 
-This is an incremental canonical guide. Chapters 1–14 are promoted; Chapter 15, `Inference internals: why a model endpoint has unusual scaling behavior`, is the next bounded AI-platform source section after fair domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
+This is an incremental canonical guide. Chapters 1–15 are promoted; Chapter 16, `Four caches that must not be treated as interchangeable`, is the next bounded AI-platform source section after fair domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
 
 
