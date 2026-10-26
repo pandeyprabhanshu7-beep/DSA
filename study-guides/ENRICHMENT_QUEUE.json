@@ -270,9 +270,9 @@
       "modified_at": "2026-09-08T00:10:00.740223Z",
       "size_bytes": 229697,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-10-25T20:33:10-04:00",
+      "last_read_at": "2026-10-26T02:22:20-04:00",
       "sha256": "735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda",
-      "selection": "Selected as the editable structural source; Sections 1-3 lines 141-251 and Section 4 problems 1-12 through line 1381 were compared and promoted. Problem 13, Longest Substring Without Repeating Characters, follows."
+      "selection": "Selected as the editable structural source; Sections 1-3 lines 141-251 and Section 4 problems 1-13 through line 1496 were compared and promoted. Problem 13 is Sliding Window Maximum; the earlier substring label was stale. Problem 14, Range Sum Query — Immutable, follows."
     },
     {
       "name": "Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
@@ -345,9 +345,9 @@
       "modified_at": "2026-09-03T01:55:56.718502Z",
       "size_bytes": 125274,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-10-25T20:33:10-04:00",
+      "last_read_at": "2026-10-26T02:22:20-04:00",
       "sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-      "selection": "Compared as the corroborating companion; Sections 1-3 and Section 4 problems 1-12 agree with the Markdown source. Local Pandoc extraction places Fruit Into Baskets at lines 1463-1574. All 116 rendered pages were previously visually inspected; no duplicate guide was created."
+      "selection": "Compared as the corroborating companion; Sections 1-3 and Section 4 problems 1-13 agree with the Markdown source. Local Pandoc extraction places Sliding Window Maximum at lines 1521-1648. All 116 rendered pages were previously visually inspected; no duplicate guide was created."
     },
     {
       "name": "AI_RAG_CAG_Deep_Learning_Developer_Guide.docx",
@@ -502,7 +502,7 @@
         "DSA_Arrays_FAANG_Mermaid_Question_Workbook.md",
         "DSA_Arrays_FAANG_Question_Workbook_Expanded.docx"
       ],
-      "last_processed_at": "2026-10-25T20:33:10-04:00",
+      "last_processed_at": "2026-10-26T02:22:20-04:00",
       "processed_sections": [
         "Section 1: Array Mental Model and Invariants — Markdown lines 141-182 / DOCX extracted lines 65-108",
         "Section 2: Pattern-Recognition Decision Tree — Markdown lines 183-229 / DOCX extracted lines 93-135",
@@ -515,11 +515,12 @@
         "Section 4 problem 9: Container With Most Water — dominated-endpoint elimination, four worked cases, exact trace, proof, overflow-safe area and randomized all-pairs oracle — Markdown lines 1000-1092 / DOCX parsed-text lines 671-729",
         "Section 4 problem 10: Trapping Rain Water — smaller-running-boundary finalization, four worked cases, full trace, proof, widened accumulation and randomized per-index oracle — Markdown lines 1093-1204 / DOCX parsed-text lines 730-815",
         "Section 4 problem 11: Minimum Size Subarray Sum — positive-input variable window, four worked cases, full trace, proof, widened sum and randomized quadratic oracle — Markdown lines 1207-1290 / direct Library DOCX parsed-text from line 819",
-        "Section 4 problem 12: Fruit Into Baskets — at-most-two-types variable window, four worked cases, full trace, proof, zero-count key removal and randomized quadratic oracle — Markdown lines 1292-1381 / DOCX extracted lines 1463-1574"
+        "Section 4 problem 12: Fruit Into Baskets — at-most-two-types variable window, four worked cases, full trace, proof, zero-count key removal and randomized quadratic oracle — Markdown lines 1292-1381 / DOCX extracted lines 1463-1574",
+        "Section 4 problem 13: Sliding Window Maximum — monotonic index deque, four worked cases, expiry/domination trace, proof, newer-equal handling and randomized O(nk) oracle — Markdown lines 1383-1496 / DOCX extracted lines 1521-1648"
       ],
-      "last_successful_commit": "4ca98215fc37dff9ce75b02ad450a07b0213f4aa",
-      "validation": "The paired Arrays workbooks agree on bounded Fruit Into Baskets at Markdown lines 1292-1381 and local Pandoc-extracted DOCX lines 1463-1574, and no duplicate guide was created. The section adds the contiguous at-most-two-types contract, four worked cases, four diagrams, a complete add/repair trace, the leftmost-valid-window proof and exact zero-count key removal. Java 17 source-file launch passed 212 reported scenario groups across all twelve Arrays contracts plus 220,000 seeded oracle comparisons; FruitIntoBasketsContracts passed 18 scenario groups and 20,000 independent quadratic-oracle comparisons. Deterministic reader generation passed exact 101839-byte Markdown recovery, SHA-256 6d9b08e863671ce0d0a3a9a32e4c3f02c1051e956efee5dfb16956de2ec455f2, 462 unique HTML IDs, 40 search entries, 400 local fragments, 134 balanced fence markers, 44 Mermaid sources, JSON, JavaScript syntax and deterministic rebuild identity. Six content files were atomically published at 4ca98215fc37dff9ce75b02ad450a07b0213f4aa with an expected-head guard and matching remote blobs. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-      "next_action": "After fair rotation to AI-platform Chapter 13, process Arrays Section 4 problem 13, Longest Substring Without Repeating Characters. Problems 13-47 remain queued.",
+      "last_successful_commit": "ab4c30129c24465160e6fa950dcf82cf88f4bc63",
+      "validation": "The paired Arrays workbooks agree on bounded Sliding Window Maximum at Markdown lines 1383-1496 and local Pandoc-extracted DOCX lines 1521-1648; direct comparison corrected the stale checkpoint label and no duplicate guide was created. The section adds the strict fixed-window contract, brute-force/heap/deque comparison, four worked cases, four diagrams, a complete expiry/domination trace, the dominated-candidate proof and newer-equal handling. Java 17 source-file launch passed 228 reported scenario groups across all thirteen Arrays executables plus 240,000 seeded oracle comparisons; SlidingWindowMaximumContracts passed 16 scenario groups and 20,000 independent O(nk)-oracle comparisons. Deterministic reader generation passed exact 109819-byte Markdown recovery, SHA-256 585466bbc896b302ea37d9c972fc42d4a010e8675dfdabad69c89e3940a4eadb, 495 unique HTML IDs, 41 search entries, 429 local fragments, 144 balanced fence markers, 48 Mermaid sources, JSON, JavaScript syntax and deterministic rebuild identity. The final content tree is published at ab4c30129c24465160e6fa950dcf82cf88f4bc63 after an expected-head-guarded seven-file content commit and expected-head-guarded navigation synchronization; remote blobs match. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder DSA marker audit remains 175.",
+      "next_action": "Rotate fairly to AI-platform Chapter 14, Design the platform, not just the chatbot. On the next Arrays turn process Section 4 problem 14, Range Sum Query — Immutable. Problems 14-47 remain queued.",
       "priority": 6,
       "source_revision": {
         "baseline_commit": "a9f582b5dbe8b6fcda6e275054f217350a810d52",
@@ -530,7 +531,7 @@
         "compared_file_id": "file_00000000672882118a9ca69f00c30be7",
         "compared_version_id": "1",
         "compared_sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-        "canonical_sha256_after": "6d9b08e863671ce0d0a3a9a32e4c3f02c1051e956efee5dfb16956de2ec455f2"
+        "canonical_sha256_after": "585466bbc896b302ea37d9c972fc42d4a010e8675dfdabad69c89e3940a4eadb"
       }
     },
     {
@@ -817,7 +818,7 @@
       },
       "last_successful_commit": "abb2a9b639b5c7c44d2d036a914545617aebcf5f",
       "validation": "The selected ZIP member at editable source lines 869-880 and standalone HTML lines 942-979 were compared and bounded before Section 14; both contain the same four adapter choices, portability limits, compatibility warning, cloud identity guidance and measured selection criteria, so no duplicate guide was created. Four worked examples, four diagrams, current primary references and paired dependency-free contracts were added for the portable-core/owned-extension boundary, conjunctive capability and workload-identity admission, evidence-led retry/failover and evaluated migration/rollback. Java 17 source-file launch and Python 3 passed all thirteen contract pairs; the new pair produced the identical PARITY|BOUNDARY=PORTABLE_CORE|EXTENSIONS=OWNED|IDENTITY=WORKLOAD|UNKNOWN=RECONCILE|MIGRATION=EVALUATED|PROMOTED=1630 first line, 23 scenario groups and 10,000 seeded trials per language. Deterministic reader generation passed exact 175417-byte Markdown recovery, SHA-256 4627e7a945e8182b1453721601ffa81ccf082bf5a2536335819ef5b055e6ddf5, 564 unique HTML IDs, 14 search entries, 398 fragments, 228 balanced fence markers, 54 Mermaid sources, JSON, inline JavaScript parsing and deterministic rebuild identity. Eight content files were atomically published at abb2a9b639b5c7c44d2d036a914545617aebcf5f with an expected-head guard. Standalone javac, Maven/framework compilation, live provider/authentication/load integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder DSA marker audit is 175, correcting the stale 170 checkpoint; this backend section added none.",
-      "next_action": "Rotate fairly to Arrays Section 4 problem 13, Longest Substring Without Repeating Characters. On the next Spring/Python turn, process Section 14, Observability and debugging by boundary, beginning at editable line 882 / standalone HTML line 980. Sections 14-25 remain queued.",
+      "next_action": "Rotate fairly to AI-platform Chapter 14. On the next Spring/Python turn, process Section 14, Observability and debugging by boundary, beginning at editable line 882 / standalone HTML line 980. Sections 14-25 remain queued.",
       "priority": 14
     },
     {
@@ -1048,7 +1049,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-13, Spring AI/Python Sections 1-13 and Arrays Section 4 problems 1-12 are promoted. Rotate fairly to Arrays problem 13, then AI-platform Chapter 14; retain Spring AI/Python Section 14 for later fair rotation.",
+    "next_action": "AI-platform Chapters 1-13, Spring AI/Python Sections 1-13 and Arrays Section 4 problems 1-13 are promoted. Rotate fairly to AI-platform Chapter 14; retain Arrays problem 14 and Spring AI/Python Section 14 for later fair rotation.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1193,14 +1194,15 @@
       "Spring AI/Python Section 12: task/artifact identity, authorized bi-encoder retrieval, bounded cross-encoder reranking, leakage-safe baselines, PyTorch serving and whole-pipeline JVM parity",
       "DSA Arrays Section 4 problem 12: at-most-two-types sliding window, exact add/repair trace, zero-count key removal, proof and randomized quadratic oracle",
       "AI platform Chapter 13: first-failed-stage diagnosis, generation-fenced embeddings, authorization-epoch cache denial, uncertain-write reconciliation and hard retrieval-slice gates",
-      "Spring AI/Python Section 13: portable core and owned extensions, capability/identity admission, evidence-led retry and evaluated migration/rollback"
+      "Spring AI/Python Section 13: portable core and owned extensions, capability/identity admission, evidence-led retry and evaluated migration/rollback",
+      "DSA Arrays Section 4 problem 13: monotonic index deque, expiry/domination trace, newer-equal handling, proof and randomized O(nk) oracle"
     ],
-    "processed_section": "Spring AI/Python Section 13, Provider adapters and portability, editable lines 869-880 / standalone HTML lines 942-979",
-    "validation": "The confirmed paired sources agree on Section 13 and no duplicate guide was created. Four examples and diagrams plus current primary references now cover portable versus provider-owned options, capability and identity qualification, evidence-led retries and evaluated migration. Java 17 source-file launch and Python 3 passed all thirteen contract pairs; the new pair passed 23 scenario groups and 10000 seeded trials with identical output. The deterministic reader recovered all 175417 Markdown bytes at SHA-256 4627e7a945e8182b1453721601ffa81ccf082bf5a2536335819ef5b055e6ddf5 and passed 564 unique IDs, 14 search entries, 398 fragments, 228 fences, 54 Mermaid sources, JSON, JavaScript and rebuild identity. Eight content files were published at abb2a9b639b5c7c44d2d036a914545617aebcf5f with an expected-head guard. Standalone javac, Maven/framework compilation, live provider/authentication/load integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder DSA marker audit is 175, correcting the stale 170 checkpoint; this backend section added none.",
+    "processed_section": "DSA Arrays Section 4 problem 13, Sliding Window Maximum, Markdown lines 1383-1496 / DOCX extracted lines 1521-1648",
+    "validation": "The paired Arrays workbooks agree on bounded Sliding Window Maximum at Markdown lines 1383-1496 and local Pandoc-extracted DOCX lines 1521-1648; direct comparison corrected the stale checkpoint label and no duplicate guide was created. The section adds the strict fixed-window contract, brute-force/heap/deque comparison, four worked cases, four diagrams, a complete expiry/domination trace, the dominated-candidate proof and newer-equal handling. Java 17 source-file launch passed 228 reported scenario groups across all thirteen Arrays executables plus 240,000 seeded oracle comparisons; SlidingWindowMaximumContracts passed 16 scenario groups and 20,000 independent O(nk)-oracle comparisons. Deterministic reader generation passed exact 109819-byte Markdown recovery, SHA-256 585466bbc896b302ea37d9c972fc42d4a010e8675dfdabad69c89e3940a4eadb, 495 unique HTML IDs, 41 search entries, 429 local fragments, 144 balanced fence markers, 48 Mermaid sources, JSON, JavaScript syntax and deterministic rebuild identity. The final content tree is published at ab4c30129c24465160e6fa950dcf82cf88f4bc63 after an expected-head-guarded seven-file content commit and expected-head-guarded navigation synchronization; remote blobs match. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder DSA marker audit remains 175.",
     "estimated_next_tokens": 9600,
     "estimate_method": "Heuristic only for one bounded Arrays problem 13 pass with paired-source comparison, examples, Java contract, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "abb2a9b639b5c7c44d2d036a914545617aebcf5f",
-    "last_processed_at": "2026-10-26T01:20:24-04:00",
-    "next_batch_decision": "Spring AI/Python Section 13 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to Arrays problem 13, then AI-platform Chapter 14; retain Spring AI/Python Section 14 for later rotation."
+    "last_successful_commit": "ab4c30129c24465160e6fa950dcf82cf88f4bc63",
+    "last_processed_at": "2026-10-26T02:22:20-04:00",
+    "next_batch_decision": "Arrays problem 13 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to AI-platform Chapter 14; retain Arrays problem 14 and Spring AI/Python Section 14 for later rotation."
   }
 }
