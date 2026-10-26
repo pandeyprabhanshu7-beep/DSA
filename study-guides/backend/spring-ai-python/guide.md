@@ -2376,3 +2376,200 @@ Verified on 25 October 2026:
 ### Source provenance and continuation
 
 The selected editable bundle member's Section 12 is source lines 816–867; Section 13 begins at line 869. The matching standalone HTML begins Section 12 at line 902 and Section 13 at line 942. Both sources contain the same local Sentence Transformer/CrossEncoder example, warning to pin revisions and inspect licenses, TF-IDF/logistic-regression baseline, leakage warning, PyTorch/Transformers inference guidance and Java service/DJL/ONNX alternatives. This canonical section retains that substance while adding task and identity invariants, authorized shortlist-only reranking, explicit evaluation and cost traces, Python serving gates, whole-pipeline JVM parity, four worked examples, four diagrams and paired executable contracts. Section 13, **Provider adapters and portability**, begins at editable source line 869 / standalone HTML line 942. Sections 13–25 remain queued; the source is not complete.
+
+## 13. Provider adapters and portability: preserve the business contract, qualify every capability
+
+An adapter reduces mechanical change; it does not make providers semantically identical. Define the application's stable contract first, keep vendor extensions behind an explicitly owned boundary, and qualify each provider/model/revision against the exact feature set the workload needs.
+
+| Choice | Application calls | Best fit | Portability limit |
+|---|---|---|---|
+| direct provider SDK | vendor request and response types | newest provider-specific capability | migration changes authentication, payloads, errors and semantics |
+| Spring AI or orchestration abstraction | common `ChatModel`, `EmbeddingModel` or runnable interface | a deliberately small portable core | common types cannot manufacture unsupported tools, schemas or streaming behavior |
+| explicit HTTP adapter | an application-owned port implemented with inspected wire contracts | tight control, small dependency surface and contract tests | the team owns authentication, serialization, retries and compatibility |
+| self-hosted runtime | a private inference endpoint | placement, artifact and capacity control | the team owns serving, upgrades, overload and model/runtime compatibility |
+
+### Requirements and invariants
+
+1. **The business port is provider-neutral.** It carries business input, a request/operation ID, deadline and required capabilities—not a vendor SDK object or arbitrary option map.
+2. **Capability admission is conjunctive.** Provider, endpoint, model revision, region and authentication path must support every required feature. A text-only fallback is not qualified for a tool or strict-schema request.
+3. **Extensions name their owner.** A provider-only option belongs in a typed provider adapter. Reject it at the portable boundary instead of silently dropping it.
+4. **Identity is environmental.** Prefer the supported workload identity for AWS, Azure and Google. Keep secrets server-side where a provider requires a key; never bake developer credentials into images.
+5. **Retries follow observed state.** A locally rejected or definitely unsent request is retryable. After an ambiguous accepted request, retry only when the operation is replay-safe and the provider honors an idempotency key; otherwise reconcile.
+6. **Migration is an evaluated release.** Pin endpoint/model/revision, run contract and task-quality suites, compare latency, errors and cost per successful outcome, canary, and retain a tested rollback.
+
+```mermaid
+flowchart TD
+    B["Business request"] --> P["Application model port"]
+    P --> C{"Capability set admitted?"}
+    C -->|yes| A["Qualified provider adapter"]
+    C -->|no| F["Typed unsupported-capability failure"]
+    A --> R["Normalized result plus provider evidence"]
+```
+
+### Example 1 — keep a portable core and an owned extension lane
+
+Suppose the answer path requires text, streaming and a deadline. Those fields belong in the stable application port. A provider's reasoning-control field or cache hint belongs in a provider-specific request type because a second provider may reject, ignore or reinterpret it.
+
+```java
+public record AnswerRequest(
+        String operationId, String prompt, long deadlineEpochMillis,
+        boolean streaming, java.util.Set<String> requiredFeatures) {}
+
+public sealed interface AnswerOptions permits PortableOptions, ManagedProviderOptions {}
+public record PortableOptions(double temperature) implements AnswerOptions {}
+public record ManagedProviderOptions(String serviceTier) implements AnswerOptions {}
+```
+
+```python
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class AnswerRequest:
+    operation_id: str
+    prompt: str
+    deadline_epoch_ms: int
+    required_features: frozenset[str]
+
+# Provider-only fields live on that adapter's typed configuration, not **kwargs.
+@dataclass(frozen=True)
+class ManagedProviderOptions:
+    service_tier: str
+```
+
+Trace: `business request → portable validation → capability check → provider mapping → normalized result`. The normalized result records provider, endpoint class, model/revision, finish reason, usage units and request correlation without exposing secrets. Unknown finish reasons remain unknown; do not coerce them to success.
+
+```mermaid
+sequenceDiagram
+    participant S as Service
+    participant P as Portable port
+    participant A as Provider adapter
+    participant V as Vendor API
+    S->>P: AnswerRequest(op-42, TEXT+STREAM)
+    P->>A: validated portable request
+    A->>V: vendor request + workload identity
+    V-->>A: vendor response + request ID
+    A-->>P: normalized result + release evidence
+    P-->>S: business result
+```
+
+The seam makes replacement possible, but the capability test makes replacement honest. Spring AI's `ChatModel` and `EmbeddingModel` provide portable Java shapes; provider-specific options still need isolated handling. The same rule applies to Python orchestration libraries: a shared method name is not a semantic guarantee.
+
+### Example 2 — build and verify a capability matrix before routing
+
+Treat capability data as reviewed release configuration, not optimistic runtime fallback:
+
+| Route | Identity | text | stream | tools | strict schema | embeddings | Qualified for |
+|---|---|---:|---:|---:|---:|---:|---|
+| `managed/m-17/us-east` | workload | yes | yes | yes | yes | no | tool-backed structured answer |
+| `local/sha256:abc` | workload | yes | yes | no | no | yes | private text and embedding workloads |
+| `alternate/m-2/eu` | static key | yes | no | no | no | no | rejected by current identity policy |
+
+```text
+request required={TEXT,TOOLS,STRICT_JSON}
+primary managed/m-17: identity=yes, features=superset -> ADMIT
+alternate local/sha256:abc: missing={TOOLS,STRICT_JSON} -> REJECT
+result: route primary; no silent degradation
+```
+
+```mermaid
+flowchart LR
+    Q["Required features"] --> I{"Identity qualified?"}
+    I -->|no| X["Reject route"]
+    I -->|yes| S{"All features supported?"}
+    S -->|no| X
+    S -->|yes| E{"Extension owner matches?"}
+    E -->|no| X
+    E -->|yes| A["Admit pinned route"]
+```
+
+Maintain separate matrices for chat, embeddings and reranking; identical provider names do not imply identical endpoint support. Revalidate on a model revision, endpoint, region, SDK/adapter or identity change. “OpenAI-compatible” should be read as a claim about some wire shapes, never as proof of identical token accounting, tool-call JSON, structured-output guarantees, errors, context limits or streaming chunks.
+
+### Example 3 — make retry and failover depend on evidence
+
+Provider errors need a normalized category plus the original correlation details. Preserve at least `UNSENT`, `REJECTED`, `ACCEPTED_UNKNOWN` and `COMPLETED`:
+
+| Observation | Safe action | Reason |
+|---|---|---|
+| local admission rejected / connect definitely failed before send | retry another qualified route within the same deadline | no remote effect occurred |
+| provider explicitly rejected before acceptance | retry if policy permits | response proves non-acceptance |
+| timeout after acceptance is possible | retry only with replay safety **and** provider deduplication; otherwise reconcile | duplicate work or charges may already exist |
+| completed response validated | return once and record evidence | retry would duplicate a finished operation |
+
+```mermaid
+stateDiagram-v2
+    [*] --> Unsent
+    Unsent --> Retry: budget and qualified route
+    Retry --> Completed: validated response
+    Retry --> Rejected: explicit non-acceptance
+    Rejected --> Retry: budget remains
+    Retry --> Unknown: acceptance may have occurred
+    Unknown --> Reconcile: no proven dedupe
+    Unknown --> Retry: replay-safe plus dedupe
+    Completed --> [*]
+```
+
+Carry one end-to-end deadline across queueing, authentication refresh, connection, provider processing and response validation. Failover does not reset the clock. Do not retry a tool side effect merely because the model-provider call is retryable; the tool has its own idempotency and reconciliation contract.
+
+### Example 4 — migrate with shadow evidence, canary gates and rollback
+
+For a proposed `managed/m-17 → alternate/a-9` migration:
+
+1. freeze prompt, tools, schema, retrieval generation and evaluation set;
+2. run adapter contract tests for serialization, streaming assembly, error mapping and required capabilities;
+3. shadow only policy-approved inputs and compare task outcomes—not raw text equality;
+4. calculate quality, p95, error rate and **cost per successful outcome** using the same traffic slice;
+5. canary an explicit cohort, watch hard safety and quality slices, then promote or roll back the route pointer.
+
+```text
+release gate
+contract_pass=true
+quality=0.86 >= 0.82
+p95=700 ms <= 800 ms
+cost_per_success=$0.018 <= $0.020
+decision=PROMOTE
+```
+
+```mermaid
+flowchart TD
+    B["Pinned baseline"] --> T["Adapter contract tests"]
+    T --> S["Policy-safe shadow evaluation"]
+    S --> C{"Quality, latency, errors and cost pass?"}
+    C -->|no| K["Keep baseline"]
+    C -->|yes| Y["Canary cohort"]
+    Y --> P{"Hard slices pass?"}
+    P -->|no| R["Rollback route pointer"]
+    P -->|yes| G["Promote pinned candidate"]
+```
+
+A migration is reversible only when the previous adapter configuration, model/revision and compatible state remain available. If provider-managed conversation IDs, caches or stored files are part of the workflow, either externalize that state behind an application contract or describe the migration limitation explicitly.
+
+### Paired executable contract
+
+The dependency-free pair makes capability admission, extension ownership, workload-identity policy, ambiguous-outcome handling and migration gates executable without a provider SDK or network call:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/ProviderPortabilityContracts.java
+python3 study-guides/backend/spring-ai-python/provider_portability_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|BOUNDARY=PORTABLE_CORE|EXTENSIONS=OWNED|IDENTITY=WORKLOAD|UNKNOWN=RECONCILE|MIGRATION=EVALUATED|PROMOTED=1630
+```
+
+Each implementation passes 23 explicit scenario groups and 10,000 seeded migration-gate trials. These contracts do not call Spring AI, a Python orchestration package, OpenAI, Bedrock, Azure or Vertex AI; do not refresh cloud credentials; do not prove regional/model feature availability; and do not measure real quality, latency, error rate, token accounting or cost. Those claims require the pinned adapter/provider environment and an approved evaluation workload.
+
+### Current primary references
+
+Verified on 26 October 2026:
+
+- Spring AI, [Chat Model API](https://docs.spring.io/spring-ai/reference/api/chatmodel.html), [Embeddings Model API](https://docs.spring.io/spring-ai/reference/api/embeddings.html) and [chat-model comparison](https://docs.spring.io/spring-ai/reference/api/chat/comparison.html) — portable interfaces, request/response types and provider capability differences.
+- Amazon Bedrock, [Converse API](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html) and [API compatibility](https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html) — a common messages interface, model-specific request fields and endpoint/model capability differences.
+- Microsoft, [Azure OpenAI with Microsoft Entra ID](https://learn.microsoft.com/en-us/azure/foundry-classic/openai/how-to/managed-identity) — developer identity, managed identity, role assignment and secret-free deployed authentication.
+- Google Cloud, [authentication for APIs and services](https://cloud.google.com/docs/authentication) and [Google Gen AI SDK](https://cloud.google.com/vertex-ai/generative-ai/docs/sdks/overview) — Application Default Credentials and selecting Vertex AI versus the Gemini developer API.
+- OpenAI, [API authentication](https://platform.openai.com/docs/api-reference/authentication) — server-side bearer keys, secure loading and project/organization request attribution.
+
+### Source provenance and continuation
+
+The selected editable bundle member's complete Section 13 is source lines 869–880; Section 14 begins at line 882. The matching standalone HTML begins Section 13 at line 942 and Section 14 at line 980. Both sources contain the same four-choice adapter table, warning about changing model/region/API support, limits of “OpenAI-compatible” behavior, cloud identity guidance and selection criteria of task quality, data handling, latency, quotas and total cost. This canonical section retains that substance while adding the portable-core/provider-extension boundary, conjunctive capability admission, typed retry evidence, an evaluated migration/rollback path, four worked examples, four diagrams and paired executable contracts. Section 14, **Observability and debugging by boundary**, begins at editable source line 882 / standalone HTML line 980. Sections 14–25 remain queued; the source is not complete.
