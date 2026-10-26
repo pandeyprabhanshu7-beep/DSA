@@ -1,6 +1,6 @@
 # Spring AI and Python APIs
 
-This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–10, lines 6–783.
+This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–14, lines 6–915.
 
 ## Section 1 — Choose the layer before choosing the library
 
@@ -2573,3 +2573,171 @@ Verified on 26 October 2026:
 ### Source provenance and continuation
 
 The selected editable bundle member's complete Section 13 is source lines 869–880; Section 14 begins at line 882. The matching standalone HTML begins Section 13 at line 942 and Section 14 at line 980. Both sources contain the same four-choice adapter table, warning about changing model/region/API support, limits of “OpenAI-compatible” behavior, cloud identity guidance and selection criteria of task quality, data handling, latency, quotas and total cost. This canonical section retains that substance while adding the portable-core/provider-extension boundary, conjunctive capability admission, typed retry evidence, an evaluated migration/rollback path, four worked examples, four diagrams and paired executable contracts. Section 14, **Observability and debugging by boundary**, begins at editable source line 882 / standalone HTML line 980. Sections 14–25 remain queued; the source is not complete.
+
+## 14. Observability and debugging by boundary: preserve causal evidence without leaking content
+
+Observability should answer **which boundary changed the outcome**. A single request trace connects admission, retrieval, tool and model work, but each span owns its own timing, outcome and release evidence. Metrics describe aggregate behavior; traces preserve causal structure; logs retain selected events. None of these signals is an authorization source or proof that an answer is correct.
+
+```mermaid
+flowchart TD
+    A["Request: release + trace ID"] --> Q["Admission / queue"]
+    Q --> R["Authorized retrieval"]
+    Q --> T["Tool boundary"]
+    Q --> M["Model boundary"]
+    R --> O["Output validation"]
+    T --> O
+    M --> O
+    O --> E["Outcome + evaluation evidence"]
+```
+
+### Requirements and invariants
+
+1. **Release identity is complete.** Record the application release, model/revision, prompt version, index generation and adapter configuration needed to reproduce the path.
+2. **Stage outcomes are explicit.** Queue, pool, retrieval, authorization, context admission, tool, model and output validation each report duration and typed outcome.
+3. **Trace continuity is causal, not authoritative.** Propagate trace context across Java, Python, queues and services, but reauthenticate and reauthorize at every protected boundary.
+4. **Metric dimensions are bounded.** Model class, release cohort, boundary and outcome are suitable labels; user IDs, prompt text, document IDs and arbitrary error text are not.
+5. **Content is off by default.** Prompt, completion, tool arguments/results and retrieved text require explicit enablement, a protected sink, retention limits and access controls.
+6. **Counts retain stage evidence.** Candidate, authorized, context and cited counts let investigators locate a loss without recording raw evidence.
+7. **Security failures override availability.** Cross-tenant evidence stops and isolates the path. Similarity thresholds, retries or fallback cannot repair missing authorization.
+8. **Health is boundary-specific.** A listening port does not prove tool registration, compatible sync/async mode, schema publication or SDK support.
+9. **Language parity starts with inputs.** Compare pinned model/revision, prompt hash, temperature, token limit, embedding revision and ordered candidate IDs before blaming Java or Python.
+
+| Signal | Safe bounded fields | Protected high-cardinality detail | Do not export by default |
+|---|---|---|---|
+| Metrics | boundary, outcome, model class, release cohort | none | user/document/request IDs, prompt text |
+| Traces | release versions, counts, durations, completion category | request/provider correlation IDs | raw prompts, completions, retrieved text, tool payloads |
+| Logs | typed event, trace ID, redacted error category | audited object/operation IDs where required | secrets, access tokens, unrestricted provider bodies |
+
+Spring AI builds its observations on Micrometer and keeps prompt/completion and tool content export disabled by default because those values can be large and sensitive. Micrometer distinguishes low-cardinality keys used for metrics from high-cardinality trace/log detail. Prometheus creates a new time series for every label-value combination, so unbounded IDs are both a cost and reliability risk. OpenTelemetry context joins the path across services, while its semantic conventions provide shared names; pin convention and instrumentation versions because GenAI conventions continue to evolve.
+
+### Example 1 — high p99 latency while CPU remains low
+
+Atlas p99 rises from 1.2 seconds to 4.8 seconds, yet application CPU stays at 22%. “Add threads” is not a diagnosis. Split the request into queue, connection-pool, retrieval, tool, model and output spans and compare their distributions for the same release cohort.
+
+| Boundary | p50 | p99 | Saturation evidence | Interpretation |
+|---|---:|---:|---|---|
+| Admission queue | 18 ms | 2,900 ms | permits 100%, queue depth rising | primary bottleneck |
+| Connection pool | 6 ms | 40 ms | 42% borrowed | not dominant |
+| Retrieval | 65 ms | 180 ms | stable candidates | not dominant |
+| Provider/model | 520 ms | 940 ms | no throttle response | slower, but not the 4.8 s cause |
+| Output validation | 4 ms | 11 ms | stable | not dominant |
+
+```mermaid
+flowchart LR
+    P["High end-to-end p99"] --> C{"CPU saturated?"}
+    C -->|no| W["Compare queue / pool / provider waits"]
+    W --> D{"Largest same-request span"}
+    D -->|queue| A["Reduce admission or add qualified capacity"]
+    D -->|pool| B["Inspect leases, deadlines and pool size"]
+    D -->|provider| F["Inspect throttling, quotas and upstream latency"]
+```
+
+The exact trace `queue=2,940 ms → pool=12 → retrieval=103 → model=811 → output=7` makes queueing the first repair target. A Resilience4j bulkhead can bound concurrent work at one JVM boundary; it does not enforce a fleet-wide token quota or create upstream model capacity. Capacity changes should follow the measured saturated resource and preserve one end-to-end deadline.
+
+### Example 2 — a relevant document is retrieved but never cited
+
+Do not jump directly to prompt tuning. Trace the evidence through extraction, candidate generation, authorization, context admission and citation validation:
+
+```text
+source revision runbook-r17: extracted=true
+retrieval candidates=[d17,d42,d51,d88]
+authorized=[d17,d42,d51]
+reranked=[d42,d17,d51]
+context admitted=[d42,d51]  # d17 lost to token budget
+cited=[d42]
+diagnosis=CONTEXT_TRUNCATION for d17
+```
+
+```mermaid
+flowchart TD
+    S{"Extracted?"} -->|no| X["Extraction miss"]
+    S -->|yes| R{"Candidate found?"}
+    R -->|no| Y["Retrieval miss"]
+    R -->|yes| A{"Authorized?"}
+    A -->|no| Z["Expected policy filter"]
+    A -->|yes| C{"Admitted to context?"}
+    C -->|no| T["Truncation / budget loss"]
+    C -->|yes| G{"Cited?"}
+    G -->|no| M["Generation / citation miss"]
+    G -->|yes| K["Complete evidence path"]
+```
+
+Candidate IDs can be protected trace attributes or server-side incident records; they must not become unbounded metric labels. Store counts in ordinary metrics and keep object-level IDs behind trace access controls. The first missing transition selects the subsystem and its regression test.
+
+### Example 3 — a cross-tenant document appears
+
+A payments request returns one payments chunk and one executive-only chunk. This is not a relevance bug. Stop release of the answer, isolate the affected retrieval/cache path, retain protected incident evidence, advance authorization/cache epochs as needed, and run negative tenant tests before reopening.
+
+```mermaid
+sequenceDiagram
+    participant H as Host
+    participant R as Retrieval
+    participant V as Release validator
+    participant I as Incident control
+    H->>R: verified scope tenant=payments
+    R-->>V: tenants={payments, executive}
+    V-->>H: STOP_AND_ISOLATE
+    V->>I: protected trace + release/index IDs
+    I->>R: disable route / advance authority
+```
+
+The public metric can increment `retrieval_scope_violation_total{release_cohort="r14", outcome="blocked"}`. The trace may retain the protected correlation and offending object identifiers under restricted access. Never emit tenant names, document IDs or text as metric labels. Raising the similarity threshold, reducing top-k or asking the model to ignore the chunk does not restore authorization.
+
+### Example 4 — the server is healthy, but the tool is absent; Java and Python disagree
+
+An MCP server answers its health endpoint, but Atlas cannot discover `lookup_runbook`. Prove each boundary in order: server process and transport, tool registration, sync/async server mode, schema publication, negotiated protocol/SDK support, and host policy admission. Port health is only the first predicate.
+
+After registration is repaired, Java returns a cited answer while Python abstains. Compare the reproducibility vector before inspecting language runtimes:
+
+| Field | Java | Python | First difference |
+|---|---|---|---|
+| model revision | `m-17` | `m-17` | — |
+| prompt hash | `sha256:p` | `sha256:p` | — |
+| temperature | `0.0` | `0.0` | — |
+| output token limit | `800` | `800` | — |
+| embedding revision | `embed-v4` | `embed-v4` | — |
+| ordered candidate IDs | `[d1,d7]` | `[d7,d1]` | **candidate order** |
+
+```mermaid
+flowchart TD
+    H["Healthy port"] --> R{"Tool registered?"}
+    R -->|no| X["Fix scanning / registration"]
+    R -->|yes| S{"Mode + SDK compatible?"}
+    S -->|no| Y["Fix runtime contract"]
+    S -->|yes| P{"Host policy admits tool?"}
+    P -->|no| Z["Expected policy denial"]
+    P -->|yes| C["Compare Java/Python release vectors"]
+```
+
+This preserves two separate claims: capability discovery is not endpoint liveness, and output parity is meaningless until inputs and selected evidence match.
+
+### Paired executable contract
+
+The dependency-free pair makes boundary timing, stage-first retrieval diagnosis, tenant-leak response, tool-registration proof, bounded labels, protected content capture and Java/Python parity evidence executable:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/ObservabilityBoundaryContracts.java
+python3 study-guides/backend/spring-ai-python/observability_boundary_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|TRACE=BOUNDARY_FIRST|METRICS=BOUNDED_LABELS|CONTENT=DEFAULT_OFF|TENANT_LEAK=STOP|TOOLS=REGISTRATION_PROVED|MISMATCH=CONFIG_FIRST|MODEL_DOMINANT=1639
+```
+
+Each implementation passes 37 explicit scenario groups and 10,000 seeded dominant-boundary trials. These contracts do not start Spring Boot, FastAPI, an MCP server, OpenTelemetry Collector, Prometheus or a provider; they do not validate export pipelines, sampling, retention, dashboards, alert delivery or production access controls. Those require the deployed telemetry path and incident exercises.
+
+### Current primary references
+
+Verified on 26 October 2026:
+
+- Spring AI, [Observability](https://docs.spring.io/spring-ai/reference/observability/index.html) — Micrometer-backed observations for model, vector-store, advisor and tool paths; prompt, completion, query-response and tool content export remain disabled by default because of size and sensitivity.
+- OpenTelemetry, [Traces](https://opentelemetry.io/docs/concepts/signals/traces/), [Context propagation](https://opentelemetry.io/docs/concepts/context-propagation/), [Python instrumentation](https://opentelemetry.io/docs/languages/python/instrumentation/) and [Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/) — causal request structure, cross-process propagation, language instrumentation and versioned shared attribute names.
+- Micrometer, [Observation introduction](https://docs.micrometer.io/micrometer/reference/observation/introduction.html), [Observation components](https://docs.micrometer.io/micrometer/reference/observation/components.html) and [High-cardinality tag detector](https://docs.micrometer.io/micrometer/reference/concepts/high-cardinality-tags-detector.html) — low-cardinality meter tags versus high-cardinality trace/log detail and cardinality detection.
+- Prometheus, [Metric and label naming](https://prometheus.io/docs/practices/naming/) and [Instrumentation](https://prometheus.io/docs/practices/instrumentation/) — each label combination creates a time series; unbounded labels increase memory, CPU, disk and network cost.
+- Resilience4j, [Bulkhead](https://resilience4j.readme.io/docs/bulkhead) — semaphore and fixed-thread-pool concurrency limits at a selected application boundary.
+
+### Source provenance and continuation
+
+The selected editable bundle member's complete Section 14 is source lines 882–915, bounded before Section 15 at line 917. The matching standalone HTML is lines 980–1002, bounded before Chapter 15 at line 1003. Both contain the same request/retrieval/tool/model trace, release and usage fields, content-sensitivity warning, metric-cardinality rule, OpenTelemetry/Resilience4j boundary, and five debugging prompts. The canonical section preserves all five prompts in four connected worked examples, adds explicit invariants, trace schemas, four diagrams and paired executable contracts, and does not copy the older generated layout as a second guide. Section 15, **Testing pyramid for this repository**, begins at editable line 917 / standalone HTML line 1003. Sections 15–25 remain queued; the source is not complete.

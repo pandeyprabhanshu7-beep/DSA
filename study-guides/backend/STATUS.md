@@ -4,7 +4,7 @@ Last updated: 2026-10-26.
 
 ## Spring AI and Python APIs
 
-State: **IN PROGRESS; Sections 1–13 promoted**.
+State: **IN PROGRESS; Sections 1–14 promoted**.
 
 Canonical pair:
 
@@ -15,7 +15,7 @@ Source comparison:
 
 - Selected `atlas_guides/spring_ai_python_api_interview_guide.md` from `ai_cicd_spring_python_guides_complete.zip`, bundle SHA-256 `c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31`, member SHA-256 `af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553`.
 - Compared standalone `spring_ai_python_api_interview_guide.html`, SHA-256 `6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3`; it is byte-identical to the generated HTML inside the bundle, so it was not promoted as a duplicate source.
-- Section 13 is exactly editable-source lines 869–880 and standalone-HTML lines 942–979, ending before Section 14 at respective lines 882 and 980.
+- Section 14 is exactly editable-source lines 882–915 and standalone-HTML lines 980–1002, ending before Section 15 at respective lines 917 and 1003.
 - The ZIP passed integrity and path-traversal checks.
 
 Completed sections:
@@ -33,12 +33,13 @@ Completed sections:
 11. **Streaming, concurrency and cancellation** (source lines 785–814) — SSE-versus-WebSocket selection, exact event framing, authenticated replay cursors, bounded queues and overflow, provisional/final terminal states, cooperative cancellation and side-effect reconciliation, four diagrams and paired 36-scenario/10,000-trial contracts.
 12. **More Python AI: embeddings, reranking and classical ML** (source lines 816–867) — task and artifact identity, authorized bi-encoder retrieval plus bounded cross-encoder reranking, leakage-safe classical baselines, measured PyTorch serving, whole-pipeline Java/ONNX parity, four examples, four diagrams and paired 29-scenario/10,000-trial contracts.
 13. **Provider adapters and portability** (source lines 869–880) — portable core versus owned extensions, conjunctive capability and workload-identity admission, evidence-led retry/failover, evaluated migration and rollback, four examples, four diagrams and paired 23-scenario/10,000-trial contracts.
+14. **Observability and debugging by boundary** (source lines 882–915) — bounded-label metrics, protected content capture, causal queue/pool/retrieval/tool/model traces, security-first tenant-leak response, tool-registration evidence, Java/Python release-vector parity, four examples, four diagrams and paired 37-scenario/10,000-trial contracts.
 
 Validation:
 
-- Java 17 source-file launch and Python 3 passed every paired contract; Section 13 produced the identical `PARITY|BOUNDARY=PORTABLE_CORE|EXTENSIONS=OWNED|IDENTITY=WORKLOAD|UNKNOWN=RECONCILE|MIGRATION=EVALUATED|PROMOTED=1630` trace, 23 scenario groups and 10,000 seeded trials per language.
-- Deterministic reader generation passed exact 175417-byte Markdown recovery, SHA-256 `4627e7a945e8182b1453721601ffa81ccf082bf5a2536335819ef5b055e6ddf5`, 564 unique HTML IDs, 14 search entries, 398 fragments, 228 balanced fence markers, 54 Mermaid sources, JSON, inline JavaScript parsing and rebuild identity.
-- The exact live literal Java-marker audit across the five canonical DSA guide folders is 175. This corrects the previous 170 checkpoint count; no placeholder was added by this bounded backend section.
+- Java 17 source-file launch and Python 3 passed all fourteen contract pairs; Section 14 produced the identical `PARITY|TRACE=BOUNDARY_FIRST|METRICS=BOUNDED_LABELS|CONTENT=DEFAULT_OFF|TENANT_LEAK=STOP|TOOLS=REGISTRATION_PROVED|MISMATCH=CONFIG_FIRST|MODEL_DOMINANT=1639` trace, 37 scenario groups and 10,000 seeded trials per language.
+- Deterministic reader generation passed exact 187839-byte Markdown recovery, SHA-256 `d3d466935143dccc43c8a74980c26ffe8c781ea50d697951360a55c5bdc8abad`, 576 unique HTML IDs, 15 search entries, 400 fragments, 244 balanced fence markers, 59 Mermaid sources, JSON, inline JavaScript parsing and rebuild identity.
+- A fresh remote-main literal-marker audit found 170 live Java placeholders across the five canonical DSA guide folders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST). The earlier 175 checkpoint was stale; this backend section added none.
 - Standalone `javac`, framework/native dependency compilation, live model/provider calls, browser/accessibility integration, pool/load tests and rendered Mermaid QA were unavailable and are not represented as passes.
 
-Next action: rotate fairly to Arrays Section 4 problem 13, **Longest Substring Without Repeating Characters**. On the next Spring/Python turn, process Section 14, **Observability and debugging by boundary**, beginning at editable source line 882 / standalone HTML line 980. AI-platform Chapter 14 remains queued; do not imply the 25-section source is complete.
+Next action: rotate fairly to Arrays Section 4 problem 14, **Range Sum Query — Immutable**. On the next Spring/Python turn, process Section 15, **Testing pyramid for this repository**, beginning at editable source line 917 / standalone HTML line 1003. AI-platform Chapter 15 remains queued; do not imply the 25-section source is complete.
