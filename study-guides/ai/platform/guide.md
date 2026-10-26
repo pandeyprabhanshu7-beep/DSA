@@ -1,6 +1,6 @@
 # AI Platform Engineering
 
-> Canonical incremental guide. Source Chapters 1–12 are processed. Later source chapters remain queued.
+> Canonical incremental guide. Source Chapters 1–14 are processed. Later source chapters remain queued.
 
 ## 1. Choose prompting, RAG, fine-tuning, and tools by authority
 
@@ -2113,6 +2113,174 @@ java -ea InterviewCaseContracts.java
 
 The new contract checks 36 explicit scenario groups and 10,000 seeded first-failure oracle trials. Its stable summary is `SCENARIOS=36|TRIALS=10000|DIAGNOSIS=FIRST_FAILED_STAGE|EMBEDDINGS=GENERATION_FENCED|CACHE=AUTH_EPOCH|MUTATION=RECONCILE_FIRST|RETRIEVAL=SLICE_GATED`.
 
+## 14. Design the platform, not just the chatbot
+
+An assistant is one workload inside a platform. Atlas, an internal operations assistant, has three independently operated paths:
+
+- the **interactive data plane** authenticates a request, retrieves authorized evidence, invokes approved model/tool routes, and releases a validated response;
+- the **background data plane** ingests source revisions, builds immutable index generations, evaluates candidates, and publishes only coherent generations;
+- the **control plane** approves route manifests, prompt and index versions, tenant policy, tool registrations, quotas, and releases.
+
+The control plane decides what may run; the data plane runs an already-approved, versioned decision. A request worker should not need a synchronous control-plane round trip for every token or retrieval. It may use an authenticated snapshot for a bounded period, but only while the snapshot is signed, not expired, not older than the offline-use limit, and not covered by an emergency revocation watermark. Emergency revocation is a deliberately smaller, stricter path than normal configuration distribution.
+
+```mermaid
+flowchart TD
+    C["Control plane: policy + releases"] -->|"signed versioned snapshot"| I["Interactive workers"]
+    C -->|"job + publication policy"| B["Ingestion workers"]
+    U["Verified caller"] --> I
+    I --> R["Authorized retrieval + model/tool gateways"]
+    B --> P["Staged evidence generation"]
+    P -->|"guarded publish"| R
+```
+
+| Component | Owns | Durable identity | Failure behavior |
+|---|---|---|---|
+| API edge | authentication entry, request limits, routing | principal and request ID | reject missing/invalid identity |
+| Release controller | approved route, prompt, index, policy and tool versions | signed manifest revision | retain last valid snapshot within its bound; never invent config |
+| Request orchestrator | deadline, evidence, tool and response assembly | request/operation record | return typed unavailable/partial only when policy permits |
+| Model gateway | exact adapter/model qualification, quotas and accounting | route + adapter/model revision | use only a compatible approved fallback |
+| Retrieval service | scoped candidate generation, ranking and authorization | tenant, ACL epoch, index generation | fail closed on missing scope or stale authority |
+| Tool gateway | operation allowlist, schema, approval and audit | tenant + operation/idempotency key | reconcile uncertain mutations |
+| Ingestion workers | parse, chunk, embed, evaluate and stage | source revision + transform tuple | retry deterministic stage; publish atomically |
+
+Keep business policy outside provider adapters. A `ModelPort` can normalize invocation, but it must not erase differences that affect correctness: region, data handling, context/output limits, tool identifiers, schema support, streaming usage, cancellation, and tested behavior belong in the capability manifest.
+
+### Requirements and invariants
+
+1. **Configuration is immutable and attributable.** A request records the exact route, policy, prompt, index and adapter/model revisions it used.
+2. **Offline use is bounded twice.** Both the manifest's `validUntil` and the worker's maximum-offline-age policy must pass.
+3. **Emergency revocation is monotonic.** A revocation watermark can invalidate an otherwise unexpired snapshot without waiting for normal rollout.
+4. **Fallback is a fresh admission decision.** It must meet the same data policy, region, capability, token, tool and deadline constraints; availability never weakens them.
+5. **Tenant scope comes from verified identity.** A request field may select only among authenticated memberships; it cannot create membership.
+6. **Scope is typed end to end.** Tenant, subject and authorization epoch flow through retrieval, caches, conversations, jobs and tools.
+7. **Cache identity includes authority and release state.** At minimum include subject/entitlement where results are user-specific, tenant, authorization epoch, route revision, prompt version and index generation.
+8. **Revocation precedes reclamation.** Deny serving immediately; index deletion, cache eviction and storage cleanup may follow asynchronously.
+
+### Application-owned route contract
+
+```json
+{
+  "routeId": "operations-answer-v7",
+  "revision": 17,
+  "dataPolicy": "internal-restricted",
+  "allowedRegions": ["us-east-1"],
+  "requires": ["text-generation", "json-output"],
+  "maxInputTokens": 12000,
+  "maxOutputTokens": 1000,
+  "maxToolCalls": 2,
+  "deadlineMs": 12000,
+  "fallbackRoute": "operations-answer-backup-v4",
+  "promptVersion": "rollback-v12",
+  "indexGeneration": "runbooks-g43"
+}
+```
+
+This is an application contract, not a provider API. `fallbackRoute: null` is valid when no second route satisfies policy. A capability is admitted only when the exact adapter/model pair has passed the platform's contract tests; a product-page claim is not qualification evidence.
+
+### Example 1 — keep serving through a short control-plane outage
+
+At `08:02Z`, a worker cannot refresh route revision 17. Its signature is verified, `validUntil=08:15Z`, the local maximum offline age is five minutes, and emergency revocation is only through revision 16. The worker may execute revision 17. At `08:05:01Z`, local age wins even though the manifest has not expired; new work fails closed until refresh. In-flight work follows the separately recorded cancellation policy.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Received
+    Received --> Rejected: bad signature / future issue time
+    Received --> Revoked: revision <= watermark
+    Received --> Expired: now > validUntil
+    Received --> TooOld: age > offline limit
+    Received --> Admitted: every freshness gate passes
+    Admitted --> Executed
+```
+
+| Time | Signature | Revision vs watermark | Manifest | Offline age | Decision |
+|---|---:|---:|---:|---:|---|
+| `08:02:00Z` | valid | `17 > 16` | valid | 2m | execute r17 |
+| `08:04:59Z` | valid | `17 > 16` | valid | 4m59s | execute r17 |
+| `08:05:01Z` | valid | `17 > 16` | valid | 5m01s | reject new work |
+| `08:03:00Z` after emergency revoke through 17 | valid | fails | valid | 3m | reject immediately |
+
+This pattern keeps an ordinary control-plane incident from becoming an immediate fleet outage without turning stale configuration into indefinite authority. OPA's bundle guidance provides a concrete analogue: signature verification must be explicitly enforced; merely configuring keys does not require every bundle to be signed.
+
+### Example 2 — a fallback that is available but incompatible
+
+The primary US route is unavailable. A backup endpoint is healthy in `eu-west-1`, but the request carries restricted US-only evidence. The backup also lacks the qualified JSON-output capability. The platform returns `NO_COMPATIBLE_ROUTE`; it does not strip metadata, downgrade the data policy, or silently send the evidence abroad.
+
+```mermaid
+flowchart TD
+    Q["Resolved request contract"] --> P{"Primary usable + compatible?"}
+    P -->|yes| A["Admit primary"]
+    P -->|no| F{"Named fallback usable + compatible?"}
+    F -->|yes| B["Admit fallback"]
+    F -->|no| X["NO_COMPATIBLE_ROUTE"]
+```
+
+| Gate | Request | US primary | EU backup |
+|---|---|---|---|
+| Data policy | restricted | restricted ✓ | restricted ✓ |
+| Region | `us-east-1` only | `us-east-1` ✓ | `eu-west-1` ✗ |
+| Capabilities | text + JSON | both ✓ | text only ✗ |
+| Input/output/tool budgets | 8k / 700 / 0 | within bounds ✓ | within bounds ✓ |
+| Result | — | unavailable | reject backup; fail closed |
+
+Treat each fallback as a new admission, not as an exception path. This keeps availability objectives subordinate to explicit data-handling and correctness requirements.
+
+### Example 3 — reject tenant injection before retrieval
+
+The authenticated identity says `subject=user-7`, memberships `{payments, platform}`, authorization epoch 42. A body containing `tenantId=executive` is not evidence of membership and is rejected before query embedding, cache lookup, conversation loading, retrieval or tool discovery. A request for `payments` is accepted and converted to a typed scope.
+
+```mermaid
+sequenceDiagram
+    participant U as Caller
+    participant E as Identity edge
+    participant O as Orchestrator
+    participant R as Retrieval
+    U->>E: token + requested tenant
+    E->>E: verify identity and memberships
+    E-->>O: subject, selected tenant, auth epoch
+    O->>R: typed scope + query
+    R-->>O: only scope-authorized evidence
+```
+
+The propagation trace is `identity(user-7, {payments, platform}, epoch=42) → select(payments) → retrieval scope(payments,42) → cache key(user-7,payments,42,route17,prompt12,index43) → tool authorization(payments,user-7)`. Neither trace context nor a client-supplied header is an authorization source. AWS's SaaS guidance likewise treats tenant context as something captured and conveyed across application layers, while OWASP requires explicit tenant isolation at storage, cache and authorization boundaries.
+
+### Example 4 — revoke authority without waiting for cleanup
+
+At `09:10Z`, `user-7` loses payments access and the authority advances from epoch 42 to 43. A cached answer keyed at epoch 42 no longer matches, even if its TTL has hours remaining. The serving path denies immediately. Cache eviction, vector tombstoning and replica compaction can complete later because none of them grants serving authority.
+
+| Artifact | Old identity | New check | Action |
+|---|---|---|---|
+| Answer cache | `payments/user-7/auth@42` | current epoch 43 | miss/deny; never release text |
+| Conversation | tenant `payments`, subject `user-7` | membership absent | deny load |
+| Retrieval generation | ACL snapshot 42 | authority 43 | filter/reject before content leaves store |
+| Tool session | prior tenant grant | fresh server authorization | deny invocation |
+
+Separate databases or indexes can simplify deletion and noisy-neighbor control; shared stores can improve pooling but make every predicate and cache key security-critical; hybrid designs mix the two. The isolation model is a risk and operations choice, never a reason to omit per-request authorization.
+
+### Executable platform-control contract
+
+[`PlatformControlPlaneContracts.java`](PlatformControlPlaneContracts.java) models signed route snapshots, bounded offline use, emergency revocation, capability/data/region/budget admission, verified tenant selection, approved fallback and release-fenced cache identity.
+
+Run all fourteen AI-platform contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+java -ea ContextGroundingContracts.java
+java -ea EvaluationGateContracts.java
+java -ea CacheLatencyCostContracts.java
+java -ea McpArchitectureContracts.java
+java -ea ToolSafetyContracts.java
+java -ea OrchestrationContracts.java
+java -ea StackSelectionContracts.java
+java -ea InterviewCaseContracts.java
+java -ea PlatformControlPlaneContracts.java
+```
+
+The new contract checks 33 explicit scenario groups and 10,000 seeded route-admission oracle trials. Its stable summary is `SCENARIOS=33|TRIALS=10000|PLANES=SNAPSHOT_BOUNDED|ROUTING=CAPABILITY_GATED|TENANCY=VERIFIED_SCOPE|CACHE=AUTH_AND_RELEASE_FENCED`.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -2170,6 +2338,10 @@ The new contract checks 36 explicit scenario groups and 10,000 seeded first-fail
 | “The cheaper monthly bill wins” | Every candidate produces the same number of useful outcomes | Compare total cost per accepted supported answer after hard gates |
 | “A leaderboard chose the stack” | Public averages reproduce this corpus, ACLs, regions and load | Run a versioned, slice-aware workload with operational evidence |
 | “Shadow traffic means safe migration” | Matching average answers proves ACL and deletion parity | Gate corpus, ACL, tombstone, critical-slice and rollback evidence separately |
+| “The control plane is reachable, so configuration is safe” | Availability proves authenticity, freshness and approval | Execute only a signed, versioned snapshot within both validity bounds |
+| “The primary failed, so any healthy model is better” | A fallback inherits policy compatibility | Re-admit the named fallback against data, region, capability and budget gates |
+| “The request says tenant A” | A client-selected tenant proves membership | Select only from verified identity memberships and carry typed scope end to end |
+| “Revocation can wait for cache eviction” | Physical cleanup is the serving boundary | Advance authority first; make stale epochs unservable before asynchronous cleanup |
 
 ## Primary references
 
@@ -2223,13 +2395,17 @@ The new contract checks 36 explicit scenario groups and 10,000 seeded first-fail
 - Elasticsearch, [Ranking evaluation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/search-rank-eval) and the [`_rank_eval` API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-rank-eval) — representative queries, manual relevance ratings, per-request details, precision, recall, MRR and DCG for reproducible retrieval comparisons (accessed 2026-10-26).
 - OWASP Cheat Sheet Series, [Authorization](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html), [Multi-Tenant Security](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html), and [RAG Security](https://cheatsheetseries.owasp.org/cheatsheets/RAG_Security_Cheat_Sheet.html) — deny-by-default authorization, tenant isolation, cache boundaries and RAG-specific derived-data risk (accessed 2026-10-26).
 - Amazon Builders' Library, [Making retries safe with idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) — caller-provided request identity and semantic equivalence make uncertain mutation outcomes reconcilable without inventing at-most-once transport semantics (accessed 2026-10-26).
+- Kubernetes, [Components](https://kubernetes.io/docs/concepts/overview/components/) and [Cluster Architecture](https://kubernetes.io/docs/concepts/architecture/) — a concrete control-plane/worker separation and independently resilient production topology (accessed 2026-10-26).
+- Open Policy Agent, [Bundles](https://openpolicyagent.org/docs/management-bundles) and [Configuration](https://openpolicyagent.org/docs/configuration) — versioned policy distribution, persistence and explicitly enforced signature verification for local data-plane decisions (accessed 2026-10-26).
+- OWASP Cheat Sheet Series, [Multi-Tenant Security](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html), [Authorization](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html), and [RAG Security](https://cheatsheetseries.owasp.org/cheatsheets/RAG_Security_Cheat_Sheet.html) — verified tenant context, deny-by-default authorization, cache isolation and pre-disclosure retrieval scope (accessed 2026-10-26).
+- AWS Well-Architected SaaS Lens, [SaaS identity](https://docs.aws.amazon.com/wellarchitected/latest/saas-lens/saas-identity.html), [Tenant isolation](https://docs.aws.amazon.com/wellarchitected/latest/saas-lens/tenant-isolation.html), and [Core isolation concepts](https://docs.aws.amazon.com/wellarchitected/latest/saas-lens/core-isolation-concepts.html) — tenant context across layers and silo, pool and hybrid/bridge isolation trade-offs (accessed 2026-10-26).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–13, through `Exercises and interview cases`, bounded by Chapter 14 in the selected master.
+- Processed range: Chapters 1–14, through `Design the platform, not just the chatbot`, bounded by Chapter 15 in the selected master.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
@@ -2242,7 +2418,8 @@ The new contract checks 36 explicit scenario groups and 10,000 seeded first-fail
 - Chapter 11 source comparison: selected master lines 399–411 and editable companion lines 435–449 agree on deterministic-first orchestration, using an agent only for intermediate-result-driven choice, explicit durable state around side effects, bounded read retry, disclosed degradation, and fail-closed authorization/tenant isolation; the checkpoint's prior `Observability and operations` label was reconciled to the sources' actual heading rather than deepening the wrong topic.
 - Chapter 12 source comparison: selected master lines 483–487 and editable companion lines 453–457 agree on managed AWS/Azure/Google retrieval capabilities, an independent pgvector/Sentence Transformers/vLLM stack, retained team ownership, regional constraints, and a reproducible workload comparison; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 13 source comparison: selected master lines 417–423 and editable companion lines 459–471 expose the same five exercises and senior-answer pattern. They cover stage-specific diagnosis, embedding-generation migration, immediate revocation, uncertain MCP writes and slice-aware retrieval comparison; the companion ends after the answer pattern, while the selected master continues to Chapter 14.
-- Next bounded section: Chapter 14, `Design the platform, not just the chatbot`, after fair domain rotation.
+- Chapter 14 source comparison: selected master HTML lines 425–512 (Pandoc conversion lines 553–616) defines independently operated request, ingestion and release paths; signed/versioned bounded snapshots; an application-owned route contract; compatible fallback; and verified tenant scope before retrieval. The companion Markdown and byte-identical illustrated HTML end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 14 source and no duplicate guide was created.
+- Next bounded section: Chapter 15, `Inference internals: why a model endpoint has unusual scaling behavior`, after fair domain rotation.
 
 
 

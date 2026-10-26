@@ -4,7 +4,7 @@ Last updated: 2026-10-26.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapters 1–13 complete**.
+State: **PROMOTED incrementally; Chapters 1–14 complete**.
 
 Canonical pair:
 
@@ -41,8 +41,10 @@ Source comparison:
 - Deepened Chapter 12 with four managed/independent/bake-off/migration examples, four diagrams, ownership, capacity, cost and migration traces, current primary references, and an executable Java 17 contract for hard capability qualification, team/provider ownership, outcome-based cost, checked capacity and reversible migration, plus 10,000 seeded capacity-oracle trials.
 - Compared Chapter 13 in selected master lines 417–423 and editable companion lines 459–471; both expose the same five exercises and senior-answer pattern, and the companion ends at that boundary, so no duplicate guide was created.
 - Deepened Chapter 13 with four integrated interview cases covering all five source exercises, five diagrams, diagnosis/migration/revocation/mutation/retrieval traces, current primary references, and an executable Java 17 contract for first-failed-stage diagnosis, generation-fenced embeddings, authorization-epoch cache admission, reconciliation-first mutation retry and hard retrieval-slice gates, plus 10,000 seeded diagnosis-oracle trials.
+- Compared Chapter 14 in selected master HTML lines 425–512 (Pandoc conversion lines 553–616). The companion Markdown and byte-identical illustrated HTML end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 14 source and no duplicate guide was created.
+- Deepened Chapter 14 with four control-plane/fallback/tenant/revocation examples, four diagrams, snapshot/route/scope/cache traces, current primary references, and an executable Java 17 contract for bounded signed snapshots, emergency revocation, policy-compatible fallback, verified tenant selection and release-fenced cache identity, plus 10,000 seeded route-admission trials.
 
-Next bounded section: Chapter 14, **Design the platform, not just the chatbot**, after fair domain rotation.
+Next bounded section: Chapter 15, **Inference internals: why a model endpoint has unusual scaling behavior**, after fair domain rotation.
 
 ## AI foundations, RAG and CAG
 
@@ -70,7 +72,7 @@ Validation is recorded in the enrichment queue and the promotion commit.
 Next action:
 
 1. Rotate fairly after this AI-platform pass.
-2. On the next AI-platform pass, process Chapter 14 only.
+2. On the next AI-platform pass, process Chapter 15 only.
 3. On a later AI-foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment.
 4. Keep project source code in the existing Spring Boot AI repositories; this repository holds learning documentation only.
 
