@@ -41,4 +41,4 @@ Validation:
 - The exact live literal Java-marker audit across the five canonical DSA guide folders is 175. This corrects the previous 170 checkpoint count; no placeholder was added by this bounded backend section.
 - Standalone `javac`, framework/native dependency compilation, live model/provider calls, browser/accessibility integration, pool/load tests and rendered Mermaid QA were unavailable and are not represented as passes.
 
-Next action: rotate fairly to Arrays Section 4 problem 13, **Maximum Average Subarray I**. On the next Spring/Python turn, process Section 14, **Observability and debugging by boundary**, beginning at editable source line 882 / standalone HTML line 980. AI-platform Chapter 14 remains queued; do not imply the 25-section source is complete.
+Next action: rotate fairly to Arrays Section 4 problem 13, **Longest Substring Without Repeating Characters**. On the next Spring/Python turn, process Section 14, **Observability and debugging by boundary**, beginning at editable source line 882 / standalone HTML line 980. AI-platform Chapter 14 remains queued; do not imply the 25-section source is complete.
