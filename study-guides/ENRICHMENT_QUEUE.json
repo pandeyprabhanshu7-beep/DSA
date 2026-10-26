@@ -64,9 +64,9 @@
       "modified_at": "2026-09-17T05:55:54.695794Z",
       "size_bytes": 150746,
       "status": "PROMOTED",
-      "last_read_at": "2026-10-26T04:11:45-04:00",
+      "last_read_at": "2026-10-26T12:37:44-04:00",
       "sha256": "c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a",
-      "selection": "Selected as the expanded 21-chapter canonical source after comparison; Chapters 1-14 are promoted through direct HTML line 512 (Pandoc conversion line 616), bounded before Chapter 15."
+      "selection": "Selected as the expanded 21-chapter canonical source after comparison; Chapters 1-15 are promoted through direct HTML line 539 (Pandoc conversion line 661), bounded before Chapter 16."
     },
     {
       "name": "spring_ai_python_api_interview_guide.html",
@@ -521,7 +521,7 @@
       ],
       "last_successful_commit": "33a807672b8bfa9f5d8101b9012319f939cdb8bf",
       "validation": "The paired Arrays workbooks agree on bounded Range Sum Query — Immutable at Markdown lines 1499-1585 and local Pandoc-extracted DOCX lines 1716-1820; the editable Markdown remains the structural source and no duplicate guide was created. The section adds an inclusive snapshot contract, scan/prefix/update-structure comparison, four worked cases, four diagrams, complete build/query traces, an inductive prefix invariant, subtraction proof and widened arithmetic. Java 17 source-file launch passed 246 reported scenario groups across all fourteen Arrays executables plus 260,000 seeded oracle comparisons; RangeSumQueryContracts passed 18 scenario groups and 20,000 independent linear-scan comparisons while mutating caller arrays after construction. Deterministic reader generation passed exact 117119-byte Markdown recovery, SHA-256 216989cf5f7c2c953986c40b35a5db98efadfd628b0db250249889c348d0af7e, 526 unique HTML IDs, 42 search entries, 454 fragments, 154 balanced fence markers, 52 Mermaid sources, JSON, JavaScript syntax and deterministic rebuild identity. Seven content files were atomically published at 33a807672b8bfa9f5d8101b9012319f939cdb8bf with an expected-head guard and matching Git blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder DSA marker audit remains 170.",
-      "next_action": "Rotate fairly to AI-platform Chapter 15. On the next Arrays turn process Section 4 problem 15, Product of Array Except Self. Problems 15-47 remain queued.",
+      "next_action": "Rotate fairly to Spring AI/Python Section 15. On the next Arrays turn process Section 4 problem 15, Product of Array Except Self. Problems 15-47 remain queued.",
       "priority": 6,
       "source_revision": {
         "baseline_commit": "a9f582b5dbe8b6fcda6e275054f217350a810d52",
@@ -605,7 +605,8 @@
         "Chapter 11: deterministic-first RAG/MCP orchestration — explicit transitions, typed degradation, fail-closed authorization, fenced checkpoints, bounded agent choice and correlated stage evidence",
         "Chapter 12: managed services and independent stacks — explicit ownership, hard capability qualification, reproducible bake-off, outcome-based cost, checked capacity and reversible migration",
         "Chapter 13: exercises and interview cases — first-failed-stage diagnosis, generation-fenced embedding migration, authorization-epoch cache denial, uncertain-write reconciliation and hard retrieval-slice gates",
-        "Chapter 14: platform control and data planes — bounded signed snapshots, emergency revocation, capability-gated fallback, verified tenant scope and release-fenced cache identity"
+        "Chapter 14: platform control and data planes — bounded signed snapshots, emergency revocation, capability-gated fallback, verified tenant scope and release-fenced cache identity",
+        "Chapter 15: inference internals — prefill/decode phase evidence, checked KV arithmetic, token- and tenant-bounded admission, exact prefix identity and TTFT/ITL/end-to-end SLOs"
       ],
       "source_revision": {
         "baseline_commit": "cfe2ace7a2b68f1c377e6bd768c20caa228a838a",
@@ -615,11 +616,11 @@
         "companion_archive_sha256": "78548fdcdb08af668299b9fe1815a4f13c7063b54a34dff487d24c8d9f0e5c43",
         "companion_markdown_sha256": "45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05",
         "compared_illustrated_sha256": "006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9",
-        "canonical_sha256_after": "44f9f645e55aa0397e4e2aa87fd5e7615716ec24abef478fd8e3a0868f4cdfe7"
+        "canonical_sha256_after": "74b975e6d3ab0382dd8609b4d734f20dcbb2a019118c05a94d9e74539df242cf"
       },
-      "last_successful_commit": "ae25e5fc82565c20b9e4e7c030e8b152c477a5be",
-      "validation": "Selected master direct HTML lines 425-512 (Pandoc conversion lines 553-616) were read and bounded before Chapter 15; the companion Markdown and byte-identical illustrated HTML end after Chapter 13, so no duplicate guide was created. Chapter 14 adds four control-plane/fallback/tenant/revocation examples, four diagrams, trace tables and a dependency-free Java contract. Java 17 source-file launch passed all fourteen AI-platform contracts; PlatformControlPlaneContracts passed 33 explicit scenario groups plus 10,000 seeded route-admission oracle trials. Deterministic reader generation passed exact 182558-byte Markdown recovery, SHA-256 44f9f645e55aa0397e4e2aa87fd5e7615716ec24abef478fd8e3a0868f4cdfe7, 406 unique HTML IDs, 69 search entries, 273 local fragments, 14 resolved relative links, 172 balanced fence markers, 61 Mermaid sources, parseable search JSON and deterministic rebuild identity. Seven content files were atomically published at ae25e5fc82565c20b9e4e7c030e8b152c477a5be with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit is 175.",
-      "next_action": "After fair domain rotation, process AI-platform Chapter 15, Inference internals: why a model endpoint has unusual scaling behavior; do not create a duplicate edition.",
+      "last_successful_commit": "bae3a9620f8eede49cbb5fef96968b0cf24c2da2",
+      "validation": "Selected master direct HTML lines 513-539 (Pandoc conversion lines 617-661) were read and bounded before Chapter 16; the companion Markdown and byte-identical illustrated HTML end after Chapter 13, so no duplicate guide was created. Chapter 15 adds four prefill/decode/KV/batching/prefix-cache examples, four diagrams, latency and scheduler traces, current primary references and a dependency-free Java contract. Java 17 source-file launch passed all fifteen AI-platform contracts; InferenceServingContracts passed 33 explicit scenario groups plus 10,000 seeded reservation/admission oracle trials. Deterministic reader generation passed exact 199379-byte Markdown recovery, SHA-256 74b975e6d3ab0382dd8609b4d734f20dcbb2a019118c05a94d9e74539df242cf, 429 unique HTML IDs, 70 search entries, 288 local fragments, 15 resolved relative links, 184 balanced fence markers, 66 Mermaid sources, parseable search JSON and JavaScript, and deterministic rebuild identity. Seven content files were atomically published at bae3a9620f8eede49cbb5fef96968b0cf24c2da2 with an expected-head guard. Standalone javac, live GPU/provider integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit is 170.",
+      "next_action": "Rotate fairly to Spring AI/Python Section 15. On the next AI-platform turn, process Chapter 16, Four caches that must not be treated as interchangeable; do not create a duplicate edition.",
       "priority": 9
     },
     {
@@ -821,7 +822,7 @@
       },
       "last_successful_commit": "30fb332d9f96aeaffcfede137c97117223bd997a",
       "validation": "The selected ZIP member at editable source lines 882-915 and standalone HTML lines 980-1002 were compared and bounded before Section 15; both contain the same boundary trace, release and usage fields, content-sensitivity warning, cardinality rule and five debugging prompts, so no duplicate guide was created. Four worked examples, four diagrams, current primary references and paired dependency-free contracts were added for bounded metrics, protected content capture, causal queue/pool/retrieval/tool/model evidence, security-first tenant-leak handling, tool-registration proof and Java/Python release-vector parity. Java 17 source-file launch and Python 3 passed all fourteen contract pairs; the new pair produced the identical PARITY|TRACE=BOUNDARY_FIRST|METRICS=BOUNDED_LABELS|CONTENT=DEFAULT_OFF|TENANT_LEAK=STOP|TOOLS=REGISTRATION_PROVED|MISMATCH=CONFIG_FIRST|MODEL_DOMINANT=1639 first line, 37 scenario groups and 10,000 seeded trials per language. Deterministic reader generation passed exact 187839-byte Markdown recovery, SHA-256 d3d466935143dccc43c8a74980c26ffe8c781ea50d697951360a55c5bdc8abad, 576 unique HTML IDs, 15 search entries, 400 fragments, 244 balanced fence markers, 59 Mermaid sources, JSON, inline JavaScript parsing and deterministic rebuild identity. Eight content files were atomically published at 30fb332d9f96aeaffcfede137c97117223bd997a with an expected-head guard. Standalone javac, Maven/framework compilation, live OpenTelemetry/collector/Prometheus/provider/MCP integration, browser, assistive-technology and rendered Mermaid QA were unavailable. A fresh remote-main literal-marker audit found 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST), correcting the stale 175 checkpoint; this backend section added none.",
-      "next_action": "Rotate fairly to Arrays Section 4 problem 14, Range Sum Query — Immutable. On the next Spring/Python turn process Section 15, Testing pyramid for this repository, beginning at editable line 917 / standalone HTML line 1003. Sections 15-25 remain queued.",
+      "next_action": "Process Section 15, Testing pyramid for this repository, next, beginning at editable line 917 / standalone HTML line 1003. Sections 15-25 remain queued.",
       "priority": 14
     },
     {
@@ -1052,7 +1053,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-14, Spring AI/Python Sections 1-14 and Arrays Section 4 problems 1-14 are promoted. Rotate fairly to AI-platform Chapter 15; retain Spring AI/Python Section 15 and Arrays problem 15 for later fair rotation.",
+    "next_action": "AI-platform Chapters 1-15, Spring AI/Python Sections 1-14 and Arrays Section 4 problems 1-14 are promoted. Rotate fairly to Spring AI/Python Section 15; retain Arrays problem 15 and AI-platform Chapter 16 for later fair rotation.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1201,14 +1202,15 @@
       "DSA Arrays Section 4 problem 13: monotonic index deque, expiry/domination trace, newer-equal handling, proof and randomized O(nk) oracle",
       "AI platform Chapter 14: bounded signed snapshots, emergency revocation, capability-gated fallback, verified tenant scope and release-fenced cache identity",
       "Spring AI/Python Section 14: bounded metrics, protected content, causal boundary traces, tenant-leak stop, tool-registration proof and release-vector parity",
-      "DSA Arrays Section 4 problem 14: defensive-snapshot immutable range sums, build/query traces, widened arithmetic, proof and randomized scan oracle"
+      "DSA Arrays Section 4 problem 14: defensive-snapshot immutable range sums, build/query traces, widened arithmetic, proof and randomized scan oracle",
+      "AI platform Chapter 15: prefill/decode phase evidence, checked KV arithmetic, token- and tenant-bounded admission, exact prefix identity and TTFT/ITL/end-to-end SLOs"
     ],
-    "processed_section": "DSA Arrays Section 4 problem 14, Range Sum Query — Immutable, Markdown lines 1499-1585 / DOCX extracted lines 1716-1820",
-    "validation": "Both confirmed Arrays sources were read and hashed; their bounded problem 14 agrees on prefix boundaries, inclusive queries, complexity, empty-prefix behavior and widened accumulation. Four worked examples, four diagrams, executable Java and current primary references were added. Java 17 source-file launch passed 246 scenario groups and 260000 seeded oracle comparisons across all fourteen Arrays executables; the new contract passed 18 groups plus 20000 scan-oracle comparisons with mutation isolation. Reader validation passed exact 117119-byte Markdown recovery, SHA-256 216989cf5f7c2c953986c40b35a5db98efadfd628b0db250249889c348d0af7e, 526 unique IDs, 42 search entries, 454 fragments, 154 fences, 52 Mermaid sources, JSON, JavaScript and deterministic rebuilding. Seven content files were atomically published at 33a807672b8bfa9f5d8101b9012319f939cdb8bf with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The fresh literal-marker audit remains 170.",
+    "processed_section": "AI-platform Chapter 15, Inference internals: why a model endpoint has unusual scaling behavior, selected master direct HTML lines 513-539 / Pandoc conversion lines 617-661",
+    "validation": "The selected master Chapter 15 was read and bounded before Chapter 16; companion sources end after Chapter 13, so no duplicate guide was created. Four worked examples, four diagrams, current primary references and InferenceServingContracts.java cover prefill/decode work, checked KV arithmetic, bounded admission and tenant-aware scheduling, exact prefix identity and distinct TTFT/ITL/end-to-end evidence. Java 17 source-file launch passed all fifteen AI-platform contracts; the new contract passed 33 scenario groups and 10000 seeded reservation/admission oracle trials. Reader validation passed exact 199379-byte Markdown recovery, SHA-256 74b975e6d3ab0382dd8609b4d734f20dcbb2a019118c05a94d9e74539df242cf, 429 unique IDs, 70 search entries, 288 fragments, 15 relative links, 184 fences, 66 Mermaid sources, JSON, JavaScript and deterministic rebuilding. Seven content files were atomically published at bae3a9620f8eede49cbb5fef96968b0cf24c2da2 with an expected-head guard. Standalone javac, live GPU/provider integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The fresh literal-marker audit remains 170.",
     "estimated_next_tokens": 9600,
-    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 15 pass with source comparison, primary-reference refresh, examples, Java contract, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "33a807672b8bfa9f5d8101b9012319f939cdb8bf",
-    "last_processed_at": "2026-10-26T09:27:52-04:00",
-    "next_batch_decision": "Arrays problem 14 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to AI-platform Chapter 15; retain Spring AI/Python Section 15 and Arrays problem 15 for later rotation."
+    "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 15 pass with source comparison, primary-reference refresh, paired contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "bae3a9620f8eede49cbb5fef96968b0cf24c2da2",
+    "last_processed_at": "2026-10-26T12:37:44-04:00",
+    "next_batch_decision": "AI-platform Chapter 15 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to Spring AI/Python Section 15; retain Arrays problem 15 and AI-platform Chapter 16 for later rotation."
   }
 }
