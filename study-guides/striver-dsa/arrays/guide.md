@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–13 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 14–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–14 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 15–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first thirteen solved problems](#4-core-pattern-lab--first-thirteen-solved-problems)
+- [4. Core pattern lab — first fourteen solved problems](#4-core-pattern-lab--first-fourteen-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -42,6 +42,7 @@
   - [Example 11 — Minimum Size Subarray Sum: shrink only after reaching the target](#example-11--minimum-size-subarray-sum-shrink-only-after-reaching-the-target)
   - [Example 12 — Fruit Into Baskets: keep at most two types](#example-12--fruit-into-baskets-keep-at-most-two-types)
   - [Example 13 — Sliding Window Maximum: retain only undominated candidates](#example-13--sliding-window-maximum-retain-only-undominated-candidates)
+  - [Example 14 — Range Sum Query — Immutable: subtract two prefix boundaries](#example-14--range-sum-query--immutable-subtract-two-prefix-boundaries)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -667,9 +668,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first thirteen solved problems
+## 4. Core pattern lab — first fourteen solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first ten: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, Squares of a Sorted Array, 3Sum, Container With Most Water, and Trapping Rain Water. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude; problems 8–10 use sorted or boundary monotonicity to discard state safely. Problems 11–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first fourteen: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, Squares of a Sorted Array, 3Sum, Container With Most Water, Trapping Rain Water, Minimum Size Subarray Sum, Fruit Into Baskets, Sliding Window Maximum, and Range Sum Query — Immutable. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude; problems 8–10 use sorted or boundary monotonicity to discard state safely; problems 11–13 maintain just enough window state; and problem 14 precomputes cancellable prefix state for repeated immutable queries. Problems 15–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -1854,6 +1855,128 @@ flowchart TD
 
 Executable evidence is in `SlidingWindowMaximumContracts.java`. It checks 16 scenario groups covering the four worked behaviors, monotonic and duplicate-heavy inputs, full-width values, rejection and nonmutation, then compares 20,000 seeded arrays with an independent `O(nk)` oracle.
 
+### Example 14 — Range Sum Query — Immutable: subtract two prefix boundaries
+
+**Requirement:** construct a reusable range-sum object from a non-null `int[]`, then answer repeated inclusive queries `[left, right]` where `0 <= left <= right < n`. Construction takes a defensive snapshot: later mutation of the caller's array cannot change earlier query results. An empty array is legal to construct but has no legal query. Invalid ranges raise `IndexOutOfBoundsException`, and the reusable contract returns `long` so valid full-width `int` inputs do not silently overflow.
+
+This intentionally strengthens the original problem's narrower bounds and `int` return type. The immutable-query promise is most useful when it means **snapshot immutability**, not merely “this class has no update method.”
+
+| Approach | Build | One query | Extra space | When it is the right choice |
+|---|---:|---:|---:|---|
+| Scan `nums[left..right]` | `O(1)` | `O(right-left+1)` | `O(1)` | One or very few queries |
+| Prefix sums | `O(n)` | `O(1)` | `O(n)` | Many queries against one immutable snapshot |
+| Fenwick / segment tree | `O(n)` | `O(log n)` | `O(n)` | Updates are required; unnecessary here |
+
+```mermaid
+flowchart TD
+    Q{"Workload contract?"}
+    Q -->|"one isolated query"| S["scan the requested range"]
+    Q -->|"many queries; no updates"| P["prefix sums"]
+    Q -->|"queries plus updates"| T["Fenwick or segment tree"]
+```
+
+Define `prefix[k]` as the sum of the first `k` values: `nums[0]` through `nums[k-1]`. The array has length `n + 1`, and `prefix[0] = 0`. That leading zero makes a query beginning at index 0 use the same formula as every other query.
+
+```mermaid
+flowchart LR
+    N0["nums index 0"] --> P1["prefix index 1"]
+    N1["nums index 1"] --> P2["prefix index 2"]
+    N2["nums index 2"] --> P3["prefix index 3"]
+    Z["prefix[0] = 0"] --> P1
+```
+
+```java
+static final class ImmutableRangeSum {
+    private final long[] prefix;
+
+    ImmutableRangeSum(int[] nums) {
+        if (nums == null) throw new IllegalArgumentException("nums must not be null");
+        int[] snapshot = Arrays.copyOf(nums, nums.length);
+        prefix = new long[snapshot.length + 1];
+        for (int i = 0; i < snapshot.length; i++) {
+            prefix[i + 1] = prefix[i] + snapshot[i];
+        }
+    }
+
+    int size() {
+        return prefix.length - 1;
+    }
+
+    long sumRange(int left, int right) {
+        if (left < 0 || right < left || right >= size()) {
+            throw new IndexOutOfBoundsException(
+                    "required: 0 <= left <= right < " + size());
+        }
+        return prefix[right + 1] - prefix[left];
+    }
+}
+```
+
+#### Worked case 1 — the canonical three queries
+
+For `[-2,0,3,-5,2,-1]`, the prefix array is `[0,-2,-2,1,-4,-2,-3]`. Therefore `[0,2]` is `prefix[3] - prefix[0] = 1`, `[2,5]` is `prefix[6] - prefix[2] = -1`, and `[0,5]` is `prefix[6] - prefix[0] = -3`.
+
+#### Worked case 2 — single element and left boundary zero
+
+For `[7]`, query `[0,0]` returns `prefix[1] - prefix[0] = 7`. For `[0,0,0]`, `[0,2]` returns `0`. Neither case needs a special `left == 0` branch.
+
+#### Worked case 3 — snapshot semantics survive caller mutation
+
+Construct from `[4,5,6]`, then let the caller change its original array to `[1000000,5,-1000000]`. The constructed object still returns `15` for `[0,2]` and `11` for `[1,2]`, because construction copied the values before building the private prefix array.
+
+```mermaid
+sequenceDiagram
+    participant C as Caller
+    participant R as RangeSum
+    C->>R: construct with [4,5,6]
+    R->>R: copy, then build [0,4,9,15]
+    C->>C: mutate original array
+    C->>R: sumRange(0,2)
+    R-->>C: 15
+```
+
+#### Worked case 4 — widened accumulation
+
+For `[Integer.MAX_VALUE,Integer.MAX_VALUE,Integer.MIN_VALUE]`, `[0,1]` returns `4294967294`, `[0,2]` returns `2147483646`, and `[2,2]` returns `-2147483648`. A prefix `int[]` would overflow while building the second boundary; storing and returning `long` preserves the mathematical sum of any range of `int` components up to the maximum Java array length.
+
+#### Complete trace
+
+Build the prefix array for `[-2,0,3,-5,2,-1]`:
+
+| `i` | `nums[i]` | `prefix[i]` before | assignment | `prefix[i+1]` |
+|---:|---:|---:|---|---:|
+| 0 | -2 | 0 | `0 + (-2)` | -2 |
+| 1 | 0 | -2 | `-2 + 0` | -2 |
+| 2 | 3 | -2 | `-2 + 3` | 1 |
+| 3 | -5 | 1 | `1 + (-5)` | -4 |
+| 4 | 2 | -4 | `-4 + 2` | -2 |
+| 5 | -1 | -2 | `-2 + (-1)` | -3 |
+
+Then query `[2,5]`:
+
+| Boundary | Meaning | Value |
+|---|---|---:|
+| `prefix[right+1] = prefix[6]` | sum of indices `0..5` | -3 |
+| `prefix[left] = prefix[2]` | sum of indices `0..1` | -2 |
+| subtraction | `(-3) - (-2)` leaves indices `2..5` | -1 |
+
+```mermaid
+flowchart LR
+    A["prefix[6]: indices 0..5 = -3"] --> C["subtract prefix[2] = -2"]
+    B["removed: indices 0..1"] --> C
+    C --> D["kept: indices 2..5 = -1"]
+```
+
+**Invariant.** After processing source index `i`, `prefix[i+1]` equals the mathematical sum of `nums[0..i]`; all earlier prefix entries remain correct. The base `prefix[0] = 0` is the sum of zero values. If the invariant holds through `i-1`, assigning `prefix[i+1] = prefix[i] + nums[i]` appends exactly the next value, so induction establishes every boundary.
+
+**Query proof.** `prefix[right+1]` contains the sum of indices `0..right`. `prefix[left]` contains exactly the unwanted indices `0..left-1`. Their difference cancels that shared prefix and leaves precisely `nums[left..right]`. Validation guarantees both boundaries exist and the interval is nonempty.
+
+**Complexity and ownership.** Construction is `O(n)` time and `O(n)` space. Each query is `O(1)` time and allocates nothing. The temporary snapshot is eligible for collection after construction; it exists to make ownership explicit, although building directly into a private prefix array also prevents later caller mutation from affecting results because no caller-owned reference is retained.
+
+**Common interview errors:** allocating `prefix` with length `n` and requiring a special branch for `left == 0`; using `prefix[right] - prefix[left]` and losing the right endpoint; accumulating into `int`; promising immutability while retaining a mutable caller-owned array; silently accepting `left > right`; rebuilding the prefix for every query; or reaching for a segment tree even though updates are forbidden. If the API must preserve the original problem's `int` signature, first prove its stated constraints keep every answer in range; a reusable Java API should otherwise expose `long`.
+
+Executable evidence is in `RangeSumQueryContracts.java`. It checks 18 scenario groups covering the four worked behaviors, empty construction, invalid ranges, defensive snapshot isolation and full-width arithmetic, then compares 20,000 seeded queries with an independent linear scan oracle while mutating every caller array after construction.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -1875,6 +1998,7 @@ Executable evidence is in `SlidingWindowMaximumContracts.java`. It checks 16 sce
 - [LeetCode, “Minimum Size Subarray Sum”](https://leetcode.com/problems/minimum-size-subarray-sum/) — primary positive-input, contiguous-window, minimum-length and zero-when-absent contract, plus the `O(n log n)` follow-up.
 - [LeetCode, “Fruit Into Baskets”](https://leetcode.com/problems/fruit-into-baskets/) — primary contiguous-picking, two-basket/type, examples and original input bounds.
 - [LeetCode, “Sliding Window Maximum”](https://leetcode.com/problems/sliding-window-maximum/) — primary fixed-size-window contract, examples, bounds and deque hint.
+- [LeetCode, “Range Sum Query — Immutable”](https://leetcode.com/problems/range-sum-query-immutable/) — primary repeated inclusive-query contract, canonical example and original bounds.
 - [Java SE 17 `java.util.Deque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Deque.html) — double-ended queue operations used for front expiration and tail domination removal.
 - [Java Language Specification, Java SE 17, §15.17](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17) — multiplicative operators and binary numeric promotion; the implementation widens an operand before multiplication.
 - [Java Language Specification, Java SE 17, Chapter 4](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — integer operators use 32- or 64-bit precision according to promotion and do not signal ordinary overflow.
@@ -1883,9 +2007,9 @@ Executable evidence is in `SlidingWindowMaximumContracts.java`. It checks 16 sce
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 13 at lines 253–1496 (problem 13 is lines 1383–1496). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 13 (local Pandoc extraction places problem 13 at lines 1521–1648). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 14 (problem 14 is lines 1499–1585). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 14 (local Pandoc extraction places problem 14 at lines 1716–1820). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 13, “Sliding Window Maximum,” is promoted from Markdown lines 1383–1496 and matching DOCX extracted lines 1521–1648; problem 14, “Range Sum Query — Immutable,” follows in both sources. The earlier checkpoint label naming problem 13 as “Longest Substring Without Repeating Characters” was stale and is corrected by this direct source comparison.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 14, “Range Sum Query — Immutable,” is promoted from Markdown lines 1499–1585 and matching DOCX extracted lines 1716–1820; problem 15, “Product of Array Except Self,” begins at Markdown line 1586 and DOCX extracted line 1821.
 
 

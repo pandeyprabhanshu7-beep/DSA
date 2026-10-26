@@ -49,6 +49,7 @@
 | Arrays §4 Problem 11 — Minimum Size Subarray Sum | ✅ | ✅ | Positive-input sliding window, four worked cases, full trace, proof, widened sum and randomized quadratic oracle |
 | Arrays §4 Problem 12 — Fruit Into Baskets | ✅ | ✅ | At-most-two-types sliding window, four worked cases, full trace, proof, zero-count key removal and randomized quadratic oracle |
 | Arrays §4 Problem 13 — Sliding Window Maximum | ✅ | ✅ | Monotonic index deque, four worked cases, full trace, domination proof, validation and randomized brute-force oracle |
+| Arrays §4 Problem 14 — Range Sum Query — Immutable | ✅ | ✅ | Snapshot ownership, four worked cases, prefix trace, subtraction proof, widened arithmetic and randomized scan oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -217,6 +218,12 @@ Fresh literal-marker audit remains **170**: this bounded source problem did not 
 
 Arrays Section 4 problem 13 now states the fixed-size contiguous-window, strict-`k`, output-cardinality and nonmutation contracts; compares brute force, heap and monotonic deque; and adds four worked cases, a complete expiry/domination trace, four diagrams, the dominated-candidate proof and explicit newer-equal handling. `SlidingWindowMaximumContracts` validates 16 scenario groups plus 20,000 seeded arrays against an independent `O(nk)` oracle. The responsive reader embeds the exact canonical Markdown bytes. Direct comparison of both confirmed sources corrected the stale checkpoint label: their problem 13 is Sliding Window Maximum, while problem 14 is Range Sum Query — Immutable.
 
-Fresh literal-marker audit is **175** across the five canonical placeholder-bearing DSA guides: this bounded source problem added none. Section 4 problem 14 and the broader intake remain incomplete.
+Fresh literal-marker audit is **170** across the five canonical placeholder-bearing DSA guides: this bounded source problem added none. Section 4 problem 14 and the broader intake remain incomplete.
+
+## Arrays Range Sum Query — Immutable enrichment — 2026-10-26 ET
+
+Arrays Section 4 problem 14 now states the inclusive-range, defensive-snapshot, invalid-range and widened-result contracts; compares scan, prefix and update-capable structures; and adds four worked cases, complete construction/query traces, four diagrams, an inductive prefix invariant and exact subtraction proof. `RangeSumQueryContracts` validates 18 scenario groups plus 20,000 seeded queries against an independent linear oracle while mutating every caller array after construction. The responsive reader embeds the exact canonical Markdown bytes. Both confirmed sources agree on the prefix definition, `prefix[right+1] - prefix[left]`, complexity, empty-prefix boundary and widened accumulation; the editable Markdown remains the structural winner rather than duplicating the older Word companion.
+
+Fresh literal-marker audit remains **170**: this bounded source problem added none. Section 4 problem 15 and the broader intake remain incomplete.
 
 
