@@ -790,7 +790,7 @@
         "ai_cicd_spring_python_guides_complete.zip",
         "spring_ai_python_api_interview_guide.html"
       ],
-      "last_processed_at": "2026-10-26T01:20:24-04:00",
+      "last_processed_at": "2026-10-26T07:35:39-04:00",
       "processed_sections": [
         "Section 1: choose the layer before choosing the library — requirements, four selection examples, authority/retry/release boundaries, paired Java/Python contracts and current primary references",
         "Section 2: Python library map — all 17 source projects mapped by responsibility, four decision proofs, trace tables, replay/failure boundaries, paired Java/Python contracts and current primary references",
@@ -804,7 +804,8 @@
         "Section 10: MCP implementations — local callback versus protocol tool/resource boundaries, exact delivered schemas, fixture provenance, stdio/HTTP admission, nonauthoritative hints and paired contracts",
         "Section 11: streaming, concurrency and cancellation — SSE/WebSocket selection, exact framing, authenticated replay cursors, bounded queues, terminal states, cooperative cancellation and paired contracts",
         "Section 12: embeddings, reranking and classical ML — task/artifact identity, authorized bi-encoder retrieval, bounded cross-encoder reranking, leakage-safe baselines, PyTorch serving and whole-pipeline JVM parity",
-        "Section 13: provider adapters and portability — portable core and owned extensions, capability/identity admission, evidence-led retries, evaluated migration and rollback"
+        "Section 13: provider adapters and portability — portable core and owned extensions, capability/identity admission, evidence-led retries, evaluated migration and rollback",
+        "Section 14: observability and debugging by boundary — bounded metrics, protected content, causal boundary traces, tenant-leak stop, tool-registration proof and release-vector parity"
       ],
       "source_revision": {
         "baseline_commit": "3296b794f00a24f206148599d249246d69ed8942",
@@ -815,11 +816,11 @@
         "selected_inner_sha256": "af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553",
         "compared_library_file_id": "libfile_a6efee022fb881919d2e8ff61bd758ed",
         "compared_html_sha256": "6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3",
-        "canonical_sha256_after": "4627e7a945e8182b1453721601ffa81ccf082bf5a2536335819ef5b055e6ddf5"
+        "canonical_sha256_after": "d3d466935143dccc43c8a74980c26ffe8c781ea50d697951360a55c5bdc8abad"
       },
-      "last_successful_commit": "abb2a9b639b5c7c44d2d036a914545617aebcf5f",
-      "validation": "The selected ZIP member at editable source lines 869-880 and standalone HTML lines 942-979 were compared and bounded before Section 14; both contain the same four adapter choices, portability limits, compatibility warning, cloud identity guidance and measured selection criteria, so no duplicate guide was created. Four worked examples, four diagrams, current primary references and paired dependency-free contracts were added for the portable-core/owned-extension boundary, conjunctive capability and workload-identity admission, evidence-led retry/failover and evaluated migration/rollback. Java 17 source-file launch and Python 3 passed all thirteen contract pairs; the new pair produced the identical PARITY|BOUNDARY=PORTABLE_CORE|EXTENSIONS=OWNED|IDENTITY=WORKLOAD|UNKNOWN=RECONCILE|MIGRATION=EVALUATED|PROMOTED=1630 first line, 23 scenario groups and 10,000 seeded trials per language. Deterministic reader generation passed exact 175417-byte Markdown recovery, SHA-256 4627e7a945e8182b1453721601ffa81ccf082bf5a2536335819ef5b055e6ddf5, 564 unique HTML IDs, 14 search entries, 398 fragments, 228 balanced fence markers, 54 Mermaid sources, JSON, inline JavaScript parsing and deterministic rebuild identity. Eight content files were atomically published at abb2a9b639b5c7c44d2d036a914545617aebcf5f with an expected-head guard. Standalone javac, Maven/framework compilation, live provider/authentication/load integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder DSA marker audit is 175, correcting the stale 170 checkpoint; this backend section added none.",
-      "next_action": "Process Section 14, Observability and debugging by boundary, beginning at editable line 882 / standalone HTML line 980. Sections 14-25 remain queued; AI-platform Chapter 14 is now complete.",
+      "last_successful_commit": "30fb332d9f96aeaffcfede137c97117223bd997a",
+      "validation": "The selected ZIP member at editable source lines 882-915 and standalone HTML lines 980-1002 were compared and bounded before Section 15; both contain the same boundary trace, release and usage fields, content-sensitivity warning, cardinality rule and five debugging prompts, so no duplicate guide was created. Four worked examples, four diagrams, current primary references and paired dependency-free contracts were added for bounded metrics, protected content capture, causal queue/pool/retrieval/tool/model evidence, security-first tenant-leak handling, tool-registration proof and Java/Python release-vector parity. Java 17 source-file launch and Python 3 passed all fourteen contract pairs; the new pair produced the identical PARITY|TRACE=BOUNDARY_FIRST|METRICS=BOUNDED_LABELS|CONTENT=DEFAULT_OFF|TENANT_LEAK=STOP|TOOLS=REGISTRATION_PROVED|MISMATCH=CONFIG_FIRST|MODEL_DOMINANT=1639 first line, 37 scenario groups and 10,000 seeded trials per language. Deterministic reader generation passed exact 187839-byte Markdown recovery, SHA-256 d3d466935143dccc43c8a74980c26ffe8c781ea50d697951360a55c5bdc8abad, 576 unique HTML IDs, 15 search entries, 400 fragments, 244 balanced fence markers, 59 Mermaid sources, JSON, inline JavaScript parsing and deterministic rebuild identity. Eight content files were atomically published at 30fb332d9f96aeaffcfede137c97117223bd997a with an expected-head guard. Standalone javac, Maven/framework compilation, live OpenTelemetry/collector/Prometheus/provider/MCP integration, browser, assistive-technology and rendered Mermaid QA were unavailable. A fresh remote-main literal-marker audit found 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST), correcting the stale 175 checkpoint; this backend section added none.",
+      "next_action": "Rotate fairly to Arrays Section 4 problem 14, Range Sum Query — Immutable. On the next Spring/Python turn process Section 15, Testing pyramid for this repository, beginning at editable line 917 / standalone HTML line 1003. Sections 15-25 remain queued.",
       "priority": 14
     },
     {
@@ -1050,7 +1051,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-14, Spring AI/Python Sections 1-13 and Arrays Section 4 problems 1-13 are promoted. Rotate fairly to Spring AI/Python Section 14; retain Arrays problem 14 and AI-platform Chapter 15 for later fair rotation.",
+    "next_action": "AI-platform Chapters 1-14, Spring AI/Python Sections 1-14 and Arrays Section 4 problems 1-13 are promoted. Rotate fairly to Arrays problem 14; retain AI-platform Chapter 15 and Spring AI/Python Section 15 for later fair rotation.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1197,14 +1198,15 @@
       "AI platform Chapter 13: first-failed-stage diagnosis, generation-fenced embeddings, authorization-epoch cache denial, uncertain-write reconciliation and hard retrieval-slice gates",
       "Spring AI/Python Section 13: portable core and owned extensions, capability/identity admission, evidence-led retry and evaluated migration/rollback",
       "DSA Arrays Section 4 problem 13: monotonic index deque, expiry/domination trace, newer-equal handling, proof and randomized O(nk) oracle",
-      "AI platform Chapter 14: bounded signed snapshots, emergency revocation, capability-gated fallback, verified tenant scope and release-fenced cache identity"
+      "AI platform Chapter 14: bounded signed snapshots, emergency revocation, capability-gated fallback, verified tenant scope and release-fenced cache identity",
+      "Spring AI/Python Section 14: bounded metrics, protected content, causal boundary traces, tenant-leak stop, tool-registration proof and release-vector parity"
     ],
-    "processed_section": "AI-platform Chapter 14, Design the platform, not just the chatbot, selected master direct HTML lines 425-512 / Pandoc conversion lines 553-616",
-    "validation": "The selected master Chapter 14 was read and bounded before Chapter 15; the companion Markdown and byte-identical illustrated HTML end after Chapter 13, so no duplicate guide was created. Four worked examples, four diagrams, trace tables, current primary references and PlatformControlPlaneContracts.java were added for signed snapshot lifetime, emergency revocation, compatible fallback, verified tenant scope and release-fenced caches. Java 17 source-file launch passed all fourteen AI-platform contracts; the new contract passed 33 scenario groups and 10000 seeded route-admission trials. Deterministic reader generation passed exact 182558-byte Markdown recovery, SHA-256 44f9f645e55aa0397e4e2aa87fd5e7615716ec24abef478fd8e3a0868f4cdfe7, 406 unique IDs, 69 search entries, 273 fragments, 14 relative links, 172 fences, 61 Mermaid sources, parseable search JSON and deterministic rebuild identity. Seven content files were atomically published at ae25e5fc82565c20b9e4e7c030e8b152c477a5be with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder DSA marker audit remains 175.",
-    "estimated_next_tokens": 9600,
-    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 14 pass with source comparison, examples, Java contract, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "ae25e5fc82565c20b9e4e7c030e8b152c477a5be",
-    "last_processed_at": "2026-10-26T04:11:45-04:00",
-    "next_batch_decision": "AI-platform Chapter 14 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to Spring AI/Python Section 14; retain Arrays problem 14 and AI-platform Chapter 15 for later rotation."
+    "processed_section": "Spring AI/Python Section 14, Observability and debugging by boundary, editable source lines 882-915 / standalone HTML lines 980-1002",
+    "validation": "The selected ZIP member and standalone HTML Section 14 ranges were compared and bounded before Section 15; both contain the same five debugging prompts and operational guidance, so no duplicate guide was created. Four worked examples, four diagrams, current primary references and paired dependency-free contracts were added. Java 17 source-file launch and Python 3 passed all fourteen contract pairs; the new pair passed 37 scenario groups and 10000 seeded trials per language with identical parity output. Deterministic reader generation passed exact 187839-byte Markdown recovery, SHA-256 d3d466935143dccc43c8a74980c26ffe8c781ea50d697951360a55c5bdc8abad, 576 unique IDs, 15 search entries, 400 fragments, 244 fences, 59 Mermaid sources, parseable JSON and JavaScript, and deterministic rebuilding. Eight content files were atomically published at 30fb332d9f96aeaffcfede137c97117223bd997a with an expected-head guard. Standalone javac, Maven/framework compilation, live telemetry/provider/MCP integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The fresh remote-main literal-marker audit is 170.",
+    "estimated_next_tokens": 9000,
+    "estimate_method": "Heuristic only for one bounded Arrays problem 14 pass with paired-source comparison, examples, Java contract, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "30fb332d9f96aeaffcfede137c97117223bd997a",
+    "last_processed_at": "2026-10-26T07:35:39-04:00",
+    "next_batch_decision": "Spring AI/Python Section 14 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to Arrays problem 14; retain AI-platform Chapter 15 and Spring AI/Python Section 15 for later rotation."
   }
 }
