@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–10 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 11–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–13 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 14–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first ten solved problems](#4-core-pattern-lab--first-ten-solved-problems)
+- [4. Core pattern lab — first thirteen solved problems](#4-core-pattern-lab--first-thirteen-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -39,6 +39,9 @@
   - [Example 8 — 3Sum: anchor once, eliminate pairs monotonically](#example-8--3sum-anchor-once-eliminate-pairs-monotonically)
   - [Example 9 — Container With Most Water: discard the dominated endpoint](#example-9--container-with-most-water-discard-the-dominated-endpoint)
   - [Example 10 — Trapping Rain Water: finalize the smaller boundary](#example-10--trapping-rain-water-finalize-the-smaller-boundary)
+  - [Example 11 — Minimum Size Subarray Sum: shrink only after reaching the target](#example-11--minimum-size-subarray-sum-shrink-only-after-reaching-the-target)
+  - [Example 12 — Fruit Into Baskets: keep at most two types](#example-12--fruit-into-baskets-keep-at-most-two-types)
+  - [Example 13 — Sliding Window Maximum: retain only undominated candidates](#example-13--sliding-window-maximum-retain-only-undominated-candidates)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -664,7 +667,7 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first ten solved problems
+## 4. Core pattern lab — first thirteen solved problems
 
 The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first ten: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, Squares of a Sorted Array, 3Sum, Container With Most Water, and Trapping Rain Water. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude; problems 8–10 use sorted or boundary monotonicity to discard state safely. Problems 11–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
