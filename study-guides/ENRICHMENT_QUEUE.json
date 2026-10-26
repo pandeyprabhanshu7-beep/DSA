@@ -588,7 +588,7 @@
         "ai_platform_engineering_complete_bundle.zip",
         "ai_platform_engineering_illustrated.html"
       ],
-      "last_processed_at": "2026-10-25T18:52:00-04:00",
+      "last_processed_at": "2026-10-26T00:44:04-04:00",
       "processed_sections": [
         "Chapter 1: prompting versus RAG versus fine-tuning versus tools/MCP — authority requirements, four examples, evidence and mutation traces, executable Java routing contract, failure review and current primary references",
         "Chapter 2: model mechanics — token admission, embedding identity and guarded cosine, generation metadata, four examples and an executable Java contract",
@@ -601,7 +601,8 @@
         "Chapter 9: MCP architecture — modern request metadata, explicit legacy fallback, capability admission, model/host/server authority boundaries, cancellation/correlation and stdio versus Streamable HTTP",
         "Chapter 10: authorization, injection and tool side effects — audience/resource authorization, untrusted evidence, fixed destinations, fingerprinted approval, version fencing, idempotent reconciliation and bounded execution",
         "Chapter 11: deterministic-first RAG/MCP orchestration — explicit transitions, typed degradation, fail-closed authorization, fenced checkpoints, bounded agent choice and correlated stage evidence",
-        "Chapter 12: managed services and independent stacks — explicit ownership, hard capability qualification, reproducible bake-off, outcome-based cost, checked capacity and reversible migration"
+        "Chapter 12: managed services and independent stacks — explicit ownership, hard capability qualification, reproducible bake-off, outcome-based cost, checked capacity and reversible migration",
+        "Chapter 13: exercises and interview cases — first-failed-stage diagnosis, generation-fenced embedding migration, authorization-epoch cache denial, uncertain-write reconciliation and hard retrieval-slice gates"
       ],
       "source_revision": {
         "baseline_commit": "cfe2ace7a2b68f1c377e6bd768c20caa228a838a",
@@ -611,11 +612,11 @@
         "companion_archive_sha256": "78548fdcdb08af668299b9fe1815a4f13c7063b54a34dff487d24c8d9f0e5c43",
         "companion_markdown_sha256": "45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05",
         "compared_illustrated_sha256": "006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9",
-        "canonical_sha256_after": "e007b07d089c90ac2b42fd51856368542af38e5a2b82270ce412a08caf33ba5d"
+        "canonical_sha256_after": "64aac79fbc5a06c344f7a6eff9113db0e926daeb089a21e6501cef3f145b400d"
       },
-      "last_successful_commit": "c973aeb192732722af84647f3cfb62178e7436d4",
-      "validation": "The selected master Library lines 483-487 and archive companion lines 453-457 were read and compared; both describe managed AWS/Azure/Google retrieval services, an independent pgvector/Sentence Transformers/vLLM stack, retained team ownership, regional constraints and a reproducible workload comparison, so no duplicate guide was created. The section adds four worked examples, four diagrams, ownership, revocation, capacity, outcome-cost and migration traces, current primary references and a dependency-free Java contract for hard qualification, team/provider ownership, checked capacity and reversible migration. Java 17 source-file launch passed all twelve AI-platform contracts; StackSelectionContracts passed 29 explicit scenario groups plus 10,000 seeded capacity-oracle trials with the exact SCENARIOS=29|TRIALS=10000|DECISION=QUALIFY_THEN_SCORE|MANAGED=TEAM_OWNS_POLICY|INDEPENDENT=TEAM_OWNS_OPERATIONS|MIGRATION=SHADOW_CANARY summary. Deterministic reader generation passed exact 153788-byte Markdown recovery, SHA-256 e007b07d089c90ac2b42fd51856368542af38e5a2b82270ce412a08caf33ba5d, 347 unique HTML IDs, 67 search entries, 232 local fragments, 12 resolved relative links, 148 balanced fence markers, 52 Mermaid sources, JSON, JavaScript syntax and deterministic rebuild identity. Six content files were atomically published at c973aeb192732722af84647f3cfb62178e7436d4 with an expected-head guard. Standalone javac, live provider/vector/model/load integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
-      "next_action": "After fair domain rotation, process AI-platform Chapter 13, Exercises; do not create a duplicate edition.",
+      "last_successful_commit": "fb7a7c0fc771779a90bfb2e5ee95702cd7d1ae60",
+      "validation": "The selected master Library lines 417-423 and archive companion lines 459-471 were read and compared; both expose the same five exercises and senior-answer pattern, so no duplicate guide was created. The section adds four integrated interview cases, five diagrams, diagnosis, migration, revocation, mutation and retrieval traces, current primary references and a dependency-free Java contract. Java 17 source-file launch passed all thirteen AI-platform contracts; InterviewCaseContracts passed 36 explicit scenario groups plus 10,000 seeded first-failure oracle trials. Deterministic reader generation passed exact 168449-byte Markdown recovery, SHA-256 64aac79fbc5a06c344f7a6eff9113db0e926daeb089a21e6501cef3f145b400d, 368 unique HTML IDs, 68 search entries, 245 local fragments, 13 resolved relative links, 160 balanced fence markers, 57 Mermaid sources, JSON, JavaScript syntax and deterministic rebuild identity. Six content files were atomically published at fb7a7c0fc771779a90bfb2e5ee95702cd7d1ae60 with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+      "next_action": "After fair domain rotation, process AI-platform Chapter 14, Design the platform, not just the chatbot; do not create a duplicate edition.",
       "priority": 9
     },
     {
@@ -1046,7 +1047,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-12, Spring AI/Python Sections 1-12 and Arrays Section 4 problems 1-12 are promoted. Rotate fairly to AI-platform Chapter 13; retain Spring AI/Python Section 13 and Arrays problem 13 for later turns.",
+    "next_action": "AI-platform Chapters 1-13, Spring AI/Python Sections 1-12 and Arrays Section 4 problems 1-12 are promoted. Rotate fairly to Spring AI/Python Section 13, then Arrays problem 13; retain AI-platform Chapter 14 for later fair rotation.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1189,14 +1190,15 @@
       "DSA Arrays Section 4 problem 11: positive-input minimum-length sliding window, widened sum, exact trace, proof and randomized quadratic oracle",
       "AI platform Chapter 12: managed/independent ownership, hard capability qualification, reproducible bake-off, outcome cost, checked capacity and reversible migration",
       "Spring AI/Python Section 12: task/artifact identity, authorized bi-encoder retrieval, bounded cross-encoder reranking, leakage-safe baselines, PyTorch serving and whole-pipeline JVM parity",
-      "DSA Arrays Section 4 problem 12: at-most-two-types sliding window, exact add/repair trace, zero-count key removal, proof and randomized quadratic oracle"
+      "DSA Arrays Section 4 problem 12: at-most-two-types sliding window, exact add/repair trace, zero-count key removal, proof and randomized quadratic oracle",
+      "AI platform Chapter 13: first-failed-stage diagnosis, generation-fenced embeddings, authorization-epoch cache denial, uncertain-write reconciliation and hard retrieval-slice gates"
     ],
-    "processed_section": "DSA Arrays Section 4 problem 12, Fruit Into Baskets, Markdown lines 1292-1381 / DOCX extracted lines 1463-1574",
-    "validation": "The paired Arrays workbooks agreed on Fruit Into Baskets without requiring a duplicate guide. Four worked cases and diagrams plus current primary references now cover the contiguous at-most-two-types contract, arbitrary identifiers, exact add/repair state, zero-count key removal and the leftmost-valid-window proof. Java 17 source-file launch passed all twelve Arrays contracts: 212 scenario groups and 220,000 seeded oracle comparisons; the new contract passed 18 groups and 20,000 trials. The deterministic reader recovered all 101839 Markdown bytes at SHA-256 6d9b08e863671ce0d0a3a9a32e4c3f02c1051e956efee5dfb16956de2ec455f2 and passed 462 unique IDs, 40 search entries, 400 fragments, 134 fences, 44 Mermaid sources, JSON, JavaScript and rebuild identity. Six content files were published at 4ca98215fc37dff9ce75b02ad450a07b0213f4aa with an expected-head guard and matching remote blobs. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
+    "processed_section": "AI-platform Chapter 13, Exercises and interview cases, selected master lines 417-423 / archive companion lines 459-471",
+    "validation": "The two confirmed AI-platform sources expose the same five Chapter 13 exercises and senior-answer pattern, so no duplicate guide was created. Four integrated cases and five diagrams cover stage diagnosis plus retrieval comparison, embedding migration, immediate revocation and uncertain MCP writes. Java 17 source-file launch passed all thirteen contracts; the new contract passed 36 scenario groups and 10000 seeded trials. The deterministic reader recovered all 168449 Markdown bytes at SHA-256 64aac79fbc5a06c344f7a6eff9113db0e926daeb089a21e6501cef3f145b400d and passed 368 unique IDs, 68 search entries, 245 fragments, 13 relative links, 160 fences, 57 Mermaid sources, JSON, JavaScript and rebuild identity. Six content files were published at fb7a7c0fc771779a90bfb2e5ee95702cd7d1ae60 with an expected-head guard. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Java-marker audit remains 170.",
     "estimated_next_tokens": 9600,
-    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 13 pass with source comparison, examples, Java contract, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "4ca98215fc37dff9ce75b02ad450a07b0213f4aa",
-    "last_processed_at": "2026-10-25T20:33:10-04:00",
-    "next_batch_decision": "Arrays problem 12 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to AI-platform Chapter 13; retain Spring AI/Python Section 13 and Arrays problem 13 for later turns."
+    "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 13 pass with source comparison, examples, paired contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "fb7a7c0fc771779a90bfb2e5ee95702cd7d1ae60",
+    "last_processed_at": "2026-10-26T00:44:04-04:00",
+    "next_batch_decision": "AI-platform Chapter 13 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate fairly to Spring AI/Python Section 13, then Arrays problem 13; retain AI-platform Chapter 14 for later rotation."
   }
 }
