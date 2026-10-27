@@ -240,4 +240,10 @@ Arrays Section 4 problem 16 now states the non-empty contiguous-range, signed-in
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. Section 4 problem 17, Spring AI/Python Section 17, AI-platform Chapter 18 and the broader intake remain incomplete; fair rotation selects Spring AI/Python Section 17 next.
 
+## Arrays Subarrays Divisible by K enrichment — 2026-10-27 ET
+
+Arrays Section 4 problem 17 now states the positive-modulus, non-empty contiguous-range, signed-input, overlap, nonmutation and widened-count contracts; compares sparse-map and bounded-array remainder frequencies; and adds four worked cases, a complete normalized-remainder trace, four diagrams, a boundary-frequency invariant and a bijective correctness proof. `SubarraysDivisibleByKContracts` validates 19 scenario groups plus 20,000 seeded arrays against an independent quadratic oracle while checking input preservation. The responsive reader embeds the exact canonical Markdown bytes. Both confirmed sources agree on equal-prefix-remainder counting, seeded remainder zero, negative normalization and expected linear complexity; the editable Markdown remains the structural winner rather than duplicating the Word companion.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. Section 4 problem 18 and the broader intake remain incomplete; fair rotation selects Spring AI/Python Section 18 next, followed by AI-platform Chapter 19 before the next Arrays turn.
+
 

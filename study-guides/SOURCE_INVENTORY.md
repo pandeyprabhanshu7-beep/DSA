@@ -56,7 +56,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | Angular_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.775386Z | PROMOTED — Q1–Q74, rapid-fire items 1–39 and Final Revision Sheet processed through source end at line 1751 |
 | JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.753196Z | PROMOTED — Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet compared/promoted through source end at line 2041 |
 | DSA_Tree_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.743385Z | DISCOVERED |
-| DSA_Arrays_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.740223Z | IN PROGRESS — selected editable source; Sections 1–3 lines 141–251 and Section 4 problems 1–16 promoted; problem 16 is bounded by lines 1682–1779 and problem 17 begins at line 1782 |
+| DSA_Arrays_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.740223Z | IN PROGRESS — selected editable source; Sections 1–3 lines 141–251 and Section 4 problems 1–17 promoted; problem 17 is bounded by lines 1780–1868 and problem 18 begins at line 1869 |
 | Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md | 2026-09-07T23:36:35.951649Z | DISCOVERED |
 | Take_U_Forward_Stack_Queue_Mermaid_Guide.md | 2026-09-07T18:00:03.911417Z | DISCOVERED |
 | GITHUB_PUSH_COMMANDS.md | 2026-09-07T17:39:56.663357Z | DISCOVERED |
@@ -64,7 +64,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | enterprise-rag-assistant.zip | 2026-09-07T17:39:49.442548Z | DISCOVERED |
 | Take_U_Forward_Stack_Queue_Java_Deep_Workbook.docx | 2026-09-07T17:07:54.535717Z | DISCOVERED |
 | Stack_Queue_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T05:33:07.971008Z | DISCOVERED |
-| DSA_Arrays_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T01:55:56.718502Z | IN PROGRESS — Sections 1–3 and Section 4 problems 1–16 corroborated; current local Pandoc GFM extraction places problem 16 at lines 1649–1746 and problem 17 at line 1747; 116-page rendering previously inspected |
+| DSA_Arrays_FAANG_Question_Workbook_Expanded.docx | 2026-09-03T01:55:56.718502Z | IN PROGRESS — Sections 1–3 and Section 4 problems 1–17 corroborated; current Pandoc 3.1.11 GFM extraction places problem 17 at lines 2047–2153 and problem 18 at line 2154; 116-page rendering previously inspected |
 | AI_RAG_CAG_Deep_Learning_Developer_Guide.docx | 2026-09-02T04:40:53.490553Z | READY — compared; two useful original figures retained |
 | Angular_Interview_Workbook.docx | 2026-08-31T14:40:43.673563Z | PROMOTED — Q1–Q74, rapid-fire items 1–39 and Final Revision Sheet processed through extracted source end at line 1177 |
 | JavaScript_HTML_CSS_Interview_Workbook.docx | 2026-08-31T14:40:39.905787Z | PROMOTED — corroborated Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet through rendered source end at line 1445 |
@@ -100,7 +100,7 @@ See [pipeline rules](ENHANCEMENT_PIPELINE.md) and [machine-readable queue](ENRIC
 
 Angular Q1–Q74 plus rapid-fire items 1–39 are tracked at [frontend/angular](frontend/angular/). The fourth rapid-fire module was reconciled from both workbooks on 2026-10-14; the Final Revision Sheet remains unprocessed.
 
-JavaScript/HTML/CSS Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The final trigger-map/speaking-template module was reconciled from both workbooks on 2026-10-16, completing this paired-source intake. Database/caching Sections 1–44 are tracked at [databases/caching-java](databases/caching-java/); its confirmed source is exhausted through line 2402. Angular's paired source is also exhausted. AI-platform Chapters 1–18, all five System-design Blueprints plus their cross-question supplement, Spring AI/Python Sections 1–17, DSA Arrays Sections 1–3 and the bounded Arrays Section 4 problems 1–16 slice are promoted. Rotate next to Arrays problem 17, then Spring AI/Python Section 18; retain AI-platform Chapter 19 for the following fair rotation. The wider collection and freshly verified 170-item Java-placeholder backlog remain incomplete.
+JavaScript/HTML/CSS Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet are tracked at [frontend/javascript-html-css](frontend/javascript-html-css/). The final trigger-map/speaking-template module was reconciled from both workbooks on 2026-10-16, completing this paired-source intake. Database/caching Sections 1–44 are tracked at [databases/caching-java](databases/caching-java/); its confirmed source is exhausted through line 2402. Angular's paired source is also exhausted. AI-platform Chapters 1–18, all five System-design Blueprints plus their cross-question supplement, Spring AI/Python Sections 1–17, DSA Arrays Sections 1–3 and the bounded Arrays Section 4 problems 1–17 slice are promoted. Rotate next to Spring AI/Python Section 18, then AI-platform Chapter 19; retain Arrays problem 18 for the following fair rotation. The wider collection and freshly verified 170-item Java-placeholder backlog remain incomplete.
 
 
 

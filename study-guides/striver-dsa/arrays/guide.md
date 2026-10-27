@@ -2234,6 +2234,127 @@ flowchart TD
 
 Executable evidence is in `SubarraySumEqualsKContracts.java`. It checks 18 scenario groups covering the four worked behaviors, overlap, negatives, empty/singleton inputs, extreme integers, rejection and nonmutation, then compares 20,000 seeded arrays with an independent quadratic oracle.
 
+### Example 17 — Subarrays Divisible by K: pair equal normalized remainders
+
+**Requirement:** given a non-null `int[] nums` and a positive `int modulus`, count every non-empty contiguous subarray whose mathematical sum is divisible by `modulus`. Values may be negative, zero, or positive; matching ranges may overlap; and the input must remain unchanged. This reusable contract accepts an empty array and returns 0, rejects a non-positive modulus, and returns `long` because up to `n(n+1)/2` ranges can match.
+
+The original interview problem uses `2 <= modulus <= 10,000`, so an array of remainder frequencies is reasonable there. A reusable method can accept every positive `int` modulus without attempting to allocate an array of length `Integer.MAX_VALUE`; the implementation below stores only remainders actually reached.
+
+| Approach | Time | Space | Why accept or reject it |
+|---|---:|---:|---|
+| Enumerate every range and rescan it | `O(n³)` | `O(1)` | Direct definition, but recomputes interior sums |
+| Fix `left`, extend `right`, reuse a running sum | `O(n²)` | `O(1)` | Good independent oracle; still checks every boundary pair |
+| Prefix remainder → frequency of prior boundaries | expected `O(n)` | `O(min(n, modulus))` | Counts every valid start ending at the current boundary |
+| Remainder-frequency array | `O(n + modulus)` initialization | `O(modulus)` | Fast under the original small-modulus bound; unsafe as a general full-`int` allocation policy |
+
+Let `P[j]` be the sum of the first `j` values and let `R[j] = floorMod(P[j], modulus)`. A range between prefix boundaries `i` and `j` is divisible exactly when:
+
+`P[j] - P[i] ≡ 0 (mod modulus)`, equivalently `R[j] = R[i]`.
+
+```mermaid
+flowchart LR
+    A["earlier boundary i: R[i]"] --> D["range sum = P[j] - P[i]"]
+    B["current boundary j: R[j]"] --> D
+    D --> Q{"same normalized remainder?"}
+    Q -->|yes| C["count range i..j-1"]
+```
+
+At each boundary, add the number of earlier occurrences of its normalized remainder, then record the current boundary. Seed remainder 0 once for the empty prefix so a divisible prefix beginning at index 0 is counted without a special branch.
+
+```java
+static long countDivisibleSubarrays(int[] nums, int modulus) {
+    if (nums == null) {
+        throw new IllegalArgumentException("nums must not be null");
+    }
+    if (modulus <= 0) {
+        throw new IllegalArgumentException("modulus must be positive");
+    }
+
+    Map<Integer, Long> remainderFrequency = new HashMap<>();
+    remainderFrequency.put(0, 1L);       // empty prefix boundary
+    int remainder = 0;
+    long count = 0L;
+
+    for (int value : nums) {
+        remainder = Math.floorMod((long) remainder + value, modulus);
+        count += remainderFrequency.getOrDefault(remainder, 0L);
+        remainderFrequency.merge(remainder, 1L, Long::sum);
+    }
+    return count;
+}
+```
+
+The cast occurs **before** addition. Even though `remainder` is non-negative, `remainder + value` can overflow `int`; the `long` overload of `Math.floorMod` preserves the mathematical sum and returns the canonical remainder in `[0, modulus)` for a positive modulus.
+
+```mermaid
+flowchart TD
+    S["seed frequency[0] = 1"] --> U["remainder = floorMod(remainder + value, modulus)"]
+    U --> L["count += frequency[remainder]"]
+    L --> I["increment frequency[remainder]"]
+    I --> N{"more values?"}
+    N -->|yes| U
+    N -->|no| R["return count"]
+```
+
+#### Worked case 1 — canonical mixed-sign trace
+
+For `nums=[4,5,0,-2,-3,1]` and `modulus=5`, return 7. Each row shows state after incorporating the value but before inserting the current boundary.
+
+| index | value | normalized remainder | prior frequency | count after lookup | frequency update |
+|---:|---:|---:|---:|---:|---|
+| seed | — | 0 | — | 0 | `{0:1}` |
+| 0 | 4 | 4 | 0 | 0 | `4:1` |
+| 1 | 5 | 4 | 1 | 1 | `4:2` |
+| 2 | 0 | 4 | 2 | 3 | `4:3` |
+| 3 | -2 | 2 | 0 | 3 | `2:1` |
+| 4 | -3 | 4 | 3 | 6 | `4:4` |
+| 5 | 1 | 0 | 1 | 7 | `0:2` |
+
+The seven ranges are `[0..5]`, `[1..1]`, `[1..2]`, `[1..4]`, `[2..2]`, `[2..4]`, and `[3..4]`.
+
+```mermaid
+flowchart LR
+    P0["R[0]=0"] --> P1["R[1]=4"] --> P2["R[2]=4"] --> P3["R[3]=4"]
+    P3 --> P4["R[4]=2"] --> P5["R[5]=4"] --> P6["R[6]=0"]
+    P0 -. "whole range" .-> P6
+    P1 -. "three later 4s" .-> P5
+```
+
+#### Worked case 2 — a negative prefix must normalize
+
+For `nums=[-1,2,9]` and `modulus=2`, return 2: ranges `[1..1]=2` and `[0..2]=10`. Java's raw `-1 % 2` is `-1`, while `floorMod(-1,2)` is 1. The boundary remainders are `[0,1,1,0]`, so equal normalized classes reveal both ranges.
+
+```mermaid
+flowchart TD
+    X["raw Java remainder: -1 % 2 = -1"] --> F["floorMod(-1,2) = 1"]
+    F --> E["compare one canonical class: 0 or 1"]
+    E --> C["equal classes imply divisible difference"]
+```
+
+#### Worked case 3 — repeated remainder frequency, not presence
+
+For `nums=[0,0,0]` and `modulus=7`, return 6. Every boundary has remainder 0. The successive additions are 1, 2, and 3, producing `1+2+3=6`. A set would report only that remainder 0 exists and would undercount overlapping ranges.
+
+#### Worked case 4 — empty input and full-width arithmetic
+
+- `[]`, modulus 7 → 0 because no non-empty range exists.
+- `[5]`, modulus 9 → 0; `[5]`, modulus 5 → 1.
+- `[Integer.MAX_VALUE,1,-1]`, modulus `Integer.MAX_VALUE` → 3: `[0..0]`, `[0..2]`, and `[1..2]`.
+
+The last case also rejects two tempting shortcuts. Allocating `new long[modulus]` is not a sound reusable policy for such a modulus, and adding an `int` remainder to an `int` value can overflow before `%` runs. Sparse frequencies plus cast-before-add handle both boundaries.
+
+**Loop invariant.** Immediately before processing array index `j`, `remainder` equals `R[j]`; `remainderFrequency[r]` equals the number of boundaries `i` in `[0,j]` with `R[i]=r`; and `count` equals the number of divisible non-empty ranges ending before `j`. Updating the remainder yields `R[j+1]`. Every divisible range ending at `j` begins at one earlier boundary with that same remainder, so adding its frequency counts all and only those new ranges. Inserting the current remainder then re-establishes the boundary-frequency invariant.
+
+**Correctness.** If the algorithm counts boundary `i` against current boundary `j+1`, their normalized remainders are equal, so `P[j+1]-P[i]` is a multiple of `modulus` and range `[i..j]` is valid. Conversely, every valid range `[i..j]` has a prefix difference divisible by the modulus, hence equal normalized boundary remainders; boundary `i` is already stored when `j+1` is processed, so that range is counted exactly once. Lookup-before-insert keeps `i < j+1`, excluding the empty range.
+
+**Complexity and numeric contract.** The method performs one expected-constant-time map lookup and update per value, so expected time is `O(n)` and stored keys are `O(min(n, modulus))`. This is an expected-time statement: the Java 17 `HashMap` API conditions constant-time basic operations on proper hash dispersion. Frequencies and the answer use `long`; remainder arithmetic widens before addition and immediately reduces modulo a positive `int`, so no accumulated prefix sum is required.
+
+**Common interview errors:** comparing raw Java `%` results when negative values are allowed; normalizing the element instead of the running prefix class; omitting the seeded empty prefix; using presence instead of frequency; inserting before lookup and counting an empty range; using a positive-only sliding window; allocating `O(modulus)` storage without retaining the original small-modulus constraint; adding two `int` values before casting; accepting modulus 0; using `Math.abs(modulus)`, which still cannot make `Integer.MIN_VALUE` positive; mutating the input; returning `int` without proving the maximum count; or claiming worst-case linear time from a hash table.
+
+**Follow-ups:** under the original `modulus <= 10,000` bound, replace the map with `long[] frequency`; to return one range, store one earlier boundary per remainder; to list all ranges, store every earlier boundary and account for potentially quadratic output; for “sum congruent to `c`,” look up the normalized class `floorMod(current-c, modulus)`; and for a streaming input, the same state works online while its frequency map grows with observed classes.
+
+Executable evidence is in `SubarraysDivisibleByKContracts.java`. It checks 18 scenario groups covering all four worked behaviors, overlap, negative normalization, invalid moduli, extreme integers, sparse large moduli and nonmutation, then compares 20,000 seeded arrays with an independent quadratic oracle.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -2258,6 +2379,8 @@ Executable evidence is in `SubarraySumEqualsKContracts.java`. It checks 18 scena
 - [LeetCode, “Range Sum Query — Immutable”](https://leetcode.com/problems/range-sum-query-immutable/) — primary repeated inclusive-query contract, canonical example and original bounds.
 - [LeetCode, “Product of Array Except Self”](https://leetcode.com/problems/product-of-array-except-self/) — primary no-division, linear-time, output-space-exclusion and 32-bit-product contract.
 - [LeetCode, “Subarray Sum Equals K”](https://leetcode.com/problems/subarray-sum-equals-k/) — primary non-empty contiguous-subarray, signed-input, exact-target and result-count contract.
+- [LeetCode, “Subarray Sums Divisible by K”](https://leetcode.com/problems/subarray-sums-divisible-by-k/) — primary non-empty contiguous-subarray, signed-input, positive-modulus and result-count contract.
+- [Java SE 17 `Math.floorMod`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#floorMod(long,int)) — canonical non-negative remainder for a positive modulus and the widened overload used by the implementation.
 - [Java SE 17 `java.util.Deque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Deque.html) — double-ended queue operations used for front expiration and tail domination removal.
 - [Java Language Specification, Java SE 17, §15.17](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17) — multiplicative operators and binary numeric promotion; the implementation widens an operand before multiplication.
 - [Java Language Specification, Java SE 17, Chapter 4](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — integer operators use 32- or 64-bit precision according to promotion and do not signal ordinary overflow.
@@ -2266,9 +2389,9 @@ Executable evidence is in `SubarraySumEqualsKContracts.java`. It checks 18 scena
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 16 (problem 16 is lines 1682–1779, bounded before the problem 17 anchor at line 1780). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 16 (current local Pandoc GFM extraction places problem 16 at lines 1649–1746, bounded before problem 17 at line 1747). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 17 (problem 17 is lines 1780–1868, bounded before the problem 18 anchor at line 1869). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 17 (current local Pandoc 3.1.11 GFM extraction places problem 17 at lines 2047–2153, bounded before problem 18 at line 2154). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 16, “Subarray Sum Equals K,” is promoted from Markdown lines 1682–1779 and matching current DOCX GFM-extracted lines 1649–1746; problem 17, “Longest Subarray with Sum K,” begins at Markdown line 1782 and current DOCX GFM-extracted line 1747.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 17, “Subarrays Divisible by K,” is promoted from Markdown lines 1780–1868 and current DOCX GFM-extracted lines 2047–2153; problem 18, “Longest Consecutive Sequence,” begins at Markdown line 1869 and current DOCX GFM-extracted line 2154.
 
 
