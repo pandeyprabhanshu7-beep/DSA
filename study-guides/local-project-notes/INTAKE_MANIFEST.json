@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "c97fca80224d32dd8a1f631660532f7c5460f652",
+  "last_successful_commit": "93389fef020ecf4629ac7095fe4ed4d4059ab187",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -931,7 +931,7 @@
     "status": "IN_PROGRESS",
     "validation": "The selected master Chapter 17 was read and bounded before Chapter 18; the companion Markdown and byte-identical illustrated HTML end after Chapter 13, so no duplicate guide was created. Four worked examples, four diagrams, current primary references and ConversationMemoryContracts.java cover append-only ordering, tenant/owner scope, expected-version finalization, bounded whole-event context, summary lineage/authority denial and deletion-graph status. Java 17 source-file launch passed all seventeen AI-platform contracts; the new contract passed 28 scenario groups and 10000 seeded trials. Reader validation passed exact 233152-byte Markdown recovery at SHA-256 96d2f045100890369f170f7b067398f216d47a8c68780707463d186712f7cf51, 562 IDs, 72 search entries, 397 fragments, 17 relative links, 222 fences, 76 Mermaid sources, parseable search JSON and JavaScript, responsive/search controls and deterministic rebuilding. Seven content files were published at 1e3be8f42b1cc147a1185b3a0404e844c3ac9c22 with an expected-head guard and matching Git blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live placeholders remain 170.",
     "content_commit": "1e3be8f42b1cc147a1185b3a0404e844c3ac9c22",
-    "next_section": "After Spring AI/Python Section 17, process AI-platform Chapter 18",
+    "next_section": "Process AI-platform Chapter 18 next",
     "estimated_next_tokens": 9800,
     "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 17 pass; no reliable quota percentages were exposed",
     "canonical_markdown_sha256": "96d2f045100890369f170f7b067398f216d47a8c68780707463d186712f7cf51"
@@ -952,7 +952,7 @@
     "canonical_markdown_sha256": "54716af9384ef3ff682e36cea1fb32f5e27fb3416bdde955658a5fa433c2635b"
   },
   "spring_ai_python_intake_checkpoint": {
-    "last_processed_at": "2026-10-26T20:17:39-04:00",
+    "last_processed_at": "2026-10-27T06:59:58-04:00",
     "baseline_commit": "3296b794f00a24f206148599d249246d69ed8942",
     "bundle_library_file_id": "libfile_d6a32648e8408191845065f5dc21ed2a",
     "bundle_file_id": "file_0000000094548230b875e10e7acf8d33",
@@ -962,14 +962,14 @@
     "compared_standalone_library_file_id": "libfile_a6efee022fb881919d2e8ff61bd758ed",
     "compared_standalone_file_id": "file_000000005fa081f5ac57ceb7dd5324c4",
     "compared_standalone_sha256": "6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3",
-    "canonical_markdown_sha256": "42f915d8470370c6dcbfdd2ddc2b8a932a7261c5a562438a8bddcaa7fb616774",
-    "processed": "Sections 1-16 through editable source lines 6-942; latest bounded section is A four-week implementation path at lines 932-942 / standalone HTML lines 1053-1059, ending before Section 17 at editable line 944 / HTML line 1060",
+    "canonical_markdown_sha256": "ed784389e398ffd244ea392ca67f7cd54671c7a4eb695ff58eb82c98511776ab",
+    "processed": "Sections 1-17 through editable source lines 6-1031; latest bounded section is Design an AI API as a durable business contract at lines 944-1031 / standalone HTML lines 1060-1163, ending before Section 18 at editable line 1033 / HTML line 1164",
     "status": "IN_PROGRESS",
-    "validation": "The selected ZIP member at editable source lines 932-942 and standalone HTML lines 1053-1059 were compared and bounded before Section 17; both prescribe the same four-week path and decision-record requirement, so no duplicate guide was created. Four worked examples, five diagrams, current primary references and paired dependency-free contracts cover the offline baseline, safe retrieval selection, MCP discovery/schema/auth/timeout proof, same-release disposable deployment and evidence-chain promotion. Java 17 source-file launch and Python 3 passed all sixteen contract pairs; the new pair passed 31 scenario groups and 10,000 seeded trials per language with identical parity output. Deterministic reader generation passed exact 220431-byte Markdown recovery, SHA-256 42f915d8470370c6dcbfdd2ddc2b8a932a7261c5a562438a8bddcaa7fb616774, 619 unique HTML IDs, 17 search entries, 419 fragments, 4 relative links, 284 fences, 68 Mermaid sources, parseable JSON and JavaScript, responsive/search controls and deterministic rebuilding. Eight content files were atomically published at a0033d6ee8b88d7dec13cf5f41ac847f6e5b667b with an expected-head guard. Standalone javac, Maven/framework compilation, live pgvector/model/provider/MCP-host/k6/Kubernetes integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live literal-marker audit is 170.",
-    "content_commit": "a0033d6ee8b88d7dec13cf5f41ac847f6e5b667b",
-    "next_section": "Process Spring AI/Python Section 17 at editable line 944 / standalone HTML line 1060 next",
+    "validation": "The selected ZIP member at editable lines 944-1031 and standalone HTML lines 1060-1163 were compared and bounded before Section 18; both contain the same synchronous and asynchronous contract, so no duplicate guide was created. Four worked examples, four diagrams, current primary references and paired dependency-free contracts cover provider-neutral answers, stable error precedence, scoped canonical-hash idempotency, atomic job/outbox writes, duplicate relay, stage deduplication and tenant-scoped polling. Java 17 source-file launch and Python 3 passed all seventeen contract pairs; the new pair passed 30 scenario groups and 10,000 seeded trials per language with identical parity output. Reader validation passed exact 235320-byte Markdown recovery, SHA-256 ed784389e398ffd244ea392ca67f7cd54671c7a4eb695ff58eb82c98511776ab, 683 unique IDs, 18 search entries, 467 fragments, 6 relative links, 320 fences, 72 Mermaid sources, parseable JSON and JavaScript, responsive/search controls and deterministic rebuilding. Eight content files were atomically published at 93389fef020ecf4629ac7095fe4ed4d4059ab187 with an expected-head guard. Standalone javac, Maven/framework compilation, live database/broker/provider/Spring/ASGI integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The canonical literal-marker audit is 170.",
+    "content_commit": "93389fef020ecf4629ac7095fe4ed4d4059ab187",
+    "next_section": "After AI-platform Chapter 18 and Arrays problem 17, process Spring AI/Python Section 18 at editable line 1033 / standalone HTML line 1164",
     "estimated_next_tokens": 9800,
-    "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 17 pass; no reliable quota percentages were exposed"
+    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 18 pass; no reliable quota percentages were exposed"
   },
   "dsa_arrays_intake_checkpoint": {
     "last_processed_at": "2026-10-27T06:00:14-04:00",
@@ -984,8 +984,8 @@
     "status": "IN_PROGRESS",
     "validation": "The paired Arrays workbooks agree on bounded Subarray Sum Equals K at Markdown lines 1682-1779 and current local Pandoc GFM lines 1649-1746; the editable Markdown remains the structural source, no duplicate guide was created and intake stopped before problem 17. Four worked cases, four diagrams, a complete trace, current primary references and SubarraySumEqualsKContracts cover signed contiguous sums, overlaps, repeated prefixes, lookup-before-insert ordering, long state and expected hash-map complexity. Java 17 source-file launch passed 281 scenario groups across all sixteen Arrays executables plus 300,000 seeded oracle comparisons; the new contract passed 18 groups and 20,000 quadratic-oracle comparisons. Reader validation passed exact 134827-byte Markdown recovery, SHA-256 4e2a8c1434b4ae994fe646eacda7e77b31015f2e0269b2469c77f188dac69cb4, 577 unique IDs, 44 search entries, 495 fragments, 174 fences, 60 Mermaid sources, JSON, JavaScript, responsive/search controls and deterministic rebuilding. Seven content files were atomically published at c97fca80224d32dd8a1f631660532f7c5460f652 with an expected-head guard and matching Git blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The canonical Markdown marker audit remains 170.",
     "content_commit": "c97fca80224d32dd8a1f631660532f7c5460f652",
-    "next_section": "After Spring AI/Python Section 17 and AI-platform Chapter 18, process Arrays Section 4 problem 17",
+    "next_section": "After AI-platform Chapter 18, process Arrays Section 4 problem 17",
     "estimated_next_tokens": 9800,
-    "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 17 pass; no reliable quota percentages were exposed"
+    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 18 pass; no reliable quota percentages were exposed"
   }
 }
