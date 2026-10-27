@@ -20,6 +20,7 @@ java -ea study-guides/striver-dsa/arrays/FruitIntoBasketsContracts.java
 java -ea study-guides/striver-dsa/arrays/SlidingWindowMaximumContracts.java
 java -ea study-guides/striver-dsa/arrays/RangeSumQueryContracts.java
 java -ea study-guides/striver-dsa/arrays/ProductExceptSelfContracts.java
+java -ea study-guides/striver-dsa/arrays/SubarraySumEqualsKContracts.java
 ```
 
 Rebuild the reader:
@@ -28,6 +29,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–15 are promoted. Section 4 problems 16–47 and later source material remain queued.
+This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–16 are promoted. Section 4 problems 17–47 and later source material remain queued.
 
 

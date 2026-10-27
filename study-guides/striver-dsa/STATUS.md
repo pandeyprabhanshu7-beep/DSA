@@ -51,6 +51,7 @@
 | Arrays §4 Problem 13 — Sliding Window Maximum | ✅ | ✅ | Monotonic index deque, four worked cases, full trace, domination proof, validation and randomized brute-force oracle |
 | Arrays §4 Problem 14 — Range Sum Query — Immutable | ✅ | ✅ | Snapshot ownership, four worked cases, prefix trace, subtraction proof, widened arithmetic and randomized scan oracle |
 | Arrays §4 Problem 15 — Product of Array Except Self | ✅ | ✅ | Exclusive prefix/suffix state, four worked cases, zero behavior, overflow detection, proof and randomized quadratic oracle |
+| Arrays §4 Problem 16 — Subarray Sum Equals K | ✅ | ✅ | Prefix-frequency invariant, four worked cases, complete trace, signed-input proof, widened arithmetic and randomized quadratic oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -232,5 +233,11 @@ Fresh literal-marker audit remains **170**: this bounded source problem added no
 Arrays Section 4 problem 15 now states the no-division, nonmutation, linear-time and output-excluded-space contracts; adds four worked cases, a complete two-pass trace, four diagrams, exclusive prefix/suffix invariants and a partition proof; and makes out-of-contract integer overflow fail visibly with `Math.multiplyExact`. `ProductExceptSelfContracts` validates 17 scenario groups plus 20,000 seeded arrays against an independent quadratic oracle while checking input preservation. The responsive reader embeds the exact canonical Markdown bytes. Both confirmed sources agree on the algorithm, zero behavior and complexity; the editable Markdown remains the structural winner rather than duplicating the older Word companion.
 
 Fresh literal-marker audit remains **170**: this bounded source problem added none. Section 4 problem 16 and the broader intake remain incomplete.
+
+## Arrays Subarray Sum Equals K enrichment — 2026-10-27 ET
+
+Arrays Section 4 problem 16 now states the non-empty contiguous-range, signed-input, overlap, nonmutation and widened-count contracts; compares cubic, quadratic, sliding-window and prefix-frequency approaches; and adds four worked cases, a complete signed trace, four diagrams, a prior-boundary invariant and a bijective correctness proof. `SubarraySumEqualsKContracts` validates 18 scenario groups plus 20,000 seeded arrays against an independent quadratic oracle while checking input preservation. The responsive reader embeds the exact canonical Markdown bytes. Both confirmed sources agree on the seeded-empty-prefix rule, lookup-before-insert ordering, frequency rather than presence, signed-value behavior and expected linear complexity; the editable Markdown remains the structural winner rather than duplicating the Word companion.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. Section 4 problem 17, Spring AI/Python Section 17, AI-platform Chapter 18 and the broader intake remain incomplete; fair rotation selects Spring AI/Python Section 17 next.
 
 

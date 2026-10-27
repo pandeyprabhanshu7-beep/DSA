@@ -44,6 +44,7 @@
   - [Example 13 — Sliding Window Maximum: retain only undominated candidates](#example-13--sliding-window-maximum-retain-only-undominated-candidates)
   - [Example 14 — Range Sum Query — Immutable: subtract two prefix boundaries](#example-14--range-sum-query--immutable-subtract-two-prefix-boundaries)
   - [Example 15 — Product of Array Except Self: preserve both exclusive sides](#example-15--product-of-array-except-self-preserve-both-exclusive-sides)
+  - [Example 16 — Subarray Sum Equals K: count prior prefix boundaries](#example-16--subarray-sum-equals-k-count-prior-prefix-boundaries)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -671,7 +672,7 @@ Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite 
 
 ## 4. Core pattern lab — first fifteen solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first fifteen: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, Squares of a Sorted Array, 3Sum, Container With Most Water, Trapping Rain Water, Minimum Size Subarray Sum, Fruit Into Baskets, Sliding Window Maximum, Range Sum Query — Immutable, and Product of Array Except Self. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude; problems 8–10 use sorted or boundary monotonicity to discard state safely; problems 11–13 maintain just enough window state; problem 14 precomputes cancellable prefix state for repeated immutable queries; and problem 15 combines two exclusive directional aggregates without division. Problems 16–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first sixteen: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, Squares of a Sorted Array, 3Sum, Container With Most Water, Trapping Rain Water, Minimum Size Subarray Sum, Fruit Into Baskets, Sliding Window Maximum, Range Sum Query — Immutable, Product of Array Except Self, and Subarray Sum Equals K. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude; problems 8–10 use sorted or boundary monotonicity to discard state safely; problems 11–13 maintain just enough window state; problem 14 precomputes cancellable prefix state for repeated immutable queries; problem 15 combines two exclusive directional aggregates without division; and problem 16 counts matching prior prefix boundaries. Problems 17–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -2105,6 +2106,134 @@ For `[-2,-3,4,5]`, return `[-60,-40,30,24]`. Each output has the sign determined
 
 Executable evidence is in `ProductExceptSelfContracts.java`. It checks 17 scenario groups covering the four worked behaviors, legal extremes, rejection, overflow detection and nonmutation, then compares 20,000 seeded arrays with an independent quadratic oracle.
 
+### Example 16 — Subarray Sum Equals K: count prior prefix boundaries
+
+**Requirement:** given a non-null `int[] nums` and an `int target`, count every non-empty contiguous subarray whose elements sum exactly to `target`. Values and the target may be negative, zero, or positive; matching ranges may overlap; and the input must remain unchanged. This reusable contract accepts an empty array and returns 0. It returns `long` because an array of `n` zeros contains `n(n+1)/2` matching ranges, which can exceed `int` even when every individual value is small.
+
+| Approach | Time | Space | Why accept or reject it |
+|---|---:|---:|---|
+| Enumerate every range and rescan it | `O(n³)` | `O(1)` | Correct definition, but repeats each interior sum |
+| Fix `left`, extend `right`, reuse a running sum | `O(n²)` | `O(1)` | Useful independent oracle; still examines every pair |
+| Sliding window | not generally correct | `O(1)` | Negative values destroy the monotone “shrink lowers sum” rule |
+| Prefix sum → frequency of prior boundaries | expected `O(n)` | `O(n)` | Counts all valid starts ending at each position in one scan |
+
+Define `P[j]` as the sum of the first `j` values, so `P[0]=0`. The inclusive range `nums[i..j-1]` sums to `target` exactly when:
+
+`P[j] - P[i] = target`, equivalently `P[i] = P[j] - target`.
+
+At boundary `j`, the answer therefore grows by the number of **earlier** boundaries whose prefix is `P[j]-target`.
+
+```mermaid
+flowchart LR
+    A["P[i]: earlier boundary"] --> D["range sum = P[j] - P[i]"]
+    B["P[j]: current boundary"] --> D
+    D --> Q{"equals target?"}
+    Q -->|yes| C["count this start i"]
+```
+
+The map stores frequencies rather than mere presence. Repeated prefix values represent different legal start boundaries and must all be counted.
+
+```java
+static long countSubarrays(int[] nums, int target) {
+    if (nums == null) {
+        throw new IllegalArgumentException("nums must not be null");
+    }
+
+    Map<Long, Long> prefixFrequency = new HashMap<>();
+    prefixFrequency.put(0L, 1L);       // empty prefix before index 0
+    long prefix = 0L;
+    long count = 0L;
+
+    for (int value : nums) {
+        prefix += value;
+        count += prefixFrequency.getOrDefault(prefix - target, 0L);
+        prefixFrequency.merge(prefix, 1L, Long::sum);
+    }
+    return count;
+}
+```
+
+The lookup must happen before the current prefix is inserted. This preserves “earlier boundary” semantics and prevents a zero-length range from being counted when `target == 0`.
+
+```mermaid
+flowchart TD
+    S["seed frequency[0] = 1"] --> U["prefix += value"]
+    U --> L["count += frequency[prefix - target]"]
+    L --> I["increment frequency[prefix]"]
+    I --> N{"more values?"}
+    N -->|yes| U
+    N -->|no| R["return count"]
+```
+
+#### Worked case 1 — two overlapping ranges
+
+For `nums=[1,1,1]` and `target=2`, return 2. The matches are indices `[0..1]` and `[1..2]`. At prefix boundaries 2 and 3, the scan finds prior prefixes 0 and 1 respectively.
+
+#### Worked case 2 — negative values and repeated prefixes
+
+For `nums=[1,-1,0]` and `target=0`, return 3: ranges `[0..1]`, `[0..2]`, and `[2..2]`. Its boundaries are `P=[0,1,0,0]`; prefix 0 appears three times.
+
+```mermaid
+flowchart LR
+    P0["P[0]=0"] --> P1["P[1]=1"]
+    P1 --> P2["P[2]=0"]
+    P2 --> P3["P[3]=0"]
+    P0 -. "[0..1]" .-> P2
+    P0 -. "[0..2]" .-> P3
+    P2 -. "[2..2]" .-> P3
+```
+
+When the final boundary is processed, prefix 0 already has frequency 2, so one lookup counts both valid starts. A `Set<Long>` would add only 1 and undercount.
+
+#### Worked case 3 — complete signed trace
+
+For `nums=[3,4,7,2,-3,1,4,2]` and `target=7`, return 4. Each row shows state immediately after adding the current value but before inserting the current prefix.
+
+| `j` | value | `P[j+1]` | needed `P[j+1]-7` | prior frequency | count after lookup | frequency update |
+|---:|---:|---:|---:|---:|---:|---|
+| seed | — | 0 | — | — | 0 | `{0:1}` |
+| 0 | 3 | 3 | -4 | 0 | 0 | `3:1` |
+| 1 | 4 | 7 | 0 | 1 | 1 | `7:1` |
+| 2 | 7 | 14 | 7 | 1 | 2 | `14:1` |
+| 3 | 2 | 16 | 9 | 0 | 2 | `16:1` |
+| 4 | -3 | 13 | 6 | 0 | 2 | `13:1` |
+| 5 | 1 | 14 | 7 | 1 | 3 | `14:2` |
+| 6 | 4 | 18 | 11 | 0 | 3 | `18:1` |
+| 7 | 2 | 20 | 13 | 1 | 4 | `20:1` |
+
+The four ranges are `[0..1]`, `[2..2]`, `[2..5]`, and `[5..7]`. Notice that prefix 14 occurs twice; both boundaries remain available for later endings.
+
+#### Worked case 4 — empty, all-zero, and full-width arithmetic
+
+- `[]`, target 0 → 0 because no non-empty range exists.
+- `[0,0,0]`, target 0 → 6: three singletons, two length-2 ranges, and one length-3 range.
+- `[Integer.MAX_VALUE,1,-1]`, target `Integer.MAX_VALUE` → 2: `[0..0]` and `[0..2]`.
+
+The last case is why `prefix` is `long`: after the first two values the mathematical prefix is `2,147,483,648`, one above `Integer.MAX_VALUE`. Casting after an `int` addition would be too late because overflow would already have occurred.
+
+**Loop invariant.** Immediately before processing array index `j`, `prefix` equals `P[j]`; `prefixFrequency[s]` equals the number of boundaries `i` in `[0,j]` with `P[i]=s`; and `count` equals the number of matching non-empty ranges ending before `j`. After adding `nums[j]`, the current boundary is `P[j+1]`. Every matching range ending at `j` begins at an earlier boundary with prefix `P[j+1]-target`, and the map frequency counts each such boundary exactly once. Adding that frequency completes all ranges ending at `j`; inserting `P[j+1]` then establishes the map invariant for the next iteration.
+
+**Correctness.** Every counted prior boundary `i` satisfies `P[j+1]-P[i]=target`, so it identifies one legal non-empty contiguous range `[i..j]`. Conversely, every legal matching range `[i..j]` has exactly that prefix equation; boundary `i` is already in the map when boundary `j+1` is processed, so the algorithm counts it. Thus there are neither false positives nor omissions.
+
+**Why a general sliding window fails.** For positive-only inputs, advancing the left boundary always lowers the sum. Signed inputs have no such monotonicity: in `[1,-1,1]`, target 1, the full array and both singleton `1` values all match, while shrinking across `1` then `-1` changes the sum in opposite directions. A rule based only on “sum too large” or “sum too small” cannot safely discard a boundary.
+
+```mermaid
+flowchart TD
+    W["signed window sum"] --> R{"move left?"}
+    R -->|remove positive| L["sum decreases"]
+    R -->|remove negative| H["sum increases"]
+    L --> X["no monotone discard rule"]
+    H --> X
+```
+
+**Complexity and numeric contract.** The scan performs one expected-constant-time lookup and update per value, so expected time is `O(n)` and worst-case stored prefix keys are `O(n)`. Oracle's Java 17 `HashMap` contract describes constant-time basic operations when hashes disperse properly, not an unconditional worst-case guarantee. A Java array cannot be long enough for the sum of all its `int` elements or its `n(n+1)/2` range count to exceed `long`, so widened prefix, frequency, and answer state are sufficient for this signature.
+
+**Common interview errors:** using a set instead of a frequency map; omitting the seeded empty prefix; inserting the current prefix before lookup and counting an empty range for target 0; resetting the map after a match and losing overlaps; applying a positive-only sliding window to signed values; counting non-contiguous subsets; using `int` for prefixes or the result; checking `prefix == target` separately and then also seeding 0, which double-counts ranges beginning at index 0; or claiming deterministic `O(1)` hash operations without stating the expected-time assumption.
+
+**Follow-ups:** return one matching range by storing one prior index instead of a frequency; list all ranges by storing every prior boundary per prefix (output may be quadratic); answer repeated static range-sum queries with a prefix array rather than this frequency scan; count sums divisible by `m` using normalized prefix remainders; and for nonnegative values only, revisit whether a monotone window can satisfy a different objective such as minimum length.
+
+Executable evidence is in `SubarraySumEqualsKContracts.java`. It checks 18 scenario groups covering the four worked behaviors, overlap, negatives, empty/singleton inputs, extreme integers, rejection and nonmutation, then compares 20,000 seeded arrays with an independent quadratic oracle.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -2128,6 +2257,7 @@ Executable evidence is in `ProductExceptSelfContracts.java`. It checks 17 scenar
 - [LeetCode, “Sliding Window Maximum”](https://leetcode.com/problems/sliding-window-maximum/) — primary fixed-size-window contract, examples, bounds and deque hint.
 - [LeetCode, “Range Sum Query — Immutable”](https://leetcode.com/problems/range-sum-query-immutable/) — primary repeated inclusive-query contract, canonical example and original bounds.
 - [LeetCode, “Product of Array Except Self”](https://leetcode.com/problems/product-of-array-except-self/) — primary no-division, linear-time, output-space-exclusion and 32-bit-product contract.
+- [LeetCode, “Subarray Sum Equals K”](https://leetcode.com/problems/subarray-sum-equals-k/) — primary non-empty contiguous-subarray, signed-input, exact-target and result-count contract.
 - [Java SE 17 `java.util.Deque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Deque.html) — double-ended queue operations used for front expiration and tail domination removal.
 - [Java Language Specification, Java SE 17, §15.17](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17) — multiplicative operators and binary numeric promotion; the implementation widens an operand before multiplication.
 - [Java Language Specification, Java SE 17, Chapter 4](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — integer operators use 32- or 64-bit precision according to promotion and do not signal ordinary overflow.
@@ -2136,9 +2266,9 @@ Executable evidence is in `ProductExceptSelfContracts.java`. It checks 17 scenar
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 15 (problem 15 is lines 1586–1680, bounded before the problem 16 anchor at line 1682). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 15 (local Pandoc GFM extraction places problem 15 at lines 1821–1932, bounded before problem 16 at line 1934). Compared as a corroborating companion; its 116-page rendering was previously visually inspected rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 16 (problem 16 is lines 1682–1779, bounded before the problem 17 anchor at line 1780). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 16 (current local Pandoc GFM extraction places problem 16 at lines 1649–1746, bounded before problem 17 at line 1747). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 15, “Product of Array Except Self,” is promoted from Markdown lines 1586–1680 and matching DOCX GFM-extracted lines 1821–1932; problem 16, “Subarray Sum Equals K,” begins at Markdown line 1684 and DOCX extracted line 1934.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 16, “Subarray Sum Equals K,” is promoted from Markdown lines 1682–1779 and matching current DOCX GFM-extracted lines 1649–1746; problem 17, “Longest Subarray with Sum K,” begins at Markdown line 1782 and current DOCX GFM-extracted line 1747.
 
 
