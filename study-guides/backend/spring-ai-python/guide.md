@@ -2923,3 +2923,252 @@ Verified on 26 October 2026:
 ### Source provenance and continuation
 
 The selected editable bundle member's complete Section 15 is source lines 917–930, bounded before Section 16 at line 932. The compared standalone HTML is lines 1003–1052, bounded before Chapter 16 at line 1053. Both contain the same six-layer table and the same explicit list of production gaps, so the editable Markdown remains the structural source and no duplicate guide was created. This canonical section retains every source layer while adding claim boundaries, hard security/release-identity gates, four worked traces, four diagrams, real pgvector and workload examples, current primary references and paired executable contracts. Section 16, **A four-week implementation path**, begins at editable line 932 / standalone HTML line 1053. Sections 16–25 remain queued; the source is not complete.
+
+## 16. A four-week implementation path: build an evidence chain, not a demo calendar
+
+The source proposes a sensible sequence: prove the offline core, add one model-backed path, expose a read-only MCP fixture, then deploy the same candidate into a disposable environment. The schedule is useful only if every week produces durable evidence for the next one. “The demo worked on Friday” is not an exit criterion.
+
+| Week | Entry condition | Deliverable | Required failure drill | Exit evidence |
+|---|---|---|---|---|
+| 1 — offline core | frozen documents, questions and authority cases | deterministic Java/Python lexical baseline | paraphrase miss and cross-tenant candidate | versioned fixture, trace and regression test |
+| 2 — model retrieval | Week 1 evidence accepted | one fixed model/embedding path and lexical/vector/hybrid comparison | unsupported answer and model timeout | same-corpus evaluation with a safe winner or explicit no-winner |
+| 3 — MCP boundary | read-only application capability exists | discoverable, schema-valid tool/resource in a compatible host | unknown input, unauthorized scope and timeout | protocol trace plus negative authorization evidence |
+| 4 — disposable deployment | prior gates attach to one release | candidate image in a disposable non-production environment | bad startup, dependency outage, overload and recovery | same-release rollout, probe, resilience and evaluation evidence |
+
+```mermaid
+flowchart TD
+    W1["W1: deterministic offline baseline"] --> G1{"fixture + auth regressions pass?"}
+    G1 -->|yes| W2["W2: fixed model and retrieval comparison"]
+    W2 --> G2{"quality + no-answer gates pass?"}
+    G2 -->|yes| W3["W3: read-only MCP boundary"]
+    W3 --> G3{"discovery + schema + auth + timeout pass?"}
+    G3 -->|yes| W4["W4: disposable same-release deployment"]
+    W4 --> P{"probes + resilience + evaluation pass?"}
+    P -->|yes| R["promotion evidence chain"]
+    G1 -->|no| B["block, diagnose, record"]
+    G2 -->|no| B
+    G3 -->|no| B
+    P -->|no| B
+```
+
+### Requirements and invariants
+
+1. **Each week has entry criteria, a deliverable, executable evidence, a failure drill and an exit gate.** A calendar date cannot override a failed gate.
+2. **Identity follows the evidence.** Record the release, source/fixture revision, corpus, model/embedding revision, schema and environment. Comparisons hold every identity constant except the variable under study.
+3. **Change one variable at a time.** Comparing lexical retrieval on one corpus with vector retrieval on another does not measure retrieval strategy.
+4. **Authorization-negative evidence is a hard gate.** A higher relevance score cannot compensate for a cross-tenant result, an over-broad MCP tool or a leaked secret.
+5. **A tutorial run is not completion.** Exit evidence includes repeatable commands, assertions and typed failures—not screenshots or an unreviewed transcript.
+6. **Every material choice gets a decision record.** Capture context, decision, rejected alternative and a measurable condition that would trigger reconsideration.
+7. **Dependency failures remain typed.** Discovery, schema, authorization, timeout, startup, readiness, overload and evaluation failures must not collapse into “AI error.”
+8. **Week 4 uses a disposable non-production environment and the same candidate release.** Rebuilding after evaluation breaks the evidence chain.
+
+### Example 1 — Week 1 turns a lexical miss into a controlled baseline
+
+Start both languages without a model, network or database. Freeze `atlas-path-v16` with four questions: one exact phrase, one paraphrase, one genuine no-answer and one cross-tenant lure. The baseline uses token normalization, deterministic scoring, authority filtering before ranking and citation membership.
+
+| Question | Authorized evidence | Lexical result | Required outcome |
+|---|---|---|---|
+| “reset a payment token” | `pay-17` contains exact phrase | `pay-17` score 7 | cited answer |
+| “rotate the credential used for charges” | `pay-17` uses different words | no candidate | abstain and record retrieval miss |
+| “change the lunar region” | none | no candidate | abstain |
+| payments request; executive document has exact phrase | executive-only `exec-9` | removed before scoring | abstain, security gate passes |
+
+The useful trace is explicit:
+
+```text
+fixture=atlas-path-v16 release=r16 tenant=payments
+q=paraphrase normalized=[rotate,credential,used,charges]
+authorized_docs=[pay-17,pay-22] lexical_candidates=[]
+answer=ABSTAIN reason=NO_SUPPORTED_EVIDENCE
+diagnosis=LEXICAL_PARAPHRASE_MISS regression=paraphrase-02
+```
+
+Do not weaken abstention to make the example look successful. Preserve the miss as a regression case, then use it to justify the bounded Week 2 experiment. A minimal deterministic core can expose the same contract in either language:
+
+```java
+List<Chunk> allowed = chunks.stream()
+    .filter(c -> c.tenant().equals(verifiedTenant))
+    .toList();
+List<Scored> ranked = lexicalRank(query, allowed); // stable score, then chunk ID
+return ranked.isEmpty() ? Answer.abstain("NO_SUPPORTED_EVIDENCE")
+                        : Answer.cited(ranked.getFirst().chunkId());
+```
+
+```python
+allowed = [chunk for chunk in chunks if chunk.tenant == verified_tenant]
+ranked = lexical_rank(query, allowed)  # stable score, then chunk ID
+answer = abstain("NO_SUPPORTED_EVIDENCE") if not ranked else cited(ranked[0].chunk_id)
+```
+
+```mermaid
+sequenceDiagram
+    participant T as Test fixture
+    participant A as Authority filter
+    participant L as Lexical core
+    participant G as Exit gate
+    T->>A: query + verified tenant + frozen docs
+    A-->>L: authorized documents only
+    L-->>T: no candidate for paraphrase
+    T->>T: add paraphrase-02 regression
+    T-->>G: exact pass + safe abstention + tenant negative pass
+```
+
+Week 1 exits when the fixture revision, expected IDs, abstentions, score trace and security-negative test are committed and both languages agree. It does not claim semantic retrieval quality.
+
+### Example 2 — Week 2 compares retrieval strategies while the model stays fixed
+
+Pin `model=m17`, `embedding=e4`, `corpus=atlas-path-v16`, chunker `c3`, question set `q16` and release `r16`. Now the only comparison variable is retrieval strategy. Run lexical, vector and hybrid retrieval on the same 100 questions, including paraphrase, no-answer and authorization-negative slices.
+
+| Strategy | Supported answers | Unsafe answers | No-answer precision | Decision |
+|---|---:|---:|---:|---|
+| lexical | 60 | 0 | 1.00 | safe baseline, weak paraphrase recall |
+| vector | 92 | 1 | 0.91 | blocked by unsafe answer |
+| hybrid | 91 | 0 | 0.97 | selected for this revision |
+
+The vector score is not a win because one unsupported answer is a hard failure. Hybrid is the safe winner even though its supported-answer count is one lower. If every strategy has an unsafe answer, the correct result is `NO_SAFE_WINNER`, not “pick the least bad.”
+
+```text
+run=retrieval-2026-10-26 release=r16 corpus=atlas-path-v16 model=m17
+change=retriever-only
+vector/paraphrase-02 candidates=[pay-17:0.84] supported=true
+vector/no-answer-07 candidates=[pay-88:0.79] generated=true cited=false
+vector outcome=BLOCK_UNSUPPORTED_ANSWER
+hybrid/no-answer-07 candidates=[] outcome=ABSTAIN
+selected=HYBRID reason=highest_supported_with_zero_unsafe
+```
+
+```mermaid
+flowchart TD
+    I["Fixed release, corpus, chunks and model"] --> L["Lexical run"]
+    I --> V["Vector run"]
+    I --> H["Hybrid run"]
+    L --> S{"unsafe answers = 0?"}
+    V --> S
+    H --> S
+    S -->|no| X["exclude strategy"]
+    S -->|yes| Q["compare declared quality slices"]
+    Q --> C["select best safe result or no winner"]
+```
+
+Spring AI's evaluation interfaces can add a context-aware relevancy signal, but deterministic authorization, citation membership and expected-evidence checks remain authoritative. Week 2 exits with a versioned result table, per-slice failures, the fixed identity vector and a decision record. It does not claim provider permanence or general intelligence.
+
+### Example 3 — Week 3 proves an MCP capability, not merely a healthy process
+
+Expose one read-only fixture capability, `lookup_runbook`, from both language implementations. Its input schema accepts a bounded `topic` and server-derived scope; the client cannot choose a tenant. Register the capability, connect a compatible host, inspect discovery and schemas, then exercise success and three negative paths.
+
+| Step | Request | Expected result |
+|---|---|---|
+| discovery | `tools/list` | exactly one `lookup_runbook` with the reviewed schema |
+| success | topic `token rotation`, verified payments scope | revisioned synthetic citation |
+| unknown | topic outside fixture | typed `NOT_FOUND`, no invented content |
+| unauthorized | executive topic under payments scope | typed `FORBIDDEN`, no object existence leak |
+| timeout | fixture delay exceeds owned deadline | typed `TIMEOUT`, cancelled work terminates |
+
+```text
+host=mcp-inspector sdk_revision=pinned protocol=negotiated
+tools/list -> lookup_runbook schema_sha256=9f... scope=server-derived read_only=true
+tools/call token-rotation -> OK citation=fixture://runbook/pay-17@v3
+tools/call executive-plan -> FORBIDDEN response_body=generic
+tools/call delayed -> TIMEOUT elapsed_ms=501 deadline_ms=500 terminal=true
+gate=MCP_BOUNDARY_READY
+```
+
+```mermaid
+sequenceDiagram
+    participant H as Compatible host
+    participant S as MCP server
+    participant A as Authority
+    participant F as Read-only fixture
+    H->>S: tools/list
+    S-->>H: reviewed lookup_runbook schema
+    H->>S: tools/call(topic, authenticated context)
+    S->>A: derive and verify scope
+    A-->>S: payments scope
+    S->>F: bounded lookup + deadline
+    F-->>S: revisioned result or typed failure
+    S-->>H: schema-valid response
+```
+
+Use MCP Inspector interactively while developing, and its CLI mode for repeatable discovery/call checks in CI. A green HTTP health endpoint cannot prove registration, schema publication, host admission or authorization. Week 3 exits only when all four predicates—discovery, schema, authorization-negative behavior and bounded timeout—pass for the reviewed fixture.
+
+### Example 4 — Week 4 deploys the same release and rehearses failure
+
+Build one immutable image for `r16`, attach its digest to the earlier evidence and deploy that digest to a disposable namespace. Separate startup, readiness and liveness checks. Then run the small authorized smoke plus controlled dependency failure, overload and recovery drills before any promotion decision.
+
+| Drill | Observable transition | Required evidence |
+|---|---|---|
+| slow initialization | startup remains false; liveness does not kill early | startup eventually succeeds within budget |
+| model outage | readiness becomes false; pod leaves Service endpoints | no unsupported fallback; recovery restores readiness |
+| overload | admission rejects before unbounded queue growth | typed overload; latency and permits recover |
+| stuck process | liveness fails after startup | Kubernetes restarts the container |
+| bad candidate | rollout does not become available | rollout status fails and rollback path is ready |
+| recovered candidate | same digest serves authorized smoke | evaluation artifact and deployment identity join |
+
+```text
+release=r16 image=registry/atlas@sha256:16ab... namespace=atlas-r16
+startup 0 -> 1 at 34s
+authorized_smoke=PASS forbidden_smoke=PASS
+model_outage readiness 1 -> 0 endpoints 3 -> 0 unsupported_answers=0
+model_recovery readiness 0 -> 1 endpoints 0 -> 3
+overload admitted=40 rejected=60 leaked_permits=0
+evaluation=evalset-v16 thresholds=PASS rollout=COMPLETE
+promotion_gate=READY
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Starting
+    Starting --> Ready: startup and readiness pass
+    Starting --> Blocked: startup budget fails
+    Ready --> Unready: model outage or overload breach
+    Unready --> Ready: dependency and permits recover
+    Ready --> Promote: same-release evaluation and smoke pass
+    Unready --> Rollback: recovery budget fails
+    Ready --> Rollback: evaluation or security gate fails
+```
+
+GitHub Actions deployment environments can require reviewers, restrict branches/tags and gate access to environment secrets. Those controls govern deployment admission; they do not replace runtime probes, evaluation or authorization tests. Kubernetes Deployment rollout status proves rollout progress for the configured workload, while startup, readiness and liveness probes own different runtime claims.
+
+### Decision record and promotion manifest
+
+Keep each record short enough to review but precise enough to invalidate later:
+
+| Field | Week 2 example |
+|---|---|
+| Context | lexical misses 18/20 paraphrases; vector has one unsupported no-answer |
+| Decision | use hybrid retrieval for `r16` after zero-unsafe slice passes |
+| Rejected alternative | change model and retriever together |
+| Reconsider when | recall@5 falls below 0.90 or no-answer precision below 0.95 |
+
+The promotion manifest should reference, rather than copy, the four evidence artifacts and their immutable identities. The gate rejects missing weeks, duplicate week evidence, a different release, any security failure or the first failed weekly predicate. This prevents a late success from erasing an earlier failure.
+
+### Paired executable evidence-chain contract
+
+[`ImplementationPathContracts.java`](ImplementationPathContracts.java) and [`implementation_path_contracts.py`](implementation_path_contracts.py) make safe retrieval selection, MCP boundary precedence, deployment failures, decision-record completeness and same-release promotion executable without external dependencies:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/ImplementationPathContracts.java
+python3 study-guides/backend/spring-ai-python/implementation_path_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|W1=OFFLINE_BASELINE|W2=MODEL_RETRIEVAL|W3=MCP_BOUNDARY|W4=DISPOSABLE_DEPLOYMENT|ADR=MEASURED|PROMOTION=EVIDENCE_CHAIN|READY=5437
+```
+
+Each implementation passes 31 explicit scenario groups and 10,000 seeded evidence-chain trials. The oracle covers missing and duplicate evidence, release mismatch, security precedence, each weekly gate, safe retrieval selection, MCP discovery/schema/auth/timeout failures and deployment release/startup/readiness/resilience/evaluation failures. These dependency-free contracts do not start Spring Boot, a Python API, an MCP host, a model, GitHub Actions or Kubernetes; those claims require the named integration and disposable environments.
+
+### Current primary references
+
+Verified on 26 October 2026:
+
+- Spring AI, [Getting Started](https://docs.spring.io/spring-ai/reference/getting-started.html) and [Evaluation testing](https://docs.spring.io/spring-ai/reference/api/testing.html) — current dependency/configuration entry point plus `Evaluator`, `EvaluationRequest` and context-aware relevancy evaluation; deterministic security and evidence checks remain separate gates.
+- Model Context Protocol, [Inspector](https://modelcontextprotocol.io/docs/tools/inspector) and [Inspector CLI](https://modelcontextprotocol.io/docs/tools/inspector#cli-mode) — the reference server-testing tool and repeatable CLI discovery/call workflow.
+- Model Context Protocol Python SDK, [README and server quickstart](https://github.com/modelcontextprotocol/python-sdk) and Spring AI, [MCP server boot starter](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-server-boot-starter-docs.html) — current language-specific server construction, transport and capability-registration boundaries.
+- Kubernetes, [Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/), [rollout commands](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/) and [liveness, readiness and startup probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/) — controlled rollout/rollback plus distinct restart, traffic-admission and initialization semantics.
+- GitHub Actions, [Deployment environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments) and [environment protection rules](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments#deployment-protection-rules) — reviewer, branch/tag and secret-access gates around deployments.
+
+### Source provenance and continuation
+
+The selected editable bundle member's complete Section 16 is source lines 932–942, bounded before Section 17 at line 944. The compared standalone HTML is lines 1053–1059, bounded before Chapter 17 at line 1060. Both prescribe the same four weeks and the same requirement for a short decision record, so the editable Markdown remains the structural source and no duplicate guide was created. This canonical section preserves every source task while adding entry/exit gates, fixed identities, four worked traces, five diagrams, safe-selection and failure-precedence rules, current primary references and paired executable contracts. Section 17 follows after the fair domain rotation; Sections 17–25 remain queued, so the source collection is not complete.
