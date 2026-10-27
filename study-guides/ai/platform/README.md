@@ -18,7 +18,8 @@
 - [Executable Java 17 platform-control contract](PlatformControlPlaneContracts.java)
 - [Executable Java 17 inference-serving contract](InferenceServingContracts.java)
 - [Executable Java 17 cache-layer contract](CacheLayerContracts.java)
+- [Executable Java 17 conversation-memory contract](ConversationMemoryContracts.java)
 
-This is an incremental canonical guide. Chapters 1–16 are promoted; Chapter 17 is the next bounded AI-platform source section after fair domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
+This is an incremental canonical guide. Chapters 1–17 are promoted; Chapter 18 is the next bounded AI-platform source section after fair domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
 
 

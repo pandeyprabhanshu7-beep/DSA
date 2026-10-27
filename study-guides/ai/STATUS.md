@@ -1,10 +1,10 @@
 # AI Enrichment Status
 
-Last updated: 2026-10-26.
+Last updated: 2026-10-27.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapters 1–16 complete**.
+State: **PROMOTED incrementally; Chapters 1–17 complete**.
 
 Canonical pair:
 
@@ -47,8 +47,12 @@ Source comparison:
 - Deepened Chapter 15 with four prefill/decode/KV/batching/prefix-cache examples, four diagrams, latency and scheduler traces, current primary references, and an executable Java 17 contract for checked KV arithmetic, bounded admission, exact prefix identity, tenant-aware scheduling and phase-specific SLO signals, plus 10,000 seeded reservation/admission trials.
 - Compared Chapter 16 in selected master HTML lines 540–563 (Pandoc conversion lines 662–705). The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 16 source and no duplicate guide was created.
 - Deepened Chapter 16 with four embedding/retrieval/answer/prefix-cache examples, four diagrams, authorization and stale-publication traces, current primary references, and an executable Java 17 contract for behavior-complete cache keys, tenant/ACL/generation scope, risk-gated semantic reuse, generation-fenced publication and exact prefix compatibility, plus 10,000 seeded dual-oracle trials.
+- Compared Chapter 17 in selected master HTML lines 596–623 (Pandoc conversion lines 706–741). The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 17 source and no duplicate guide was created.
+- Deepened Chapter 17 with four concurrency/context/summary/deletion examples, four diagrams, short-transaction and deletion-graph traces, current Spring AI and PostgreSQL primary references, and an executable Java 17 contract for append-only ordering, tenant/owner scope, expected-version finalization, bounded whole-event context, summary lineage/authority denial and derived-store deletion state, plus 10,000 seeded oracle trials.
 
-Next bounded AI-platform section: Chapter 17 after fair domain rotation. The immediate cross-domain continuation is Spring AI/Python Section 16.
+Next bounded AI-platform section: Chapter 18 after fair domain rotation. The immediate cross-domain continuation is Arrays problem 16, followed by Spring AI/Python Section 17.
+
+Validation for Chapter 17: Java 17 source-file launch passed all seventeen AI-platform contracts; `ConversationMemoryContracts` passed 28 scenario groups and 10,000 seeded trials. Two deterministic Pandoc builds produced identical readers. The platform reader recovered the exact 233,152-byte Markdown payload at SHA-256 `96d2f045100890369f170f7b067398f216d47a8c68780707463d186712f7cf51`; 562 unique HTML IDs, 72 search entries, 397 fragment links, 76 Mermaid sources, local links, search JSON, inline/module JavaScript, responsive controls and `git diff --check` passed. Standalone `javac`, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live literal-marker audit remains 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this section added none.
 
 ## AI foundations, RAG and CAG
 
@@ -75,8 +79,8 @@ Validation is recorded in the enrichment queue and the promotion commit.
 
 Next action:
 
-1. Rotate fairly to Spring AI/Python Section 16 after this AI-platform pass.
-2. On the next AI-platform pass, process Chapter 17 only.
+1. Rotate fairly to Arrays problem 16 after this AI-platform pass, then Spring AI/Python Section 17.
+2. On the next AI-platform pass, process Chapter 18 only.
 3. On a later AI-foundations pass, deepen hybrid retrieval/reranking evaluation and prompt-injection containment.
 4. Keep project source code in the existing Spring Boot AI repositories; this repository holds learning documentation only.
 

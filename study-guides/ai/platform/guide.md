@@ -2690,6 +2690,270 @@ java -ea CacheLayerContracts.java
 
 The new contract checks 28 scenario groups and 10,000 seeded dual-oracle trials. Its stable summary is `LAYERS=EMBEDDING_RETRIEVAL_ANSWER_PREFIX|SCOPE=TENANT_ACL_GENERATION|SEMANTIC=ENTITY_AND_RISK_GATED|PUBLICATION=GENERATION_FENCED|PREFIX=EXACT_TOKENS_AND_RUNTIME`.
 
+## 17. Conversation memory is a database design problem: audit truth is not prompt context
+
+Conversation memory has two different products. The **audit history** is the authorized, retained sequence of what happened. The **model context** is a small, policy-filtered selection assembled for one invocation. Keeping the full history does not require sending every retained token to the model, and a convenient model-facing memory window is not a complete history or a source of business authority.
+
+Spring AI states this boundary directly: `ChatMemory` manages information relevant to the current conversation context, while complete chat history should be stored separately. That distinction turns “remember the conversation” into four explicit contracts:
+
+1. **Append-only ordering:** allocate an unambiguous sequence inside a short transaction; do not edit an earlier event into a different fact.
+2. **Scoped access:** derive tenant and owner from verified identity on create, append, read, summarize and delete-by-ID paths.
+3. **Bounded context:** select whole, authorized, terminal events under a measured budget without deleting audit records.
+4. **Derived-data lineage:** summaries, vectors, cached answers and traces name their source range/version and participate in deletion.
+
+```mermaid
+flowchart TD
+    R["Authorized request"] --> A["Append audit events"]
+    A --> H["Durable history"]
+    H --> S["Policy + relevance selection"]
+    S --> C["Bounded model context"]
+    H --> D["Derived summary / vector / trace"]
+    D --> S
+```
+
+The arrow into context is selection, not history mutation. The arrow into derived data carries lineage. A memory component may implement a useful window, but the application still owns identity, retention, concurrency and authority.
+
+### Requirements and invariants
+
+| Concern | Required invariant | Failure if omitted |
+|---|---|---|
+| identity | `(tenant_id, conversation_id)` plus verified `owner_subject` gates every operation | an ID copied from another device or tenant discloses a conversation |
+| order | one monotonically increasing `sequence_no` per conversation | retries or concurrent turns create ambiguous chronology |
+| concurrency | append/finalize uses an expected `version` or an equivalent row lock | a late model result silently overwrites a newer turn |
+| transaction lifetime | database work ends before the external model call | a slow generation holds locks and expands contention/failure scope |
+| retry identity | one stable operation key maps to one logical turn | a timeout creates duplicate user/pending/final events |
+| context | only authorized, terminal, whole items fit the explicit token budget | pending/failed or cross-scope content reaches the model |
+| summary | source event range, source version and summarizer version are retained | a lossy summary cannot be audited or invalidated |
+| authority | approval, environment and balance remain typed authoritative records | generated prose silently grants permission or changes state |
+| deletion | live serving is denied first; all derived stores are tracked to a terminal state | vectors, cache entries, summaries or traces continue serving deleted content |
+
+### Concrete event model
+
+The source schema provides the durable core:
+
+```sql
+CREATE TABLE conversation (
+  tenant_id text NOT NULL,
+  conversation_id uuid NOT NULL,
+  owner_subject text NOT NULL,
+  next_sequence bigint NOT NULL DEFAULT 1,
+  version bigint NOT NULL DEFAULT 0,
+  PRIMARY KEY (tenant_id, conversation_id)
+);
+
+CREATE TABLE conversation_event (
+  tenant_id text NOT NULL,
+  conversation_id uuid NOT NULL,
+  sequence_no bigint NOT NULL,
+  event_type text NOT NULL,
+  payload jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (tenant_id, conversation_id, sequence_no),
+  FOREIGN KEY (tenant_id, conversation_id)
+    REFERENCES conversation(tenant_id, conversation_id)
+);
+```
+
+Production implementations usually add an operation identity and a uniqueness constraint so a client retry can recover the original outcome instead of appending a second turn:
+
+```sql
+ALTER TABLE conversation_event ADD COLUMN operation_key text;
+
+CREATE UNIQUE INDEX conversation_event_operation_type_uq
+  ON conversation_event (tenant_id, conversation_id, operation_key, event_type)
+  WHERE operation_key IS NOT NULL;
+```
+
+The exact event vocabulary is application-specific, but status must be explicit. A practical turn appends `user_message` and `assistant_pending`, then later appends either `assistant_final` or `turn_failed`. The pending event is not edited into the final event: retaining both preserves the observed lifecycle.
+
+PostgreSQL row locks block conflicting writers only until the transaction ends. Row-level security can add defense in depth, but it is not a substitute for verified application identity: table owners normally bypass row-security policies unless forced, and roles with `BYPASSRLS` bypass them. Test the role actually used in production.
+
+### Example 1 — two short transactions around one slow model call
+
+Suppose conversation `c7` is at version 7 and next sequence 41. Two requests arrive with expected version 7. The service has chosen serialized turns rather than branch/merge behavior.
+
+| Time | Request A | Request B | Durable state |
+|---|---|---|---|
+| T1 | begins short transaction; verifies tenant/owner/version | waiting | `version=7`, `next=41` |
+| T2 | allocates 41/42, appends user + pending, sets `version=8`, commits | begins with expected 7 | A owns operation `op-a` |
+| T3 | calls model outside the transaction | conditional update affects zero rows; return conflict/rebase | no database lock held by A |
+| T4 | model returns | client may retry from observed version 8 | still `version=8` |
+| T5 | begins short transaction, verifies `version=8` and pending `op-a`, appends final at 43, commits `version=9` | queued or rejected by bounded policy | one ordered final result |
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant D as Database
+    participant M as Model
+    C->>D: TX1 verify v7; append user + pending
+    D-->>C: Commit v8; sequences 41,42
+    C->>M: Generate with no DB transaction open
+    M-->>C: Candidate answer
+    C->>D: TX2 verify v8 + operation; append final
+    D-->>C: Commit v9; sequence 43
+```
+
+One conditional allocation pattern is:
+
+```sql
+UPDATE conversation
+SET next_sequence = next_sequence + 2,
+    version = version + 1
+WHERE tenant_id = :tenant
+  AND conversation_id = :conversation
+  AND owner_subject = :owner
+  AND version = :expected_version
+RETURNING next_sequence - 2 AS user_sequence,
+          next_sequence - 1 AS pending_sequence,
+          version;
+```
+
+Zero returned rows means conflict or denied scope; the service must resolve that distinction without leaking another owner's conversation. For workloads using `SERIALIZABLE`, PostgreSQL may abort a transaction with a serialization failure; retry the entire short transaction with the same operation key and a bounded retry policy. Never hide an unbounded retry loop behind the model call.
+
+**Trace:** A timeout after TX1 is not proof that the append failed. Reusing `op-a` returns sequences 41/42. Creating `op-a-2` invents a second logical turn.
+
+### Example 2 — a 1,200-token context is selected, not reconstructed as history
+
+Assume the audit store retains 8,400 tokens. The next invocation has a 1,200-token memory budget after system instructions and retrieved evidence. The selector walks eligible events newest-first, admits only complete items that fit, then restores chronological order.
+
+```java
+List<Event> chooseContext(List<Event> history, int budget) {
+    List<Event> newestFirst = new ArrayList<>();
+    int used = 0;
+    for (int i = history.size() - 1; i >= 0; i--) {
+        Event e = history.get(i);
+        if (!e.authorized() || !e.terminal()) continue;
+        if (e.tokens() > budget - used) continue;
+        newestFirst.add(e);
+        used += e.tokens();
+    }
+    Collections.reverse(newestFirst);
+    return List.copyOf(newestFirst);
+}
+```
+
+| Event | Tokens | State/scope | Decision |
+|---|---:|---|---|
+| user question at sequence 91 | 240 | authorized, terminal | include |
+| assistant pending at sequence 92 | 0 | nonterminal | exclude |
+| finalized answer at sequence 93 | 610 | authorized, terminal | include |
+| old troubleshooting exchange | 520 | authorized but does not fit remaining 350 | exclude as a whole item |
+| cached summary from another tenant | 180 | wrong verified scope | exclude before relevance scoring |
+| compact local summary | 300 | lineage current; no authority claims | include |
+
+The selected 1,150 tokens do not replace the 8,400-token audit history. If a later request needs an older fact, it may select a different authorized subset. Token counts must come from the tokenizer used for the target request shape; character counts are not a safe capacity oracle.
+
+```mermaid
+flowchart TD
+    H["8,400-token authorized history"] --> F{"Terminal and in scope?"}
+    F -->|no| X["Exclude"]
+    F -->|yes| B{"Whole item fits budget?"}
+    B -->|no| X
+    B -->|yes| O["Select; restore chronology"]
+    O --> M["1,200-token maximum context"]
+```
+
+**Proof boundary:** this algorithm proves scope, state and budget for the selected items. It does not prove that the selected subset is the best relevance policy; evaluate omission, recency and critical-fact retention on representative conversations.
+
+### Example 3 — a fluent summary cannot authorize production
+
+Source events say:
+
+1. Alice: “Do **not** deploy production.”
+2. Assistant: “Production remains blocked.”
+3. Bob: “Could we approve staging?”
+
+A lossy summarizer emits: “The team approved production deployment.” The text is fluent and false. The summary must retain at least:
+
+```json
+{
+  "tenant_id": "tenant-a",
+  "conversation_id": "c7",
+  "source_start_sequence": 101,
+  "source_end_sequence": 103,
+  "source_conversation_version": 44,
+  "summarizer_version": "summary-prompt@6/model@3",
+  "text": "The team approved production deployment.",
+  "authority": "derived-only"
+}
+```
+
+The admission gate rejects this candidate because it claims an authoritative `approval` and `environment` state. The deployment path reads a typed approval record bound to the concrete operation fingerprint and environment; summary prose can help retrieval, but it never substitutes for that record.
+
+| Value | Authoritative home | Summary use |
+|---|---|---|
+| approval | signed/recorded approval tied to operation and version | may reference ID, never create it |
+| deployment environment | typed action request and policy evaluation | may describe, never switch it |
+| account balance | live ledger/read model with freshness contract | may mention last observation with timestamp |
+| conversational preference | retained scoped event or explicitly accepted profile field | may compress if lineage is preserved |
+
+```mermaid
+flowchart TD
+    E["Events 101–103"] --> S["Summary candidate"]
+    S --> L{"Range + source + summarizer valid?"}
+    L -->|no| R["Reject"]
+    L -->|yes| A{"Claims typed authority?"}
+    A -->|yes| R
+    A -->|no| D["Store as derived memory"]
+    T["Typed approval record"] --> P["Deployment policy"]
+```
+
+### Example 4 — deletion is a dependency graph with an honest backup state
+
+A user deletes conversation `c7` from a second device. Before looking up content, the service proves that the signed-in subject owns `(tenant-a, c7)`. It then advances a tombstone/authority state so new reads and model-context assembly deny service immediately. Physical cleanup may continue asynchronously.
+
+| Store or artifact | Required terminal evidence |
+|---|---|
+| conversation/events | live query path denies; rows removed or cryptographically rendered unavailable by declared design |
+| vectorized memory | every vector/source mapping for the conversation removed |
+| answer/retrieval caches | keys invalidated by tombstone/authority epoch and cleaned |
+| summaries | derived rows and their indexes removed |
+| traces/log payloads | conversation content removed or expired under the declared observability policy |
+| backups | separately reported retention/expiry state; not reachable by the live serving path |
+
+```mermaid
+flowchart TD
+    Q["Authorized delete c7"] --> T["Deny live serving; write erasure ledger"]
+    T --> E["Events + summaries"]
+    T --> V["Vectors + caches"]
+    T --> R["Traces + replicas"]
+    E --> G{"All live/derived targets terminal?"}
+    V --> G
+    R --> G
+    G -->|no| P["Pending; retry and reconcile"]
+    G -->|yes| C["Complete live erasure; report backup policy separately"]
+```
+
+Do not promise “gone from every system immediately” if backups follow a declared expiry schedule. Report live-serving denial, derived cleanup and backup retention as separate facts. A failed cleanup worker must resume from durable target status rather than infer completion from an absent response.
+
+### Executable conversation-memory contract
+
+[`ConversationMemoryContracts.java`](ConversationMemoryContracts.java) models tenant/owner checks, optimistic versioning, sequence allocation, stable operation replay, append-only finalization, bounded whole-event context, summary lineage/authority rejection and deletion-graph status.
+
+Run all seventeen AI-platform contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+java -ea ContextGroundingContracts.java
+java -ea EvaluationGateContracts.java
+java -ea CacheLatencyCostContracts.java
+java -ea McpArchitectureContracts.java
+java -ea ToolSafetyContracts.java
+java -ea OrchestrationContracts.java
+java -ea StackSelectionContracts.java
+java -ea InterviewCaseContracts.java
+java -ea PlatformControlPlaneContracts.java
+java -ea InferenceServingContracts.java
+java -ea CacheLayerContracts.java
+java -ea ConversationMemoryContracts.java
+```
+
+The new contract checks 28 scenario groups and 10,000 seeded oracle trials. Its stable summary is `AUDIT=APPEND_ONLY|CONTEXT=AUTHORIZED_BOUNDED|TURN=SHORT_TX|SUMMARY=DERIVED|AUTHORITY=TYPED_RECORD|DELETE=GRAPH`.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -2761,6 +3025,10 @@ The new contract checks 28 scenario groups and 10,000 seeded dual-oracle trials.
 | “The semantic score is close enough” | Similar language implies the same entities, risk and authority | Treat reuse as a classifier with scope, entity, freshness and hard-risk gates |
 | “Invalidation deleted the stale answer” | An older in-flight worker cannot repopulate it | Namespace by generation and compare again before publication |
 | “A prefix hit returns the answer cheaply” | Reused prefill removes decode and answer validation | Account new decode tokens and keep evidence/scope/output gates |
+| “We store the full chat, so send it all” | Audit retention and model context are the same product | Keep the authorized history; select a bounded invocation-specific subset |
+| “Hold the row lock until the model answers” | A slow external call belongs inside a database transaction | Append pending state, commit, generate, then conditionally finalize in a new short transaction |
+| “The summary says production was approved” | Generated prose is an authoritative state record | Resolve approval, environment and balances from typed versioned records |
+| “The message rows are deleted, so memory is gone” | No vector, cache, summary, trace or backup still carries the content | Deny live serving first and reconcile every declared derived target and backup state |
 
 ## Primary references
 
@@ -2827,13 +3095,17 @@ The new contract checks 28 scenario groups and 10,000 seeded dual-oracle trials.
 - vLLM, [Automatic Prefix Caching](https://docs.vllm.ai/en/latest/features/automatic_prefix_caching/) and [prefix-cache design](https://docs.vllm.ai/en/stable/design/prefix_caching/) — prefill-only acceleration, exact token blocks, adapter/multimodal identity and optional salts for multi-tenant isolation (accessed 2026-10-26).
 - Amazon Bedrock, [Prompt caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html) — implicit best-effort and explicit checkpoint caching, exact reusable prompt prefixes, cache metrics and model-specific limits (accessed 2026-10-26).
 - Java SE 17, [`MessageDigest`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/security/MessageDigest.html) and the [JCA reference guide](https://docs.oracle.com/en/java/javase/17/security/java-cryptography-architecture-jca-reference-guide.html) — standard SHA-256 digest construction used by the executable key-framing contract (accessed 2026-10-26).
+- Spring AI, [Chat Memory](https://docs.spring.io/spring-ai/reference/api/chat-memory.html) — `ChatMemory` supplies conversation context rather than complete history, uses explicit conversation IDs, and supports windowed memory over several repositories (accessed 2026-10-27).
+- PostgreSQL 18, [Explicit Locking](https://www.postgresql.org/docs/current/explicit-locking.html) and [`SELECT` locking clauses](https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE) — row-lock lifetime and conflicting-writer behavior for short sequence-allocation transactions (accessed 2026-10-27).
+- PostgreSQL 18, [Transaction Isolation](https://www.postgresql.org/docs/current/transaction-iso.html) and [client connection timeouts](https://www.postgresql.org/docs/current/runtime-config-client.html) — serialization failures require whole-transaction retry, while idle/lock timeout controls bound operational failure modes rather than replace application correctness (accessed 2026-10-27).
+- PostgreSQL 18, [Row Security Policies](https://www.postgresql.org/docs/current/ddl-rowsecurity.html) — row visibility/modification policy, `USING`/`WITH CHECK`, default denial when enabled without policy, and owner/`BYPASSRLS` caveats (accessed 2026-10-27).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–16, through `Four caches that must not be treated as interchangeable`, bounded by Chapter 17 in the selected master.
+- Processed range: Chapters 1–17, through `Conversation memory is a database design problem`, bounded by Chapter 18 in the selected master.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
@@ -2849,7 +3121,8 @@ The new contract checks 28 scenario groups and 10,000 seeded dual-oracle trials.
 - Chapter 14 source comparison: selected master HTML lines 425–512 (Pandoc conversion lines 553–616) defines independently operated request, ingestion and release paths; signed/versioned bounded snapshots; an application-owned route contract; compatible fallback; and verified tenant scope before retrieval. The companion Markdown and byte-identical illustrated HTML end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 14 source and no duplicate guide was created.
 - Chapter 15 source comparison: selected master HTML lines 513–539 (Pandoc conversion lines 617–661) defines tokenization, prefill/decode, TTFT/ITL, conventional KV-cache arithmetic, continuous batching, prefix caching and bounded overload admission. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 15 source and no duplicate guide was created.
 - Chapter 16 source comparison: selected master HTML lines 540–563 (Pandoc conversion lines 662–705) distinguishes embedding, retrieval, answer and prefix/KV caches; semantic versus exact answers; a generation-aware stale-answer race; and long-context trade-offs. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 16 source and no duplicate guide was created.
-- Next bounded section: Chapter 17, `Conversation memory is a database design problem`, after fair domain rotation.
+- Chapter 17 source comparison: selected master HTML lines 596–623 (Pandoc conversion lines 706–741) separates audit history from selected model context; defines composite tenant/conversation keys, sequence allocation and short-transaction finalization; treats summaries as versioned lossy derivatives; and names vectors, caches, summaries, traces and backups in deletion scope. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 17 source and no duplicate guide was created.
+- Next bounded section: Chapter 18, `Prompt engineering for platform behavior`, after fair domain rotation.
 
 
 
