@@ -3172,3 +3172,275 @@ Verified on 26 October 2026:
 ### Source provenance and continuation
 
 The selected editable bundle member's complete Section 16 is source lines 932–942, bounded before Section 17 at line 944. The compared standalone HTML is lines 1053–1059, bounded before Chapter 17 at line 1060. Both prescribe the same four weeks and the same requirement for a short decision record, so the editable Markdown remains the structural source and no duplicate guide was created. This canonical section preserves every source task while adding entry/exit gates, fixed identities, four worked traces, five diagrams, safe-selection and failure-precedence rules, current primary references and paired executable contracts. Section 17 follows after the fair domain rotation; Sections 17–25 remain queued, so the source collection is not complete.
+
+## 17. Design an AI API as a durable business contract
+
+A public API is the product boundary, not a serialized provider SDK. Clients should see application concepts—questions, owned conversations, citations and ingestion jobs—while the server owns tenant identity, provider choice, model revision, evidence policy and release identity. This keeps provider migration possible and prevents callers from selecting unsafe models, arbitrary base URLs or filesystem paths.
+
+### Contract requirements and invariants
+
+1. **Derive authority from verified identity.** Tenant and subject never come from the JSON body. Every conversation, citation, upload and job lookup is re-authorized.
+2. **Keep the DTO provider-neutral.** Public fields describe business intent. Provider parameters remain behind a versioned adapter and a server-side capability policy.
+3. **Treat correlation as untrusted data.** A bounded `X-Request-ID` can aid correlation, but it is not authentication, an idempotency key or permission to create arbitrary log labels.
+4. **Return validated evidence, not private reasoning.** Citations must be visible to the subject, members of the supplied evidence set and supportive of the returned claim. Do not expose prompts, tokens, stack traces or raw chain-of-thought.
+5. **Make failure ownership stable.** Authentication, authorization, input, local capacity, dependency availability, gateway timeout and insufficient evidence are different outcomes. Stable application codes let clients react without parsing prose.
+6. **Scope idempotency by authority and operation.** `(verified tenant, operation, key)` identifies one canonical payload hash and one job. The same key and same hash replays the original result; the same key with a different hash conflicts.
+7. **Commit the idempotency record, job and outbox event atomically.** A database uniqueness constraint arbitrates concurrent creators. A failed transaction leaves none of the three visible.
+8. **Assume at-least-once delivery.** An outbox relay can publish before crashing and publish again after restart. Workers deduplicate stage effects; external side effects need their own reconciliation identifiers.
+9. **Job state is monotonic and tenant-scoped.** Polling uses the verified tenant, and a concealment policy can return the same `404` for an absent job and another tenant's job.
+10. **A timeout makes write outcome unknown.** Reconcile through the returned or deterministic job resource before blindly resubmitting.
+
+```mermaid
+flowchart LR
+    C["Public client DTO"] --> A["Application contract"]
+    A --> I["Identity and authority"]
+    A --> E["Evidence policy"]
+    A --> P["Provider adapter"]
+    P --> X["Provider-specific request"]
+```
+
+### Example 1 — synchronous answers expose application evidence
+
+The request expresses intent and optional owned context. The service derives security and runtime choices:
+
+```http
+POST /v1/answers HTTP/1.1
+Authorization: Bearer <user-access-token>
+Content-Type: application/json
+X-Request-ID: web-7e51
+
+{
+  "question": "How do I roll back payments in staging?",
+  "conversationId": "conv_42",
+  "responseMode": "answer-with-citations"
+}
+```
+
+```json
+{
+  "answerId": "ans_01",
+  "status": "complete",
+  "answer": "Use the approved rollback job for the staging release.",
+  "citations": [
+    {"documentId": "payments-r7", "revision": 7, "chunkId": "c03"}
+  ],
+  "evidenceGeneration": "runbooks-g43",
+  "releaseId": "atlas-r18",
+  "requestId": "srv-91c0"
+}
+```
+
+The server trace is auditable without capturing secrets or content by default:
+
+```text
+request=srv-91c0 client_request=web-7e51 subject_hash=89f... tenant=payments
+conversation=conv_42 ownership=PASS admission=ADMITTED
+evidence_generation=runbooks-g43 visible_candidates=12 supplied=[payments-r7/c03]
+provider_adapter=chat-port-v4 model_policy=standard-answer deadline_ms=1800
+schema=PASS citation_membership=PASS citation_support=PASS outcome=COMPLETE
+```
+
+An insufficient-evidence result is still a successful domain response. It has no invented answer or citation:
+
+```json
+{
+  "answerId": "ans_02",
+  "status": "insufficient_evidence",
+  "answer": null,
+  "citations": [],
+  "requestId": "srv-91c1"
+}
+```
+
+Minimal controller code should pass a verified principal and a closed request DTO, not a client-supplied tenant or provider object:
+
+```java
+AnswerResponse answer(VerifiedPrincipal principal, AnswerRequest request) {
+    ValidatedQuestion question = validator.validate(request.question());
+    OwnedConversation conversation = conversations.requireOwned(
+        principal.tenant(), principal.subject(), request.conversationId());
+    return answerService.answer(principal, conversation, question, request.responseMode());
+}
+```
+
+```python
+def answer(principal: VerifiedPrincipal, request: AnswerRequest) -> AnswerResponse:
+    question = validator.validate(request.question)
+    conversation = conversations.require_owned(
+        principal.tenant, principal.subject, request.conversation_id
+    )
+    return answer_service.answer(principal, conversation, question, request.response_mode)
+```
+
+### Example 2 — error semantics identify the repair owner
+
+Use `application/problem+json` with a stable application `type`/code, a safe detail and a server request ID. The HTTP status is necessary but does not carry the whole business meaning.
+
+| Condition | HTTP result | Retry rule |
+|---|---|---|
+| malformed JSON | `400` | repair representation |
+| well-formed but invalid/oversized DTO | documented `422` | repair request; do not retry unchanged |
+| missing or invalid credentials | `401` plus applicable challenge | reauthenticate |
+| authenticated but forbidden | `403`, or consistent `404` concealment | do not retry for permission |
+| local admission exhausted | `429` plus bounded `Retry-After` when known | back off with jitter and deadline |
+| required dependency unavailable | `503` | retry only if operation policy permits |
+| upstream deadline while acting as a gateway | `504` | writes remain outcome-unknown |
+| no supporting evidence | `200` with `insufficient_evidence` | clarify or escalate |
+
+```json
+{
+  "type": "https://atlas.example/problems/local-overload",
+  "title": "Request not admitted",
+  "status": 429,
+  "detail": "Capacity is temporarily unavailable.",
+  "instance": "/v1/answers/srv-91c2",
+  "code": "LOCAL_ADMISSION_EXHAUSTED",
+  "requestId": "srv-91c2"
+}
+```
+
+```mermaid
+flowchart TD
+    R["Request"] --> A{"authenticated?"}
+    A -->|no| U["401"]
+    A -->|yes| Z{"authorized?"}
+    Z -->|no| F["403 or concealed 404"]
+    Z -->|yes| V{"valid and admitted?"}
+    V -->|invalid| Q["400 or 422"]
+    V -->|overload| L["429"]
+    V -->|yes| D{"dependency and deadline?"}
+    D -->|unavailable| S["503"]
+    D -->|gateway timeout| G["504"]
+    D -->|yes| E["complete or insufficient evidence"]
+```
+
+Precedence matters when several facts are false. Authentication and authorization fail before content-dependent detail; validation fails before expensive work; admission fails before queue growth. A `503` does not hide a caller input error, and `insufficient_evidence` does not become a `500` merely because a model participated.
+
+### Example 3 — asynchronous ingestion is replay-safe
+
+The client supplies a high-entropy idempotency key and a reference to an already authorized upload. The service canonicalizes the business payload, hashes it and commits one record:
+
+```http
+POST /v1/ingestion-jobs HTTP/1.1
+Authorization: Bearer <token>
+Idempotency-Key: upload-42-7d36f410
+Content-Type: application/json
+
+{"sourceId":"runbooks/payments","sourceRevision":"r8","uploadId":"owned-upload-42"}
+```
+
+```http
+HTTP/1.1 202 Accepted
+Location: /v1/ingestion-jobs/job_42
+Content-Type: application/json
+
+{"jobId":"job_42","state":"accepted"}
+```
+
+`202 Accepted` means processing was accepted, not completed or guaranteed to succeed. The `Location` resource is the authority for later state.
+
+| Arrival | Stored scope/hash | Result |
+|---|---|---|
+| first request | none | atomically create key, `job_42`, outbox; return `202` |
+| retry after lost response | same tenant/operation/key and same hash | return `job_42`; do not create work |
+| accidental key reuse | same scope, different hash | `409` application conflict |
+| same key, other tenant | different scope | independent job after authorization |
+| concurrent first requests | unique constraint decides winner | loser reads winner and applies same-hash rule |
+
+```sql
+BEGIN;
+INSERT INTO idempotency_record(tenant_id, operation, key, payload_hash, job_id)
+VALUES (:tenant, 'INGEST', :key, :hash, :job)
+ON CONFLICT DO NOTHING;
+INSERT INTO ingestion_job(job_id, tenant_id, state) VALUES (:job, :tenant, 'ACCEPTED');
+INSERT INTO outbox(event_id, aggregate_id, kind) VALUES (:event, :job, 'INGEST_REQUESTED');
+COMMIT;
+```
+
+The sketch omits the required winner-read branch: production code inserts all three only when it owns the idempotency row; otherwise it reads the committed row and compares hashes. Do not continue after `ON CONFLICT DO NOTHING` as though ownership were acquired.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as API
+    participant D as Database
+    participant R as Outbox relay
+    participant W as Worker
+    C->>A: POST + key + canonical payload
+    A->>D: transaction: scoped key + job + outbox
+    D-->>A: commit job_42
+    A-->>C: 202 + Location
+    R->>D: claim unpublished event
+    R->>W: publish job_42
+    W->>D: idempotent stage write
+```
+
+Trace the ambiguous-response case rather than assuming failure:
+
+```text
+t0 key=upload-42-7d36f410 hash=ab31... transaction=COMMIT job=job_42
+t1 api response lost; client outcome=UNKNOWN
+t2 client repeats same key/hash
+t3 uniqueness winner found job_42; response=202 Location=/v1/ingestion-jobs/job_42
+jobs_created=1 outbox_events_created=1
+```
+
+### Example 4 — duplicate delivery and polling stay safe
+
+The relay cannot atomically commit its database acknowledgement with a broker publish in the general case. A crash after publish leaves the event eligible for another delivery. The worker therefore applies a unique `(job_id, stage)` effect or an equivalent compare-and-set transition.
+
+```text
+relay publish event=evt_42 delivery=1
+worker apply job_42/EXTRACTED -> committed
+relay crash before sent_at update
+relay restart; publish event=evt_42 delivery=2
+worker apply job_42/EXTRACTED -> duplicate, no effect
+worker apply job_42/INDEXED -> committed
+state ACCEPTED -> EXTRACTED -> INDEXED; backward/skip transitions rejected
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Accepted
+    Accepted --> Extracted: unique stage effect
+    Extracted --> Indexed: unique stage effect
+    Indexed --> Complete: publication committed
+    Accepted --> Failed: terminal typed failure
+    Extracted --> Failed: terminal typed failure
+    Indexed --> Failed: terminal typed failure
+```
+
+`GET /v1/ingestion-jobs/job_42` first verifies identity and then queries with tenant scope. Returning `404` for both absent and foreign jobs avoids an existence oracle, but logs should retain an internal forbidden-versus-absent distinction. The response can expose state, safe failure code, progress counters and immutable input revision; it must not expose another tenant's source name, internal broker offsets or secrets.
+
+Exactly-once job creation does not make a remote side effect exactly once. If a worker calls a document converter, object store or billing system, attach a stable operation ID and reconcile that provider's result before repeating an outcome-unknown call.
+
+### Paired executable durable-API contract
+
+[`DurableApiContracts.java`](DurableApiContracts.java) and [`durable_api_contracts.py`](durable_api_contracts.py) encode the status precedence, scoped-key/hash rules, atomic rollback, duplicate relay, monotonic stage writes and tenant-concealed polling without external dependencies:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/DurableApiContracts.java
+python3 study-guides/backend/spring-ai-python/durable_api_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|SYNC=PROVIDER_NEUTRAL|ERROR=PROBLEM_DETAIL|ASYNC=202_LOCATION|IDEMPOTENCY=SCOPED_HASH|OUTBOX=AT_LEAST_ONCE|WORKER=STAGE_DEDUP|READY=2741
+```
+
+Each implementation passes 30 explicit scenario groups and 10,000 seeded answer-precedence trials. The contract is an executable decision model, not proof of Spring MVC wiring, ASGI behavior, database isolation, broker durability or external-side-effect reconciliation; those require real integration tests.
+
+### Current primary references
+
+Verified on 27 October 2026:
+
+- IETF, [RFC 9110: HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html) — `202` is intentionally noncommittal; `401`, `403`, `409`, `422`, `503` and `504` have distinct semantics, and `503` may carry `Retry-After`.
+- IETF, [RFC 9457: Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457.html) — current standards-track `application/problem+json` fields and the warning not to expose implementation internals.
+- Spring Framework, [Error Responses](https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-rest-exceptions.html) — `ProblemDetail`, `ErrorResponse`, `ResponseEntityExceptionHandler` and `application/problem+json` support for Spring MVC.
+- IETF HTTPAPI Working Group, [Idempotency-Key HTTP Header Field draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) — key uniqueness, payload fingerprints and replay/conflict patterns. This is an expired Internet-Draft, not an Internet Standard; the application must document scope, canonicalization, retention and concurrent-request behavior.
+- PostgreSQL, [Constraints](https://www.postgresql.org/docs/current/ddl-constraints.html) and [Transactions](https://www.postgresql.org/docs/current/tutorial-transactions.html) — uniqueness as the concurrency arbiter and all-or-nothing visibility for the idempotency/job/outbox write set.
+
+### Source provenance and continuation
+
+The selected editable bundle member's complete Section 17 is source lines 944–1031, bounded before Section 18 at line 1033. The compared standalone HTML is lines 1060–1163, bounded before Section 18 at line 1164. Both contain the same synchronous answer DTO, response/error guidance, asynchronous ingestion contract and outbox warning, so the editable Markdown remains the structural source and no duplicate guide was created. This canonical section retains those requirements while adding exact precedence, four worked traces, four diagrams, canonical-hash and concurrency rules, tenant-concealed polling, external-side-effect reconciliation, current primary references and paired executable contracts. Section 18, **When to use MCP, REST, events or direct library calls**, begins at editable line 1033 / standalone HTML line 1164. Sections 18–25 remain queued; the wider collection is not complete.

@@ -1,10 +1,10 @@
 # Backend Enrichment Status
 
-Last updated: 2026-10-26.
+Last updated: 2026-10-27.
 
 ## Spring AI and Python APIs
 
-State: **IN PROGRESS; Sections 1–16 promoted**.
+State: **IN PROGRESS; Sections 1–17 promoted**.
 
 Canonical pair:
 
@@ -15,7 +15,7 @@ Source comparison:
 
 - Selected `atlas_guides/spring_ai_python_api_interview_guide.md` from `ai_cicd_spring_python_guides_complete.zip`, bundle SHA-256 `c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31`, member SHA-256 `af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553`.
 - Compared standalone `spring_ai_python_api_interview_guide.html`, SHA-256 `6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3`; it is byte-identical to the generated HTML inside the bundle, so it was not promoted as a duplicate source.
-- Section 16 is exactly editable-source lines 932–942 and standalone-HTML lines 1053–1059, ending before Section 17 at respective lines 944 and 1060.
+- Section 17 is exactly editable-source lines 944–1031 and standalone-HTML lines 1060–1163, ending before Section 18 at respective lines 1033 and 1164.
 - The ZIP passed integrity and path-traversal checks.
 
 Completed sections:
@@ -36,12 +36,13 @@ Completed sections:
 14. **Observability and debugging by boundary** (source lines 882–915) — bounded-label metrics, protected content capture, causal queue/pool/retrieval/tool/model traces, security-first tenant-leak response, tool-registration evidence, Java/Python release-vector parity, four examples, four diagrams and paired 37-scenario/10,000-trial contracts.
 15. **Testing pyramid for this repository** (source lines 917–930) — claim-to-layer boundaries, unit/adapter failure traces, real pgvector scope checks, versioned model evaluation, SLO-backed load and cluster gates, same-release evidence, four examples, four diagrams and paired 29-scenario/10,000-trial contracts.
 16. **A four-week implementation path** (source lines 932–942) — weekly entry/exit gates, fixed evidence identities, safe retrieval comparison, read-only MCP discovery/schema/auth/timeout proof, same-release disposable deployment and failure drills, decision records, four examples, five diagrams and paired 31-scenario/10,000-trial contracts.
+17. **Design an AI API as a durable business contract** (source lines 944–1031) — provider-neutral synchronous answers, verified authority, stable problem semantics, scoped canonical-hash idempotency, atomic job/outbox creation, duplicate-safe workers, tenant-concealed polling, four examples, four diagrams and paired 30-scenario/10,000-trial contracts.
 
 Validation:
 
-- Java 17 source-file launch and Python 3 passed all sixteen contract pairs; Section 16 produced the identical `PARITY|W1=OFFLINE_BASELINE|W2=MODEL_RETRIEVAL|W3=MCP_BOUNDARY|W4=DISPOSABLE_DEPLOYMENT|ADR=MEASURED|PROMOTION=EVIDENCE_CHAIN|READY=5437` trace, 31 scenario groups and 10,000 seeded trials per language.
-- Deterministic reader generation passed exact 220431-byte Markdown recovery, SHA-256 `42f915d8470370c6dcbfdd2ddc2b8a932a7261c5a562438a8bddcaa7fb616774`, 619 unique HTML IDs, 17 search entries, 419 fragments, 4 resolved relative links, 284 balanced fence markers, 68 Mermaid sources, JSON, JavaScript syntax, responsive/search controls and rebuild identity.
+- Java 17 source-file launch and Python 3 passed all seventeen contract pairs; Section 17 produced the identical `PARITY|SYNC=PROVIDER_NEUTRAL|ERROR=PROBLEM_DETAIL|ASYNC=202_LOCATION|IDEMPOTENCY=SCOPED_HASH|OUTBOX=AT_LEAST_ONCE|WORKER=STAGE_DEDUP|READY=2741` trace, 30 scenario groups and 10,000 seeded trials per language.
+- Deterministic reader generation passed exact 235320-byte Markdown recovery, SHA-256 `ed784389e398ffd244ea392ca67f7cd54671c7a4eb695ff58eb82c98511776ab`, 683 unique HTML IDs, 18 search entries, 467 fragments, 6 resolved relative links, 320 balanced fence markers, 72 Mermaid sources, JSON, JavaScript syntax, responsive/search controls and rebuild identity.
 - A fresh literal-marker audit found 170 live Java placeholders across the five canonical DSA guide folders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this backend section added none.
 - Standalone `javac`, Maven/framework compilation, live pgvector/model/provider/MCP-host/k6/Kubernetes integration, browser/accessibility integration and rendered Mermaid QA were unavailable and are not represented as passes; Java 17 source-file launch was the available Java execution path.
 
-Next action: rotate fairly to AI-platform Chapter 17, **Conversation memory is a database design problem**, then Arrays Section 4 problem 16. On the next Spring/Python turn, process Section 17, beginning at editable source line 944 / standalone HTML line 1060. Do not imply the 25-section source or wider collection is complete.
+Next action: rotate fairly to AI-platform Chapter 18, then Arrays Section 4 problem 17. On the next Spring/Python turn, process Section 18, **When to use MCP, REST, events or direct library calls**, beginning at editable source line 1033 / standalone HTML line 1164. Do not imply the 25-section source or wider collection is complete.
