@@ -2954,6 +2954,172 @@ java -ea ConversationMemoryContracts.java
 
 The new contract checks 28 scenario groups and 10,000 seeded oracle trials. Its stable summary is `AUDIT=APPEND_ONLY|CONTEXT=AUTHORIZED_BOUNDED|TURN=SHORT_TX|SUMMARY=DERIVED|AUTHORITY=TYPED_RECORD|DELETE=GRAPH`.
 
+## 18. Ingestion as a recoverable publication transaction
+
+An ingestion request is not one write. It is an at-least-once workflow that prepares immutable artifacts and makes them visible with one guarded publication decision. Give the logical transformation the complete identity `(tenant, source_id, source_revision, parser_version, chunker_version, embedding_version)`. A delivery retry reuses that identity and its recorded stages; changing any component requests a new generation.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Accepted
+    Accepted --> Stored
+    Stored --> Parsed
+    Parsed --> Embedded
+    Embedded --> Validated
+    Validated --> Published
+    Stored --> Rejected
+    Parsed --> Rejected
+    Embedded --> Rejected
+    Published --> Retired
+```
+
+The state name is insufficient by itself. Each completed stage needs an immutable input identity, output manifest/checksum, attempt evidence and terminal result. A worker resumes from the last verified output rather than guessing from a missing response or reparsing automatically.
+
+### Requirements and invariants
+
+| Concern | Required invariant | Failure if omitted |
+|---|---|---|
+| source truth | copy one approved revision to immutable storage and verify its checksum | a later retry parses different bytes under the same job |
+| retry identity | one complete transformation identity maps to one generation/job | duplicate delivery creates a second active copy of every chunk |
+| parser boundary | allowlisted media plus compressed, expanded, page and CPU limits | a small archive or malformed document exhausts the worker |
+| chunk identity | derive stable IDs from source revision plus structural position | a replay produces parallel chunks that cannot be reconciled |
+| stage recovery | persist validated manifests for bounded batches | one failed batch forces blind all-or-nothing recomputation |
+| readiness | validate checksum, counts, dimensions, ACL version and sample retrieval | structurally incomplete artifacts become searchable |
+| publication | compare expected active generation, then switch one catalog pointer | readers observe a mixture of old objects and new vectors |
+| deletion/ACL | advance a source tombstone or ACL authority version before cleanup | stale candidates or caches resurrect denied evidence |
+| embedding space | fence model, representation, preprocessing, dimension and metric | equal-shaped vectors from different spaces are mixed |
+| rollback | retain the prior complete generation for a declared window | a bad cutover cannot be reversed and in-flight reads break |
+
+### Example 1 — duplicate delivery resumes one transformation
+
+An event bus delivers the same request twice after the first worker times out while embedding batch 7. Both deliveries carry:
+
+```text
+(tenant-a, handbook, rev-42, tika@4, headings@3, embed-a@2026-09)
+```
+
+The catalog's unique identity returns generation `g-91` to both workers. Its manifest says object storage, parsing and embedding batches 0–6 are complete. The second worker verifies those checksums and claims batch 7; it does not create `g-92` or repeat parsing. A source revision, parser, chunker or embedder change yields a different identity and therefore a new generation.
+
+| Delivery | Observed catalog | Decision |
+|---|---|---|
+| first | no matching identity | create `g-91`; record `Accepted` |
+| retry after timeout | `g-91`, parsed, batches 0–6 verified | resume batch 7 |
+| same filename, `rev-43` | no matching full identity | create a new generation |
+| same revision, new embedder | no matching full identity | create side-by-side re-embedding generation |
+
+```mermaid
+sequenceDiagram
+    participant Q as Delivery queue
+    participant C as Catalog
+    participant W as Worker
+    participant S as Stage store
+    Q->>C: Start(full transformation identity)
+    C-->>Q: Existing g-91
+    Q->>W: Resume g-91
+    W->>S: Verify manifests 0–6
+    S-->>W: Checksums match
+    W->>S: Write bounded batch 7
+    W->>C: Record batch 7 terminal result
+```
+
+Stable identity is not “same request means accept any payload.” Store immutable specifications and hashes; if a supposedly identical operation arrives with different bytes or parameters, fail the collision. Use unambiguous length framing or canonical serialization before hashing identity components.
+
+### Example 2 — a 6 MiB upload expands beyond its parser budget
+
+The service accepts at most 20 MiB compressed, 100 MiB expanded, 500 pages, 30 CPU seconds and an explicit media allowlist. A ZIP-wrapped upload is only 6 MiB but would expand to 840 MiB. The parser measures expansion while extracting, stops before the 100 MiB boundary, records typed rejection evidence and never marks `Parsed`.
+
+```mermaid
+flowchart TD
+    A["Approved immutable object + checksum"] --> M{"Media type allowed?"}
+    M -->|no| R["Reject with typed reason"]
+    M -->|yes| B{"Compressed, expanded, pages and CPU within limits?"}
+    B -->|no| R
+    B -->|yes| P["Write parse manifest + stable chunks"]
+    P --> E["Start bounded embedding batches"]
+```
+
+**Trace:** `Accepted → Stored(sha256:…) → Parsing → Rejected(expanded_bytes_limit)`. No chunk, object or vector written by that attempt is reachable through the active-generation pointer. Retrying the same identity returns the rejection; an operator must approve a new policy or transformation identity rather than silently weaken limits.
+
+For a valid document, chunk IDs combine the immutable source revision with a structural path and ordinal. Replaying `rev-42 / section-3 / paragraph-2` yields the same ID, while a changed revision cannot overwrite it. Resource counters and checksums are evidence, not substitutes for sandboxing and hardened parser configuration.
+
+### Example 3 — partial vectors remain invisible; publication is one CAS
+
+Generation `g-91` is active. Candidate `g-92` has 240 object chunks but only 239 vectors because the last insert timed out. The validator refuses readiness, so retrieval remains pinned to `g-91`. After reconciliation confirms 240 vectors, correct dimension, current ACL metadata and sample-query success, publication performs one compare-and-set:
+
+```sql
+UPDATE source_catalog
+SET prior_generation = active_generation,
+    active_generation = :candidate,
+    catalog_version = catalog_version + 1
+WHERE tenant_id = :tenant
+  AND source_id = :source
+  AND active_generation = :expected_active
+  AND tombstoned = false;
+```
+
+Exactly one affected row is success. Zero means stale expectation, deletion or missing scope and must be reconciled. This transaction does not atomically commit the object store and vector store; it makes their already-prepared immutable outputs visible together.
+
+```mermaid
+flowchart TD
+    O["Object chunks for g-92"] --> V{"Counts, dimension, ACL and samples valid?"}
+    X["Vectors for g-92"] --> V
+    V -->|no| I["Invisible staging; repair or reject"]
+    V -->|yes| C{"Catalog CAS: expected g-91?"}
+    C -->|no| I
+    C -->|yes| P["Active g-92; retain prior g-91"]
+```
+
+A reader resolves the pointer once and carries `g-91` or `g-92` through the request; it never rereads the pointer between candidate and evidence fetch. Retaining `g-91` allows a guarded rollback, while generation pinning lets an in-flight `g-91` reader finish coherently.
+
+### Example 4 — deletion, ACL change and re-embedding all advance authority
+
+A result cache holds chunk IDs from `g-92` at ACL version 11. An administrator removes the user's access, advancing the catalog to ACL version 12. The candidate cache may still return IDs, but evidence fetch compares the current tombstone, active generation and ACL version before returning text; version 11 is denied.
+
+Deletion uses the same serving boundary. First write a monotonic tombstone so new retrieval and evidence fetch fail closed. Physical object/vector/cache cleanup follows asynchronously from a durable ledger. Do not clear the tombstone when cleanup succeeds: it prevents late workers from republishing deleted content.
+
+```mermaid
+sequenceDiagram
+    participant R as Retriever/cache
+    participant C as Source catalog
+    participant E as Evidence store
+    R->>C: Resolve source authority
+    C-->>R: active g-92, ACL v12, not tombstoned
+    R->>E: Fetch cached candidate at ACL v11
+    E->>C: Recheck generation + ACL + tombstone
+    C-->>E: ACL mismatch
+    E-->>R: Deny; do not return text
+```
+
+For re-embedding, build `embed-b@2` beside `embed-a@1`, evaluate both on the same fixed corpus/query/judgment revision, and promote only after hard-slice gates pass. Two models that both emit 1,536 numbers do not share a coordinate system. Dimension is a shape check; compatibility requires the exact embedding-space identity.
+
+### Executable recoverable-ingestion contract
+
+[`RecoverableIngestionContracts.java`](RecoverableIngestionContracts.java) models full transformation identity, stable replay, parser budgets, ordered resumable stages, readiness validation, expected-generation publication, retained rollback state, evidence-time ACL/tombstone checks and versioned embedding spaces.
+
+Run all eighteen AI-platform contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+java -ea ContextGroundingContracts.java
+java -ea EvaluationGateContracts.java
+java -ea CacheLatencyCostContracts.java
+java -ea McpArchitectureContracts.java
+java -ea ToolSafetyContracts.java
+java -ea OrchestrationContracts.java
+java -ea StackSelectionContracts.java
+java -ea InterviewCaseContracts.java
+java -ea PlatformControlPlaneContracts.java
+java -ea InferenceServingContracts.java
+java -ea CacheLayerContracts.java
+java -ea ConversationMemoryContracts.java
+java -ea RecoverableIngestionContracts.java
+```
+
+The new contract checks scenario groups plus 10,000 seeded parser-policy trials. Its second stable output line records full-revision identity, at-least-once execution, resumable stages, generation-CAS publication, tombstones, evidence-time ACL checks and embedding-space versioning.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -3029,6 +3195,10 @@ The new contract checks 28 scenario groups and 10,000 seeded oracle trials. Its 
 | “Hold the row lock until the model answers” | A slow external call belongs inside a database transaction | Append pending state, commit, generate, then conditionally finalize in a new short transaction |
 | “The summary says production was approved” | Generated prose is an authoritative state record | Resolve approval, environment and balances from typed versioned records |
 | “The message rows are deleted, so memory is gone” | No vector, cache, summary, trace or backup still carries the content | Deny live serving first and reconcile every declared derived target and backup state |
+| “The queue delivered it again, so ingest another copy” | Delivery count defines transformation identity | Reuse the complete transformation identity and resume verified stages |
+| “The archive is only 6 MiB” | Compressed size bounds parser work and storage | Enforce expanded bytes, pages, CPU and permitted media types while parsing |
+| “Most vectors are ready, so switch now” | Readers tolerate partially joined generations | Validate every required artifact, then compare-and-set one active pointer |
+| “Both models emit 1,536 numbers” | Equal dimension means equal coordinate space | Version the complete embedding space and evaluate side by side before promotion |
 
 ## Primary references
 
@@ -3099,13 +3269,17 @@ The new contract checks 28 scenario groups and 10,000 seeded oracle trials. Its 
 - PostgreSQL 18, [Explicit Locking](https://www.postgresql.org/docs/current/explicit-locking.html) and [`SELECT` locking clauses](https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE) — row-lock lifetime and conflicting-writer behavior for short sequence-allocation transactions (accessed 2026-10-27).
 - PostgreSQL 18, [Transaction Isolation](https://www.postgresql.org/docs/current/transaction-iso.html) and [client connection timeouts](https://www.postgresql.org/docs/current/runtime-config-client.html) — serialization failures require whole-transaction retry, while idle/lock timeout controls bound operational failure modes rather than replace application correctness (accessed 2026-10-27).
 - PostgreSQL 18, [Row Security Policies](https://www.postgresql.org/docs/current/ddl-rowsecurity.html) — row visibility/modification policy, `USING`/`WITH CHECK`, default denial when enabled without policy, and owner/`BYPASSRLS` caveats (accessed 2026-10-27).
+- Amazon Builders' Library, [Making retries safe with idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) — caller-provided request identity, semantic equivalence and reconcilable retry outcomes for at-least-once delivery (accessed 2026-10-27).
+- OWASP Cheat Sheet Series, [File Upload Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html) — allowlisted types, size limits and post-decompression/archive-bomb limits for bounded parsing (accessed 2026-10-27).
+- Elasticsearch, [Aliases](https://www.elastic.co/docs/manage-data/data-store/aliases) — one atomic multiple-action alias operation can swap the complete searchable target without an interval pointing to neither or both generations (accessed 2026-10-27).
+- PostgreSQL 18, [Transaction Isolation](https://www.postgresql.org/docs/current/transaction-iso.html), [Serialization Failure Handling](https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html), and [Explicit Locking](https://www.postgresql.org/docs/current/explicit-locking.html) — transaction visibility, expected-state locking and whole-transaction retry after serialization failure (accessed 2026-10-27).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–17, through `Conversation memory is a database design problem`, bounded by Chapter 18 in the selected master.
+- Processed range: Chapters 1–18, through `Ingestion as a recoverable publication transaction`, bounded by Chapter 19 in the selected master.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
@@ -3122,7 +3296,8 @@ The new contract checks 28 scenario groups and 10,000 seeded oracle trials. Its 
 - Chapter 15 source comparison: selected master HTML lines 513–539 (Pandoc conversion lines 617–661) defines tokenization, prefill/decode, TTFT/ITL, conventional KV-cache arithmetic, continuous batching, prefix caching and bounded overload admission. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 15 source and no duplicate guide was created.
 - Chapter 16 source comparison: selected master HTML lines 540–563 (Pandoc conversion lines 662–705) distinguishes embedding, retrieval, answer and prefix/KV caches; semantic versus exact answers; a generation-aware stale-answer race; and long-context trade-offs. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 16 source and no duplicate guide was created.
 - Chapter 17 source comparison: selected master HTML lines 596–623 (Pandoc conversion lines 706–741) separates audit history from selected model context; defines composite tenant/conversation keys, sequence allocation and short-transaction finalization; treats summaries as versioned lossy derivatives; and names vectors, caches, summaries, traces and backups in deletion scope. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 17 source and no duplicate guide was created.
-- Next bounded section: Chapter 18, `Prompt engineering for platform behavior`, after fair domain rotation.
+- Chapter 18 source comparison: selected master HTML lines 624–652 (Pandoc conversion lines 742–777) defines full transformation identity, immutable staged artifacts, bounded parsing, resumable embedding, readiness validation, active-generation publication, tombstone/ACL rechecks and side-by-side re-embedding. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 18 source and no duplicate guide was created.
+- Next bounded section: Chapter 19, after fair domain rotation.
 
 
 

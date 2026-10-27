@@ -4,7 +4,7 @@ Last updated: 2026-10-27.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapters 1–17 complete**.
+State: **PROMOTED incrementally; Chapters 1–18 complete**.
 
 Canonical pair:
 
@@ -49,10 +49,12 @@ Source comparison:
 - Deepened Chapter 16 with four embedding/retrieval/answer/prefix-cache examples, four diagrams, authorization and stale-publication traces, current primary references, and an executable Java 17 contract for behavior-complete cache keys, tenant/ACL/generation scope, risk-gated semantic reuse, generation-fenced publication and exact prefix compatibility, plus 10,000 seeded dual-oracle trials.
 - Compared Chapter 17 in selected master HTML lines 596–623 (Pandoc conversion lines 706–741). The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 17 source and no duplicate guide was created.
 - Deepened Chapter 17 with four concurrency/context/summary/deletion examples, four diagrams, short-transaction and deletion-graph traces, current Spring AI and PostgreSQL primary references, and an executable Java 17 contract for append-only ordering, tenant/owner scope, expected-version finalization, bounded whole-event context, summary lineage/authority denial and derived-store deletion state, plus 10,000 seeded oracle trials.
+- Compared Chapter 18 in selected master HTML lines 624–652 (Pandoc conversion lines 742–777). The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 18 source and no duplicate guide was created.
+- Deepened Chapter 18 with four identity/parser/publication/authority examples, four diagrams, replay, rejection, cutover and stale-ACL traces, current primary references, and an executable Java 17 contract for full transformation identity, bounded parsing, resumable stages, generation-CAS publication, tombstones, evidence-time ACL checks and versioned embedding spaces, plus 10,000 seeded parser-policy trials.
 
-Next bounded AI-platform section: Chapter 18 after fair domain rotation. The immediate cross-domain continuation is Arrays problem 16, followed by Spring AI/Python Section 17.
+Next bounded AI-platform section: Chapter 19 after fair domain rotation. The immediate cross-domain continuation is Arrays problem 17, followed by Spring AI/Python Section 18.
 
-Validation for Chapter 17: Java 17 source-file launch passed all seventeen AI-platform contracts; `ConversationMemoryContracts` passed 28 scenario groups and 10,000 seeded trials. Two deterministic Pandoc builds produced identical readers. The platform reader recovered the exact 233,152-byte Markdown payload at SHA-256 `96d2f045100890369f170f7b067398f216d47a8c68780707463d186712f7cf51`; 562 unique HTML IDs, 72 search entries, 397 fragment links, 76 Mermaid sources, local links, search JSON, inline/module JavaScript, responsive controls and `git diff --check` passed. Standalone `javac`, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live literal-marker audit remains 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this section added none.
+Validation for Chapter 18: Java 17 source-file launch passed all eighteen AI-platform contracts; `RecoverableIngestionContracts` passed 28 scenario groups and 10,000 seeded trials. Two deterministic Pandoc builds produced identical readers. The platform reader recovered the exact 245,654-byte Markdown payload at SHA-256 `1c772a1cd96f0ac64d0cddd93eb8447b625d3984c5b28deb63128aee3ff77861`; 597 unique HTML IDs, 73 search entries, 423 fragment links, 18 resolved relative links, 238 balanced fence markers, 81 Mermaid sources, search JSON, inline/module JavaScript, responsive controls and `git diff --check` passed. Standalone `javac`, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live literal-marker audit remains 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this section added none.
 
 ## AI foundations, RAG and CAG
 
