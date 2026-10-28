@@ -2355,6 +2355,122 @@ The last case also rejects two tempting shortcuts. Allocating `new long[modulus]
 
 Executable evidence is in `SubarraysDivisibleByKContracts.java`. It checks 18 scenario groups covering all four worked behaviors, overlap, negative normalization, invalid moduli, extreme integers, sparse large moduli and nonmutation, then compares 20,000 seeded arrays with an independent quadratic oracle.
 
+### Example 18 — Longest Consecutive Sequence: expand once from each unique start
+
+**Requirement:** given a non-null, unsorted `int[] nums`, return the length of the longest set of distinct values that form a numeric run `v, v+1, ...`. Original positions do not need to be adjacent, duplicates do not extend a run, the input must remain unchanged, and an empty array returns 0. The original interview problem asks for `O(n)` time; this reusable contract also handles the full Java `int` domain safely.
+
+| Approach | Time | Space | Why accept or reject it |
+|---|---:|---:|---|
+| For every value, search outward again | `O(n²)` worst case | `O(n)` | Repeats the same long run from many interior values |
+| Sort a defensive copy, skip duplicates, scan adjacent values | `O(n log n)` | `O(n)` for the copy | Simple independent oracle; copying preserves the caller's array |
+| HashSet + unique-start expansion | expected `O(n)` | `O(n)` | Each distinct value belongs to one expansion, conditional on expected hash-set operations |
+
+After deduplication, `x` is the unique start of its run exactly when its mathematical predecessor is absent. The boundary `Integer.MIN_VALUE` has no representable predecessor, so it is always eligible to start a run. Similarly, expansion must stop at `Integer.MAX_VALUE` before evaluating `current + 1`.
+
+```mermaid
+flowchart LR
+    A["100: predecessor absent"] --> A1["start length 1"]
+    B["4: predecessor 3 present"] -. skip .-> X["not a start"]
+    C["1: predecessor 0 absent"] --> C1["walk 1, 2, 3, 4"]
+```
+
+```java
+static int longestConsecutive(int[] nums) {
+    if (nums == null) {
+        throw new IllegalArgumentException("nums must not be null");
+    }
+
+    Set<Integer> values = new HashSet<>();
+    for (int value : nums) {
+        values.add(value);
+    }
+
+    int best = 0;
+    for (int value : values) {
+        boolean isStart = value == Integer.MIN_VALUE
+                || !values.contains(value - 1);
+        if (!isStart) {
+            continue;
+        }
+
+        int current = value;
+        int length = 1;
+        while (current != Integer.MAX_VALUE
+                && values.contains(current + 1)) {
+            current++;
+            length++;
+        }
+        best = Math.max(best, length);
+    }
+    return best;
+}
+```
+
+```mermaid
+flowchart TD
+    S["insert distinct values into set"] --> V["take a set value x"]
+    V --> P{"x is MIN or x-1 absent?"}
+    P -->|no| N["skip interior value"]
+    P -->|yes| W{"current is not MAX and current+1 exists?"}
+    W -->|yes| I["advance current; increment length"]
+    I --> W
+    W -->|no| B["update best"]
+```
+
+#### Worked case 1 — canonical unsorted islands
+
+For `[100,4,200,1,3,2]`, return 4. Deduplication yields three islands: `{1,2,3,4}`, `{100}`, and `{200}`. Values 2, 3, and 4 are skipped as interior points; only 1 walks the four-value run.
+
+```mermaid
+flowchart LR
+    A["1"] --> B["2"] --> C["3"] --> D["4"]
+    E["100"]
+    F["200"]
+```
+
+| value considered | predecessor present? | action | completed length |
+|---:|---|---|---:|
+| 100 | no | expand `{100}` | 1 |
+| 4 | yes: 3 | skip | — |
+| 200 | no | expand `{200}` | 1 |
+| 1 | no | expand `1 → 2 → 3 → 4` | 4 |
+
+Set iteration order is unspecified, so a real run may visit these starts in a different order. The result does not depend on that order.
+
+#### Worked case 2 — duplicates are collapsed before expansion
+
+For `[0,3,7,2,5,8,4,6,0,1]`, return 9 for `0..8`. The repeated 0 occupies one set entry; it neither splits the run nor increases its length. Only 0 lacks a predecessor, so the nine distinct values are expanded once.
+
+#### Worked case 3 — signed values cross zero normally
+
+For `[-2,-1,0,1,2,50]`, return 5 for `-2..2`. Numeric adjacency is independent of sign and original position. The isolated value 50 forms a second run of length 1.
+
+#### Worked case 4 — both integer boundaries stay separate
+
+For `[Integer.MIN_VALUE, Integer.MIN_VALUE + 1, Integer.MAX_VALUE - 1, Integer.MAX_VALUE]`, return 2. These are two separate runs; Java wraparound must not connect `MAX_VALUE` to `MIN_VALUE`.
+
+```mermaid
+flowchart LR
+    MN["MIN"] --> MN1["MIN + 1"]
+    MX1["MAX - 1"] --> MX["MAX"]
+    MX -. "MAX + 1 would wrap" .-> MN
+    MN -. "MIN - 1 would wrap" .-> MX
+```
+
+Without the predecessor guard, `Integer.MIN_VALUE - 1` evaluates to `Integer.MAX_VALUE`, so a set containing both extremes can falsely suppress `MIN_VALUE` as a start. Without the successor guard, `Integer.MAX_VALUE + 1` wraps to `Integer.MIN_VALUE`, which can falsely join boundary runs or make expansion cycle. Java integer overflow does not raise an exception, so the comparisons must prevent those expressions from being evaluated at the boundaries.
+
+**Invariant.** During an expansion from start `s`, immediately before each loop test, the set contains every value in the representable interval `[s,current]`, `length` equals that interval's cardinality, and no predecessor of `s` exists in the Java `int` domain. Advancing only when the representable successor is present preserves the interval and length facts.
+
+**Correctness.** Every expansion is sound because it advances only to a present numeric successor. Every maximal run has exactly one representable first value: either `Integer.MIN_VALUE`, or a value whose predecessor is absent. Therefore the outer loop eventually selects that start and the inner loop reaches every value of the run. No interior value expands because its predecessor is present, so each run is measured exactly once. Taking the maximum returns the longest run.
+
+**Complexity.** Building and scanning the set costs expected `O(n)` time and `O(n)` space. Across all starts, each distinct value is advanced through at most once, so the total inner-loop work is linear. The qualifier matters: the Java 17 `HashSet` API describes constant-time basic operations only under proper hash dispersion, and iteration cost depends on set size plus backing-map capacity.
+
+**Common interview errors:** sorting the caller's array despite a nonmutation contract; counting equal duplicates as consecutive steps; expanding from every value or in both directions; checking original index adjacency; omitting the empty-input rule; writing only `!set.contains(x-1)` or an unguarded `current+1`; relying on iteration order; or claiming deterministic worst-case linear time from a hash set.
+
+**Follow-ups:** return the run by recording its winning start and length; return original indices by mapping each value to one or all positions; use the sorted-copy baseline when deterministic worst-case `O(n log n)` behavior is preferred; and for an online stream, maintain interval-boundary lengths or a union-find structure rather than rescanning the full set after every arrival.
+
+Executable evidence is in `LongestConsecutiveContracts.java`. It checks 20 scenario groups including all four worked behaviors, duplicates, signed runs, empty and singleton input, both integer boundaries, rejection and nonmutation, then compares 20,000 seeded arrays with an independent sorted-copy oracle that performs adjacency arithmetic in `long`.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -2380,6 +2496,9 @@ Executable evidence is in `SubarraysDivisibleByKContracts.java`. It checks 18 sc
 - [LeetCode, “Product of Array Except Self”](https://leetcode.com/problems/product-of-array-except-self/) — primary no-division, linear-time, output-space-exclusion and 32-bit-product contract.
 - [LeetCode, “Subarray Sum Equals K”](https://leetcode.com/problems/subarray-sum-equals-k/) — primary non-empty contiguous-subarray, signed-input, exact-target and result-count contract.
 - [LeetCode, “Subarray Sums Divisible by K”](https://leetcode.com/problems/subarray-sums-divisible-by-k/) — primary non-empty contiguous-subarray, signed-input, positive-modulus and result-count contract.
+- [LeetCode, “Longest Consecutive Sequence”](https://leetcode.com/problems/longest-consecutive-sequence/) — primary unsorted-input, consecutive-value and linear-time contract.
+- [Java SE 17 `java.util.HashSet`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/HashSet.html) — uniqueness, expected basic-operation cost under proper hash dispersion, and iteration-cost qualification.
+- [Java Language Specification, Java SE 17, §15.18.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.18.1) — integer addition and subtraction overflow retain low-order bits without raising an exception.
 - [Java SE 17 `Math.floorMod`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#floorMod(long,int)) — canonical non-negative remainder for a positive modulus and the widened overload used by the implementation.
 - [Java SE 17 `java.util.Deque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Deque.html) — double-ended queue operations used for front expiration and tail domination removal.
 - [Java Language Specification, Java SE 17, §15.17](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17) — multiplicative operators and binary numeric promotion; the implementation widens an operand before multiplication.
@@ -2389,9 +2508,9 @@ Executable evidence is in `SubarraysDivisibleByKContracts.java`. It checks 18 sc
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 17 (problem 17 is lines 1780–1868, bounded before the problem 18 anchor at line 1869). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 17 (current local Pandoc 3.1.11 GFM extraction places problem 17 at lines 2047–2153, bounded before problem 18 at line 2154). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 18 (problem 18 is lines 1869–1960, bounded before the problem 19 anchor at line 1961). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 18 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 17 at lines 1747–1840 and problem 18 at lines 1841–1935, bounded before problem 19 at line 1936). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 17, “Subarrays Divisible by K,” is promoted from Markdown lines 1780–1868 and current DOCX GFM-extracted lines 2047–2153; problem 18, “Longest Consecutive Sequence,” begins at Markdown line 1869 and current DOCX GFM-extracted line 2154.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 18, “Longest Consecutive Sequence,” is promoted from Markdown lines 1869–1960 and fresh no-wrap DOCX GFM-extracted lines 1841–1935; problem 19, “Sort Colors,” begins at Markdown line 1961 and no-wrap DOCX GFM-extracted line 1936.
 
 

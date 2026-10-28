@@ -246,4 +246,10 @@ Arrays Section 4 problem 17 now states the positive-modulus, non-empty contiguou
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. Section 4 problem 18 and the broader intake remain incomplete; fair rotation selects Spring AI/Python Section 18 next, followed by AI-platform Chapter 19 before the next Arrays turn.
 
+## Arrays Longest Consecutive Sequence enrichment — 2026-10-28 ET
+
+Arrays Section 4 problem 18 now states the unsorted distinct-value, numeric-adjacency, duplicate, nonmutation and empty-input contracts; compares sorted-copy and unique-start expansion; and adds four worked cases, a start/skip trace, four diagrams, a run invariant and completeness proof. `LongestConsecutiveContracts` validates 20 scenario groups plus 20,000 seeded arrays against an independent sorted-copy oracle while checking input preservation and both Java integer boundaries. The responsive reader embeds the exact canonical Markdown bytes. Both confirmed sources agree on start-only expansion and expected linear complexity; the reusable implementation additionally prevents `MIN_VALUE - 1` and `MAX_VALUE + 1` wraparound.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. Section 4 problem 19 and the broader intake remain incomplete; fair rotation selects Spring AI/Python Section 19 next, followed by AI-platform Chapter 20 before the next Arrays turn.
+
 
