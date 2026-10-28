@@ -52,9 +52,9 @@
       "modified_at": "2026-09-17T05:55:54.714170Z",
       "size_bytes": 2535466,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-10-28T03:06:28-04:00",
+      "last_read_at": "2026-10-28T09:57:39-04:00",
       "sha256": "c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31",
-      "selection": "Archive integrity/traversal checks passed. Its CI/CD source is promoted separately; Spring/Python member atlas_guides/spring_ai_python_api_interview_guide.md (SHA-256 af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553) is the selected editable source and Sections 1-18 are promoted through line 1117."
+      "selection": "Archive integrity/traversal checks passed. Its CI/CD source is promoted separately; Spring/Python member atlas_guides/spring_ai_python_api_interview_guide.md (SHA-256 af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553) is the selected editable source and Sections 1-19 are promoted through line 1153."
     },
     {
       "name": "ai_platform_master_guide.html",
@@ -76,9 +76,9 @@
       "modified_at": "2026-09-17T05:55:54.480720Z",
       "size_bytes": 149762,
       "status": "READY",
-      "last_read_at": "2026-10-28T03:06:28-04:00",
+      "last_read_at": "2026-10-28T09:57:39-04:00",
       "sha256": "6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3",
-      "selection": "Read and compared through standalone HTML line 1232 for Section 18; it agrees with the selected editable member and remains a comparison source rather than a duplicate canonical guide."
+      "selection": "Read and compared through standalone HTML line 1257 for Section 19; it agrees with the selected editable member and remains a comparison source rather than a duplicate canonical guide."
     },
     {
       "name": "ai_platform_engineering_complete_bundle.zip",
@@ -525,7 +525,7 @@
       ],
       "last_successful_commit": "ce698d7e8c7795c10401309a79106d7f47b0ca6c",
       "validation": "The paired Arrays workbooks agree on bounded Longest Consecutive Sequence at Markdown lines 1869-1960 and fresh Pandoc 3.1.3 --wrap=none GFM lines 1841-1935; the editable Markdown remains the structural source, no duplicate guide was created and intake stopped before problem 19. Four worked cases, four diagrams, a start/skip trace, proof and LongestConsecutiveContracts cover unsorted distinct-value runs, duplicates, signed values, nonmutation and guarded Integer.MIN_VALUE/Integer.MAX_VALUE arithmetic. Java 17 source-file launch passed 320 scenario groups across all eighteen Arrays executables plus 340,000 seeded oracle comparisons; the new contract passed 20 groups and 20,000 sorted-copy-oracle comparisons. Deterministic reader generation passed exact 151665-byte Markdown recovery, SHA-256 fca9df39cc651ae282fcce8c5179d0f3ec4c3c4b6dd8f34c92a3dc4fb55e6f34, 638 unique HTML IDs, 46 search entries, 544 fragments, 0 relative links, 194 balanced fence markers, 68 Mermaid sources, JSON, two JavaScript blocks, responsive/search controls and deterministic rebuild identity. Seven content files were atomically published at ce698d7e8c7795c10401309a79106d7f47b0ca6c with an expected-head guard and matching Git blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
-      "next_action": "Rotate to Spring AI/Python Section 19, then AI-platform Chapter 20; on the next Arrays turn process problem 19. Problems 19-47 remain queued.",
+      "next_action": "Rotate to AI-platform Chapter 20; on the next Arrays turn process problem 19. Problems 19-47 remain queued.",
       "priority": 6,
       "source_revision": {
         "baseline_commit": "a9f582b5dbe8b6fcda6e275054f217350a810d52",
@@ -800,7 +800,7 @@
         "ai_cicd_spring_python_guides_complete.zip",
         "spring_ai_python_api_interview_guide.html"
       ],
-      "last_processed_at": "2026-10-28T03:06:28-04:00",
+      "last_processed_at": "2026-10-28T09:57:39-04:00",
       "processed_sections": [
         "Section 1: choose the layer before choosing the library — requirements, four selection examples, authority/retry/release boundaries, paired Java/Python contracts and current primary references",
         "Section 2: Python library map — all 17 source projects mapped by responsibility, four decision proofs, trace tables, replay/failure boundaries, paired Java/Python contracts and current primary references",
@@ -819,7 +819,8 @@
         "Section 15: testing pyramid for this repository — claim-to-layer boundaries, unit/adapter failure traces, real pgvector scope checks, versioned model evaluation, SLO-backed load and cluster gates, and same-release evidence",
         "Section 16: four-week implementation path — weekly entry/exit gates, fixed evidence identities, safe retrieval comparison, MCP discovery/schema/auth/timeout proof, same-release disposable deployment and measured decision records",
         "Section 17: durable AI API contract — provider-neutral answers, stable problem semantics, scoped-hash idempotency, atomic job/outbox creation, duplicate-safe workers and tenant-concealed polling",
-        "Section 18: SSE answer completion contract — post-commit terminal events, JSON-safe framing, contiguous replay, idempotent action IDs, exactly-once cleanup and cancellation propagation"
+        "Section 18: SSE answer completion contract — post-commit terminal events, JSON-safe framing, contiguous replay, idempotent action IDs, exactly-once cleanup and cancellation propagation",
+        "Section 19: verified authentication to authorization predicates — pinned JWT issuer/audience/time/algorithm, directory-owned membership, scoped queries, transaction-local RLS context, post-model tool checks and explicit delegation"
       ],
       "source_revision": {
         "baseline_commit": "3296b794f00a24f206148599d249246d69ed8942",
@@ -830,11 +831,11 @@
         "selected_inner_sha256": "af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553",
         "compared_library_file_id": "libfile_a6efee022fb881919d2e8ff61bd758ed",
         "compared_html_sha256": "6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3",
-        "canonical_sha256_after": "06f44c07883c99b0703f55384f06c5af90db1c2cc843e8a3448ddf430aa881d8"
+        "canonical_sha256_after": "3052ee53e5e6bbd7ed3b23807aab5cfa9d30dff2294618b64a951cf42029ec28"
       },
-      "last_successful_commit": "79e4b37eb1d2b58a7c87192cf37cf73e3942af8c",
-      "validation": "The selected ZIP member Section 18 at editable lines 1033-1117 and standalone HTML lines 1164-1232 were compared and bounded before Section 19; the bundle HTML is byte-identical to the standalone source, so no duplicate guide was created. Because canonical Section 11 already covers transport choice, this section focuses on post-commit terminal events, JSON-safe framing, contiguous replay, action idempotency and cleanup races through four examples, four diagrams, current primary references and paired dependency-free contracts. Java 17 source-file launch and Python 3 passed all eighteen contract pairs; the new pair produced identical PARITY output, 30 scenario groups and 10,000 seeded trials per language. Reader validation passed exact 247190-byte Markdown recovery, SHA-256 06f44c07883c99b0703f55384f06c5af90db1c2cc843e8a3448ddf430aa881d8, 723 unique IDs, 19 search entries, 495 fragments, 8 relative links, 338 fences, 76 Mermaid sources, parseable JSON and JavaScript, responsive/search controls and deterministic rebuilding. Eight content files were atomically published at 79e4b37eb1d2b58a7c87192cf37cf73e3942af8c with an expected-head guard and matching blob hashes. Standalone javac, Maven/framework compilation, live provider/Spring/ASGI integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The canonical literal-marker audit remains 170.",
-      "next_action": "After AI-platform Chapter 19 and Arrays problem 18, process Spring AI/Python Section 19 beginning at editable line 1119 / standalone HTML line 1233. Sections 19-25 remain queued.",
+      "last_successful_commit": "b94e2dd7a63b6e8214c69c8a18fe95f6ac8edb8f",
+      "validation": "The selected ZIP member Section 19 at editable lines 1119-1153 and standalone HTML lines 1233-1257 were compared and bounded before Section 20; the bundle HTML is byte-identical to the standalone source, so no duplicate guide was created. Four worked examples, five diagrams and paired AuthorizationBoundaryContracts cover pinned JWT algorithm/issuer/audience/time checks, server-owned membership, identity-derived query predicates, transaction-local row-security context, post-model tool authorization and explicit delegation. Java 17 source-file launch and Python 3 passed all nineteen contract pairs; the new pair produced identical PARITY output, 30 scenario groups and 10,000 seeded dual-oracle trials per language. Reader validation passed exact 260168-byte Markdown recovery, SHA-256 3052ee53e5e6bbd7ed3b23807aab5cfa9d30dff2294618b64a951cf42029ec28, 776 unique IDs, 20 search entries, 534 fragments, 10 relative links, 360 fences, 81 Mermaid sources, parseable JSON and two JavaScript blocks, responsive/search controls and deterministic rebuilding. Eight content files were atomically published at b94e2dd7a63b6e8214c69c8a18fe95f6ac8edb8f with an expected-head guard and matching blob hashes. Standalone javac, Maven/framework compilation, live identity-provider/JWKS/PostgreSQL/MCP integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The canonical literal-marker audit remains 170.",
+      "next_action": "After AI-platform Chapter 20 and Arrays problem 19, process Spring AI/Python Section 20 beginning at editable line 1154 / standalone HTML line 1258. Sections 20-25 remain queued.",
       "priority": 14
     },
     {
@@ -1055,7 +1056,7 @@
   "scheduler": {
     "active_task_id": "6ac700d5c14c81918cca8786785f2a5e",
     "cadence": "hourly",
-    "sections_per_run": "1–2",
+    "sections_per_run": "1 when account quota percentages are unavailable; otherwise obey the configured quota gate",
     "single_writer": true
   },
   "local_folder_intake": {
@@ -1065,7 +1066,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-19, Spring AI/Python Sections 1-18 and Arrays Section 4 problems 1-18 are promoted. Process Spring AI/Python Section 19 next, then AI-platform Chapter 20; retain Arrays problem 19 for the following rotation.",
+    "next_action": "AI-platform Chapters 1-19, Spring AI/Python Sections 1-19 and Arrays Section 4 problems 1-18 are promoted. Process AI-platform Chapter 20 next; retain Arrays problem 19 and Spring AI/Python Section 20 for the following fair rotations.",
     "batch_policy": {
       "max_sections_per_run": 2,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1227,14 +1228,15 @@
       "DSA Arrays Section 4 problem 17: normalized prefix-remainder frequencies, signed contiguous sums, sparse full-int-modulus support, complete trace, widened result, proof and randomized quadratic oracle",
       "Spring AI/Python Section 18: post-commit terminal events, JSON-safe SSE framing, contiguous replay, idempotent action IDs and exactly-once cleanup",
       "AI platform Chapter 19: workload identity, private DNS/TLS/network and endpoint policy, data-plane model authorization, runtime/deployment role separation, explicit failover and accepted-outcome cost",
-      "DSA Arrays Section 4 problem 18: unique-start HashSet expansion, start/skip trace, integer-boundary guards, proof, nonmutation and randomized sorted-copy oracle"
+      "DSA Arrays Section 4 problem 18: unique-start HashSet expansion, start/skip trace, integer-boundary guards, proof, nonmutation and randomized sorted-copy oracle",
+      "Spring AI/Python Section 19: pinned JWT validation, directory-owned membership, identity-derived query predicates, transaction-local RLS, post-model tool authorization and explicit delegation"
     ],
-    "processed_section": "DSA Arrays Section 4 problem 18, Longest Consecutive Sequence, Markdown lines 1869-1960 / fresh Pandoc 3.1.3 no-wrap DOCX GFM lines 1841-1935",
-    "validation": "The paired Arrays workbooks agree on bounded Longest Consecutive Sequence at Markdown lines 1869-1960 and fresh Pandoc 3.1.3 --wrap=none GFM lines 1841-1935; no duplicate guide was created and intake stopped before problem 19. Four worked cases, four diagrams and LongestConsecutiveContracts cover unsorted distinct-value runs, duplicates, signed values, nonmutation and guarded integer-boundary arithmetic. Java 17 source-file launch passed all eighteen Arrays executables: 320 scenario groups and 340,000 seeded oracle comparisons; the new contract passed 20 groups and 20,000 trials. Reader validation passed exact 151665-byte recovery at SHA-256 fca9df39cc651ae282fcce8c5179d0f3ec4c3c4b6dd8f34c92a3dc4fb55e6f34, 638 IDs, 46 search entries, 544 fragments, 0 relative links, 194 fences, 68 Mermaid sources, JSON, two JavaScript blocks and deterministic rebuilding. Seven content files were published at ce698d7e8c7795c10401309a79106d7f47b0ca6c with an expected-head guard and matching blob hashes. Standalone javac and live browser/assistive-technology/rendered-Mermaid validation were unavailable. The canonical marker audit remains 170.",
+    "processed_section": "Spring AI/Python Section 19, Authentication in Spring and Python: verified claims to query predicates, editable lines 1119-1153 / standalone HTML lines 1233-1257",
+    "validation": "The selected ZIP member Section 19 at editable lines 1119-1153 and standalone HTML lines 1233-1257 were compared and bounded before Section 20; the bundle HTML is byte-identical to the standalone source, so no duplicate guide was created. Four examples, five diagrams and paired AuthorizationBoundaryContracts cover pinned JWT validation, server-owned membership, scoped queries, transaction-local RLS, post-model tool authorization and explicit delegation. Java 17 source-file launch and Python 3 passed all nineteen contract pairs; the new pair passed 30 scenario groups and 10,000 seeded dual-oracle trials per language with identical output. Reader validation passed exact 260168-byte recovery at SHA-256 3052ee53e5e6bbd7ed3b23807aab5cfa9d30dff2294618b64a951cf42029ec28, 776 IDs, 20 search entries, 534 fragments, 10 relative links, 360 fences, 81 Mermaid sources, JSON, two JavaScript blocks and deterministic rebuilding. Eight content files were published at b94e2dd7a63b6e8214c69c8a18fe95f6ac8edb8f with an expected-head guard and matching blob hashes. Standalone javac, Maven/framework compilation, live identity-provider/JWKS/PostgreSQL/MCP integration and browser/assistive-technology/rendered-Mermaid validation were unavailable. The canonical marker audit remains 170.",
     "estimated_next_tokens": 9800,
-    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 19 pass with source comparison, four examples, one contract, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "ce698d7e8c7795c10401309a79106d7f47b0ca6c",
-    "last_processed_at": "2026-10-28T09:16:55-04:00",
-    "next_batch_decision": "Arrays problem 18 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate next to Spring AI/Python Section 19, then AI-platform Chapter 20; retain Arrays problem 19 for the following rotation."
+    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 20 pass with source comparison, examples, contract, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "b94e2dd7a63b6e8214c69c8a18fe95f6ac8edb8f",
+    "last_processed_at": "2026-10-28T09:57:39-04:00",
+    "next_batch_decision": "Spring AI/Python Section 19 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate next to AI-platform Chapter 20, then Arrays problem 19; retain Spring AI/Python Section 20 for the following rotation."
   }
 }
