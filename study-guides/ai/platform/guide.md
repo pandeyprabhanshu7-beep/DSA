@@ -3120,6 +3120,161 @@ java -ea RecoverableIngestionContracts.java
 
 The new contract checks scenario groups plus 10,000 seeded parser-policy trials. Its second stable output line records full-revision identity, at-least-once execution, resumable stages, generation-CAS publication, tombstones, evidence-time ACL checks and embedding-space versioning.
 
+## 19. Private model invocation is a conjunction of identity, route and data-plane authority
+
+Chapter 12 chose a stack by hard capability gates, reproducible workload evidence and accepted-outcome cost. This chapter proves the narrower serving boundary after that choice. A private IP address is only a route. A valid workload credential is only an identity. A control-plane role is only permission to configure resources. Model invocation is admitted only when all required facts agree on the same provider, region, endpoint, model, operation and runtime principal.
+
+```mermaid
+flowchart TD
+    W["Temporary workload identity"] --> G{"All invocation gates pass?"}
+    D["Private DNS + valid TLS name"] --> G
+    N["Private path + endpoint policy"] --> G
+    A["Exact data-plane action + model"] --> G
+    G -->|yes| I["Invoke one admitted model route"]
+    G -->|no| X["Fail closed with typed reason"]
+```
+
+### Requirements and invariants
+
+| Gate | Evidence required at release and runtime | What it does **not** prove |
+|---|---|---|
+| workload identity | short-lived workload credential bound to the runtime principal | that this principal may invoke the requested model |
+| audience/service | token or signed request targets the documented data-plane service | that a management-plane token is interchangeable |
+| DNS | the service hostname resolves to the intended private endpoint from the workload network | authorization, TLS identity or region compatibility |
+| TLS | certificate and hostname verification succeed for the service name actually called | that the application may perform inference |
+| network | security groups, firewall rules, forwarding rules and route tables admit the path | endpoint policy or IAM/RBAC permission |
+| endpoint policy | provider-side endpoint/project allowlist admits the caller and operation | the caller's independent data-plane role |
+| data action | IAM/RBAC authorizes the exact inference operation and model/deployment resource | permission to deploy, delete or reconfigure the resource |
+| role separation | runtime inference principal differs from CI/deployment principal | that either role is least privilege without policy review |
+| placement | model, endpoint and data handling are available in an approved region | equivalent features across providers, SKUs or regions |
+| observability | route ID, provider request ID, model revision, latency and typed failure are recorded | authority; correlation identifiers are not credentials |
+
+The release artifact should name a route contract such as `(provider, region, endpoint_identity, model_or_deployment, operation, runtime_principal, policy_revision)`. Do not let an SDK silently select a public hostname, a different region or a generic deployment after admission. Failover is a second explicit route contract with its own identity, network, authorization, data-residency, capability and cost evidence.
+
+### Example 1 — EKS to Bedrock Runtime through PrivateLink
+
+An EKS pod uses a temporary role associated with its service account. The AWS SDK signs a Bedrock Runtime request for `InvokeModel` in `us-east-1`. Private DNS resolves `bedrock-runtime.us-east-1.amazonaws.com` to interface-endpoint addresses. Security groups admit port 443, the endpoint policy admits the principal/action, and the role policy admits the exact model resource. The CI role that creates infrastructure is not attached to the pod.
+
+```mermaid
+sequenceDiagram
+    participant P as EKS pod
+    participant I as Workload identity
+    participant V as Bedrock VPC endpoint
+    participant B as Bedrock Runtime
+    P->>I: obtain short-lived runtime credentials
+    I-->>P: role for service account
+    P->>V: TLS + signed InvokeModel
+    V->>V: security group + endpoint policy
+    V->>B: private provider route
+    B-->>P: IAM-authorized result + request ID
+```
+
+| Probe | Observation | Decision |
+|---|---|---|
+| DNS resolves privately, IAM denies `InvokeModel` | connectivity works; data authority does not | deny; do not widen IAM automatically |
+| IAM allows, endpoint policy denies | principal policy alone is insufficient | deny and report endpoint-policy gate |
+| pod receives the CI deployment role | runtime can mutate infrastructure | deny role separation |
+| all gates pass for the named model and region | complete route proof exists | invoke and record route/model identity |
+
+The trace is `IDENTITY_OK → DNS_PRIVATE → TLS_OK → NETWORK_OK → ENDPOINT_POLICY_OK → DATA_ACTION_OK → INVOKE`. Reaching the interface endpoint is deliberately not the success criterion.
+
+### Example 2 — Azure workload identity to a Foundry data-plane endpoint
+
+The application uses a managed/workload identity to obtain a token for the model service's documented data-plane audience. The public service FQDN remains in application configuration; inside the virtual network, private DNS resolves its `privatelink` alias to the private endpoint. TLS validates the service hostname. Azure RBAC `dataActions` authorize inference on the deployed model, while a separate deployment principal owns resource creation and role assignment.
+
+```mermaid
+flowchart TD
+    R["Runtime managed identity"] --> T["Token for data-plane audience"]
+    H["Service FQDN"] --> D["Private DNS resolves private IP"]
+    T --> E{"Private endpoint + dataActions pass?"}
+    D --> E
+    E -->|yes| M["Run model inference"]
+    E -->|no| X["Typed deny; no ARM-token substitution"]
+```
+
+An Azure Resource Manager token proves authority for a management audience; it is not evidence for chat completions. Likewise, the ability to deploy a model is not the runtime application's permission to invoke it. A useful diagnostic matrix keeps the planes separate:
+
+| Symptom | First evidence to inspect | Unsafe repair |
+|---|---|---|
+| service name resolves publicly inside the VNet | private zone links and conditional forwarding | disable TLS or hard-code a stale address |
+| TLS hostname mismatch | called FQDN and certificate chain | turn off hostname verification |
+| `401` with a valid identity | requested token audience and endpoint family | reuse an ARM token |
+| `403` on inference | data-plane role and deployment scope | grant the runtime owner/contributor broadly |
+
+### Example 3 — GCP workload identity to a Vertex private endpoint
+
+A GKE or federated workload obtains short-lived Google credentials without a service-account key. The application calls one admitted regional Vertex endpoint. Private Service Connect supplies the private forwarding path; the endpoint's project allowlist, region rule, DNS/TLS configuration and IAM permission must still pass. The runtime service account is distinct from the release service account that creates endpoints or deploys models.
+
+```mermaid
+sequenceDiagram
+    participant W as Workload
+    participant S as Short-lived identity
+    participant P as PSC endpoint
+    participant V as Vertex prediction
+    W->>S: exchange workload identity
+    S-->>W: bounded access token
+    W->>P: authorized predict request
+    P->>P: project allowlist + region + route
+    P->>V: named endpoint and model
+    V-->>W: result or typed IAM denial
+```
+
+Failover from `us-central1` to another provider is not an SDK retry. It is admitted only if the fallback has a separately verified model capability, data-location policy, workload identity, private route, data permission, evaluation result and accepted-outcome budget. Preserve the same business operation ID and deadline while recording the actual provider route; do not claim identical semantics merely because both endpoints accept an OpenAI-shaped request.
+
+### Example 4 — independent vLLM makes the ownership transfer explicit
+
+An independent route may use a private load balancer, authenticated gateway and vLLM workers. The gateway validates caller identity, tenant, model, token/output budget and rate limit before forwarding. Only the inference API is exposed; control, profiler, distributed-runtime and worker ports remain isolated. The team owns model provenance, patching, accelerator scheduling, saturation, failover, backup/restore of configuration, and production metrics.
+
+```mermaid
+flowchart LR
+    A["Authorized application"] --> G["Gateway: auth, tenant, budget"]
+    G --> V["vLLM inference API"]
+    V --> M["GPU workers"]
+    O["Operator plane"] --> M
+    O -. "not exposed to callers" .-> G
+```
+
+Compare candidates with cost per accepted task outcome, not the provider's token line item:
+
+```text
+accepted_outcome_cost =
+  (provider_or_gpu + platform + operator + network + observability
+   + retries + review + failed_or_escalated_attempts)
+  / accepted_supported_outcomes
+```
+
+Suppose a managed route costs 700,000 provider micro-units, 100,000 platform, 100,000 operator, 30,000 network, 20,000 observability and 50,000 review/failure for 100 accepted outcomes. The result is 10,000 micro-units per accepted outcome. A self-hosted route with a lower 250,000 accelerator line but 420,000 operator and 100,000 review/failure cost can reach the same result. The comparison changes only after the same workload, policy gates and acceptance definition run on both routes.
+
+### Executable private-route contract
+
+[`PrivateModelRouteContracts.java`](PrivateModelRouteContracts.java) models a conjunctive route admission decision, private connectivity without implied authorization, data-plane audience separation, independent runtime/deployment roles, explicit fallback admission and overflow-checked cost per accepted outcome.
+
+Run all nineteen AI-platform contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+java -ea ContextGroundingContracts.java
+java -ea EvaluationGateContracts.java
+java -ea CacheLatencyCostContracts.java
+java -ea McpArchitectureContracts.java
+java -ea ToolSafetyContracts.java
+java -ea OrchestrationContracts.java
+java -ea StackSelectionContracts.java
+java -ea InterviewCaseContracts.java
+java -ea PlatformControlPlaneContracts.java
+java -ea InferenceServingContracts.java
+java -ea CacheLayerContracts.java
+java -ea ConversationMemoryContracts.java
+java -ea RecoverableIngestionContracts.java
+java -ea PrivateModelRouteContracts.java
+```
+
+The new contract checks 31 explicit scenario groups and 10,000 seeded conjunction trials. Its stable output is `SCENARIOS=31|TRIALS=10000|PRIVATE=CONNECTIVITY_NOT_AUTHORITY|IDENTITY=WORKLOAD_SCOPED|PLANE=DATA_NOT_MANAGEMENT|ROLE=RUNTIME_NOT_DEPLOY|COST=ACCEPTED_OUTCOME`.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -3132,6 +3287,9 @@ The new contract checks scenario groups plus 10,000 seeded parser-policy trials.
 | “JSON is valid, so the answer is correct” | Syntax proves semantics | Validate claims, citations, business rules, and postconditions |
 | “The upload returned 200, so it is searchable” | Storage equals validated publication | Return a job; parse, stage, validate, then switch generations |
 | “The same filename is the same document” | Filename provides stable identity and revision ordering | Store stable document ID, immutable revision, hash, and transform tuple |
+| “The endpoint is private, so the call is authorized” | Network reachability grants a data-plane action | Verify workload identity, audience, endpoint policy and the exact model operation independently |
+| “The deployer can invoke production” | Management-plane authority should be reused at runtime | Give the runtime a separate short-lived identity with inference-only data actions |
+| “Failover is just another base URL” | API shape proves policy, capability and outcome equivalence | Admit each route by region, identity, authority, evaluation and accepted-outcome budget |
 | “Overlap fixes every bad boundary” | Redundancy guarantees complete meaning | Preserve structure; evaluate parent expansion and deduplication |
 | “Delete the vector row and we are done” | No derived or cached copy can survive | Tombstone and invalidate text, vectors, summaries, caches, and ACL state |
 | “Cosine replaces keyword search” | Semantic proximity preserves exact codes and names | Keep an analyzed lexical baseline and keyword fields |
@@ -3273,13 +3431,17 @@ The new contract checks scenario groups plus 10,000 seeded parser-policy trials.
 - OWASP Cheat Sheet Series, [File Upload Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html) — allowlisted types, size limits and post-decompression/archive-bomb limits for bounded parsing (accessed 2026-10-27).
 - Elasticsearch, [Aliases](https://www.elastic.co/docs/manage-data/data-store/aliases) — one atomic multiple-action alias operation can swap the complete searchable target without an interval pointing to neither or both generations (accessed 2026-10-27).
 - PostgreSQL 18, [Transaction Isolation](https://www.postgresql.org/docs/current/transaction-iso.html), [Serialization Failure Handling](https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html), and [Explicit Locking](https://www.postgresql.org/docs/current/explicit-locking.html) — transaction visibility, expected-state locking and whole-transaction retry after serialization failure (accessed 2026-10-27).
+- AWS, [Amazon Bedrock interface VPC endpoints](https://docs.aws.amazon.com/bedrock/latest/userguide/vpc-interface-endpoints.html) and [EKS Pod Identity](https://docs.aws.amazon.com/eks/latest/userguide/pod-identities.html) — private Bedrock Runtime routing, private DNS, endpoint policies and temporary pod-scoped credentials are separate configuration surfaces (accessed 2026-10-28).
+- Microsoft, [Foundry authentication and authorization](https://learn.microsoft.com/en-us/azure/foundry/concepts/authentication-authorization-foundry) and [network isolation with Private Link](https://learn.microsoft.com/en-us/azure/ai-foundry/how-to/configure-private-link?view=foundry) — control-plane actions, data-plane `dataActions`, managed identities, private endpoint approval and private DNS validation remain distinct gates (accessed 2026-10-28).
+- Google Cloud, [Private Service Connect endpoints for online inference](https://docs.cloud.google.com/vertex-ai/docs/predictions/private-service-connect) and [Workload Identity Federation](https://docs.cloud.google.com/iam/docs/workload-identity-federation) — project allowlists, regional private routes and short-lived workload credentials without service-account keys (accessed 2026-10-28).
+- vLLM, [security guidance](https://docs.vllm.ai/en/latest/usage/security/) and [production metrics](https://docs.vllm.ai/en/stable/usage/metrics/) — isolate inference behind an authenticated gateway, restrict control/distributed ports, and observe queues, KV use, TTFT, inter-token and end-to-end latency (accessed 2026-10-28).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–18, through `Ingestion as a recoverable publication transaction`, bounded by Chapter 19 in the selected master.
+- Processed range: Chapters 1–19, through `Cloud and independent-provider architecture choices`, bounded by Chapter 20 in the selected master.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
@@ -3297,7 +3459,8 @@ The new contract checks scenario groups plus 10,000 seeded parser-policy trials.
 - Chapter 16 source comparison: selected master HTML lines 540–563 (Pandoc conversion lines 662–705) distinguishes embedding, retrieval, answer and prefix/KV caches; semantic versus exact answers; a generation-aware stale-answer race; and long-context trade-offs. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 16 source and no duplicate guide was created.
 - Chapter 17 source comparison: selected master HTML lines 596–623 (Pandoc conversion lines 706–741) separates audit history from selected model context; defines composite tenant/conversation keys, sequence allocation and short-transaction finalization; treats summaries as versioned lossy derivatives; and names vectors, caches, summaries, traces and backups in deletion scope. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 17 source and no duplicate guide was created.
 - Chapter 18 source comparison: selected master HTML lines 624–652 (Pandoc conversion lines 742–777) defines full transformation identity, immutable staged artifacts, bounded parsing, resumable embedding, readiness validation, active-generation publication, tombstone/ACL rechecks and side-by-side re-embedding. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 18 source and no duplicate guide was created.
-- Next bounded section: Chapter 19, after fair domain rotation.
+- Chapter 19 source comparison: selected master HTML lines 653–730 (current Pandoc GFM lines 1338–1433) maps AWS, Azure, Google Cloud and independent responsibilities, then separates private connectivity, workload identity, data-plane authorization and deployment/runtime roles. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 19 source. The broad stack-selection material was not duplicated from canonical Chapter 12; this promotion deepens the distinct private-invocation proof and accepted-outcome cost boundary.
+- Next bounded section: Chapter 20, after fair domain rotation.
 
 
 

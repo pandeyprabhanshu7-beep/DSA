@@ -20,7 +20,8 @@
 - [Executable Java 17 cache-layer contract](CacheLayerContracts.java)
 - [Executable Java 17 conversation-memory contract](ConversationMemoryContracts.java)
 - [Executable Java 17 recoverable-ingestion contract](RecoverableIngestionContracts.java)
+- [Executable Java 17 private model-route contract](PrivateModelRouteContracts.java)
 
-This is an incremental canonical guide. Chapters 1–18 are promoted; Chapter 19 is the next bounded AI-platform source section after fair domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
+This is an incremental canonical guide. Chapters 1–19 are promoted; Chapter 20 is the next bounded AI-platform source section after fair domain rotation. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
 
 
