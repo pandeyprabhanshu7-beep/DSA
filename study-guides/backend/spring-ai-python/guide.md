@@ -3443,4 +3443,180 @@ Verified on 27 October 2026:
 
 ### Source provenance and continuation
 
-The selected editable bundle member's complete Section 17 is source lines 944–1031, bounded before Section 18 at line 1033. The compared standalone HTML is lines 1060–1163, bounded before Section 18 at line 1164. Both contain the same synchronous answer DTO, response/error guidance, asynchronous ingestion contract and outbox warning, so the editable Markdown remains the structural source and no duplicate guide was created. This canonical section retains those requirements while adding exact precedence, four worked traces, four diagrams, canonical-hash and concurrency rules, tenant-concealed polling, external-side-effect reconciliation, current primary references and paired executable contracts. Section 18, **When to use MCP, REST, events or direct library calls**, begins at editable line 1033 / standalone HTML line 1164. Sections 18–25 remain queued; the wider collection is not complete.
+The selected editable bundle member's complete Section 17 is source lines 944–1031, bounded before Section 18 at line 1033. The compared standalone HTML is lines 1060–1163, bounded before Section 18 at line 1164. Both contain the same synchronous answer DTO, response/error guidance, asynchronous ingestion contract and outbox warning, so the editable Markdown remains the structural source and no duplicate guide was created. This canonical section retains those requirements while adding exact precedence, four worked traces, four diagrams, canonical-hash and concurrency rules, tenant-concealed polling, external-side-effect reconciliation, current primary references and paired executable contracts. Section 18, **Streaming: transport success and answer completion are different**, begins at editable line 1033 / standalone HTML line 1164. Sections 18–25 remain queued; the wider collection is not complete.
+
+## 18. Streaming: transport success and answer completion are different
+
+Section 11 chose transports and defined general streaming states. This section narrows the production contract: after the response is committed, answer success is expressed by a terminal application event, not by changing the HTTP status. Every reconnect, side effect and cleanup callback must preserve that distinction.
+
+### Requirements and invariants
+
+1. **Commit HTTP status only once.** Authenticate, authorize, validate request shape and acquire admission capacity before starting the body. After bytes for a `200` response are committed, a generation failure cannot become a second HTTP response; emit a typed `error` event if possible and close.
+2. **Use an explicit terminal event.** `metadata`, `delta` and `citation` are provisional. Exactly one ordered `complete` or `error` event may terminate the application stream. EOF without either terminal event means `incomplete`, never successful.
+3. **Frame data, do not concatenate it.** SSE is UTF-8 text with events separated by a blank line. Serialize payloads as JSON so quotes, backslashes and newlines remain inside `data:` rather than injecting fields or frame boundaries. Restrict event names and IDs to an application grammar.
+4. **Make sequence and replay claims truthful.** Persist a contiguous, request-scoped event suffix before advertising resumability. Validate `Last-Event-ID`, authorize the answer again, replay the complete missing interval and return `reset_required` when retention cannot cover it.
+5. **Deduplicate actions independently of event replay.** A reconnect can repeat delivery even when event IDs are ordered. Every tool call or other mutation needs a stable action ID and a server-side idempotency record; replaying a `tool_result` must not invoke the tool again.
+6. **Bound ownership.** The caller owns one end-to-end deadline, admission permit, bounded event buffer, upstream handle and replay-retention policy. Spring or FastAPI framing adapters do not create provider capacity or cancel remote computation automatically.
+7. **Release exactly once.** Completion, timeout, network error, explicit cancellation and setup failure may race. Route all of them through one idempotent cleanup gate that cancels upstream where supported, closes resources and releases the permit once.
+8. **Do not swallow cancellation.** Python `asyncio.CancelledError` is a `BaseException`; use `finally` for cleanup and normally propagate cancellation. In Spring MVC, completion callbacks can run for timeout or network error as well as normal completion, so callbacks must tolerate repeated cleanup attempts.
+
+### Example 1 — frame JSON and make the terminal event visible
+
+The application admits request `r42`, assigns answer `a42` and persists each sequence before sending it. The model's newline stays escaped inside JSON:
+
+```text
+event: metadata
+id: 1
+data: {"requestId":"r42","answerId":"a42"}
+
+event: delta
+id: 2
+data: {"text":"Use the approved\nstaging rollback job."}
+
+event: complete
+id: 3
+data: {"status":"complete","citations":["payments-r7"]}
+
+```
+
+The blank line dispatches each event. `id: 3` is an application cursor only because this service retains the ordered events for `a42`; it is not a global offset. The terminal payload is sent only after citation membership, support and business validation pass.
+
+```mermaid
+flowchart TD
+    R["Authorized request"] --> A{"Admit capacity?"}
+    A -->|no| O["503 before body"]
+    A -->|yes| S["Commit 200 stream"]
+    S --> P["Persist + send provisional events"]
+    P --> V{"Final gates pass?"}
+    V -->|yes| C["complete + close"]
+    V -->|no| E["error + close"]
+```
+
+A minimal Python framing adapter can keep the event grammar and JSON encoding in one place. It remains the caller's job to authorize, admit, deadline and close the upstream response:
+
+```python
+import json
+
+ALLOWED = {"metadata", "delta", "citation", "complete", "error"}
+
+def sse_frame(event: str, event_id: int, payload: dict) -> bytes:
+    if event not in ALLOWED or event_id < 1:
+        raise ValueError("invalid SSE field")
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return f"event: {event}\nid: {event_id}\ndata: {body}\n\n".encode()
+```
+
+### Example 2 — EOF is incomplete; an application error is not a new HTTP status
+
+Suppose the provider emits two deltas and then fails. If no response bytes were sent yet, the endpoint may still return an ordinary problem response. Once the `200 text/event-stream` body has started, the application can only send an `error` event if the connection remains writable, then close. If even that write fails, the client sees EOF without a terminal event and records `incomplete`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Open: 200 body starts
+    Open --> Open: metadata / delta / citation
+    Open --> Complete: final checks pass
+    Open --> Error: typed failure event sent
+    Open --> Incomplete: EOF / disconnect / timeout
+    Complete --> [*]
+    Error --> [*]
+    Incomplete --> [*]
+```
+
+| Wire observation | Client answer state | May be treated as verified? |
+|---|---|---|
+| deltas, stream still open | provisional | no |
+| `complete` at next sequence | complete | yes, subject to the declared final gates |
+| `error` at next sequence | failed | no |
+| EOF, timeout or sequence gap before terminal | incomplete | no |
+| second terminal event | protocol violation | no |
+
+A client must not infer completion from a syntactically well-formed final sentence, a `[DONE]` provider marker or a clean TCP close. Only the application's ordered terminal event carries that meaning.
+
+### Example 3 — reconnect replays events, not side effects
+
+Request `a42` retains events 7–12. A reconnect with `Last-Event-ID: 9` is authenticated, re-authorized for `a42`, and replays 10–12. Event 10 reports the result of tool action `tool-a42-1`; the service returns the recorded result instead of calling the tool again. A cursor of 4 cannot be satisfied from the retained suffix and receives `reset_required`.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as SSE endpoint
+    participant L as Event ledger
+    participant T as Action ledger
+    C->>A: a42 + Last-Event-ID 9
+    A->>A: authenticate + authorize a42
+    A->>L: read contiguous 10..12
+    L-->>A: tool_result, delta, complete
+    A->>T: verify tool-a42-1 already applied
+    T-->>A: recorded result
+    A-->>C: replay 10..12; no tool execution
+```
+
+Replay is refused rather than guessed when the cursor is malformed, ahead of the latest event, older than the retained predecessor, belongs to another answer or would cross an authorization change. A server may instead create a new answer resource, but it must not splice a gap into the old stream and call it continuous.
+
+### Example 4 — one cleanup gate handles racing callbacks
+
+Spring MVC's emitter callbacks may observe completion, timeout or an error. The provider task may also notice cancellation. All paths call the same cleanup object; its compare-and-set winner cancels the upstream and releases the permit, while later calls become no-ops.
+
+```java
+final class Cleanup {
+    private final AtomicBoolean done = new AtomicBoolean();
+    private final Future<?> upstream;
+    private final Semaphore permits;
+
+    void run() {
+        if (done.compareAndSet(false, true)) {
+            upstream.cancel(true);       // cooperative; provider may already be working
+            permits.release();           // exactly one release
+        }
+    }
+}
+
+SseEmitter emitter = new SseEmitter(20_000L);
+emitter.onCompletion(cleanup::run);
+emitter.onTimeout(cleanup::run);
+emitter.onError(error -> cleanup.run());
+```
+
+The executor must also be bounded. One virtual thread per admitted stream can reduce Java thread-management cost, but admission is still capped by provider quota, database connections, memory and replay-buffer capacity. A reactive return type does not make a blocking provider client nonblocking.
+
+```mermaid
+flowchart TD
+    N["normal completion"] --> G["atomic cleanup gate"]
+    T["timeout"] --> G
+    D["disconnect / error"] --> G
+    X["explicit cancel"] --> G
+    G -->|winner| U["cancel upstream + close + release permit"]
+    G -->|later caller| Z["no-op"]
+```
+
+For Python, put release and upstream close in `finally`. If cancellation is caught to add telemetry, re-raise it after cleanup; a broad `except BaseException` that converts cancellation into an application `error` event can defeat task-group and timeout semantics.
+
+### Paired executable SSE-completion contract
+
+[`SseCompletionContracts.java`](SseCompletionContracts.java) and [`sse_completion_contracts.py`](sse_completion_contracts.py) model JSON-safe framing, contiguous sequences, exactly one terminal event, EOF-to-incomplete conversion, retained replay, idempotent action IDs and exactly-once permit release without external dependencies:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/SseCompletionContracts.java
+python3 study-guides/backend/spring-ai-python/sse_completion_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|FRAMING=SSE_JSON|TERMINAL=EXACTLY_ONCE|CLOSE=INCOMPLETE|REPLAY=ORDERED|ACTION=IDEMPOTENT|PERMIT=RELEASE_ONCE|COMPLETE=3281
+```
+
+Each implementation passes 30 explicit scenario groups and 10,000 seeded terminal/cleanup trials. These contracts do not open a socket, prove proxy behavior, authenticate a real reconnect, persist an event/action ledger, cancel a provider, start Spring/FastAPI or load-test admission; those require framework and integration tests.
+
+### Current primary references
+
+Verified on 28 October 2026:
+
+- WHATWG HTML, [Server-sent events](https://html.spec.whatwg.org/dev/server-sent-events.html) — UTF-8 `text/event-stream` grammar, blank-line dispatch, `id`, reconnection and `Last-Event-ID` behavior.
+- Spring Framework, [`SseEmitter`](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/web/servlet/mvc/method/annotation/SseEmitter.html) and [`ResponseBodyEmitter`](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/web/servlet/mvc/method/annotation/ResponseBodyEmitter.html) — typed SSE event builders, custom timeouts and completion/error/timeout callbacks.
+- FastAPI, [Stream Data](https://fastapi.tiangolo.com/advanced/stream-data/), [StreamingResponse](https://fastapi.tiangolo.com/advanced/custom-response/) and [Lifespan Events](https://fastapi.tiangolo.com/advanced/events/) — iterator-byte ownership, cancellation points and application-scoped resource setup/cleanup.
+- Python, [`asyncio` tasks and cancellation](https://docs.python.org/3/library/asyncio-task.html) — `CancelledError` as `BaseException`, `try/finally` cleanup and normally propagating cancellation after cleanup.
+
+### Source provenance and continuation
+
+The selected editable bundle member's complete Section 18 is source lines 1033–1117, bounded before Section 19 at line 1119. The compared standalone HTML is lines 1164–1232, bounded before Section 19 at line 1233; the bundle's HTML member is byte-identical to that standalone file. Both contain the same SSE frame, post-commit failure rule, authenticated-POST caveat, replay/action warning, Python cancellation/lifespan ownership and Spring MVC emitter cleanup requirements. The editable Markdown remains the structural source and no duplicate guide was created. Because canonical Section 11 already covers general transport choice, this section adds the narrower terminal-event, JSON framing, replay/action idempotency and cleanup-race contracts instead of duplicating it. Section 19, **Authentication in Spring and Python: verified claims to query predicates**, begins at editable line 1119 / standalone HTML line 1233. Sections 19–25 remain queued; the wider collection is not complete.

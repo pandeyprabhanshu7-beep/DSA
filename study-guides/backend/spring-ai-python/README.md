@@ -22,6 +22,7 @@ java -ea study-guides/backend/spring-ai-python/ObservabilityBoundaryContracts.ja
 java -ea study-guides/backend/spring-ai-python/TestingPyramidContracts.java
 java -ea study-guides/backend/spring-ai-python/ImplementationPathContracts.java
 java -ea study-guides/backend/spring-ai-python/DurableApiContracts.java
+java -ea study-guides/backend/spring-ai-python/SseCompletionContracts.java
 python3 study-guides/backend/spring-ai-python/layer_selection_contracts.py
 python3 study-guides/backend/spring-ai-python/library_selection_contracts.py
 python3 study-guides/backend/spring-ai-python/java_library_map_contracts.py
@@ -39,6 +40,7 @@ python3 study-guides/backend/spring-ai-python/observability_boundary_contracts.p
 python3 study-guides/backend/spring-ai-python/testing_pyramid_contracts.py
 python3 study-guides/backend/spring-ai-python/implementation_path_contracts.py
 python3 study-guides/backend/spring-ai-python/durable_api_contracts.py
+python3 study-guides/backend/spring-ai-python/sse_completion_contracts.py
 ```
 
-This is an incremental guide. Sections 1–17 are promoted; Sections 18–25 remain queued.
+This is an incremental guide. Sections 1–18 are promoted; Sections 19–25 remain queued.
