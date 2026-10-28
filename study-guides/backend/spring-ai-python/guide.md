@@ -3620,3 +3620,182 @@ Verified on 28 October 2026:
 ### Source provenance and continuation
 
 The selected editable bundle member's complete Section 18 is source lines 1033–1117, bounded before Section 19 at line 1119. The compared standalone HTML is lines 1164–1232, bounded before Section 19 at line 1233; the bundle's HTML member is byte-identical to that standalone file. Both contain the same SSE frame, post-commit failure rule, authenticated-POST caveat, replay/action warning, Python cancellation/lifespan ownership and Spring MVC emitter cleanup requirements. The editable Markdown remains the structural source and no duplicate guide was created. Because canonical Section 11 already covers general transport choice, this section adds the narrower terminal-event, JSON framing, replay/action idempotency and cleanup-race contracts instead of duplicating it. Section 19, **Authentication in Spring and Python: verified claims to query predicates**, begins at editable line 1119 / standalone HTML line 1233. Sections 19–25 remain queued; the wider collection is not complete.
+
+## 19. Authentication in Spring and Python: verified claims to query predicates
+
+Authentication is not “decode a JWT and copy `tenant` into SQL.” The production boundary is a chain of evidence: validate the token for this resource, resolve the verified subject to current server-side membership, derive query predicates from that identity, and authorize every post-model tool action again. Spring Security and FastAPI can host the chain; the application still owns its policy.
+
+### Requirements and invariants
+
+1. **Treat every received field as untrusted until verification completes.** Pin acceptable algorithms and trusted issuer/key sources. Validate the signature, issuer, audience, expiry, not-before time and required subject; never choose an arbitrary key URL from an untrusted header.
+2. **Bind keys to the issuer and token to the resource.** A valid signature under some key is insufficient. The key must belong to the configured issuer and the audience must name this API. An ID token or token for another service is not an access token for this service.
+3. **Separate identity hints from authority.** A verified `tenant` claim is authoritative only when the issuer contract says so. Otherwise resolve `(issuer, subject)` through a server-owned directory and use its current memberships and permissions.
+4. **Create one immutable request identity.** Framework adapters produce `Identity(subject, memberships, permissions, tokenId/expiry)`. Controllers, repositories and tools accept that object, not a caller-supplied tenant string.
+5. **Compile authorization into data access.** The repository adds tenant/project/ACL predicates from the identity before retrieval. Never fetch globally and filter after ranking or generation; existence, scores, snippets and timing can leak.
+6. **Use row security as defense in depth, not the only gate.** Enable policies deliberately, test with a non-owner/non-`BYPASSRLS` role, and set request context transaction-locally. A session-level tenant variable on a pooled connection can leak into the next request.
+7. **Authorize after the model.** Tool schemas validate shape, not ownership. Re-check resource scope and action permission under the verified subject; a host or MCP service credential must not silently widen the user's authority.
+8. **Make delegation explicit.** Decide whether a downstream call is service identity, user impersonation or constrained delegation. Preserve current subject and actor where the authorization system supports it; use a resource-specific, least-privilege token rather than forwarding the original bearer token everywhere.
+9. **Fail closed with stable semantics.** Missing/invalid credentials are `401` with a Bearer challenge; a valid identity lacking permission is `403`. Tenant-concealed object lookup may return `404`, but logs and metrics still record the internal denial reason without token contents.
+
+```mermaid
+flowchart TD
+    T["Bearer token"] --> C{"signature + alg + issuer + audience + time valid?"}
+    C -->|no| U["401 invalid_token"]
+    C -->|yes| S["verified issuer + subject"]
+    S --> D["resolve current memberships"]
+    D --> P{"required permission?"}
+    P -->|no| F["403 or concealed 404"]
+    P -->|yes| I["immutable request identity"]
+    I --> Q["repository/tool predicates"]
+```
+
+### Example 1 — good signature, wrong audience: reject before the repository
+
+An identity provider issues a correctly signed token with `iss=https://id.example`, `sub=user-7`, `aud=analytics-api`, `exp=17:00`, and `tenant=customer-a`. The answer service expects audience `atlas-api`. Signature verification succeeds, but audience validation fails, so the request is `401 invalid_token`. The service performs no directory lookup, retrieval, model call or tool action.
+
+Spring Security supports independent issuer and audience configuration:
+
+```yaml
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://id.example
+          audiences: https://atlas.example/api
+```
+
+A FastAPI dependency should call a maintained verifier with an explicit algorithm allow-list, issuer and audience. Merely Base64-decoding the payload proves nothing:
+
+```python
+def verified_claims(token: str) -> dict:
+    return jwt.decode(
+        token,
+        key=trusted_key_for_configured_issuer(),
+        algorithms=["RS256"],
+        issuer="https://id.example",
+        audience="https://atlas.example/api",
+        options={"require": ["exp", "iss", "aud", "sub"]},
+    )
+```
+
+The key resolver is configuration-bound and rotation-aware. It does not fetch a URL supplied by `jku`, concatenate raw `kid` into SQL/path names, or let the token select an algorithm outside the allow-list.
+
+```mermaid
+sequenceDiagram
+    participant C as Caller
+    participant V as JWT verifier
+    participant D as Directory
+    participant R as Repository
+    C->>V: signed token for analytics-api
+    V->>V: signature valid; audience mismatch
+    V-->>C: 401 invalid_token
+    Note over D,R: not called
+```
+
+### Example 2 — verified subject, untrusted tenant hint: membership owns the predicate
+
+`(https://id.example, user-7)` is verified. The token and request body both say `tenant=customer-b`, but the service's membership directory currently grants `user-7` read access only to `customer-a`. The application does not convert either caller value into authority. It either rejects the requested tenant or derives `tenant_id IN ('customer-a')` from the directory result.
+
+```java
+record Identity(String subject, Set<String> tenants, Set<String> permissions) {}
+
+List<Evidence> findEvidence(Identity identity, String requestedTenant, String query) {
+    if (!identity.permissions().contains("evidence:read")
+            || !identity.tenants().contains(requestedTenant)) {
+        throw new AccessDeniedException("not permitted");
+    }
+    return evidenceRepository.search(
+            requestedTenant, query); // parameterized tenant predicate is mandatory
+}
+```
+
+The repository signature makes the authority input visible. A weaker API such as `search(String tenantFromBody, String query)` invites accidental bypass. Cache keys, vector filters, reranker inputs, citations and answer persistence must all retain the same identity/tenant scope.
+
+```mermaid
+flowchart LR
+    H["token/body tenant hint: B"] -. untrusted .-> X["never becomes predicate"]
+    S["verified issuer + subject"] --> M["directory membership: A"]
+    M --> Q["WHERE tenant_id = A"]
+    Q --> R["authorized evidence only"]
+```
+
+### Example 3 — transaction-local database context cannot survive pool reuse
+
+Request A checks out connection 12 and is authorized for `customer-a`. Inside a transaction it sets a local context and queries an RLS-protected table. Commit or rollback ends the local value before the connection returns to the pool. Request B then receives the same physical connection but cannot inherit A's tenant.
+
+```sql
+BEGIN;
+SELECT set_config('app.tenant_id', :verified_tenant, true); -- true = local
+SELECT id, body
+FROM evidence
+WHERE tenant_id = :verified_tenant AND document_id = ANY(:authorized_ids);
+COMMIT;
+
+ALTER TABLE evidence ENABLE ROW LEVEL SECURITY;
+ALTER TABLE evidence FORCE ROW LEVEL SECURITY;
+CREATE POLICY evidence_tenant ON evidence
+USING (tenant_id = current_setting('app.tenant_id', true));
+```
+
+The explicit query predicate remains useful for review and plan selectivity; RLS is a second gate. Tests must use the same application role, transaction and pool behavior as production. Table owners and roles with `BYPASSRLS` can bypass policies, and `SET SESSION` persists beyond a transaction.
+
+```mermaid
+sequenceDiagram
+    participant A as Request A
+    participant P as Pool connection 12
+    participant B as Request B
+    A->>P: BEGIN; SET LOCAL tenant=A
+    A->>P: scoped query; COMMIT
+    Note over P: local setting ends
+    B->>P: BEGIN without tenant context
+    P-->>B: default deny / no rows
+```
+
+### Example 4 — a valid tool schema does not authorize the proposed action
+
+The model proposes `refund(orderId="order-b", amount=5000)`. The JSON schema accepts the shape, and the MCP connection is authenticated with a service credential. The tool still resolves `order-b`, verifies that the request identity belongs to its tenant, requires `orders:refund`, enforces the amount policy and records a stable action ID. A caller scoped only to customer A receives a concealed denial for customer B; the refund is not attempted.
+
+```mermaid
+flowchart TD
+    M["model proposes tool arguments"] --> Z{"schema valid?"}
+    Z -->|no| E["reject malformed call"]
+    Z -->|yes| A{"subject membership + action scope + resource policy?"}
+    A -->|no| D["deny; no side effect"]
+    A -->|yes| K["idempotency record + mutation"]
+    K --> L["audit subject, actor, resource, outcome"]
+```
+
+Transport-level MCP authorization protects the resource server, but the handler remains responsible for object ownership and operation policy. If the host acts on behalf of a user, constrained delegation keeps the user subject and current actor distinct; forwarding a broad service token or the original bearer token erases those boundaries.
+
+### Paired executable identity-to-authority contract
+
+[`AuthorizationBoundaryContracts.java`](AuthorizationBoundaryContracts.java) and [`authorization_boundary_contracts.py`](authorization_boundary_contracts.py) model the pure decision boundary without parsing or signing real JWTs. They require signature/algorithm/issuer/audience/time/subject evidence, resolve current memberships server-side, compile tenant predicates, prevent pooled transaction-context carryover and authorize tool resources separately:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/AuthorizationBoundaryContracts.java
+python3 study-guides/backend/spring-ai-python/authorization_boundary_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|JWT=VERIFIED|AUDIENCE=BOUND|TENANT=DIRECTORY|QUERY=SCOPED|RLS=LOCAL|TOOL=RECHECKED|DELEGATION=EXPLICIT
+```
+
+Each implementation passes 30 explicit scenario groups and 10,000 seeded dual-oracle trials. These contracts do not perform cryptography, fetch JWKS, start Spring/FastAPI, connect to PostgreSQL, configure an identity provider, exchange downstream tokens or invoke an MCP server. Those claims require library, framework and integration tests with rotated keys, production roles and real pool reuse.
+
+### Current primary references
+
+Verified on 28 October 2026:
+
+- Spring Security, [OAuth 2.0 Resource Server JWT](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html) — issuer/JWK discovery, signature/issuer/time validation, audience configuration and authority mapping.
+- FastAPI, [OAuth2 with Bearer JWT](https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/) — dependency-based bearer extraction, maintained JWT verification, expiry handling and `401` challenges.
+- IETF, [RFC 8725: JWT Best Current Practices](https://www.rfc-editor.org/rfc/rfc8725.html) — algorithm allow-lists, complete cryptographic validation, issuer/key binding, audience checks and untrusted-claim handling.
+- PostgreSQL, [Row Security Policies](https://www.postgresql.org/docs/current/ddl-rowsecurity.html), [`CREATE POLICY`](https://www.postgresql.org/docs/current/sql-createpolicy.html) and [`SET`](https://www.postgresql.org/docs/current/sql-set.html) — policy behavior, owner/`BYPASSRLS` exceptions, `USING`/`WITH CHECK`, and transaction-local versus session settings.
+- Model Context Protocol, [Authorization](https://modelcontextprotocol.io/specification/latest/basic/authorization) and [TypeScript SDK authorization](https://ts.sdk.modelcontextprotocol.io/v2/serving/authorization) — MCP servers as resource servers, resource-specific bearer validation, scope challenges and verified auth context in handlers.
+- IETF, [RFC 8693: OAuth 2.0 Token Exchange](https://www.rfc-editor.org/rfc/rfc8693.html) — explicit delegation versus impersonation and subject/actor representation.
+
+### Source provenance and continuation
+
+The selected editable bundle member's complete Section 19 is source lines 1119–1153, bounded before Section 20 at line 1154. The compared standalone HTML is lines 1233–1257, bounded before Section 20 at line 1258; the bundle's generated HTML is byte-identical to the standalone file. Both sources require issuer/audience/signature/time verification, immutable identity, membership-derived repository scope, pool-safe row-security context and post-model tool authorization. The editable Markdown remains the structural source and no duplicate guide was created. This canonical section adds exact failure semantics, four worked traces, five diagrams, constrained delegation, reproducible primary references and paired executable contracts. Section 20, **Paired coding exercise: evidence token budgeting**, begins at editable line 1154 / standalone HTML line 1258. Sections 20–25 remain queued; the wider collection is not complete.
