@@ -4,7 +4,7 @@ Last updated: 2026-10-28.
 
 ## Spring AI and Python APIs
 
-State: **IN PROGRESS; Sections 1–19 promoted**.
+State: **IN PROGRESS; Sections 1–20 promoted**.
 
 Canonical pair:
 
@@ -15,7 +15,7 @@ Source comparison:
 
 - Selected `atlas_guides/spring_ai_python_api_interview_guide.md` from `ai_cicd_spring_python_guides_complete.zip`, bundle SHA-256 `c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31`, member SHA-256 `af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553`.
 - Compared standalone `spring_ai_python_api_interview_guide.html`, SHA-256 `6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3`; it is byte-identical to the generated HTML inside the bundle, so it was not promoted as a duplicate source.
-- Section 19 is exactly editable-source lines 1119–1153 and standalone-HTML lines 1233–1257, ending before Section 20 at respective lines 1154 and 1258.
+- Section 20 is exactly editable-source lines 1154–1244 and standalone-HTML lines 1258–1341, ending before Section 21 at respective lines 1245 and 1342.
 - The ZIP passed integrity and path-traversal checks.
 
 Completed sections:
@@ -39,12 +39,13 @@ Completed sections:
 17. **Design an AI API as a durable business contract** (source lines 944–1031) — provider-neutral synchronous answers, verified authority, stable problem semantics, scoped canonical-hash idempotency, atomic job/outbox creation, duplicate-safe workers, tenant-concealed polling, four examples, four diagrams and paired 30-scenario/10,000-trial contracts.
 18. **Streaming: transport success and answer completion are different** (source lines 1033–1117) — post-commit terminal-event semantics, JSON-safe framing, contiguous replay, idempotent action IDs, exactly-once cleanup, cancellation propagation, four examples, four diagrams and paired 30-scenario/10,000-trial contracts.
 19. **Authentication in Spring and Python: verified claims to query predicates** (source lines 1119–1153) — pinned JWT algorithms/issuer/audience/time, directory-owned tenant membership, identity-derived query predicates, transaction-local RLS context, post-model tool authorization, explicit delegation, four examples, five diagrams and paired 30-scenario/10,000-trial contracts.
+20. **Paired coding exercise: evidence token budgeting** (source lines 1154–1244) — checked context reservations, rank-preserving whole-passage packing, target-tokenizer identity, atomic dependency bundles, bounded exact-serialization recovery, four examples, five diagrams and paired 32-scenario/10,000-trial contracts.
 
 Validation:
 
-- Java 17 source-file launch and Python 3 passed all nineteen contract pairs; Section 19 produced the identical `PARITY|JWT=VERIFIED|AUDIENCE=BOUND|TENANT=DIRECTORY|QUERY=SCOPED|RLS=LOCAL|TOOL=RECHECKED|DELEGATION=EXPLICIT` trace, 30 scenario groups and 10,000 seeded trials per language.
-- Deterministic reader generation passed exact 260168-byte Markdown recovery, SHA-256 `3052ee53e5e6bbd7ed3b23807aab5cfa9d30dff2294618b64a951cf42029ec28`, 776 unique HTML IDs, 20 search entries, 534 fragments, 10 resolved relative links, 360 balanced fence markers, 81 Mermaid sources, JSON, two JavaScript blocks, responsive/search controls and rebuild identity.
+- Java 17 source-file launch and Python 3 passed all twenty contract pairs; Section 20 produced the identical `PARITY|BUDGET=CHECKED|ORDER=RANKED|SKIP=OVERSIZE|COUNTS=POSITIVE|IDS=UNIQUE|SERIALIZED=RECOUNTED|OVERFLOW=REJECTED|SELECTED=a,c` trace, 32 scenario groups and 10,000 seeded trials per language.
+- Deterministic reader generation passed exact 273065-byte Markdown recovery, SHA-256 `f58ce169d67d09ef7f28d961be301fcbd37580efd0f99f1e7a4e2df459c6a83c`, 821 unique HTML IDs, 21 search entries, 567 fragments, 12 resolved relative links, 380 balanced fence markers, 86 Mermaid sources, parseable JSON, four script blocks, responsive/search controls and rebuild identity.
 - A fresh literal-marker audit found 170 live Java placeholders across the five canonical DSA guide folders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this backend section added none.
 - Standalone `javac`, Maven/framework compilation, live pgvector/model/provider/MCP-host/k6/Kubernetes integration, browser/accessibility integration and rendered Mermaid QA were unavailable and are not represented as passes; Java 17 source-file launch was the available Java execution path.
 
-Next action: rotate fairly to AI-platform Chapter 20, then Arrays Section 4 problem 19. On the next Spring/Python turn, process Section 20, **Paired coding exercise: evidence token budgeting**, beginning at editable source line 1154 / standalone HTML line 1258. Do not imply the 25-section source or wider collection is complete.
+Next action: rotate fairly to AI-platform Chapter 21, then Arrays Section 4 problem 20. On the next Spring/Python turn, process Section 21, **Paired coding exercise: service-side idempotency**, beginning at editable source line 1245 / standalone HTML line 1342. Do not imply the 25-section source or wider collection is complete.

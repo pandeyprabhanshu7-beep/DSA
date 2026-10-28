@@ -3799,3 +3799,194 @@ Verified on 28 October 2026:
 ### Source provenance and continuation
 
 The selected editable bundle member's complete Section 19 is source lines 1119–1153, bounded before Section 20 at line 1154. The compared standalone HTML is lines 1233–1257, bounded before Section 20 at line 1258; the bundle's generated HTML is byte-identical to the standalone file. Both sources require issuer/audience/signature/time verification, immutable identity, membership-derived repository scope, pool-safe row-security context and post-model tool authorization. The editable Markdown remains the structural source and no duplicate guide was created. This canonical section adds exact failure semantics, four worked traces, five diagrams, constrained delegation, reproducible primary references and paired executable contracts. Section 20, **Paired coding exercise: evidence token budgeting**, begins at editable line 1154 / standalone HTML line 1258. Sections 20–25 remain queued; the wider collection is not complete.
+
+## 20. Paired coding exercise: evidence token budgeting
+
+Token budgeting is a preflight safety contract, not a synonym for `topK` and not permission to truncate governing instructions. The packer below receives **already authorized, already ranked** evidence whose counts were produced with the exact tokenizer and serialization rules of the target model revision. It greedily preserves rank order, skips a passage that does not fit, and may accept a smaller later passage. It neither tokenizes nor solves a knapsack problem.
+
+### Requirements and invariants
+
+1. **Authorize before counting or ranking.** Tenant, ACL, generation and document filters apply before any passage enters this function. Packing must never broaden scope or turn an unauthorized near-match into a fallback.
+2. **Pin the counting identity.** Record the model/tokenizer revision, template revision, special-token behavior and tool-schema revision with the count. A count from a different tokenizer or template is only an estimate.
+3. **Reserve every non-evidence region.** `evidence = context − output − instructions − history − safety − serialization`. Every term is nonnegative; checked arithmetic rejects overflow and total reservations greater than the context window.
+4. **Treat rank order as immutable input.** The packer does not rerank. Equal-score tie order must already be deterministic, normally score descending then stable evidence ID.
+5. **Require stable, unique IDs and positive counts.** Duplicate IDs make citations ambiguous; zero or negative counts invalidate the accounting. The function returns a new immutable selection and does not mutate caller input.
+6. **Define skip semantics explicitly.** A passage larger than the remaining budget is skipped, not truncated. A smaller later passage may fit. This is deterministic greedy packing, not prefix-only selection or utility maximization.
+7. **Make dependency units atomic.** If a child chunk is unsafe without its heading, definition or preceding paragraph, rank and count the complete bundle as one unit. Do not let the packer manufacture context-free fragments.
+8. **Count the serialized prompt before send.** Source labels, citation delimiters, chat roles, special tokens, JSON schemas and tool definitions consume input tokens too. Recount the exact rendered request; provider-reported usage is useful after a call, not a preflight proof.
+9. **Bound recovery.** If the exact serialization exceeds the input allowance, remove the lowest-ranked selected unit, render once more, and stop after a fixed number of attempts. Never drop system instructions, the user question or authorization constraints to make evidence fit.
+10. **Observe without leaking content.** Record revision IDs, reservations, selected evidence IDs, estimated versus actual input counts, retry count and rejection reason. Avoid prompt/evidence bodies in ordinary logs and metrics.
+
+```mermaid
+flowchart TD
+    A["authorized candidates"] --> R["deterministic ranking"]
+    R --> C["target-tokenizer counts"]
+    C --> P["rank-preserving greedy pack"]
+    P --> S["serialize exact request"]
+    S --> F{"input + output <= context?"}
+    F -->|yes| M["send immutable request"]
+    F -->|no| B["drop lowest selected bundle or reject"]
+    B --> S
+```
+
+### Example 1 — derive one auditable evidence allowance
+
+For a 4,096-token context, reserve 900 output tokens, 300 instruction tokens, 500 history tokens and a 196-token safety margin. With no separately measured serialization overhead in this first arithmetic trace:
+
+| Region | Tokens | Running remainder |
+|---|---:|---:|
+| context window | 4,096 | 4,096 |
+| reserved output | 900 | 3,196 |
+| instructions | 300 | 2,896 |
+| history | 500 | 2,396 |
+| safety margin | 196 | **2,200** |
+
+The evidence budget is therefore `4096 − 900 − 300 − 500 − 196 = 2200`. If template labels and separators are measured separately at 120 tokens, evidence falls to 2,080. The subtraction must fail closed when any input is negative, the sum exceeds 4,096 or fixed-width arithmetic overflows:
+
+```java
+static long evidenceBudget(long context, long... reservations) {
+    if (context < 0) throw new IllegalArgumentException("negative context");
+    long remaining = context;
+    for (long reservation : reservations) {
+        if (reservation < 0) throw new IllegalArgumentException("negative reservation");
+        remaining = Math.subtractExact(remaining, reservation);
+        if (remaining < 0) throw new IllegalArgumentException("reservations exceed context");
+    }
+    return remaining;
+}
+```
+
+```mermaid
+flowchart LR
+    W["4096 context"] --> O["−900 output"]
+    O --> I["−300 instructions"]
+    I --> H["−500 history"]
+    H --> G["−196 safety"]
+    G --> E["2200 evidence"]
+```
+
+### Example 2 — skip an oversized middle passage, preserve ranking
+
+Ranked passages `a=1400`, `b=1100`, `c=700` enter with a 2,200-token evidence allowance. The algorithm accepts `a`, skips `b` because only 800 remain, then accepts `c`. Selection is `[a, c]`, totaling 2,100 with 100 unused.
+
+| Step | Candidate | Remaining before | Decision | Remaining after | Selected IDs |
+|---:|---|---:|---|---:|---|
+| 1 | `a` / 1,400 | 2,200 | accept | 800 | `a` |
+| 2 | `b` / 1,100 | 800 | skip whole passage | 800 | `a` |
+| 3 | `c` / 700 | 800 | accept | 100 | `a,c` |
+
+```python
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class Passage:
+    id: str
+    tokens: int
+
+def pack(passages: tuple[Passage, ...], budget: int) -> tuple[Passage, ...]:
+    if budget < 0:
+        raise ValueError("negative budget")
+    if any(not p.id.strip() or p.tokens <= 0 for p in passages):
+        raise ValueError("invalid passage")
+    if len({p.id for p in passages}) != len(passages):
+        raise ValueError("duplicate passage ID")
+    selected: list[Passage] = []
+    remaining = budget
+    for passage in passages:                 # caller's rank order
+        if passage.tokens <= remaining:
+            selected.append(passage)
+            remaining -= passage.tokens
+    return tuple(selected)
+```
+
+This choice is intentionally not optimal for every objective. With a budget of 100 and sizes `70, 40, 30`, greedy rank preservation selects the first and third. If business utility says two lower-ranked passages are better, define and test that objective separately rather than quietly changing this contract.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Remaining2200
+    Remaining2200 --> Remaining800: accept a/1400
+    Remaining800 --> Remaining800: skip b/1100
+    Remaining800 --> Remaining100: accept c/700
+    Remaining100 --> [*]: return a,c
+```
+
+### Example 3 — preserve required context by packing bundles
+
+Suppose chunk `policy-7b` contains an exception but depends on definition `policy-7a`. Counting and ranking them independently could select only the exception. Instead, ingestion creates immutable bundle `policy-7=[7a,7b]`, counts the exact serialized bundle including its internal separator, and ranks that unit. The packer either accepts both or neither.
+
+| Candidate unit | Members | Count | Independent? | Packing rule |
+|---|---|---:|---|---|
+| `policy-7` | `7a,7b` | 620 | no | atomic bundle |
+| `faq-2` | `2a` | 280 | yes | single-member bundle |
+| `policy-8` | `8a,8b,8c` | 910 | no | atomic bundle |
+
+At budget 900, `policy-7` is accepted, `faq-2` is accepted exactly, and `policy-8` is skipped. Citations may still name member IDs, but the retrieval unit and its count are versioned together. If bundles overlap, deduplicate before ranking; repeated text consumes tokens even when IDs differ.
+
+```mermaid
+flowchart TD
+    D["document structure"] --> U1["bundle policy-7: 7a + 7b"]
+    D --> U2["bundle faq-2: 2a"]
+    D --> U3["bundle policy-8: 8a + 8b + 8c"]
+    U1 --> P["rank and pack atomic units"]
+    U2 --> P
+    U3 --> P
+    P --> C["citations retain member provenance"]
+```
+
+### Example 4 — exact serialization is the final gate
+
+The estimator selected evidence totaling 2,100, but the rendered input includes 300 instruction tokens, 500 history tokens, 2,100 evidence tokens, 170 source labels/separators and 180 tool-schema tokens: 3,250 input tokens. Adding the reserved 900 output tokens yields 4,150, so the request does **not** fit a 4,096 context even though the evidence-only pack passed.
+
+The adapter drops the lowest-ranked selected bundle `c`, renders again and obtains 2,538 actual input tokens. `2,538 + 900 = 3,438`, so it sends. If the tokenizer/model revision at send time differs from the pinned counting identity, or the bounded retry cannot produce a fitting request, it rejects locally with an observable budget error rather than relying on provider truncation.
+
+```text
+attempt=0 selected=[a,c] evidence=2100 actual_input=3250 total_with_output=4150 -> OVER
+attempt=1 selected=[a]   evidence=1400 actual_input=2538 total_with_output=3438 -> SEND
+```
+
+Do not use response usage metadata to claim the preflight count was exact: that metadata arrives after the provider processes a request and may use provider-specific accounting. It is valuable for drift alarms: compare estimated input with returned prompt usage by model/template revision, without logging prompt text.
+
+```mermaid
+sequenceDiagram
+    participant P as Packer
+    participant S as Serializer
+    participant T as Target tokenizer
+    participant M as Model adapter
+    P->>S: selected a,c
+    S->>T: exact roles + labels + tools + evidence
+    T-->>S: 3250 input; over with output
+    S->>P: remove lowest selected c
+    P->>S: selected a
+    S->>T: exact request
+    T-->>M: 2538 input; send
+```
+
+### Paired executable evidence-budget contract
+
+[`EvidenceBudgetContracts.java`](EvidenceBudgetContracts.java) and [`evidence_budget_contracts.py`](evidence_budget_contracts.py) implement the same dependency-free decision boundary. They exercise checked reservation arithmetic, exact fit, zero budget, rank-preserving skip behavior, immutable inputs, positive counts, unique IDs, blank-ID rejection, serialized-prompt gating and overflow handling:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/EvidenceBudgetContracts.java
+python3 study-guides/backend/spring-ai-python/evidence_budget_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|BUDGET=CHECKED|ORDER=RANKED|SKIP=OVERSIZE|COUNTS=POSITIVE|IDS=UNIQUE|SERIALIZED=RECOUNTED|OVERFLOW=REJECTED|SELECTED=a,c
+```
+
+Each implementation passes 32 explicit scenario groups and 10,000 seeded packing trials. These pure contracts do not load a production tokenizer, render Spring AI messages, start FastAPI, call a provider, prove a model's context limit, measure quality or validate bundle construction. Those claims require the pinned tokenizer/model/template artifacts and integration/evaluation fixtures.
+
+### Current primary references
+
+Verified on 28 October 2026:
+
+- Hugging Face Transformers, [Tokenizer API](https://huggingface.co/docs/transformers/main_classes/tokenizer) and [padding/truncation](https://huggingface.co/docs/transformers/main/pad_truncation) — target-tokenizer encoding, special-token behavior, maximum length and explicit truncation strategies.
+- Spring AI, [AI metadata](https://docs.spring.io/spring-ai/reference/api/aimetadata.html), [Chat Client API](https://docs.spring.io/spring-ai/reference/api/chatclient.html) and [observability](https://docs.spring.io/spring-ai/reference/observability/) — provider-returned usage metadata, response access and token-usage metrics; these are post-call evidence, not an exact preflight tokenizer.
+- Oracle Java SE 21, [`Math`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Math.html) — `addExact`/`subtractExact` overflow behavior used by the Java contract.
+- Python, [`dataclasses`](https://docs.python.org/3/library/dataclasses.html) — frozen value objects used to keep reservation and passage inputs read-only by convention.
+
+### Source provenance and continuation
+
+The selected editable bundle member's complete Section 20 is source lines 1154–1244, bounded before Section 21 at line 1245. The compared standalone HTML is lines 1258–1341, bounded before Section 21 at line 1342; the bundle HTML member is byte-identical to that standalone file. Both sources define the same already-authorized/already-ranked greedy packer, `a,c` trace, validation rules and serialized-prompt warning. The editable Markdown remains the structural source and no duplicate guide was created. This canonical section adds checked multi-region arithmetic, target-tokenizer identity, atomic dependency bundles, bounded exact-serialization recovery, four worked traces, five diagrams, current primary references and paired 32-scenario/10,000-trial contracts. Section 21, **Paired coding exercise: service-side idempotency**, begins at editable line 1245 / standalone HTML line 1342. Sections 21–25 remain queued; the wider collection is not complete.
