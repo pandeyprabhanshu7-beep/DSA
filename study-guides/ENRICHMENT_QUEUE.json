@@ -64,9 +64,9 @@
       "modified_at": "2026-09-17T05:55:54.695794Z",
       "size_bytes": 150746,
       "status": "PROMOTED",
-      "last_read_at": "2026-10-28T04:16:09-04:00",
+      "last_read_at": "2026-10-28T11:14:20-04:00",
       "sha256": "c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a",
-      "selection": "Selected as the expanded 21-chapter canonical source after comparison; Chapters 1-19 are promoted through direct HTML line 730 (current Pandoc GFM line 1433), bounded before Chapter 20."
+      "selection": "Selected as the expanded 21-chapter canonical source after comparison; Chapters 1-20 are promoted through direct HTML line 753 (fresh Pandoc 3.1.3 GFM line 1500), bounded before Chapter 21."
     },
     {
       "name": "spring_ai_python_api_interview_guide.html",
@@ -88,9 +88,9 @@
       "modified_at": "2026-09-16T16:22:16.910779Z",
       "size_bytes": 1596169,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-10-28T04:16:09-04:00",
+      "last_read_at": "2026-10-28T11:14:20-04:00",
       "sha256": "78548fdcdb08af668299b9fe1815a4f13c7063b54a34dff487d24c8d9f0e5c43",
-      "selection": "Archive integrity and traversal checks passed. Member 02_rag_mcp.md (SHA-256 45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05) remains the editable companion and ends after Chapter 13; it contains no competing Chapter 19 content."
+      "selection": "Archive integrity and traversal checks passed. Member 02_rag_mcp.md (SHA-256 45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05) remains the editable companion and ends after Chapter 13; it contains no competing Chapter 20 content."
     },
     {
       "name": "ai_platform_engineering_illustrated.html",
@@ -100,7 +100,7 @@
       "modified_at": "2026-09-16T16:22:16.059506Z",
       "size_bytes": 272443,
       "status": "READY",
-      "last_read_at": "2026-10-28T04:16:09-04:00",
+      "last_read_at": "2026-10-28T11:14:20-04:00",
       "sha256": "006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9",
       "selection": "Read and compared; byte-identical to the HTML member in the complete bundle, so it is not promoted as a duplicate canonical guide."
     },
@@ -525,7 +525,7 @@
       ],
       "last_successful_commit": "ce698d7e8c7795c10401309a79106d7f47b0ca6c",
       "validation": "The paired Arrays workbooks agree on bounded Longest Consecutive Sequence at Markdown lines 1869-1960 and fresh Pandoc 3.1.3 --wrap=none GFM lines 1841-1935; the editable Markdown remains the structural source, no duplicate guide was created and intake stopped before problem 19. Four worked cases, four diagrams, a start/skip trace, proof and LongestConsecutiveContracts cover unsorted distinct-value runs, duplicates, signed values, nonmutation and guarded Integer.MIN_VALUE/Integer.MAX_VALUE arithmetic. Java 17 source-file launch passed 320 scenario groups across all eighteen Arrays executables plus 340,000 seeded oracle comparisons; the new contract passed 20 groups and 20,000 sorted-copy-oracle comparisons. Deterministic reader generation passed exact 151665-byte Markdown recovery, SHA-256 fca9df39cc651ae282fcce8c5179d0f3ec4c3c4b6dd8f34c92a3dc4fb55e6f34, 638 unique HTML IDs, 46 search entries, 544 fragments, 0 relative links, 194 balanced fence markers, 68 Mermaid sources, JSON, two JavaScript blocks, responsive/search controls and deterministic rebuild identity. Seven content files were atomically published at ce698d7e8c7795c10401309a79106d7f47b0ca6c with an expected-head guard and matching Git blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
-      "next_action": "Rotate to AI-platform Chapter 20; on the next Arrays turn process problem 19. Problems 19-47 remain queued.",
+      "next_action": "Process problem 19 on the next bounded turn. Problems 19-47 remain queued.",
       "priority": 6,
       "source_revision": {
         "baseline_commit": "a9f582b5dbe8b6fcda6e275054f217350a810d52",
@@ -594,7 +594,7 @@
         "ai_platform_engineering_complete_bundle.zip",
         "ai_platform_engineering_illustrated.html"
       ],
-      "last_processed_at": "2026-10-28T04:16:09-04:00",
+      "last_processed_at": "2026-10-28T11:14:20-04:00",
       "processed_sections": [
         "Chapter 1: prompting versus RAG versus fine-tuning versus tools/MCP — authority requirements, four examples, evidence and mutation traces, executable Java routing contract, failure review and current primary references",
         "Chapter 2: model mechanics — token admission, embedding identity and guarded cosine, generation metadata, four examples and an executable Java contract",
@@ -614,7 +614,8 @@
         "Chapter 16: four cache layers — behavior-complete embedding/retrieval/answer/prefix identities, tenant/ACL/generation scope, semantic-risk admission, stale-publication fencing and exact prefix compatibility",
       "Chapter 17: conversation memory as data design — append-only ordering, short-transaction finalization, bounded authorized context, summary lineage/authority denial and deletion-graph reconciliation",
         "Chapter 18: recoverable ingestion publication — full transformation identity, bounded parsing, resumable stages, generation-CAS publication, tombstone/ACL rechecks and versioned embedding spaces",
-        "Chapter 19: private model-route proof — workload identity, DNS/TLS, private network and endpoint policy, data-plane authorization, runtime/deployment role separation, explicit failover and accepted-outcome cost"
+        "Chapter 19: private model-route proof — workload identity, DNS/TLS, private network and endpoint policy, data-plane authorization, runtime/deployment role separation, explicit failover and accepted-outcome cost",
+        "Chapter 20: fleet capacity and release gates — token-aware expiring leases, tenant/deadline admission, atomic compatibility tuples, stage/slice SLOs, error-budget policy and abortable canaries"
       ],
       "source_revision": {
         "baseline_commit": "cfe2ace7a2b68f1c377e6bd768c20caa228a838a",
@@ -624,11 +625,11 @@
         "companion_archive_sha256": "78548fdcdb08af668299b9fe1815a4f13c7063b54a34dff487d24c8d9f0e5c43",
         "companion_markdown_sha256": "45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05",
         "compared_illustrated_sha256": "006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9",
-        "canonical_sha256_after": "1cfad05e1c784656e435fb6b530f2fc31a70d5dff8d9dd0176acc9b4c149642b"
+        "canonical_sha256_after": "9998fa2763c9a72e69f800a62a4a98b12585d8ad5570d880161f4c1f4df8356c"
       },
-      "last_successful_commit": "cd52af5abddf5a8299478aac0d51c88c43a3f26d",
-      "validation": "Selected master direct HTML lines 653-730 (current Pandoc GFM lines 1338-1433) were read and bounded before Chapter 20; the companion Markdown and byte-identical illustrated HTML end after Chapter 13, so no duplicate guide was created. Broad provider selection already exists in canonical Chapter 12; Chapter 19 instead adds four AWS/Azure/GCP/independent private-invocation examples, four diagrams, identity/DNS/TLS/network/endpoint/data-action/role-separation traces, current primary references, accepted-outcome cost and a dependency-free Java contract. Java 17 source-file launch passed all nineteen AI-platform contracts; PrivateModelRouteContracts passed 31 scenario groups plus 10,000 seeded conjunction trials with the exact connectivity-not-authority, data-not-management, runtime-not-deploy trace. Deterministic reader generation passed exact 259001-byte Markdown recovery, SHA-256 1cfad05e1c784656e435fb6b530f2fc31a70d5dff8d9dd0176acc9b4c149642b, 624 unique HTML IDs, 74 search entries, 442 local fragments, 19 resolved relative links, 252 balanced fence markers, 86 Mermaid sources, parseable search JSON and JavaScript, responsive/search controls and deterministic rebuild identity. Seven content files were atomically published at cd52af5abddf5a8299478aac0d51c88c43a3f26d with an expected-head guard and matching Git blob hashes. Standalone javac, live provider integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Markdown marker audit is 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
-      "next_action": "After fair rotation through Arrays problem 18 and Spring AI/Python Section 19, process Chapter 20 only; do not create a duplicate edition.",
+      "last_successful_commit": "0c3f35561ee293d61da67cedf39c747e98bccd00",
+      "validation": "Selected master direct HTML lines 731-753 (fresh Pandoc 3.1.3 GFM lines 1434-1500) were read and bounded before Chapter 21; the companion Markdown and byte-identical illustrated HTML end after Chapter 13, so no duplicate guide was created. Canonical Chapter 15 already owns inference-server internals; Chapter 20 instead adds four fleet-lease, tenant/deadline, compatibility-tuple and stage/slice/error-budget examples, five diagrams, exact traces, current primary references and a dependency-free Java contract. Java 17 source-file launch passed all twenty AI-platform contracts; CapacityReleaseContracts passed 31 scenario groups plus 10,000 seeded admission/tuple/rollout oracle trials. Deterministic reader generation passed exact 271126-byte Markdown recovery, SHA-256 9998fa2763c9a72e69f800a62a4a98b12585d8ad5570d880161f4c1f4df8356c, 662 unique HTML IDs, 75 search entries, 471 local fragments, 20 resolved relative links, 270 balanced fence markers, 91 Mermaid sources, parseable search JSON and JavaScript, responsive/search controls and deterministic rebuild identity. Seven content files were atomically published at 0c3f35561ee293d61da67cedf39c747e98bccd00 with an expected-head guard and matching Git blob hashes. Standalone javac, live provider/GPU/lease-coordinator/Kubernetes/Argo integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Markdown marker audit is 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
+      "next_action": "After fair rotation through Arrays problem 19 and Spring AI/Python Section 20, process Chapter 21 only; do not create a duplicate edition.",
       "priority": 9
     },
     {
@@ -1066,9 +1067,9 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-19, Spring AI/Python Sections 1-19 and Arrays Section 4 problems 1-18 are promoted. Process AI-platform Chapter 20 next; retain Arrays problem 19 and Spring AI/Python Section 20 for the following fair rotations.",
+    "next_action": "AI-platform Chapters 1-20, Spring AI/Python Sections 1-19 and Arrays Section 4 problems 1-18 are promoted. Process Arrays problem 19 next; retain Spring AI/Python Section 20 and AI-platform Chapter 21 for the following fair rotations.",
     "batch_policy": {
-      "max_sections_per_run": 2,
+      "max_sections_per_run": 1,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
       "excluded_content": [
         "build outputs",
@@ -1229,14 +1230,15 @@
       "Spring AI/Python Section 18: post-commit terminal events, JSON-safe SSE framing, contiguous replay, idempotent action IDs and exactly-once cleanup",
       "AI platform Chapter 19: workload identity, private DNS/TLS/network and endpoint policy, data-plane model authorization, runtime/deployment role separation, explicit failover and accepted-outcome cost",
       "DSA Arrays Section 4 problem 18: unique-start HashSet expansion, start/skip trace, integer-boundary guards, proof, nonmutation and randomized sorted-copy oracle",
-      "Spring AI/Python Section 19: pinned JWT validation, directory-owned membership, identity-derived query predicates, transaction-local RLS, post-model tool authorization and explicit delegation"
+      "Spring AI/Python Section 19: pinned JWT validation, directory-owned membership, identity-derived query predicates, transaction-local RLS, post-model tool authorization and explicit delegation",
+      "AI platform Chapter 20: fleet-leased token-aware admission, tenant/deadline gates, atomic release tuples, stage/slice SLOs, error-budget policy and abortable canaries"
     ],
-    "processed_section": "Spring AI/Python Section 19, Authentication in Spring and Python: verified claims to query predicates, editable lines 1119-1153 / standalone HTML lines 1233-1257",
-    "validation": "The selected ZIP member Section 19 at editable lines 1119-1153 and standalone HTML lines 1233-1257 were compared and bounded before Section 20; the bundle HTML is byte-identical to the standalone source, so no duplicate guide was created. Four examples, five diagrams and paired AuthorizationBoundaryContracts cover pinned JWT validation, server-owned membership, scoped queries, transaction-local RLS, post-model tool authorization and explicit delegation. Java 17 source-file launch and Python 3 passed all nineteen contract pairs; the new pair passed 30 scenario groups and 10,000 seeded dual-oracle trials per language with identical output. Reader validation passed exact 260168-byte recovery at SHA-256 3052ee53e5e6bbd7ed3b23807aab5cfa9d30dff2294618b64a951cf42029ec28, 776 IDs, 20 search entries, 534 fragments, 10 relative links, 360 fences, 81 Mermaid sources, JSON, two JavaScript blocks and deterministic rebuilding. Eight content files were published at b94e2dd7a63b6e8214c69c8a18fe95f6ac8edb8f with an expected-head guard and matching blob hashes. Standalone javac, Maven/framework compilation, live identity-provider/JWKS/PostgreSQL/MCP integration and browser/assistive-technology/rendered-Mermaid validation were unavailable. The canonical marker audit remains 170.",
+    "processed_section": "AI-platform Chapter 20, Capacity, SLOs and release engineering for AI, direct HTML lines 731-753 / fresh Pandoc 3.1.3 GFM lines 1434-1500",
+    "validation": "The selected master Chapter 20 was read and bounded before Chapter 21; its companion sources end after Chapter 13, so no duplicate guide was created. Four examples, five diagrams and CapacityReleaseContracts cover fleet-leased token admission, tenant/deadline gates, complete release tuples, hard stage/slice gates and error-budget-driven aborts. Java 17 source-file launch passed all twenty AI-platform contracts; the new contract passed 31 scenario groups and 10,000 seeded oracle trials. Reader validation passed exact 271126-byte recovery at SHA-256 9998fa2763c9a72e69f800a62a4a98b12585d8ad5570d880161f4c1f4df8356c, 662 IDs, 75 search entries, 471 fragments, 20 relative links, 270 fences, 91 Mermaid sources, JSON, JavaScript and deterministic rebuilding. Seven content files were published at 0c3f35561ee293d61da67cedf39c747e98bccd00 with an expected-head guard and matching blob hashes. Standalone javac, live provider/GPU/lease-coordinator/Kubernetes/Argo integration and browser/assistive-technology/rendered-Mermaid validation were unavailable. The canonical marker audit remains 170.",
     "estimated_next_tokens": 9800,
-    "estimate_method": "Heuristic only for one bounded AI-platform Chapter 20 pass with source comparison, examples, contract, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "b94e2dd7a63b6e8214c69c8a18fe95f6ac8edb8f",
-    "last_processed_at": "2026-10-28T09:57:39-04:00",
-    "next_batch_decision": "Spring AI/Python Section 19 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate next to AI-platform Chapter 20, then Arrays problem 19; retain Spring AI/Python Section 20 for the following rotation."
+    "estimate_method": "Heuristic only for one bounded Arrays problem 19 pass with paired-source comparison, examples, contract, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "0c3f35561ee293d61da67cedf39c747e98bccd00",
+    "last_processed_at": "2026-10-28T11:14:20-04:00",
+    "next_batch_decision": "AI-platform Chapter 20 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate next to Arrays problem 19, then Spring AI/Python Section 20; retain AI-platform Chapter 21 for the following rotation."
   }
 }
