@@ -52,6 +52,9 @@
 | Arrays §4 Problem 14 — Range Sum Query — Immutable | ✅ | ✅ | Snapshot ownership, four worked cases, prefix trace, subtraction proof, widened arithmetic and randomized scan oracle |
 | Arrays §4 Problem 15 — Product of Array Except Self | ✅ | ✅ | Exclusive prefix/suffix state, four worked cases, zero behavior, overflow detection, proof and randomized quadratic oracle |
 | Arrays §4 Problem 16 — Subarray Sum Equals K | ✅ | ✅ | Prefix-frequency invariant, four worked cases, complete trace, signed-input proof, widened arithmetic and randomized quadratic oracle |
+| Arrays §4 Problem 17 — Subarrays Divisible by K | ✅ | ✅ | Normalized-remainder frequencies, four worked cases, complete trace, proof, widened arithmetic and randomized quadratic oracle |
+| Arrays §4 Problem 18 — Longest Consecutive Sequence | ✅ | ✅ | Unique-start expansion, four worked cases, start/skip trace, integer-boundary guards, proof and randomized sorted-copy oracle |
+| Arrays §4 Problem 19 — Sort Colors | ✅ | ✅ | Dutch National Flag zones, four worked cases, exact trace, termination proof, validation/core split and randomized sorting oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -251,5 +254,11 @@ Fresh literal-marker audit remains **170** across the five placeholder-bearing c
 Arrays Section 4 problem 18 now states the unsorted distinct-value, numeric-adjacency, duplicate, nonmutation and empty-input contracts; compares sorted-copy and unique-start expansion; and adds four worked cases, a start/skip trace, four diagrams, a run invariant and completeness proof. `LongestConsecutiveContracts` validates 20 scenario groups plus 20,000 seeded arrays against an independent sorted-copy oracle while checking input preservation and both Java integer boundaries. The responsive reader embeds the exact canonical Markdown bytes. Both confirmed sources agree on start-only expansion and expected linear complexity; the reusable implementation additionally prevents `MIN_VALUE - 1` and `MAX_VALUE + 1` wraparound.
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. Section 4 problem 19 and the broader intake remain incomplete; fair rotation selects Spring AI/Python Section 19 next, followed by AI-platform Chapter 20 before the next Arrays turn.
+
+## Arrays Sort Colors enrichment — 2026-10-28 ET
+
+Arrays Section 4 problem 19 now states the in-place three-category, value-domain, one-classification-pass, constant-space and non-stability contracts; separates a defensive prevalidation wrapper from the one-pass interview core; and adds four worked cases, an exact six-step trace, four diagrams, a four-region invariant and a strictly decreasing unknown-region proof. `SortColorsContracts` validates 20 scenario groups plus 20,000 seeded arrays against an independent `Arrays.sort` oracle while checking color multiplicities, validation atomicity, at most one swap per classification and exactly one classification per element. The responsive reader embeds the exact canonical Markdown bytes. Both confirmed sources agree on the Dutch National Flag partition and the crucial rule not to advance the scan pointer after moving a 2; the editable Markdown remains the structural winner rather than duplicating the older Word companion.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. Section 4 problem 20 and the broader intake remain incomplete; fair rotation selects Spring AI/Python Section 20 next, followed by AI-platform Chapter 21 before the next Arrays turn.
 
 

@@ -2471,6 +2471,144 @@ Without the predecessor guard, `Integer.MIN_VALUE - 1` evaluates to `Integer.MAX
 
 Executable evidence is in `LongestConsecutiveContracts.java`. It checks 20 scenario groups including all four worked behaviors, duplicates, signed runs, empty and singleton input, both integer boundaries, rejection and nonmutation, then compares 20,000 seeded arrays with an independent sorted-copy oracle that performs adjacency arithmetic in `long`.
 
+### Example 19 — Sort Colors: shrink one unknown region
+
+**Requirement:** given a non-null `int[] nums` whose elements are guaranteed to be only 0, 1, or 2, rearrange that same array in place so every 0 precedes every 1 and every 1 precedes every 2. Do not call a library sort. The interview follow-up requires one classification pass and `O(1)` auxiliary space; stability is not required. The original problem has at least one element, while this reusable implementation also accepts an empty array as already sorted.
+
+The one-pass core relies on the stated three-value precondition. A defensive public wrapper can validate all values before mutation, but that validation is an additional pass; keeping the wrapper and core separate makes the trade-off explicit instead of quietly claiming a validated end-to-end one-pass API.
+
+| Approach | Time | Extra space | Passes | Contract judgment |
+|---|---:|---:|---:|---|
+| General comparison sort | `O(n log n)` | implementation-dependent | multiple | Violates the no-library-sort request and ignores the three-value domain |
+| Count 0s, 1s, and 2s, then overwrite | `O(n)` | `O(1)` | two | Correct baseline; simple when the one-pass follow-up is absent |
+| Dutch National Flag partition | `O(n)` | `O(1)` | one classification pass | Meets every follow-up bound |
+
+Maintain four adjacent regions:
+
+```mermaid
+flowchart LR
+    Z["[0, low): all 0"] --> O["[low, scan): all 1"]
+    O --> U["[scan, high]: unknown"]
+    U --> T["(high, n): all 2"]
+```
+
+Only `nums[scan]` is inspected. Each branch permanently classifies one element and shortens the unknown region by exactly one.
+
+```java
+static void sortColors(int[] nums) {
+    if (nums == null) {
+        throw new IllegalArgumentException("nums must not be null");
+    }
+    for (int value : nums) {
+        if (value < 0 || value > 2) {
+            throw new IllegalArgumentException("every value must be 0, 1, or 2");
+        }
+    }
+    sortColorsCore(nums);
+}
+
+// Interview core: caller guarantees every element is 0, 1, or 2.
+static void sortColorsCore(int[] nums) {
+    int low = 0;
+    int scan = 0;
+    int high = nums.length - 1;
+
+    while (scan <= high) {
+        if (nums[scan] == 0) {
+            swap(nums, low, scan);
+            low++;
+            scan++;
+        } else if (nums[scan] == 1) {
+            scan++;
+        } else {
+            swap(nums, scan, high);
+            high--;
+            // Do not advance scan: the value arriving from high was unknown.
+        }
+    }
+}
+
+private static void swap(int[] nums, int left, int right) {
+    int temporary = nums[left];
+    nums[left] = nums[right];
+    nums[right] = temporary;
+}
+```
+
+```mermaid
+flowchart TD
+    I["inspect nums[scan]"] --> Q{"value?"}
+    Q -->|0| L["swap with low; low++; scan++"]
+    Q -->|1| M["scan++"]
+    Q -->|2| H["swap with high; high--; reinspect scan"]
+```
+
+#### Worked case 1 — complete canonical trace
+
+For `[2,0,2,1,1,0]`, the result is `[0,0,1,1,2,2]`. The source workbook's compact trace obscures the first swap; the exact state is shown here. Each row is the state **after** the action.
+
+| step | `low` before | `scan` before | `high` before | inspected | action | array after | next `(low,scan,high)` |
+|---:|---:|---:|---:|---:|---|---|---|
+| 1 | 0 | 0 | 5 | 2 | swap indices 0 and 5 | `[0,0,2,1,1,2]` | `(0,0,4)` |
+| 2 | 0 | 0 | 4 | 0 | swap indices 0 and 0 | `[0,0,2,1,1,2]` | `(1,1,4)` |
+| 3 | 1 | 1 | 4 | 0 | swap indices 1 and 1 | `[0,0,2,1,1,2]` | `(2,2,4)` |
+| 4 | 2 | 2 | 4 | 2 | swap indices 2 and 4 | `[0,0,1,1,2,2]` | `(2,2,3)` |
+| 5 | 2 | 2 | 3 | 1 | advance `scan` | `[0,0,1,1,2,2]` | `(2,3,3)` |
+| 6 | 2 | 3 | 3 | 1 | advance `scan` | `[0,0,1,1,2,2]` | `(2,4,3)` |
+
+The loop stops because `scan > high`; the unknown region is empty. Exactly six unknown elements were classified.
+
+#### Worked case 2 — why a 2 swap must be reinspected
+
+For `[1,2,0]`, begin at `(low,scan,high)=(0,0,2)`. The 1 advances `scan` to 1. The 2 at index 1 swaps with index 2, producing `[1,0,2]` and reducing `high` to 1. The incoming 0 is still unclassified, so `scan` must remain 1; reinspecting it moves that 0 left and yields `[0,1,2]`.
+
+```mermaid
+flowchart LR
+    A["[1,2,0]; scan=1"] -->|"swap 2 with high"| B["[1,0,2]; scan=1"]
+    B -->|"reinspect incoming 0"| C["[0,1,2]"]
+```
+
+Incrementing `scan` immediately after the 2 swap would stop with `[1,0,2]`, which is not sorted.
+
+#### Worked case 3 — already sorted and one-color inputs
+
+`[0,0,1,1,2,2]` remains unchanged. `[2,2,2]` also remains value-equivalent even though the core performs right-side swaps, including self-swaps. `[1,1,1]` only advances `scan`. These cases demonstrate why the invariant is about classified **regions**, not about requiring every iteration to change the array.
+
+#### Worked case 4 — empty input and defensive validation
+
+`[]` is accepted and returns immediately because `(scan,high)=(0,-1)`. `null` is rejected. The public wrapper rejects `[2,0,3,1]` before any mutation, preserving the caller's array on failure. The interview core does not repeat this validation because the original problem guarantees the value domain; call the wrapper when data is not trusted.
+
+**Loop invariant.** At the start of every iteration:
+
+1. every index in `[0,low)` stores 0;
+2. every index in `[low,scan)` stores 1;
+3. `[scan,high]` is the only unclassified region; and
+4. every index in `(high,n)` stores 2.
+
+Initially all classified regions are empty, so the invariant holds. If the inspected value is 0, swapping with `low` places a 0 at the end of the zero region. When `low < scan`, the displaced value is a known 1 and becomes the final element of the enlarged one region; advancing both pointers preserves every clause. A 1 already belongs at the end of the one region, so advancing only `scan` is safe. A 2 swapped with `high` enters the right region; only `high` moves because the value arriving at `scan` came from the unknown region.
+
+```mermaid
+flowchart TD
+    U["unknown size = high - scan + 1"] --> Z{"inspected class"}
+    Z -->|0 or 1| S["scan increases by 1"]
+    Z -->|2| H["high decreases by 1"]
+    S --> D["unknown size decreases by 1"]
+    H --> D
+    D --> E["after n classifications, unknown is empty"]
+```
+
+**Termination and correctness.** The non-negative variant `high - scan + 1` decreases by exactly one on every iteration, so the core terminates after exactly `n` inspections. At termination `scan = high + 1`; the unknown region is empty. The invariant then partitions the whole array into a zero region, followed by a one region, followed by a two region, which is precisely the required output. Swaps only permute existing components, so multiplicities are preserved.
+
+**Complexity and mutation.** The core performs exactly `n` classifications and at most `n` swaps, so time is `O(n)` and auxiliary space is `O(1)`. It mutates the caller's array and allocates no result array. The validating wrapper adds another `O(n)` scan but retains `O(1)` space. This algorithm is not stable: equal-category objects with additional identity could change relative order, but the integer problem does not require stability.
+
+**Memory line:** `0 → swap left and advance both; 1 → advance scan; 2 → swap right and reinspect.`
+
+**Common interview errors:** advancing `scan` after swapping a 2; using `scan < high` and leaving one element unclassified; initializing `high` to `nums.length`; confusing the half-open left regions with the inclusive unknown region; calling `Arrays.sort`; claiming one pass after adding an undisclosed validation or counting pass; requiring stability; or copying the source's unrelated low-link comment into array code.
+
+**Follow-ups:** for any three ordered categories, replace the numeric comparisons with a classifier; for many small categories, counting sort may be clearer; for arbitrary pivots, the same three-way partition idea groups values less than, equal to, and greater than the pivot; and if stable ordering is required, explain why this swap-based constant-space method no longer meets that stronger contract.
+
+Executable evidence is in `SortColorsContracts.java`. It checks 20 scenario groups covering all four worked behaviors, each singleton/color pattern, invalid-input atomicity, and mutation semantics, then compares 20,000 seeded arrays with an independent `Arrays.sort` oracle while verifying multiplicities and exactly one classification per element.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -2497,6 +2635,8 @@ Executable evidence is in `LongestConsecutiveContracts.java`. It checks 20 scena
 - [LeetCode, “Subarray Sum Equals K”](https://leetcode.com/problems/subarray-sum-equals-k/) — primary non-empty contiguous-subarray, signed-input, exact-target and result-count contract.
 - [LeetCode, “Subarray Sums Divisible by K”](https://leetcode.com/problems/subarray-sums-divisible-by-k/) — primary non-empty contiguous-subarray, signed-input, positive-modulus and result-count contract.
 - [LeetCode, “Longest Consecutive Sequence”](https://leetcode.com/problems/longest-consecutive-sequence/) — primary unsorted-input, consecutive-value and linear-time contract.
+- [LeetCode, “Sort Colors”](https://leetcode.com/problems/sort-colors/) — primary in-place three-color contract, no-library-sort rule, examples, value bounds and one-pass/constant-space follow-up.
+- [NIST Dictionary of Algorithms and Data Structures, “Dutch national flag”](https://xlinux.nist.gov/dads/HTML/DutchNationalFlag.html) — three-region partition description and linear move/examination complexity.
 - [Java SE 17 `java.util.HashSet`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/HashSet.html) — uniqueness, expected basic-operation cost under proper hash dispersion, and iteration-cost qualification.
 - [Java Language Specification, Java SE 17, §15.18.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.18.1) — integer addition and subtraction overflow retain low-order bits without raising an exception.
 - [Java SE 17 `Math.floorMod`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#floorMod(long,int)) — canonical non-negative remainder for a positive modulus and the widened overload used by the implementation.
@@ -2508,9 +2648,9 @@ Executable evidence is in `LongestConsecutiveContracts.java`. It checks 20 scena
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 18 (problem 18 is lines 1869–1960, bounded before the problem 19 anchor at line 1961). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 18 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 17 at lines 1747–1840 and problem 18 at lines 1841–1935, bounded before problem 19 at line 1936). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 19 (problem 19 is lines 1961–2055, bounded before the problem 20 anchor at line 2056). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 19 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 18 at lines 1841–1935 and problem 19 at lines 1936–2028, bounded before problem 20 at line 2029). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 18, “Longest Consecutive Sequence,” is promoted from Markdown lines 1869–1960 and fresh no-wrap DOCX GFM-extracted lines 1841–1935; problem 19, “Sort Colors,” begins at Markdown line 1961 and no-wrap DOCX GFM-extracted line 1936.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 19, “Sort Colors,” is promoted from Markdown lines 1961–2055 and fresh no-wrap DOCX GFM-extracted lines 1936–2028; problem 20, “Rotate Array,” begins at Markdown line 2056 and no-wrap DOCX GFM-extracted line 2029.
 
 

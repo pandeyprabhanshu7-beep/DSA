@@ -23,6 +23,7 @@ java -ea study-guides/striver-dsa/arrays/ProductExceptSelfContracts.java
 java -ea study-guides/striver-dsa/arrays/SubarraySumEqualsKContracts.java
 java -ea study-guides/striver-dsa/arrays/SubarraysDivisibleByKContracts.java
 java -ea study-guides/striver-dsa/arrays/LongestConsecutiveContracts.java
+java -ea study-guides/striver-dsa/arrays/SortColorsContracts.java
 ```
 
 Rebuild the reader:
@@ -31,6 +32,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–18 are promoted. Section 4 problems 19–47 and later source material remain queued.
+This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–19 are promoted. Section 4 problems 20–47 and later source material remain queued.
 
 
