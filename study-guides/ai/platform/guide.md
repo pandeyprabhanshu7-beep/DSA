@@ -3275,6 +3275,174 @@ java -ea PrivateModelRouteContracts.java
 
 The new contract checks 31 explicit scenario groups and 10,000 seeded conjunction trials. Its stable output is `SCENARIOS=31|TRIALS=10000|PRIVATE=CONNECTIVITY_NOT_AUTHORITY|IDENTITY=WORKLOAD_SCOPED|PLANE=DATA_NOT_MANAGEMENT|ROLE=RUNTIME_NOT_DEPLOY|COST=ACCEPTED_OUTCOME`.
 
+## 20. Capacity, SLOs and release engineering: budgets must survive scaling and rollback
+
+Chapter 15 models prefill, decode, KV pressure and phase latency inside an inference server. This chapter owns the next boundary: **fleet-wide admission, compatible release state and production evidence**. A request counter, CPU target or green deployment is not enough. The system has to reserve the scarce units that the downstream route actually enforces, keep one immutable compatibility tuple, and stop promotion when a hard stage or risk slice regresses.
+
+```mermaid
+flowchart TD
+    R["Request: scope, deadline, token bounds"] --> A["Fleet admission: lease + tenant share"]
+    A --> S["Serving: queue, prefill, decode"]
+    S --> E["Stage and slice evidence"]
+    E -->|"all hard gates pass"| P["Promote release tuple"]
+    E -->|"budget or slice fails"| B["Abort and restore prior tuple"]
+```
+
+### Requirements and invariants
+
+1. **Measure the joint workload:** request rate, prompt/output tokens, live KV, fan-out, tenant, priority and deadline.
+2. **Use Little's Law only as a mean check:** burst and tail capacity still need representative load tests.
+3. **Own one fleet budget:** local semaphores cannot let autoscaling multiply fixed provider/GPU quota; leases expire and are reissued conservatively.
+4. **Reserve bounded work:** reject before model execution when token, queue or deadline budgets cannot fit.
+5. **Preserve fairness:** tenant share and priority stay below authorization and the fleet ceiling; borrowing is bounded and revocable.
+6. **Version the complete tuple:** image, prompt, route, embedding space, index, tool schema and evaluation data roll forward and back together.
+7. **Separate stage metrics:** retrieval, supported answers, actions, rejection, queue, TTFT, inter-token and end-to-end signals answer different questions.
+8. **Gate hard slices first:** tenant, language, age, permission and high-impact-action regressions can block an aggregate win.
+9. **Make error budget actionable:** exhaustion aborts promotion; a missing rollback tuple pauses traffic.
+10. **Bind evidence:** record tuple, workload revision, window, numerator/denominator and rollback target.
+
+### Example 1 — a local semaphore doubles when HPA doubles replicas
+
+Given `20 requests/s` and a mean generation-slot time of `4 s`, the steady-state sanity check is:
+
+```text
+mean active = 20 requests/s × 4 s = 80 requests
+token rate  = 20 × (2,000 input + 400 maximum output) = 48,000 tokens/s
+```
+
+Ten replicas with eight local permits happen to expose 80 permits. If HPA changes the deployment to twenty replicas, the same code exposes 160 permits even though the model route did not gain capacity. CPU scaling solved neither the fixed token quota nor KV memory.
+
+```mermaid
+sequenceDiagram
+    participant H as HPA
+    participant P as API pods
+    participant L as Fleet lease service
+    participant M as Model route
+    H->>P: Scale 10 pods to 20
+    Note over P: local 8 × 20 = 160 permits
+    P->>L: Reserve prompt + output + fan-out
+    L-->>P: Bounded lease or reject
+    P->>M: Only leased work crosses boundary
+```
+
+With a `7,200`-token lease, each `2,000 + 400 = 2,400` reservation consumes one third. A fourth is denied even when its pod has a local permit. Expiry is checked first; the coordinator may reject conservatively rather than reissue while an old holder might still spend.
+
+| Step | Fleet tokens | Pod-local permit | Decision |
+|---:|---:|---|---|
+| first reservation | 7,200 → 4,800 | available | admit |
+| second reservation | 4,800 → 2,400 | available | admit |
+| third reservation | 2,400 → 0 | available | admit |
+| fourth reservation | 0 | available | reject at fleet boundary |
+
+Kubernetes HPA can use multiple resource/custom/external metrics and chooses the largest proposed replica count; its scaling behavior does not create downstream model capacity. The mapping from more pods to more local permits is therefore an application inference that must be fenced by the fleet lease.
+
+### Example 2 — fairness and deadline rejection occur before model work
+
+Assume a 96-request fleet: `alpha` has a share of 48 and `beta` has 8. With 48 active, `alpha` is denied while `beta`, with 2, remains eligible. Authorization chooses the tenant; a request field cannot select a less-loaded identity.
+
+```mermaid
+flowchart TD
+    Q["Verified tenant request"] --> L{"Fleet lease valid?"}
+    L -->|no| X["Reject: lease expired"]
+    L -->|yes| T{"Tenant share available?"}
+    T -->|no| Y["Reject: tenant limit"]
+    T -->|yes| D{"Queue + service fit deadline?"}
+    D -->|no| Z["Reject before model call"]
+    D -->|yes| A["Reserve tokens and enqueue"]
+```
+
+A request with `1.2 s` remaining and a `4 s` queue-plus-service estimate is rejected before enqueue. Record estimate revision and actual stage times; never rewrite the estimate after admission.
+
+Retain tenant, workload class, reserved tokens, lease revision, queue depth, deadline and first failed gate—not prompt contents.
+
+### Example 3 — rollback restores a tuple, not one container
+
+Release `atlas-r20` is identified by:
+
+```json
+{
+  "imageDigest": "registry.example/atlas@sha256:6f2...",
+  "promptRevision": "support-v20",
+  "modelRoute": "answer-route-v7",
+  "embeddingSpace": "embed-preprocess-v3",
+  "indexGeneration": "runbooks-g43",
+  "toolSchema": "operations-tools-v5",
+  "evaluationDataset": "atlas-eval-v10"
+}
+```
+
+The canary understands tool schema `v6`; stable understands `v5`. Reverting only the image after `v6` activates is incompatible. Promotion therefore records candidate and last-known-good tuples, retains old artifacts through the rollback window, and switches one active manifest pointer.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Staged: immutable tuple built
+    Staged --> Canary: offline gates pass
+    Canary --> Stable: hard production gates pass
+    Canary --> Aborted: slice, SLO, or budget fails
+    Aborted --> Restored: activate prior complete tuple
+    Restored --> [*]
+```
+
+Tuple rollback restores tool schema `v5`, embedding/index `v3/g43`, route `v7` and evaluation identity together. If that tuple cannot be reconstructed, pause before canary traffic. The rollout controller can abort analysis; the product still owns semantic compatibility and thresholds.
+
+### Example 4 — an aggregate win loses on a critical slice
+
+For 200 labeled questions, the baseline retrieves required evidence for 180 and produces a correct supported answer for 162:
+
+```text
+retrieval recall     = 180 / 200 = 90%
+end-to-end success   = 162 / 200 = 81%
+answer | retrieval   = 162 / 180 = 90%
+```
+
+The candidate reaches 164 supported answers overall, but a 20-case tenant-permission slice falls from `18/20` to `14/20`. The two-point aggregate improvement does not override the 20-point critical-slice regression. Promotion rolls back even if CPU and average latency are green.
+
+```mermaid
+flowchart LR
+    C["Candidate tuple"] --> O{"Overall gate ≥ 81%?"}
+    O -->|no| R["Rollback"]
+    O -->|yes| S{"Every hard slice ≥ 90%?"}
+    S -->|no| R
+    S -->|yes| B{"Error budget and capacity gates healthy?"}
+    B -->|no| R
+    B -->|yes| P["Promote"]
+```
+
+The executable teaching gate requires retrieval ≥ 90%, supported answers ≥ 81%, hard slices ≥ 90%, rejection ≤ 1%, TTFT p99 ≤ 3 s and nonzero error budget. Real targets must come from user impact and retain exact denominators.
+
+Google SRE ties exhausted budgets to declared actions such as release freezes. vLLM exposes queue, token, KV, preemption, TTFT, inter-token and end-to-end signals separately; do not collapse them into one average.
+
+### Executable capacity-and-release contract
+
+[`CapacityReleaseContracts.java`](CapacityReleaseContracts.java) models checked mean/token arithmetic, replica-local multiplication, expiring fleet leases, tenant/queue/deadline gates, exact release-tuple identity, and an abortable canary decision with stage, slice, capacity and error-budget evidence.
+
+Run all twenty AI-platform contracts from this directory:
+
+```bash
+java -ea EvidenceRouting.java
+java -ea ModelMechanics.java
+java -ea IngestionContracts.java
+java -ea RetrievalContracts.java
+java -ea PostgresRagContracts.java
+java -ea ContextGroundingContracts.java
+java -ea EvaluationGateContracts.java
+java -ea CacheLatencyCostContracts.java
+java -ea McpArchitectureContracts.java
+java -ea ToolSafetyContracts.java
+java -ea OrchestrationContracts.java
+java -ea StackSelectionContracts.java
+java -ea InterviewCaseContracts.java
+java -ea PlatformControlPlaneContracts.java
+java -ea InferenceServingContracts.java
+java -ea CacheLayerContracts.java
+java -ea ConversationMemoryContracts.java
+java -ea RecoverableIngestionContracts.java
+java -ea PrivateModelRouteContracts.java
+java -ea CapacityReleaseContracts.java
+```
+
+The new contract checks 31 explicit scenario groups and 10,000 seeded dual-oracle trials. Its stable output is `SCENARIOS=31|TRIALS=10000|CAPACITY=FLEET_LEASED|LOAD=TOKENS_NOT_REQUESTS|RELEASE=TUPLE_ATOMIC|SLO=STAGE_AND_SLICE|ROLLOUT=ABORTABLE`.
+
 ## Failure-oriented review
 
 | Tempting shortcut | Broken assumption | Repair |
@@ -3357,6 +3525,11 @@ The new contract checks 31 explicit scenario groups and 10,000 seeded conjunctio
 | “The archive is only 6 MiB” | Compressed size bounds parser work and storage | Enforce expanded bytes, pages, CPU and permitted media types while parsing |
 | “Most vectors are ready, so switch now” | Readers tolerate partially joined generations | Validate every required artifact, then compare-and-set one active pointer |
 | “Both models emit 1,536 numbers” | Equal dimension means equal coordinate space | Version the complete embedding space and evaluate side by side before promotion |
+| “Each pod has eight permits” | Autoscaling preserves a fixed fleet quota | Admit against an expiring fleet lease and keep local permits subordinate |
+| “One request is one unit of load” | Prompt, output, fan-out and live-KV cost are interchangeable | Preserve the joint workload and reserve bounded token/memory work |
+| “The image rolled back” | Code alone defines a compatible service | Restore the complete image/prompt/route/embedding/index/tool/eval tuple |
+| “The aggregate score improved” | No tenant or high-risk slice regressed | Gate declared hard slices and exact stage outcomes before the average |
+| “The dashboard shows an SLO” | Measurement automatically constrains releases | Bind error-budget exhaustion to an explicit pause or rollback policy |
 
 ## Primary references
 
@@ -3435,13 +3608,18 @@ The new contract checks 31 explicit scenario groups and 10,000 seeded conjunctio
 - Microsoft, [Foundry authentication and authorization](https://learn.microsoft.com/en-us/azure/foundry/concepts/authentication-authorization-foundry) and [network isolation with Private Link](https://learn.microsoft.com/en-us/azure/ai-foundry/how-to/configure-private-link?view=foundry) — control-plane actions, data-plane `dataActions`, managed identities, private endpoint approval and private DNS validation remain distinct gates (accessed 2026-10-28).
 - Google Cloud, [Private Service Connect endpoints for online inference](https://docs.cloud.google.com/vertex-ai/docs/predictions/private-service-connect) and [Workload Identity Federation](https://docs.cloud.google.com/iam/docs/workload-identity-federation) — project allowlists, regional private routes and short-lived workload credentials without service-account keys (accessed 2026-10-28).
 - vLLM, [security guidance](https://docs.vllm.ai/en/latest/usage/security/) and [production metrics](https://docs.vllm.ai/en/stable/usage/metrics/) — isolate inference behind an authenticated gateway, restrict control/distributed ports, and observe queues, KV use, TTFT, inter-token and end-to-end latency (accessed 2026-10-28).
+- Google SRE Workbook, [Implementing SLOs](https://sre.google/workbook/implementing-slos/) and [Example error budget policy](https://sre.google/workbook/error-budget-policy/) — user-centered SLIs, explicit numerators/denominators, error budgets as decision controls and release freezes after exhaustion (accessed 2026-10-28).
+- Kubernetes, [Horizontal Pod Autoscaling](https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/) — resource/custom/external metrics, maximum proposed replica count across metrics, readiness handling and stabilization; replica scaling remains distinct from downstream model quota (accessed 2026-10-28).
+- vLLM, [Production Metrics](https://docs.vllm.ai/en/latest/usage/metrics/) — admission rejection, prompt/generation token, queue, KV utilization, preemption, TTFT, inter-token, prefill/decode and end-to-end measurements remain separate capacity and SLO signals (accessed 2026-10-28).
+- Argo Rollouts, [Canary deployment](https://argo-rollouts.readthedocs.io/en/stable/features/canary/) and [Rollback windows](https://argo-rollouts.readthedocs.io/en/stable/features/rollback/) — staged traffic, pausing, abort-on-analysis and bounded fast rollback mechanics; application compatibility still belongs to the release manifest (accessed 2026-10-28).
+- Java SE 17, [`Math.addExact`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#addExact(long,long)) and [`Math.multiplyExact`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#multiplyExact(long,long)) — checked capacity and token arithmetic used by the executable contract (accessed 2026-10-28).
 
 ## Source provenance and continuation
 
 - Selected source: `ai_platform_master_guide.html`, SHA-256 `c0d23c3a9b64d88e8ad52720402b162c124283958aa7ad0afe228f9a4bc2b24a`, expanded 21-chapter standalone edition.
 - Companion editable source: bundle member `02_rag_mcp.md`, SHA-256 `45896b5283ca92e712f7cb3db075b0f076edfaeff34d9127cd867520ff5dfa05`.
 - Compared source: `ai_platform_engineering_illustrated.html`, SHA-256 `006aaba7bfaf978849a5fe1df6a8e9f611c0d99a806ef6c3a05c3eeb2101beb9`; it is byte-identical to the HTML inside the bundle and is not promoted as a duplicate guide.
-- Processed range: Chapters 1–19, through `Cloud and independent-provider architecture choices`, bounded by Chapter 20 in the selected master.
+- Processed range: Chapters 1–20, through `Capacity, SLOs and release engineering for AI`, bounded by Chapter 21 in the selected master.
 - Chapter 2 source comparison: the selected master and bundled editable companion contain the same token, embedding, and generation material; no duplicate guide was created.
 - Chapter 3 source comparison: selected master lines 96–138 and editable companion lines 65–127 agree on versioned ingestion, bounded parsing, chunking, publication, and deletion; the companion was used for editable structure, not promoted as a duplicate guide.
 - Chapter 4 source comparison: selected master lines 139–168 and editable companion lines 129–178 agree on BM25, exact and approximate vectors, capacity, RRF, reranking, and authorization-before-disclosure; the companion was used for editable structure, not promoted as a duplicate guide.
@@ -3460,7 +3638,8 @@ The new contract checks 31 explicit scenario groups and 10,000 seeded conjunctio
 - Chapter 17 source comparison: selected master HTML lines 596–623 (Pandoc conversion lines 706–741) separates audit history from selected model context; defines composite tenant/conversation keys, sequence allocation and short-transaction finalization; treats summaries as versioned lossy derivatives; and names vectors, caches, summaries, traces and backups in deletion scope. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 17 source and no duplicate guide was created.
 - Chapter 18 source comparison: selected master HTML lines 624–652 (Pandoc conversion lines 742–777) defines full transformation identity, immutable staged artifacts, bounded parsing, resumable embedding, readiness validation, active-generation publication, tombstone/ACL rechecks and side-by-side re-embedding. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 18 source and no duplicate guide was created.
 - Chapter 19 source comparison: selected master HTML lines 653–730 (current Pandoc GFM lines 1338–1433) maps AWS, Azure, Google Cloud and independent responsibilities, then separates private connectivity, workload identity, data-plane authorization and deployment/runtime roles. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 19 source. The broad stack-selection material was not duplicated from canonical Chapter 12; this promotion deepens the distinct private-invocation proof and accepted-outcome cost boundary.
-- Next bounded section: Chapter 20, after fair domain rotation.
+- Chapter 20 source comparison: selected master HTML lines 731–753 (fresh Pandoc 3.1.3 GFM lines 1434–1500) defines mean concurrency/token budgets, the local-permit autoscaling trap, a release compatibility tuple and stage-level evaluation. The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so the expanded master is the only confirmed substantive Chapter 20 source. Canonical Chapter 15 already owns inference-server internals; this promotion deepens the distinct fleet-admission, release-tuple and SLO-gated rollout boundary.
+- Next bounded section: Chapter 21, after fair domain rotation through Arrays problem 19 and Spring AI/Python Section 20.
 
 
 
