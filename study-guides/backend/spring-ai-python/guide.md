@@ -3989,4 +3989,207 @@ Verified on 28 October 2026:
 
 ### Source provenance and continuation
 
-The selected editable bundle member's complete Section 20 is source lines 1154–1244, bounded before Section 21 at line 1245. The compared standalone HTML is lines 1258–1341, bounded before Section 21 at line 1342; the bundle HTML member is byte-identical to that standalone file. Both sources define the same already-authorized/already-ranked greedy packer, `a,c` trace, validation rules and serialized-prompt warning. The editable Markdown remains the structural source and no duplicate guide was created. This canonical section adds checked multi-region arithmetic, target-tokenizer identity, atomic dependency bundles, bounded exact-serialization recovery, four worked traces, five diagrams, current primary references and paired 32-scenario/10,000-trial contracts. Section 21, **Paired coding exercise: service-side idempotency**, begins at editable line 1245 / standalone HTML line 1342. Sections 21–25 remain queued; the wider collection is not complete.
+The selected editable bundle member's complete Section 20 is source lines 1154–1244, bounded before Section 21 at line 1245. The compared standalone HTML is lines 1258–1341, bounded before Section 21 at line 1342; the bundle HTML member is byte-identical to that standalone file. Both sources define the same already-authorized/already-ranked greedy packer, `a,c` trace, validation rules and serialized-prompt warning. The editable Markdown remains the structural source and no duplicate guide was created. This canonical section adds checked multi-region arithmetic, target-tokenizer identity, atomic dependency bundles, bounded exact-serialization recovery, four worked traces, five diagrams, current primary references and paired 32-scenario/10,000-trial contracts. Section 21, **Interview questions with worked answers: foundations and APIs**, begins at editable line 1245 / standalone HTML line 1342. Sections 21–25 remain queued; the wider collection is not complete.
+
+## 21. Interview questions with worked answers: foundations and APIs
+
+A strong foundation answer separates the **business contract**, the **mechanism selected to satisfy it**, and the **evidence proving the mechanism works**. “Use a vector database,” “use Python,” “set temperature to zero” and “deserialize the JSON” each skip at least one of those layers. The six source questions collapse into four reusable design decisions below.
+
+### Answer discipline and production requirements
+
+1. **Name the required behavior first.** Exact identifiers, semantic paraphrases, authorization scope, latency, structured-output rules and retry semantics are requirements; products and frameworks are implementation choices.
+2. **Keep retrieval broader than vector search.** RAG means selecting external evidence for generation. Lexical, relational, graph, vector and hybrid retrieval can all participate; evaluate the chosen pipeline on representative queries and permission slices.
+3. **Place code with its operational owner.** Prefer the runtime that already owns identity, transactions, observability and deployment unless a measured library or execution requirement justifies another service. A split introduces schema, network, authentication, rollout and incident boundaries.
+4. **Admit providers by capabilities, not interface shape.** A common `ChatModel`-style API does not prove equal schema support, tool semantics, streaming, cancellation, token accounting, context limits or residency. Resolve a model revision and test the required capability set before traffic.
+5. **Treat low temperature as a tuning choice, not a proof.** Retrieval order, model/adapter revisions, tool data and serving implementations can still change. Record a complete replay identity and test invariants; use ordinary deterministic code for exact policy and arithmetic.
+6. **Return typed outcomes.** `ANSWER`, `NO_ANSWER`, `UPSTREAM_FAILURE`, `INVALID_OUTPUT` and `FORBIDDEN` have different retry, alerting and client behavior. An empty string cannot preserve those distinctions.
+7. **Validate in layers.** Parse, schema, domain, evidence and authorization checks are separate gates. Schema-conforming output can still be financially invalid, unsupported or forbidden.
+8. **Bound repair.** A schema-repair retry may correct syntax or shape. It must not override a failed domain or authorization decision, and every retry consumes latency and tokens.
+
+```mermaid
+flowchart TD
+    Q["business question + caller scope"] --> R["choose retrieval mechanism"]
+    R --> E["authorized evidence"]
+    E --> M["capability-admitted model route"]
+    M --> V["parse → schema → domain → evidence → authorization"]
+    V --> O["typed API outcome"]
+```
+
+### Example 1 — exact incident code plus semantic symptom
+
+The request is: “Why did `PAY-409` happen, and could it explain customers charged twice?” The literal code is an exact token; the symptom is a paraphrase. A pure vector query can miss or demote the exact identifier, while a pure lexical query can miss documents that describe duplicate capture without the phrase “charged twice.” Use both channels under the same tenant/ACL/generation filter, fuse stable document IDs deterministically, then evaluate recall and citation support.
+
+| Channel | Query | Authorized candidates | Why it exists |
+|---|---|---|---|
+| lexical | `PAY-409` | `runbook-17`, `incident-88` | exact identifier precision |
+| semantic | “customers charged twice” | `incident-88`, `postmortem-12` | paraphrase recall |
+| fused | stable rank fusion | `incident-88`, `runbook-17`, `postmortem-12` | retain both signals |
+
+The important trace is scope before ranking:
+
+```text
+scope={tenant:t7, acl_epoch:42, generation:g19}
+lexical=[runbook-17, incident-88]
+semantic=[incident-88, postmortem-12]
+deduplicate+fuse=[incident-88, runbook-17, postmortem-12]
+fetch+reauthorize=3 visible documents
+answer citations=[incident-88, runbook-17]
+```
+
+If `postmortem-12` belongs to another tenant, it must never appear in either candidate list, logs or model context. Post-filtering after an unscoped approximate search is not equivalent: it can leak metadata and reduce usable recall.
+
+```mermaid
+flowchart LR
+    Q["PAY-409 + duplicate charge"] --> L["scoped lexical"]
+    Q --> S["scoped semantic"]
+    L --> F["stable ID fusion"]
+    S --> F
+    F --> A["fetch + reauthorize"]
+```
+
+**Interview follow-up:** a vector store is one possible index. RAG is the larger evidence-selection-and-generation pattern. PostgreSQL full-text search, SQL predicates or a graph traversal may be the correct retriever for a particular query class.
+
+### Example 2 — one deployable Java service before a Python split
+
+An existing payment-support API already owns Spring Security identity, JDBC transactions, Micrometer telemetry and the release pipeline. Its only new requirement is remote chat plus retrieval. Start with Spring AI inside that service: the business boundary stays local and one team owns the failure path.
+
+Split out a Python service only when a concrete requirement demands it—for example, a GPU-local reranker or document parser whose maintained implementation is Python-first—and measure the new boundary:
+
+| Decision evidence | Keep in Java service | Add a Python service |
+|---|---|---|
+| identity and transaction owner | already local | must be propagated and rechecked |
+| specialized runtime | ordinary remote model/RAG | GPU-local Python-only component |
+| latency | one in-process orchestration path | network hop + queue + serialization |
+| deployment | one compatibility tuple | two releases and an API schema |
+| fallback | local typed degradation | deadline/circuit policy across services |
+
+```mermaid
+flowchart TD
+    R["measured requirement"] --> D{"requires separate runtime?"}
+    D -->|no| J["Java owns API + AI orchestration"]
+    D -->|yes| B["versioned authenticated boundary"]
+    B --> P["Python owns specialized execution"]
+    P --> J
+```
+
+The split is justified by capability and ownership, not by a belief that “AI must be Python.” Preserve a provider-neutral business DTO at the Java API. Do not expose a provider SDK response as the service contract; that turns every provider change into a client migration.
+
+### Example 3 — a common model API still needs capability admission
+
+Suppose route `portable` supports tools, JSON Schema and usage metadata; route `streaming` supports tools, streaming, cancellation and usage; route `complete` supports all five. A request requiring **JSON Schema plus cancellation** may only use `complete`, even though all three implement the same high-level chat interface.
+
+| Route | tools | JSON Schema | streaming | cancellation | usage | Admitted? |
+|---|:---:|:---:|:---:|:---:|:---:|---|
+| `portable` | ✓ | ✓ | — | — | ✓ | no: cancellation missing |
+| `streaming` | ✓ | — | ✓ | ✓ | ✓ | no: schema missing |
+| `complete` | ✓ | ✓ | ✓ | ✓ | ✓ | yes |
+
+```java
+static Provider admit(List<Provider> ordered, Set<Capability> required) {
+    return ordered.stream()
+            .filter(p -> p.capabilities().containsAll(required))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("no capable route"));
+}
+```
+
+Resolve and record `provider`, model/deployment revision, adapter revision, prompt/template revision, tool/schema revision, retrieval generation and evidence IDs. Temperature zero may reduce sampling variability, but it does not freeze those dependencies. For exact totals, eligibility and authorization, the model should supply proposals or explanations while deterministic code remains authoritative.
+
+```mermaid
+sequenceDiagram
+    participant H as Host
+    participant C as Capability registry
+    participant M as Model route
+    H->>C: require schema + cancellation
+    C-->>H: complete / resolved revision
+    H->>M: prompt + immutable contract
+    M-->>H: candidate + route metadata
+    H->>H: validate invariants, not prose bytes
+```
+
+Golden tests should include unsupported schema keywords, malformed tool arguments, cancellation, missing usage, empty context and tool-call replay. Portability is the passing intersection of those tests—not the fact that dependency injection compiled.
+
+### Example 4 — no answer, outage and invalid output are different states
+
+Use a discriminated response envelope. This example keeps transport success separate from domain success:
+
+```json
+{"status":"NO_ANSWER","answer":null,"evidenceIds":[],"retryable":false}
+```
+
+```json
+{"status":"UPSTREAM_FAILURE","answer":null,"evidenceIds":[],"retryable":true}
+```
+
+`NO_ANSWER` means authorized retrieval completed but evidence was insufficient. `UPSTREAM_FAILURE` means the dependency could not complete under the route's retry/deadline policy. A client may retry the latter according to server guidance; repeating the former unchanged normally wastes capacity.
+
+For a candidate answer, apply the gates in order:
+
+| Gate | Example failure | Outcome | Repair allowed? |
+|---|---|---|---|
+| provider | deadline before completion | `UPSTREAM_FAILURE` | route policy may retry |
+| evidence | no supported passage | `NO_ANSWER` | not a format repair |
+| parse | prose around malformed JSON | `INVALID_OUTPUT` | bounded schema repair |
+| schema | missing required `status` | `INVALID_OUTPUT` | bounded schema repair |
+| domain | `refundAmount=-5` | `INVALID_OUTPUT` | deterministic rejection |
+| evidence | cited ID absent from authorized context | `INVALID_OUTPUT` | deterministic rejection |
+| authorization | refund account outside caller scope | `FORBIDDEN` | never model-repaired |
+
+```python
+def classify(c: AnswerCandidate) -> Outcome:
+    if not c.provider_available:
+        return Outcome.UPSTREAM_FAILURE
+    if not c.evidence_sufficient:
+        return Outcome.NO_ANSWER
+    if not (c.parsed and c.schema_valid and c.domain_valid):
+        return Outcome.INVALID_OUTPUT
+    if not c.authorized:
+        return Outcome.FORBIDDEN
+    return Outcome.ANSWER
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Provider
+    Provider --> UPSTREAM_FAILURE: unavailable/deadline
+    Provider --> Evidence: available
+    Evidence --> NO_ANSWER: insufficient
+    Evidence --> Validate: sufficient
+    Validate --> INVALID_OUTPUT: parse/schema/domain/evidence fail
+    Validate --> FORBIDDEN: authorization fail
+    Validate --> ANSWER: every gate passes
+```
+
+Spring AI schema validation and Pydantic strict models can enforce shape, but neither proves repository truth or authorization. Re-fetch authoritative records and recheck policy before any side effect. A repair loop receives only repairable validation feedback, has a small attempt/deadline budget and reports cumulative cost.
+
+### Paired executable foundations/API contract
+
+[`FoundationsApiContracts.java`](FoundationsApiContracts.java) and [`foundations_api_contracts.py`](foundations_api_contracts.py) implement the same dependency-free boundary. They cover exact/semantic/hybrid retrieval selection, immutable capability sets, deterministic first-capable admission, typed outcomes, invalid provider IDs and unavailable capability combinations:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/FoundationsApiContracts.java
+python3 study-guides/backend/spring-ai-python/foundations_api_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|RETRIEVAL=LEXICAL,SEMANTIC,HYBRID|CAPABILITIES=ADMITTED|OUTCOMES=ANSWER,NO_ANSWER,UPSTREAM_FAILURE,INVALID_OUTPUT,FORBIDDEN|ORDER=DETERMINISTIC
+```
+
+Each implementation passes 24 explicit scenario groups, 10,000 seeded outcome truth-table trials and 10,000 seeded capability-subset trials. These pure contracts do not run a vector index, Spring AI, FastAPI, Pydantic, a model provider or a policy service; those require integration fixtures and pinned model/index/schema/policy revisions.
+
+### Current primary references
+
+Verified on 29 October 2026:
+
+- Spring AI, [Retrieval Augmented Generation](https://docs.spring.io/spring-ai/reference/api/retrieval-augmented-generation.html) — modular retrieval, vector-store filters, document joining/post-processing and empty-context behavior.
+- PostgreSQL 18, [Full Text Search](https://www.postgresql.org/docs/current/textsearch.html) — lexical parsing, matching, ranking and index choices; evidence that retrieval need not be vector-only.
+- Spring AI, [Chat Model API](https://docs.spring.io/spring-ai/reference/api/chatmodel.html) and [Chat Client API](https://docs.spring.io/spring-ai/reference/api/chatclient.html) — portable and provider-specific options, response metadata, synchronous/streaming behavior and advisor ordering.
+- Spring AI, [Structured Output Converters](https://docs.spring.io/spring-ai/reference/api/structured-output/converters.html) and [schema validation/self-correction](https://docs.spring.io/spring-ai/reference/api/structured-output/validation.html) — best-effort conversion, JSON Schema validation, bounded retries, streaming limitation and cumulative usage.
+- Pydantic 2.14, [Validation](https://pydantic.dev/docs/validation/latest/get-started/) — strict versus coercing validation and model-derived JSON Schema.
+- FastAPI, [Handling Errors](https://fastapi.tiangolo.com/tutorial/handling-errors/) and [direct responses](https://fastapi.tiangolo.com/advanced/response-directly/) — explicit error responses and the fact that directly returned responses bypass automatic response-model validation.
+
+### Source provenance and continuation
+
+The selected editable bundle member's complete Section 21 is source lines 1245–1272, bounded before Section 22 at line 1273. The standalone HTML begins the same section at line 1342, and the bundle's generated HTML is byte-identical to that standalone file. Both sources contain the same six foundation/API interview questions on retrieval versus vector databases, Java/Python placement, abstraction limits, nondeterminism, no-answer versus outage and layered structured-output validation. The editable Markdown remains the structural source and no duplicate guide was created. This canonical section preserves those answers while adding a production answer rubric, four worked examples, five diagrams, typed outcome/capability contracts, current primary references and paired 24-scenario/20,000-trial executables. Section 22, **Interview questions with worked answers: concurrency, data and tools**, begins at editable line 1273. Sections 22–25 remain queued; the wider collection is not complete.
