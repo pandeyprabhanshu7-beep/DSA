@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–20 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 21–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–22 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 23–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first twenty solved problems](#4-core-pattern-lab--first-twenty-solved-problems)
+- [4. Core pattern lab — first twenty-two solved problems](#4-core-pattern-lab--first-twenty-two-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -49,6 +49,8 @@
   - [Example 18 — Longest Consecutive Sequence: expand once from each unique start](#example-18--longest-consecutive-sequence-expand-once-from-each-unique-start)
   - [Example 19 — Sort Colors: shrink one unknown region](#example-19--sort-colors-shrink-one-unknown-region)
   - [Example 20 — Rotate Array: reverse the two logical chunks](#example-20--rotate-array-reverse-the-two-logical-chunks)
+  - [Example 21 — Next Permutation: make the smallest possible increase](#example-21--next-permutation-make-the-smallest-possible-increase)
+  - [Example 22 — Find the Duplicate Number: find a cycle entrance without mutation](#example-22--find-the-duplicate-number-find-a-cycle-entrance-without-mutation)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -674,7 +676,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first twenty solved problems
+<a id="4-core-pattern-lab--first-twenty-solved-problems"></a>
+
+## 4. Core pattern lab — first twenty-two solved problems
 
 The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first sixteen: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, Squares of a Sorted Array, 3Sum, Container With Most Water, Trapping Rain Water, Minimum Size Subarray Sum, Fruit Into Baskets, Sliding Window Maximum, Range Sum Query — Immutable, Product of Array Except Self, and Subarray Sum Equals K. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude; problems 8–10 use sorted or boundary monotonicity to discard state safely; problems 11–13 maintain just enough window state; problem 14 precomputes cancellable prefix state for repeated immutable queries; problem 15 combines two exclusive directional aggregates without division; and problem 16 counts matching prior prefix boundaries. Problems 17–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
@@ -2877,6 +2881,146 @@ If no pivot exists, every adjacent pair is non-increasing, so the entire array i
 
 Executable evidence is in `NextPermutationContracts.java`. It checks 20 deterministic scenario groups covering all four worked behaviors, duplicates, signed and full-width values, empty/singleton extensions, caller identity, wraparound and null rejection. It then compares 20,000 seeded arrays of length at most six with an independent exhaustive-permutation oracle, while verifying multiplicity preservation and the swap bound.
 
+### Example 22 — Find the Duplicate Number: find a cycle entrance without mutation
+
+**Contract.** For an array of length `n + 1`, every component is in `[1,n]` and exactly one distinct value occurs at least twice. Return that repeated value without modifying the array and with `O(1)` auxiliary space. The duplicate may occur more than twice. These promises are structural: without the bounded value range, an element is not necessarily a legal next index; without the single-duplicate promise, the reachable cycle need not identify a unique answer.
+
+The key representation is a total function:
+
+```text
+f(i) = nums[i]
+```
+
+Indices `0..n` are nodes and every node has one outgoing edge to a node in `1..n`. Starting at `nums[0]` must eventually repeat a node. The repeated array value is exactly the entrance to that reachable cycle, so Floyd's tortoise-and-hare algorithm finds the answer without marking, sorting, copying or hashing.
+
+```mermaid
+flowchart LR
+    I0["index 0"] -->|"nums[0]=1"| I1["index 1"]
+    I1 -->|"nums[1]=3"| I3["index 3"]
+    I3 -->|"nums[3]=2"| I2["index 2"]
+    I2 -->|"nums[2]=4"| I4["index 4"]
+    I4 -->|"nums[4]=2"| I2
+```
+
+For `[1,3,4,2,2]`, value 2 has two incoming edges—from indices 3 and 4—and is the cycle entrance. The picture is a functional graph, not a claim that adjacent array cells are linked.
+
+```java
+static int findDuplicate(int[] nums) {
+    validateShapeAndRange(nums);
+
+    int slow = nums[0];
+    int fast = nums[0];
+    do {
+        slow = nums[slow];
+        fast = nums[nums[fast]];
+    } while (slow != fast);
+
+    slow = nums[0];
+    while (slow != fast) {
+        slow = nums[slow];
+        fast = nums[fast];
+    }
+    return slow;
+}
+
+private static void validateShapeAndRange(int[] nums) {
+    if (nums == null || nums.length < 2) {
+        throw new IllegalArgumentException("expected n+1 values");
+    }
+    int n = nums.length - 1;
+    for (int value : nums) {
+        if (value < 1 || value > n) {
+            throw new IllegalArgumentException("every value must be in [1,n]");
+        }
+    }
+}
+```
+
+The validation pass preserves `O(n)` time and `O(1)` space. It proves only shape and range. The online-judge contract promises exactly one distinct repeated value; trying to rediscover every frequency would either consume extra state, mutate the input or change the problem.
+
+```mermaid
+flowchart TD
+    A["start slow=fast=nums[0]"] --> B["slow moves 1 edge; fast moves 2"]
+    B --> C{"slow == fast?"}
+    C -->|no| B
+    C -->|yes| D["reset slow to nums[0]"]
+    D --> E["move both 1 edge"]
+    E --> F{"slow == fast?"}
+    F -->|no| E
+    F -->|yes| G["return cycle entrance"]
+```
+
+#### Worked case 1 — canonical trace and a corrected first phase
+
+For `[1,3,4,2,2]`, the source's abbreviated table makes the hare appear at 3 after its first double step. The exact transition is `fast = nums[nums[1]] = nums[3] = 2`.
+
+| phase | move | slow | fast | derivation |
+|---|---:|---:|---:|---|
+| initialize | 0 | 1 | 1 | both are `nums[0]` |
+| intersection | 1 | 3 | 2 | `nums[1]`; `nums[nums[1]]` |
+| intersection | 2 | 2 | 2 | meet inside cycle |
+| reset | 0 | 1 | 2 | reset only slow |
+| entrance | 1 | 3 | 4 | both move one edge |
+| entrance | 2 | 2 | 2 | return 2 |
+
+```mermaid
+sequenceDiagram
+    participant S as slow
+    participant F as fast
+    Note over S,F: start at 1
+    S->>S: 1 → 3
+    F->>F: 1 → 3 → 2
+    S->>S: 3 → 2
+    F->>F: 2 → 4 → 2
+    Note over S,F: meet at 2; reset slow to 1
+    S->>S: 1 → 3 → 2
+    F->>F: 2 → 4 → 2
+```
+
+#### Worked case 2 — the duplicate is near the front
+
+`[3,1,3,4,2]` represents `0→3→4→2→3`, so the cycle is `3→4→2→3` and its entrance is 3. Array position 0 is a synthetic starting node: no value points to 0 because all values lie in `[1,n]`. Returning an index seen twice during an ordinary scan is not the contract; the answer is the repeated **value** 3.
+
+| fact | consequence |
+|---|---|
+| length 5 | `n=4` and legal next nodes are 1 through 4 |
+| value 3 occurs at indices 0 and 2 | node 3 has multiple incoming edges |
+| Floyd entrance | 3 |
+| input after call | still `[3,1,3,4,2]` |
+
+#### Worked case 3 — the duplicate may appear more than twice
+
+For `[3,3,3,3,3]`, `n=4`; every component is a legal next index and 3 is the only distinct repeated value. Starting at 3 immediately reaches the self-loop `3→3`, so both phases terminate with 3. Missing values 1, 2 and 4 do not violate the problem contract.
+
+```mermaid
+flowchart LR
+    Z0["0"] --> D["3"]
+    Z1["1"] --> D
+    Z2["2"] --> D
+    Z4["4"] --> D
+    D --> D
+```
+
+This case exposes two common incorrect assumptions: the duplicate need not occur exactly twice, and every other number need not appear.
+
+#### Worked case 4 — smallest legal input and defensive boundary
+
+`[1,1]` has `n=1`; node 1 is a self-loop, so the answer is 1. `[1]` is not a valid instance because length must be `n+1` for some `n≥1`. `[1,3,1]` has length 3, hence `n=2`, and value 3 is not a legal index; the strict wrapper rejects it before pointer traversal. The core algorithm may omit this pass when the caller already enforces the judge's promises.
+
+**Why the entrance is the duplicate.** There are `n+1` positions but only `n` possible values, so at least one value repeats by the pigeonhole principle. In the graph, node 0 has indegree zero because no component is 0. Follow edges from 0: a finite functional graph consists of a stem followed by a cycle. The entrance has one incoming edge from its cycle predecessor and another from the stem (or from node 0 when the stem after the first edge is empty). Thus the entrance has at least two incoming array positions. Because the contract allows only one distinct repeated value, that entrance must be the duplicate.
+
+**Why the two Floyd phases find the entrance.** Let `μ` be the number of edges from `nums[0]` to the entrance and `λ` the cycle length. When slow has moved `t` edges and fast `2t`, their cycle offsets agree when `t ≡ 0 (mod λ)`, so phase 1 meets after at most a linear number of moves. Reset slow to `nums[0]`. The meeting pointer is `t` edges from the start, and `t` is a multiple of `λ`; after both pointers move `μ` more edges, slow reaches the entrance while fast advances an integer number of full cycles plus `μ`, reaching the same entrance.
+
+**Termination and complexity.** The reachable graph has at most `n` value-nodes. Phase 1 meets within a linear number of edge traversals; phase 2 walks at most the stem length. Validation plus both phases therefore take `O(n)` time. Four integer variables use `O(1)` auxiliary space, and no array component is assigned, so the input reference and contents are preserved.
+
+**Memory line:** `values are next indices; meet in the cycle; reset one pointer; meet at the duplicate.`
+
+**Common interview errors:** sorting or sign-marking despite the no-mutation rule; allocating a set despite the constant-space rule; starting from arbitrary out-of-range data; moving the fast pointer only once; resetting both pointers after phase 1; resetting to index 0 instead of the chosen path start `nums[0]` in this formulation; returning the phase-1 intersection without locating the entrance; claiming the duplicate occurs exactly twice; or reproducing the source trace's incorrect first hare position.
+
+**Follow-ups:** use a set when the range promise is absent and extra space is allowed; use a copied/sorted array when preserving input matters but constant space does not; find any duplicate by value-domain binary search in `O(n log n)` time and `O(1)` space; or explain why multiple distinct duplicates destroy the unique cycle-entrance conclusion.
+
+Executable evidence is in `FindDuplicateContracts.java`. It checks 20 deterministic scenario groups covering the four worked behaviors, duplicates at different values, repeated multiplicity, smallest input, no mutation and invalid shape/range rejection. It then generates 20,000 valid arrays and compares Floyd's result with an independent `HashSet` oracle while checking input preservation and linear phase-move bounds.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -2903,6 +3047,7 @@ Executable evidence is in `NextPermutationContracts.java`. It checks 20 determin
 - [LeetCode, “Subarray Sum Equals K”](https://leetcode.com/problems/subarray-sum-equals-k/) — primary non-empty contiguous-subarray, signed-input, exact-target and result-count contract.
 - [LeetCode, “Rotate Array”](https://leetcode.com/problems/rotate-array/) — primary non-negative right-rotation contract, canonical examples, constraints and in-place constant-space follow-up.
 - [LeetCode, “Next Permutation”](https://leetcode.com/problems/next-permutation/) — primary lexicographic-successor, in-place mutation, wraparound and constant-extra-memory contract, including duplicate-value examples.
+- [LeetCode, “Find the Duplicate Number”](https://leetcode.com/problems/find-the-duplicate-number/) — primary `n+1`/`[1,n]`, one-distinct-duplicate, no-mutation and constant-extra-space contract, including duplicates occurring more than twice.
 - [Java Language Specification, Java SE 25, §15.17.3](https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.17.3) — integer remainder semantics and the zero-divisor exception relevant to `k % n`.
 - [Java SE 25 `Math.floorMod`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html#floorMod(int,int)) — non-negative modulus normalization for an explicitly extended signed-rotation API.
 - [LeetCode, “Subarray Sums Divisible by K”](https://leetcode.com/problems/subarray-sums-divisible-by-k/) — primary non-empty contiguous-subarray, signed-input, positive-modulus and result-count contract.
@@ -2920,9 +3065,9 @@ Executable evidence is in `NextPermutationContracts.java`. It checks 20 determin
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 21 (Next Permutation is lines 2153–2249, bounded before problem 22 at line 2250). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 21 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 21 at lines 2122–2218, bounded before problem 22 at line 2219). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 22 (Find the Duplicate Number is lines 2250–2341, bounded before problem 23 at line 2342). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 22 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 22 at lines 2219–2311, bounded before problem 23 at line 2312). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 21, “Next Permutation,” is promoted from Markdown lines 2153–2249 and fresh no-wrap DOCX GFM-extracted lines 2122–2218; problem 22, “Find the Duplicate Number,” begins at Markdown line 2250 and no-wrap DOCX GFM-extracted line 2219.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 22, “Find the Duplicate Number,” is promoted from Markdown lines 2250–2341 and fresh no-wrap DOCX GFM-extracted lines 2219–2311; problem 23, “First Missing Positive,” begins at Markdown line 2342 and no-wrap DOCX GFM-extracted line 2312.
 
 

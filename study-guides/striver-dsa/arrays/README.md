@@ -26,6 +26,7 @@ java -ea study-guides/striver-dsa/arrays/LongestConsecutiveContracts.java
 java -ea study-guides/striver-dsa/arrays/SortColorsContracts.java
 java -ea study-guides/striver-dsa/arrays/RotateArrayContracts.java
 java -ea study-guides/striver-dsa/arrays/NextPermutationContracts.java
+java -ea study-guides/striver-dsa/arrays/FindDuplicateContracts.java
 ```
 
 Rebuild the reader:
@@ -34,6 +35,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–21 are promoted. Section 4 problems 22–47 and later source material remain queued.
+This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–22 are promoted. Section 4 problems 23–47 and later source material remain queued.
 
 
