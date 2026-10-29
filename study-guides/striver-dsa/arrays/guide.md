@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–22 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 23–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–23 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 24–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first twenty-two solved problems](#4-core-pattern-lab--first-twenty-two-solved-problems)
+- [4. Core pattern lab — first twenty-three solved problems](#4-core-pattern-lab--first-twenty-three-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -51,6 +51,7 @@
   - [Example 20 — Rotate Array: reverse the two logical chunks](#example-20--rotate-array-reverse-the-two-logical-chunks)
   - [Example 21 — Next Permutation: make the smallest possible increase](#example-21--next-permutation-make-the-smallest-possible-increase)
   - [Example 22 — Find the Duplicate Number: find a cycle entrance without mutation](#example-22--find-the-duplicate-number-find-a-cycle-entrance-without-mutation)
+  - [Example 23 — First Missing Positive: place only useful values into home indices](#example-23--first-missing-positive-place-only-useful-values-into-home-indices)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -678,7 +679,7 @@ Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite 
 
 <a id="4-core-pattern-lab--first-twenty-solved-problems"></a>
 
-## 4. Core pattern lab — first twenty-two solved problems
+## 4. Core pattern lab — first twenty-three solved problems
 
 The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first sixteen: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, Squares of a Sorted Array, 3Sum, Container With Most Water, Trapping Rain Water, Minimum Size Subarray Sum, Fruit Into Baskets, Sliding Window Maximum, Range Sum Query — Immutable, Product of Array Except Self, and Subarray Sum Equals K. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude; problems 8–10 use sorted or boundary monotonicity to discard state safely; problems 11–13 maintain just enough window state; problem 14 precomputes cancellable prefix state for repeated immutable queries; problem 15 combines two exclusive directional aggregates without division; and problem 16 counts matching prior prefix boundaries. Problems 17–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
@@ -3021,6 +3022,135 @@ This case exposes two common incorrect assumptions: the duplicate need not occur
 
 Executable evidence is in `FindDuplicateContracts.java`. It checks 20 deterministic scenario groups covering the four worked behaviors, duplicates at different values, repeated multiplicity, smallest input, no mutation and invalid shape/range rejection. It then generates 20,000 valid arrays and compares Floyd's result with an independent `HashSet` oracle while checking input preservation and linear phase-move bounds.
 
+### Example 23 — First Missing Positive: place only useful values into home indices
+
+**Contract.** Given a non-empty unsorted `int[] nums` of length `n`, return the smallest positive integer absent from the array. Components may span the entire Java `int` range. The required solution is `O(n)` time with `O(1)` auxiliary space, so it may rearrange `nums` in place. The official bounds allow `1 <= n <= 100,000`; the reusable method below additionally returns `1` for an empty array and rejects `null` before mutation.
+
+The answer is always in `[1,n+1]`: if any value in `[1,n]` is absent, the first such value is the answer; otherwise all `n` candidates are present and the answer is `n+1`. Values `<= 0` and `> n` therefore cannot affect the result. This finite candidate window lets the array serve as its own presence table: value `v` belongs at home index `v - 1`.
+
+```mermaid
+flowchart LR
+    A["all int values"] --> B{"value in 1..n?"}
+    B -->|no| I["irrelevant to first answer"]
+    B -->|yes| H["home index = value - 1"]
+    H --> P["after placement: nums[v-1] = v"]
+    P --> S["first mismatched home is missing"]
+```
+
+```java
+static int firstMissingPositive(int[] nums) {
+    if (nums == null) {
+        throw new IllegalArgumentException("nums must not be null");
+    }
+    int n = nums.length;
+    for (int i = 0; i < n; i++) {
+        while (nums[i] >= 1 && nums[i] <= n) {
+            int home = nums[i] - 1;
+            if (nums[home] == nums[i]) {
+                break;
+            }
+            int temporary = nums[i];
+            nums[i] = nums[home];
+            nums[home] = temporary;
+        }
+    }
+    for (int i = 0; i < n; i++) {
+        if (nums[i] != i + 1) {
+            return i + 1;
+        }
+    }
+    return n + 1;
+}
+```
+
+The equality guard is essential. With `[1,1]`, the second `1` targets index `0`, where an equal `1` already lives. Swapping equal duplicates would make no progress and would loop forever. Checking `nums[home] == nums[i]` finalizes the current index without confusing duplicate occurrences with distinct candidates.
+
+```mermaid
+flowchart TD
+    A["inspect nums[i]"] --> B{"1 <= value <= n?"}
+    B -->|no| N["advance i"]
+    B -->|yes| C["home = value - 1"]
+    C --> D{"home already stores value?"}
+    D -->|yes| N
+    D -->|no| E["swap nums[i] and nums[home]"]
+    E --> A
+    N --> F{"more indices?"}
+    F -->|yes| A
+    F -->|no| G["scan homes from index 0"]
+```
+
+#### Worked case 1 — the canonical displacement chain
+
+For `[3,4,-1,1]`, re-evaluate the same index after each swap because the displaced component has not yet been classified.
+
+| step | `i` | current value | decision | array after step |
+|---:|---:|---:|---|---|
+| 0 | 0 | 3 | home `2`; swap indices `0,2` | `[-1,4,3,1]` |
+| 1 | 0 | -1 | outside `[1,4]`; advance | `[-1,4,3,1]` |
+| 2 | 1 | 4 | home `3`; swap indices `1,3` | `[-1,1,3,4]` |
+| 3 | 1 | 1 | home `0`; swap indices `1,0` | `[1,-1,3,4]` |
+| 4 | 1 | -1 | irrelevant; advance | `[1,-1,3,4]` |
+| 5 | 2 | 3 | already at home | `[1,-1,3,4]` |
+| 6 | 3 | 4 | already at home | `[1,-1,3,4]` |
+| scan | 1 | expected 2 | first mismatch | return `2` |
+
+```mermaid
+sequenceDiagram
+    participant A as index 0
+    participant B as index 1
+    participant C as index 2
+    participant D as index 3
+    A->>C: place 3 at home 2
+    B->>D: place 4 at home 3
+    B->>A: place 1 at home 0
+    Note over A,D: homes 1, 3, 4 match; home 2 is absent
+```
+
+#### Worked case 2 — every candidate is present
+
+`[1,2,0]` needs no swap: 1 and 2 are already home and 0 is irrelevant. The verification scan matches indices 0 and 1, then ignores the stored 0 at index 2 because it expected 3. Wait—this means the first mismatch is at index 2, so the answer is `3`; it is not necessary for irrelevant values to move.
+
+| index | stored | expected | result |
+|---:|---:|---:|---|
+| 0 | 1 | 1 | match |
+| 1 | 2 | 2 | match |
+| 2 | 0 | 3 | first mismatch → `3` |
+
+#### Worked case 3 — no useful value exists
+
+For `[7,8,9,11,12]`, `n=5` and every component lies outside `[1,5]`. Placement performs zero swaps. Index 0 does not contain 1, so the answer is immediately `1`. Full-width values are equally harmless: `[Integer.MIN_VALUE, Integer.MAX_VALUE]` returns `1` without arithmetic overflow because subtraction occurs only after the range test proves the value is in `[1,n]`.
+
+#### Worked case 4 — duplicates stop safely
+
+For `[1,1,2,2]`, both 1s initially target home 0; the duplicate guard stops the second one. At index 2, value 2 moves to home 1, displacing the duplicate 1. The resulting arrangement is `[1,2,1,2]`. Homes 1 and 2 are represented, but index 2 does not contain expected value 3, so the result is `3`.
+
+```mermaid
+flowchart LR
+    S["1, 1, 2, 2"] -->|"duplicate 1 stops"| A["1, 1, 2, 2"]
+    A -->|"place 2 at home 1"| B["1, 2, 1, 2"]
+    B -->|"scan index 2"| R["3 is missing"]
+```
+
+**Invariant and correctness.** A successful swap writes a valid value `v` into its unique home `v-1`. Once a home contains its value, no later successful swap can dislodge it: another `v` sees equality and stops, while every other value targets a different home. Thus each successful swap permanently establishes at least one new home, so there are at most `n` swaps. When placement ends, every distinct value `v` from `[1,n]` that occurs in the input is at index `v-1`; otherwise an occurrence of `v` would still be valid, target a non-equal home, and permit another swap. The verification scan therefore returns the least absent candidate. If no home is missing, all values `1..n` occur and `n+1` is the least absent positive.
+
+```mermaid
+flowchart TD
+    I["placement complete"] --> P{"nums[0] == 1?"}
+    P -->|no| R1["return 1"]
+    P -->|yes| Q["advance through matching homes"]
+    Q --> M{"first index i with nums[i] != i+1?"}
+    M -->|yes| R2["return i+1"]
+    M -->|no mismatch| R3["return n+1"]
+```
+
+**Complexity and mutation.** The outer traversal and final scan are linear. The permanent-home argument bounds successful swaps by `n`, even though the same `i` may be inspected repeatedly, so total time is `O(n)`. The implementation stores only indices and one temporary component: `O(1)` auxiliary space. It preserves array identity and the component multiset but deliberately changes component order. Use the `HashSet` baseline when input mutation is forbidden; its expected `O(n)` time costs `O(n)` extra space.
+
+**Common errors:** sorting and violating the linear-time requirement; allocating a presence array or set while claiming constant space; treating `0` as a candidate; computing `value - 1` before checking the range; advancing `i` immediately after a swap and leaving a displaced value unclassified; omitting the duplicate guard; returning an index rather than `index + 1`; assuming the answer cannot be `n+1`; claiming each component swaps once instead of proving that each successful swap finalizes a distinct home; or promising nonmutation despite cyclic placement.
+
+**Follow-ups:** preserve input by using a set or a copy; return every missing value in `[1,n]`; adapt placement to values `0..n`; prove the swap bound with a potential function equal to the number of correct homes; or compare cyclic placement with sign marking, including why sign marking needs a separate representation for candidate `n` or a normalization pass.
+
+Executable evidence is in `FirstMissingPositiveContracts.java`. It covers 20 deterministic groups, including the four traces, duplicate-heavy inputs, already-complete ranges, empty and singleton extensions, full-width values, array identity, multiset preservation, the permanent-home postcondition and null rejection. It then checks 20,000 seeded arrays against an independent `HashSet` oracle while enforcing the linear swap bound.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -3048,6 +3178,8 @@ Executable evidence is in `FindDuplicateContracts.java`. It checks 20 determinis
 - [LeetCode, “Rotate Array”](https://leetcode.com/problems/rotate-array/) — primary non-negative right-rotation contract, canonical examples, constraints and in-place constant-space follow-up.
 - [LeetCode, “Next Permutation”](https://leetcode.com/problems/next-permutation/) — primary lexicographic-successor, in-place mutation, wraparound and constant-extra-memory contract, including duplicate-value examples.
 - [LeetCode, “Find the Duplicate Number”](https://leetcode.com/problems/find-the-duplicate-number/) — primary `n+1`/`[1,n]`, one-distinct-duplicate, no-mutation and constant-extra-space contract, including duplicates occurring more than twice.
+- [LeetCode, “First Missing Positive”](https://leetcode.com/problems/first-missing-positive/) — primary unsorted-input, full-width component bounds, linear-time and constant-auxiliary-space contract and canonical examples.
+- [Java Language Specification, Java SE 27, Chapter 10](https://docs.oracle.com/en/java/javase/27/docs/specs/jls/jls-10.html) — current array-object, fixed-length and zero-based component-index model used by the in-place home mapping.
 - [Java Language Specification, Java SE 25, §15.17.3](https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.17.3) — integer remainder semantics and the zero-divisor exception relevant to `k % n`.
 - [Java SE 25 `Math.floorMod`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html#floorMod(int,int)) — non-negative modulus normalization for an explicitly extended signed-rotation API.
 - [LeetCode, “Subarray Sums Divisible by K”](https://leetcode.com/problems/subarray-sums-divisible-by-k/) — primary non-empty contiguous-subarray, signed-input, positive-modulus and result-count contract.
@@ -3065,9 +3197,9 @@ Executable evidence is in `FindDuplicateContracts.java`. It checks 20 determinis
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 22 (Find the Duplicate Number is lines 2250–2341, bounded before problem 23 at line 2342). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 22 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 22 at lines 2219–2311, bounded before problem 23 at line 2312). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 23 (First Missing Positive is lines 2344–2454, bounded before problem 24 at line 2455). Selected as the editable structural source. This refresh corrects the prior checkpoint's two-line offset for the unchanged source bytes.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 23 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 23 at lines 2312–2419, bounded before problem 24 at line 2420). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 22, “Find the Duplicate Number,” is promoted from Markdown lines 2250–2341 and fresh no-wrap DOCX GFM-extracted lines 2219–2311; problem 23, “First Missing Positive,” begins at Markdown line 2342 and no-wrap DOCX GFM-extracted line 2312.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 23, “First Missing Positive,” is promoted from Markdown lines 2344–2454 and fresh no-wrap DOCX GFM-extracted lines 2312–2419; problem 24, “Search in Rotated Sorted Array,” begins at Markdown line 2455 and no-wrap DOCX GFM-extracted line 2420.
 
 
