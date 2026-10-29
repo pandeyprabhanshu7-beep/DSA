@@ -4193,3 +4193,245 @@ Verified on 29 October 2026:
 ### Source provenance and continuation
 
 The selected editable bundle member's complete Section 21 is source lines 1245–1272, bounded before Section 22 at line 1273. The standalone HTML begins the same section at line 1342, and the bundle's generated HTML is byte-identical to that standalone file. Both sources contain the same six foundation/API interview questions on retrieval versus vector databases, Java/Python placement, abstraction limits, nondeterminism, no-answer versus outage and layered structured-output validation. The editable Markdown remains the structural source and no duplicate guide was created. This canonical section preserves those answers while adding a production answer rubric, four worked examples, five diagrams, typed outcome/capability contracts, current primary references and paired 24-scenario/20,000-trial executables. Section 22, **Interview questions with worked answers: concurrency, data and tools**, begins at editable line 1273. Sections 22–25 remain queued; the wider collection is not complete.
+
+## 22. Concurrency, data migrations and tool safety
+
+The source questions look separate—an async endpoint freezes, virtual threads meet a small database pool, 429 retries multiply, embeddings change, ANN filtering leaks tenants, MCP is confused with an agent, a tool loop will not stop and a refund may be retried—but they share one production rule:
+
+> Make the scarce resource, irreversible boundary and identity explicit **before** scheduling work. Then admit, retry, publish and reconcile against bounded state rather than against hope.
+
+An interview-quality answer should name the invariant, trace one concrete request, show the overload or ambiguity case and identify the metric that would prove the fix. “Make it async,” “use virtual threads,” “retry with backoff,” “swap the embedding model” and “add an idempotency key” are implementation hints, not complete safety arguments.
+
+### Example 1 — dispatch work without hiding the real bottleneck
+
+**Requirement.** A Python endpoint and a Java endpoint both call a database and an external model provider. The service must remain responsive under load, reject work before unbounded queueing and preserve one end-to-end deadline.
+
+Classify work before choosing an execution primitive:
+
+| Work | Python placement | Java placement | Capacity that still must be bounded |
+|---|---|---|---|
+| native non-blocking I/O | event loop task | async client or request thread | sockets, provider quota, deadline |
+| legacy blocking I/O | bounded `to_thread`/executor lane | virtual thread on Java 21+ | executor admission, DB pool, provider concurrency |
+| CPU-heavy parse/rerank | process/worker pool | bounded CPU executor | CPU slots and queue |
+
+`asyncio.to_thread()` keeps blocking I/O off the event-loop thread; it does not turn an arbitrary CPU-bound Python function into scalable parallel work. A Java virtual thread makes a blocked request cheaper than dedicating a platform thread, but it does not create a new database connection or provider permit. Acquire the dependency permit and a bounded queue slot **before** offload. Otherwise millions of cheap waiters can still overwhelm a 40-connection pool.
+
+```mermaid
+flowchart TD
+    A[Request with deadline] --> B{Dependency permit and queue slot?}
+    B -->|no| C[Reject or shed]
+    B -->|yes| D{Work class}
+    D -->|native async I/O| E[Event loop]
+    D -->|blocking I/O| F[Bounded thread or virtual thread]
+    D -->|CPU| G[Process or CPU worker]
+```
+
+**Capacity trace.** Suppose four replicas each allow 30 concurrent DB calls while the database pool supports only 80 connections. The fleet can demand `4 × 30 = 120`, so local settings are unsafe even though every replica appears bounded. A safer initial cap is at most `floor((80 - reserve) / 4)` per replica, and a rollout must recompute it as replica count changes. Provider concurrency and database connections need separate semaphores because holding one while waiting indefinitely for the other creates convoying.
+
+```python
+async def handle(request):
+    remaining = request.deadline - monotonic()
+    if remaining <= 0 or not dependency_slots.try_acquire():
+        raise Overloaded(retry_after_seconds=1)
+    try:
+        # blocking_lookup is I/O-bound and the offload lane is separately bounded.
+        return await asyncio.wait_for(
+            asyncio.to_thread(blocking_lookup, request.key),
+            timeout=remaining,
+        )
+    finally:
+        dependency_slots.release()
+```
+
+Measure event-loop lag, executor queue age, rejected admission, in-use/waiting DB connections, provider concurrency and deadline exhaustion. A flat event-loop-lag graph with a rising DB wait queue proves only that the freeze moved; it does not prove the service is healthy.
+
+**Common failure.** Offloading first and taking the semaphore inside the worker lets the offload queue become the hidden unbounded buffer. Admission belongs before scheduling.
+
+### Example 2 — one retry owner, one deadline and no replay of ambiguous writes
+
+**Requirement.** A provider returns HTTP 429 with `Retry-After`. The service may retry safe reads, but must not amplify overload or repeat a write whose outcome is unknown.
+
+If client, gateway and service each make three attempts, a single user action can create `3 × 3 × 3 = 27` provider calls. Select one retry owner. Every other layer performs one attempt and returns typed evidence such as `rate_limited`, `retry_after`, `attempts_used` and `deadline_remaining`.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Retry owner
+    participant P as Provider
+    C->>S: request + deadline
+    S->>P: attempt 1
+    P-->>S: 429 + Retry-After
+    S->>S: cap + jitter + deadline check
+    alt delay fits and replay is safe
+        S->>P: attempt 2
+        P-->>S: result
+        S-->>C: result + attempts=2
+    else unsafe or deadline exhausted
+        S-->>C: typed terminal outcome
+    end
+```
+
+The retry decision is ordered:
+
+1. Is this layer the retry owner?
+2. Is replay safe—read-only or protected by a stable operation identity?
+3. Is the attempt budget still available?
+4. Does server guidance plus capped jitter fit inside the remaining deadline?
+5. If all gates pass, retry; otherwise return a terminal typed outcome.
+
+```java
+RetryDecision decide(RetryInput r) {
+    if (!r.owner()) return NOT_OWNER;
+    if (!r.replaySafe()) return NON_REPLAYABLE;
+    if (r.attempt() >= r.maxAttempts()) return EXHAUSTED;
+    long delay = cappedJitter(r.retryAfterMillis(), r.backoffMillis());
+    if (delay < 0 || r.nowMillis() > r.deadlineMillis() - delay) return DEADLINE;
+    return RETRY;
+}
+```
+
+The subtraction form avoids overflow from `now + delay`. Parse both allowed `Retry-After` forms, cap unreasonable values, use a monotonic clock for elapsed budgets and record the provider request ID. A connection timeout after sending a write is **ambiguous**, not automatically failed: look up by the original idempotency key or reconcile provider state. Never mint a new key merely to obtain another attempt.
+
+**Validation trace.** With `now=850 ms`, `deadline=1,000 ms`, `Retry-After=200 ms`, retry is rejected because it cannot start before the deadline. With the same times and a capped delay of `100 ms`, a safe read can retry. A refund without durable idempotency state cannot.
+
+### Example 3 — migrate embedding identity and filter tenants before ANN
+
+**Requirement.** Replace embedding model `m1` with `m2` without mixing vector spaces, losing rollback or returning another tenant's documents.
+
+Treat an embedding index as a generation, not as a mutable bag of vectors. Its identity includes at least model/version, dimensions, preprocessing/chunking revision, distance function and source revision. Query vectors and document vectors must share that identity.
+
+```mermaid
+flowchart TD
+    A[Immutable source revision] --> B[Build generation g2 with m2 identity]
+    B --> C[Reconcile count and failures]
+    C --> D[Shadow queries and quality gates]
+    D -->|pass| E[Atomically publish pointer to g2]
+    D -->|fail| F[Keep g1 published]
+    E --> G[Observe and retain g1 for rollback]
+```
+
+A safe migration is:
+
+1. create a new generation with immutable identity;
+2. backfill immutable source revisions and checkpoint failures;
+3. reconcile expected counts, duplicate/missing IDs and authorization metadata;
+4. compare fixed queries against an exact or approved baseline, including per-tenant recall;
+5. atomically switch a publication pointer only after gates pass;
+6. keep the previous generation readable until the observation window closes.
+
+Tenant scope is a retrieval predicate, not a cosmetic post-processing step. Prefer tenant partitions, separate tables or an index/search path whose candidate set is scoped before approximate search. Then reauthorize every fetched document against the request's current membership because index metadata can be stale.
+
+```mermaid
+flowchart LR
+    A[Authenticated tenant] --> B[Tenant partition or prefilter]
+    B --> C[ANN candidate search]
+    C --> D[Fetch authoritative rows]
+    D --> E[Reauthorize every row]
+    E --> F[Prompt evidence]
+```
+
+**Recall and leak trace.** A global ANN search returns 10 neighbors, only one from tenant A; post-filtering yields one result even though five strong tenant-A neighbors exist just outside the global top 10. Increasing the global limit may improve recall but still exposes cross-tenant candidates to application memory and timing. A tenant partition or enforced prefilter searches the correct candidate population; row-level reauthorization then prevents stale membership from becoming evidence.
+
+```sql
+-- tenant_id is derived from authenticated membership, never model or request text.
+SELECT id, body
+FROM tenant_chunks
+WHERE tenant_id = :trusted_tenant
+ORDER BY embedding <=> :query_embedding
+LIMIT :k;
+```
+
+**Publication invariant.** A route is ready only when the generation is published, query/model preprocessing identities match, tenant filtering occurs before ANN and every fetched row passes current scope checks. An evaluation score alone cannot satisfy any of those gates.
+
+### Example 4 — separate MCP transport from agent control and reconcile tools
+
+**Requirement.** An agent uses an MCP-exposed refund tool. It must terminate, avoid duplicate refunds and recover from an unknown provider response.
+
+MCP defines a protocol boundary through which a client can discover and invoke capabilities. An agent is the control loop that chooses whether, when and how often to call them. The protocol does not supply business authorization, budget ownership, durable idempotency or a stopping policy.
+
+```mermaid
+flowchart TD
+    A[Agent state and budgets] --> B{Continue?}
+    B -->|no| C[Terminal outcome]
+    B -->|yes| D[MCP client validates tool schema]
+    D --> E[Tool service authorizes and claims operation]
+    E --> F[Provider call]
+    F --> G[Persist result or unknown outcome]
+    G --> A
+```
+
+Stop before the next model/tool call when any independent limit is reached: wall-clock deadline, cumulative input/output tokens, total model calls, repeated identical calls, total tool calls or a per-tool cap. Persist counters with the run so a worker restart cannot reset the budget. Treat repeated identical tool requests as a signal to stop or reconcile, not as progress.
+
+A refund identity should bind the trusted scope, operation and canonical payload:
+
+```text
+idempotency_key = HMAC(server_secret,
+  tenant_id || ":refund:" || payment_id || ":" || canonical_payload_hash)
+```
+
+Store the key, canonical payload hash, authorization decision, provider request ID and state transactionally before or with the effect claim. Then apply this state machine:
+
+| Existing record | Payload hash | Provider outcome | Decision |
+|---|---|---|---|
+| none | current | n/a | claim and execute once |
+| yes | same | known | replay cached terminal result |
+| yes | different | any | conflict; do not execute |
+| yes | same | unknown | reconcile by original key/request ID |
+
+```mermaid
+stateDiagram-v2
+    [*] --> CLAIMED: new stable key
+    CLAIMED --> SUCCEEDED: provider confirms
+    CLAIMED --> FAILED: definitive failure
+    CLAIMED --> UNKNOWN: timeout after send
+    UNKNOWN --> SUCCEEDED: reconciliation finds refund
+    UNKNOWN --> FAILED: authoritative lookup proves absent
+    SUCCEEDED --> SUCCEEDED: same-key replay
+```
+
+The tool service rechecks authorization from trusted identity at execution time; the model cannot confer permission. A changed amount under an existing key is a conflict, not a second refund. An unknown outcome remains non-terminal until authoritative reconciliation proves whether the effect occurred.
+
+### Paired executable concurrency/data/tool contract
+
+[`ConcurrencyDataToolsContracts.java`](ConcurrencyDataToolsContracts.java) and [`concurrency_data_tools_contracts.py`](concurrency_data_tools_contracts.py) implement the same dependency-free decision boundary:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/ConcurrencyDataToolsContracts.java
+python3 study-guides/backend/spring-ai-python/concurrency_data_tools_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|PY_BLOCKING=BOUNDED_THREAD|JAVA_BLOCKING=VIRTUAL_THREAD|DEPENDENCY=GATED|RETRY=DEADLINE_BOUND|MIGRATION=IDENTITY_PINNED|ANN=PREFILTERED|TOOL=RECONCILE|LOOP=BOUNDED
+```
+
+Each passes 29 explicit scenario groups plus 10,000 seeded retry-decision trials and 10,000 seeded retrieval-admission trials. The Java source intentionally runs on Java 17 and models the Java 21 virtual-thread dispatch decision without calling Java 21 APIs. These contracts do not open a database, run an ANN index, contact a provider, start Spring AI/FastAPI, speak MCP or issue a refund; those require integration fixtures with controlled failures and authoritative reconciliation.
+
+### Correctness checklist and follow-ups
+
+- Admission is fleet-aware and occurs before offload; no queue is accidentally unbounded.
+- Every request has one deadline, propagated through queue, dependency and retry waits.
+- Exactly one retry owner respects server guidance, attempt caps, jitter and replay safety.
+- Embedding generations pin model and preprocessing identity, publish atomically and retain rollback.
+- Tenant scope narrows candidates before ANN and every fetched row is reauthorized.
+- MCP schema validation is not confused with authorization, idempotency or agent loop control.
+- Tool loops persist independent wall, token, model-call, repeat and per-tool limits.
+- Ambiguous side effects are reconciled under the original identity; a new key never masks uncertainty.
+
+Useful follow-up questions are: “Where is admission acquired?”, “What is the fleet-wide limit?”, “Who owns retries?”, “How is an unknown write represented?”, “What exact identity is published with the index?”, “Can an unauthorized vector enter the candidate set?”, “Which counters survive restart?” and “Which authoritative lookup proves the refund result?”
+
+### Current primary references
+
+Verified on 29 October 2026:
+
+- Python, [`asyncio.to_thread()`](https://docs.python.org/3/library/asyncio-task.html#asyncio.to_thread) — offloads blocking I/O from the event-loop thread and documents the usual GIL limitation for CPU-bound work.
+- OpenJDK, [JEP 444: Virtual Threads](https://openjdk.org/jeps/444) and Oracle, [Virtual Threads](https://docs.oracle.com/en/java/javase/26/core/virtual-threads.html) — virtual threads improve thread-per-request scalability; they are not faster threads and do not replace scarce dependency limits.
+- IETF, [RFC 6585 §4](https://www.rfc-editor.org/rfc/rfc6585.html#section-4) and [RFC 9110 §10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3) — 429 semantics and the `Retry-After` field.
+- pgvector, [Filtering, multitenancy and iterative index scans](https://github.com/pgvector/pgvector#filtering) — approximate filtering can reduce results; tenant partitioning/separate tables and iterative scans are documented controls.
+- Model Context Protocol, [Architecture](https://modelcontextprotocol.io/docs/learn/architecture) and [Authorization](https://modelcontextprotocol.io/specification/latest/basic/authorization) — protocol roles and authorization boundary; application control policy remains explicit.
+- Stripe, [Idempotent requests](https://docs.stripe.com/api/idempotent_requests) — stable keys replay the original result and changed parameters are rejected, illustrating payload-bound operation identity.
+
+### Source provenance and continuation
+
+The selected editable bundle member's complete Section 22 is source lines 1273–1306, bounded before Section 23 at line 1307. The standalone HTML begins Section 22 at line 1357 and Section 23 at line 1375; the bundle's generated HTML is byte-identical to the standalone source. Both sources contain the same eight questions on Python/Java concurrency, retry storms, embedding migration, tenant-safe ANN filtering, MCP versus agent loops and replay-safe refunds. The editable Markdown remains the structural source and no duplicate guide was created. This canonical section consolidates the eight questions into four production examples, five diagrams, paired 29-scenario/20,000-trial contracts and current primary references. Section 23, **Scenario questions**, begins at editable line 1307. Sections 23–25 remain queued; the wider collection is not complete.
