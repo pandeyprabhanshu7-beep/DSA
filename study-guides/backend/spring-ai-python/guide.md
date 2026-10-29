@@ -1,6 +1,6 @@
 # Spring AI and Python APIs
 
-This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–15, lines 6–930.
+This is the canonical incremental guide. It compares Java and Python implementation choices by contract and ownership boundary rather than treating a framework, model, runtime, and host as interchangeable. The guide currently processes source Sections 1–23 through line 1332.
 
 ## Section 1 — Choose the layer before choosing the library
 
@@ -4435,3 +4435,234 @@ Verified on 29 October 2026:
 ### Source provenance and continuation
 
 The selected editable bundle member's complete Section 22 is source lines 1273–1306, bounded before Section 23 at line 1307. The standalone HTML begins Section 22 at line 1357 and Section 23 at line 1375; the bundle's generated HTML is byte-identical to the standalone source. Both sources contain the same eight questions on Python/Java concurrency, retry storms, embedding migration, tenant-safe ANN filtering, MCP versus agent loops and replay-safe refunds. The editable Markdown remains the structural source and no duplicate guide was created. This canonical section consolidates the eight questions into four production examples, five diagrams, paired 29-scenario/20,000-trial contracts and current primary references. Section 23, **Scenario questions**, begins at editable line 1307. Sections 23–25 remain queued; the wider collection is not complete.
+
+## 23. Six coding and debugging interview scenarios
+
+These scenarios—tenant-leaking caches, truncated SSE, Kubernetes-only connection failures, lost questions during packing, duplicate ingestion after a crash and schema-valid access to the wrong account—share one debugging discipline:
+
+> Locate the first boundary where trusted identity, completion, network reachability, budget or durable work identity stops being explicit. Repair that boundary, then prove the repair with an adversarial replay.
+
+Do not start with a framework switch. First capture a minimal trace, name the violated invariant and separate authoritative facts from symptoms. A strong interview answer uses this order:
+
+| Step | Question | Evidence |
+|---:|---|---|
+| 1 | What was the intended contract? | trusted scope, terminal event, endpoint identity, budget tuple or source revision |
+| 2 | Where was it first violated? | cache lookup, event reducer, DNS/TCP/TLS hop, packer or chunk upsert |
+| 3 | Can the failure be replayed deterministically? | two-tenant fixture, cut stream, in-Pod probe, exact token fixture or crash checkpoint |
+| 4 | What repair closes the class of failures? | scoped key plus reauthorization, explicit terminal state, configured Service, reservation-first packer or stable chunk identity |
+| 5 | What regression test would fail on the old code? | cross-scope read, close-before-complete, wrong namespace, oversized-first passage or duplicate redelivery |
+
+### Example 1 — one authority invariant closes both cache leaks and wrong-account tools
+
+**Requirements.** A cached answer may be reused only inside the same trusted tenant, authorization revision, index generation and evidence visibility set. A tool may act only on an account derived from verified identity or proven membership; a model-supplied account ID is untrusted even when its JSON type is valid.
+
+The cache identity should bind the facts that make the answer reusable:
+
+```text
+cache_key = HMAC(server_secret,
+  tenant_id || authz_revision || index_generation || normalized_question_hash)
+```
+
+This key prevents a direct cross-tenant hit, but it is not sufficient by itself. On reuse, fetch the cited evidence under the caller's **current** scope. An ACL revocation after cache creation turns the entry into a miss; it does not grant historical access. Do not place raw user text or bearer tokens in the key or logs.
+
+```mermaid
+flowchart TD
+    A[Verified subject] --> B[Directory-owned tenant and account scope]
+    B --> C[Scoped cache identity]
+    C --> D{Revision and generation match?}
+    D -->|no| E[Miss and recompute]
+    D -->|yes| F[Reauthorize cited evidence]
+    F -->|visible| G[Return cached answer]
+    F -->|revoked| E
+```
+
+**Two-tenant trace.** Tenant A and tenant B both ask “What is the renewal date?” Tenant A's answer cites private document `A-7`.
+
+| Request | Key scope | Current evidence check | Outcome |
+|---|---|---|---|
+| A, first request | `A / r4 / g9 / q1` | `A-7` visible | compute and cache |
+| B, same question | `B / r2 / g9 / q1` | A's entry is unreachable | scoped miss |
+| A after ACL revision `r5` | old entry says `r4` | revision differs | stale miss |
+| A with matching revision but revoked `A-7` | key matches | `A-7` denied | revoked miss |
+
+The tool boundary uses the same rule in a different form:
+
+```java
+Account account = accounts.findByIdAndMemberId(request.accountId(), identity.subject())
+        .orElseThrow(NotFound::new); // conceal a foreign account when policy requires
+policy.requireAllowed(identity, account, request.operation());
+validateBusinessPayload(request);
+return executor.execute(account, request.operation());
+```
+
+The repository query is scoped by trusted membership, then business authorization is checked again at execution. A hidden field, prompt, retrieved document or schema-valid tool argument never selects authority. Test direct HTTP calls as well as model-generated calls; prompt filters cannot replace object-level authorization.
+
+### Example 2 — a closed SSE connection is not a completed answer
+
+**Requirement.** The client persists `COMPLETE` only after an application terminal event. Deltas are provisional. A transport close with no `complete` or `failed` event is `INCOMPLETE`, even if text was received.
+
+Use ordered event IDs and explicit event types:
+
+```text
+id: 41
+event: delta
+data: {"text":"partial"}
+
+id: 42
+event: complete
+data: {"answerId":"ans-9","citationIds":["doc-4"]}
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> OPEN
+    OPEN --> OPEN: ordered delta
+    OPEN --> COMPLETE: complete event
+    OPEN --> FAILED: failed event
+    OPEN --> INCOMPLETE: disconnect or EOF
+    INCOMPLETE --> OPEN: resume from trusted cursor
+    COMPLETE --> [*]
+    FAILED --> [*]
+```
+
+**Cut-stream trace.** The server emits IDs 39, 40 and 41, then the proxy closes the connection. The reducer keeps the text for display but stores state `INCOMPLETE` and last contiguous ID `41`. A reconnect may present that cursor. The server either resumes with event 42 or returns a typed result saying replay is unavailable; the client never fabricates `COMPLETE` from EOF.
+
+Browser `EventSource` can reconnect and send `Last-Event-ID`, so handlers must tolerate delivery around reconnects. Deduplicate by stable event ID, reject gaps or move to a resync state, and never replay an external write merely because the answer stream reconnected. An action needs its own stable operation identity.
+
+```mermaid
+sequenceDiagram
+    participant U as UI reducer
+    participant P as Proxy
+    participant S as Answer service
+    S-->>P: delta 39, 40, 41
+    P--xU: connection closes
+    U->>U: state=INCOMPLETE, cursor=41
+    U->>S: reconnect with cursor 41
+    alt replay retained
+        S-->>U: complete 42
+    else replay unavailable
+        S-->>U: explicit resync outcome
+    end
+```
+
+Test connection close after zero, one and several deltas; close immediately before the terminal event; duplicate the last event; introduce a gap; and send conflicting terminal events. The state machine must never have both success and failure terminals.
+
+### Example 3 — debug Kubernetes networking one layer at a time
+
+**Requirement.** A workload must call the configured model endpoint from its own network environment. `localhost` is valid only when the model process shares the Pod network namespace; it does not refer to the developer laptop or another Pod.
+
+```mermaid
+flowchart TD
+    A[Resolved endpoint configuration] --> B{localhost?}
+    B -->|yes| C{Model in same Pod?}
+    C -->|no| D[Wrong network namespace]
+    C -->|yes| F[TCP probe]
+    B -->|no| E[Service DNS lookup]
+    E --> F
+    F --> G[TLS and authentication]
+    G --> H[Model protocol and readiness]
+    H --> I[Application request]
+```
+
+**Layered trace.** Local development succeeds at `http://localhost:11434`; the deployed Pod reports connection refused.
+
+| Probe from the application Pod | Result | Conclusion |
+|---|---|---|
+| configuration dump names `localhost` | unexpected | endpoint identity is already wrong unless the model is a sidecar |
+| `model-runtime.ai.svc.cluster.local` resolves | yes | cluster DNS and Service name are valid |
+| TCP connect to Service port | yes | routing and listener work; continue upward |
+| authenticated health/model request | `401` | network works; fix credentials/audience, not DNS |
+| authenticated model request | schema error | transport works; inspect protocol/version mapping |
+
+Use a Kubernetes Service DNS name or an explicitly approved external endpoint. Check NetworkPolicy, egress controls, TLS trust and credentials without exposing a model port publicly as a shortcut. Record the resolved endpoint and deployment identity in release evidence so “works locally” cannot silently select another runtime.
+
+### Example 4 — preserve the question and make ingestion replay converge
+
+This example joins the source's two data-path coding tasks because both require an immutable identity before greedy or retried work begins.
+
+**Packing requirement.** Reserve output, system/safety instructions, history and the user question before evidence. Reject invalid arithmetic. Visit deduplicated evidence in ranked order, skip a passage that does not fit and continue; record selected and skipped IDs.
+
+With a 100-token window, fixed reservations `20`, question `10` and evidence sizes `[80, 20]`, the evidence allowance is `70`. Passage 1 does not fit, passage 2 does, and final use is `20 + 10 + 20 = 50`. The question is never dropped to make room for evidence.
+
+```python
+def pack(window, fixed, question, ranked_passages):
+    if window <= 0 or fixed < 0 or question.tokens <= 0:
+        raise ValueError("invalid token budget")
+    used = fixed + question.tokens
+    if used > window:
+        return "OVER_BUDGET", [], []
+    selected, skipped = [], []
+    for passage in deduplicate(ranked_passages):
+        (selected if passage.tokens <= window - used else skipped).append(passage.id)
+        if passage.id in selected:
+            used += passage.tokens
+    return "READY" if selected else "NO_EVIDENCE", selected, skipped
+```
+
+Production code must count the exact target tokenizer after final serialization; the simplified contract uses supplied positive token counts so both languages can prove the decision boundary without a tokenizer dependency.
+
+**Ingestion requirement.** A redelivered job must converge to the same visible generation as one clean attempt. Derive stable chunk identity from trusted scope and immutable source revision, then use an idempotent upsert or uniqueness constraint:
+
+```text
+chunk_id = H(tenant_id || source_id || source_revision || chunk_ordinal || chunk_content_hash)
+```
+
+```mermaid
+flowchart TD
+    A[Immutable source revision] --> B[Deterministic chunk plan]
+    B --> C[Idempotent chunk upserts]
+    C --> D{Crash?}
+    D -->|yes| E[Redelivery with same identities]
+    E --> C
+    D -->|no| F[Reconcile expected IDs and failures]
+    F -->|complete| G[Atomically publish generation]
+    F -->|incomplete| H[Keep previous generation visible]
+```
+
+**Crash trace.** A ten-chunk revision crashes after chunks 0–4. Redelivery recomputes the same ten IDs: five writes become no-ops and five upsert missing rows. Reconciliation proves exactly IDs 0–9 exist before publication. Physical attempts differ from a clean run; the published logical result does not. A changed source revision builds a new generation instead of overwriting an already published identity.
+
+Test crashes before the first write, mid-batch, after all writes but before acknowledgement and during publication. Also test a content mismatch under an existing identity; treat it as corruption/conflict, not a successful replay.
+
+### Paired executable debugging-scenarios contract
+
+[`DebuggingScenariosContracts.java`](DebuggingScenariosContracts.java) and [`debugging_scenarios_contracts.py`](debugging_scenarios_contracts.py) implement the same dependency-free decisions:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/DebuggingScenariosContracts.java
+python3 study-guides/backend/spring-ai-python/debugging_scenarios_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|CACHE=SCOPED|STREAM=TERMINAL_EVENT|NETWORK=LAYERED|PACK=QUESTION_RESERVED|INGEST=IDEMPOTENT|TOOL=AUTHORIZED
+```
+
+Each passes 31 explicit scenario groups plus 10,000 seeded cache-decision trials and 10,000 seeded ingestion-replay trials. The contracts prove ordering and fail-closed decisions; they do not run Redis, a browser/EventSource client, Kubernetes DNS/NetworkPolicy, a tokenizer, a queue, a vector index, Spring AI, FastAPI or a real account backend. Those need integration fixtures that can cut connections, revoke access and crash workers at controlled boundaries.
+
+### Correctness checklist and interview follow-ups
+
+- Cache identity contains trusted scope and revisions; reuse reauthorizes every cited object.
+- Tool scope comes from verified identity or membership, never from model/request text alone.
+- Only an explicit application terminal event marks a streamed answer complete.
+- Event IDs are contiguous or trigger resynchronization; answer reconnect never replays a write.
+- Endpoint identity is inspected before DNS, TCP, TLS/authentication and protocol probes.
+- The question and fixed reservations are protected before evidence packing.
+- Chunk IDs bind tenant, source, revision, ordinal and content; redelivery converges before publication.
+- A changed immutable revision creates a new generation; partial work never becomes visible.
+
+Useful follow-ups are: “Which revision invalidates the cache?”, “What proves the cited object is still visible?”, “What exact event changes state to complete?”, “Where does localhost point inside this Pod?”, “Does an oversized first passage block later evidence?”, “What identity makes redelivery a no-op?” and “Can direct HTTP bypass the model-facing authorization check?”
+
+### Current primary references
+
+Verified on 29 October 2026:
+
+- OWASP, [Insecure Direct Object Reference Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.html) — every object access needs server-side authorization; scope lookups to the authenticated user's permitted dataset and do not rely on hard-to-guess identifiers.
+- WHATWG HTML, [Server-sent events](https://html.spec.whatwg.org/multipage/server-sent-events.html) — `EventSource` connection states, reconnection, event IDs, `Last-Event-ID` and exact stream parsing; application completion remains an explicit event contract.
+- Kubernetes, [Services, Load Balancing, and Networking](https://kubernetes.io/docs/concepts/services-networking/) and [DNS for Services and Pods](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/) — each Pod has its own network namespace, containers in one Pod share `localhost`, and Services receive discoverable DNS names.
+- Amazon SQS, [at-least-once delivery](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html) — duplicate delivery can occur and consumers must be idempotent.
+- This guide's Section 20, **Evidence token budgeting** — reservation-first arithmetic, exact target-tokenizer recounting, rank-preserving skip packing and dependency bundles.
+
+### Source provenance and continuation
+
+The refreshed selected bundle member's complete Section 23 is source lines 1307–1332, bounded before Section 24 at line 1333. Fresh Pandoc 3.1.3 extraction places the standalone HTML section at lines 1398–1423, ending before Section 24 at line 1424; the bundle's generated HTML remains byte-identical to the standalone source. Both sources contain the same six scenarios on tenant cache leakage, incomplete SSE, Kubernetes endpoint diagnosis, question-preserving context packing, crash-safe ingestion and wrong-account tool authorization. The editable Markdown remains the structural source and no duplicate guide was created. This canonical section preserves all six scenarios while adding four connected production traces, five diagrams, current primary references and paired 31-scenario/20,000-trial contracts. Section 24, **Architecture interview questions**, begins at editable line 1333. Sections 24–25 remain queued; the wider collection is not complete.

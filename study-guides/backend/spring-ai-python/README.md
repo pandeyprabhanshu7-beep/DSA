@@ -27,6 +27,7 @@ java -ea study-guides/backend/spring-ai-python/AuthorizationBoundaryContracts.ja
 java -ea study-guides/backend/spring-ai-python/EvidenceBudgetContracts.java
 java -ea study-guides/backend/spring-ai-python/FoundationsApiContracts.java
 java -ea study-guides/backend/spring-ai-python/ConcurrencyDataToolsContracts.java
+java -ea study-guides/backend/spring-ai-python/DebuggingScenariosContracts.java
 python3 study-guides/backend/spring-ai-python/layer_selection_contracts.py
 python3 study-guides/backend/spring-ai-python/library_selection_contracts.py
 python3 study-guides/backend/spring-ai-python/java_library_map_contracts.py
@@ -49,6 +50,7 @@ python3 study-guides/backend/spring-ai-python/authorization_boundary_contracts.p
 python3 study-guides/backend/spring-ai-python/evidence_budget_contracts.py
 python3 study-guides/backend/spring-ai-python/foundations_api_contracts.py
 python3 study-guides/backend/spring-ai-python/concurrency_data_tools_contracts.py
+python3 study-guides/backend/spring-ai-python/debugging_scenarios_contracts.py
 ```
 
-This is an incremental guide. Sections 1–22 are promoted; Sections 23–25 remain queued.
+This is an incremental guide. Sections 1–23 are promoted; Sections 24–25 remain queued.
