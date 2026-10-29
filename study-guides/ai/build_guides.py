@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import hashlib
 import html
 import json
@@ -92,7 +93,15 @@ def build_one(source: Path, target: Path, title: str, brand: str, placeholder: s
     markdown_text = markdown_bytes.decode("utf-8")
     rendered = render_markdown(markdown_text)
     index = search_index(markdown_text, rendered)
-    payload = base64.b64encode(markdown_bytes).decode("ascii")
+    # Keep large standalone readers below common Git/API transfer ceilings
+    # without losing exact source recovery. gzip with mtime=0 is deterministic.
+    if len(markdown_bytes) > 250_000:
+        payload_bytes = gzip.compress(markdown_bytes, mtime=0)
+        payload_attribute = ' data-encoding="gzip+base64"'
+    else:
+        payload_bytes = markdown_bytes
+        payload_attribute = ""
+    payload = base64.b64encode(payload_bytes).decode("ascii")
     digest = hashlib.sha256(markdown_bytes).hexdigest()
     index_json = json.dumps(index, ensure_ascii=False).replace("</", "<\\/")
 
@@ -131,7 +140,7 @@ blockquote{{margin:1rem 0;padding:.35rem 1rem;border-left:4px solid var(--accent
 </aside>
 <main id="content">{rendered}</main>
 </div>
-<script id="source-markdown" type="application/octet-stream">{payload}</script>
+<script id="source-markdown" type="application/octet-stream"{payload_attribute}>{payload}</script>
 <script id="search-index" type="application/json">{index_json}</script>
 <script>
 const input=document.querySelector('#guide-search'), results=document.querySelector('#results'), status=document.querySelector('#search-status');

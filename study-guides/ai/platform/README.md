@@ -22,7 +22,8 @@
 - [Executable Java 17 recoverable-ingestion contract](RecoverableIngestionContracts.java)
 - [Executable Java 17 private model-route contract](PrivateModelRouteContracts.java)
 - [Executable Java 17 capacity/release contract](CapacityReleaseContracts.java)
+- [Executable Java 17 complete-platform-exercises contract](PlatformDesignExercisesContracts.java)
 
-This is an incremental canonical guide. Chapters 1–20 are promoted; Chapter 21 is the next bounded AI-platform source section after fair domain rotation through Arrays problem 19 and Spring AI/Python Section 20. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
+This is an incremental canonical guide. Chapters 1–21 are promoted and the selected AI-platform master is exhausted. Wider confirmed intake and the cross-domain placeholder backlog remain open. See the repository-level [AI status](../STATUS.md) for source selection, hashes, validation, and continuation.
 
 

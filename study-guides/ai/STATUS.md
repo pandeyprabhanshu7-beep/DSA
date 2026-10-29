@@ -4,7 +4,7 @@ Last updated: 2026-10-28.
 
 ## AI platform engineering
 
-State: **PROMOTED incrementally; Chapters 1–20 complete**.
+State: **PROMOTED incrementally; Chapters 1–21 complete; selected master exhausted**.
 
 Canonical pair:
 
@@ -55,10 +55,12 @@ Source comparison:
 - Deepened Chapter 19 at the distinct private-invocation boundary with four AWS/Azure/GCP/independent examples, four diagrams, identity/DNS/TLS/network/endpoint/data-action/role-separation traces, current primary references, accepted-outcome cost, and an executable Java 17 contract with 31 scenario groups and 10,000 seeded conjunction trials.
 - Compared Chapter 20 in selected master HTML lines 731–753 (fresh Pandoc 3.1.3 GFM lines 1434–1500). The companion Markdown and byte-identical illustrated HTML still end after Chapter 13, so no duplicate Chapter 20 guide was created; canonical Chapter 15 remains the owner of inference-server internals.
 - Deepened Chapter 20 at the distinct fleet/release boundary with four fleet-lease, tenant/deadline, compatibility-tuple and stage/slice/error-budget examples, five diagrams, current primary references, exact numerator/denominator traces and `CapacityReleaseContracts.java` with 31 scenario groups and 10,000 seeded admission/tuple/rollout oracle trials.
+- Compared Chapter 21 in selected master HTML lines 754–773 (fresh Pandoc 3.1.3 GFM lines 864–902). The companion Markdown and byte-identical illustrated HTML end after Chapter 13, so no duplicate guide was created.
+- Deepened Chapter 21 with three complete platform exercises and an integrated mastery defense: four support-assistant examples, four refund-copilot examples, four ingestion examples, five diagrams, authority/deadline/retry/publication traces, current primary references, and `PlatformDesignExercisesContracts.java` with 28 scenario groups plus 10,000 seeded support-decision trials.
 
-Next bounded AI-platform section: Chapter 21 after fair domain rotation. The immediate cross-domain continuation is Arrays problem 19, followed by Spring AI/Python Section 20.
+The selected AI-platform master is exhausted through Chapter 21. The immediate cross-domain continuation is Arrays problem 20, followed by Spring AI/Python Section 21; wider confirmed intake remains open.
 
-Validation for Chapter 20: Java 17 source-file launch passed all twenty AI-platform contracts; `CapacityReleaseContracts` passed 31 scenario groups and 10,000 seeded admission, tuple and rollout trials with the exact `CAPACITY=FLEET_LEASED|LOAD=TOKENS_NOT_REQUESTS|RELEASE=TUPLE_ATOMIC|SLO=STAGE_AND_SLICE|ROLLOUT=ABORTABLE` trace. Two deterministic Pandoc builds produced identical readers. The platform reader recovered the exact 271,126-byte Markdown payload at SHA-256 `9998fa2763c9a72e69f800a62a4a98b12585d8ad5570d880161f4c1f4df8356c`; 662 unique HTML IDs, 75 search entries, 471 fragment links, 20 resolved relative links, 270 balanced fence markers, 91 Mermaid sources, search JSON, inline/module JavaScript, responsive controls and `git diff --check` passed. Standalone `javac`, live provider/GPU/lease-coordinator/Kubernetes/Argo integration, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live literal-marker audit remains 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this section added none.
+Validation for Chapter 21: Java 17 source-file launch passed all twenty-one AI-platform contracts; `PlatformDesignExercisesContracts` passed 28 scenario groups and 10,000 seeded trials. Two deterministic Pandoc builds produced identical readers. The platform reader recovered the exact 289,924-byte Markdown payload at SHA-256 `0404941b3dffa9eeac3ef9dff1f0ecc8a0e385a5d02e5d634071fd56344550b6`; 701 unique HTML IDs, 76 search entries, 487 resolved fragment links, 292 balanced fence markers, 96 Mermaid sources, search JSON, inline/module JavaScript, responsive controls and `git diff --check` passed. Standalone `javac`, live identity/order/payment/queue/index integration, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live literal-marker audit remains 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this section added none.
 
 ## AI foundations, RAG and CAG
 
