@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–15 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 16–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–20 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 21–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first fifteen solved problems](#4-core-pattern-lab--first-fifteen-solved-problems)
+- [4. Core pattern lab — first twenty solved problems](#4-core-pattern-lab--first-twenty-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -45,6 +45,10 @@
   - [Example 14 — Range Sum Query — Immutable: subtract two prefix boundaries](#example-14--range-sum-query--immutable-subtract-two-prefix-boundaries)
   - [Example 15 — Product of Array Except Self: preserve both exclusive sides](#example-15--product-of-array-except-self-preserve-both-exclusive-sides)
   - [Example 16 — Subarray Sum Equals K: count prior prefix boundaries](#example-16--subarray-sum-equals-k-count-prior-prefix-boundaries)
+  - [Example 17 — Subarrays Divisible by K: pair equal normalized remainders](#example-17--subarrays-divisible-by-k-pair-equal-normalized-remainders)
+  - [Example 18 — Longest Consecutive Sequence: expand once from each unique start](#example-18--longest-consecutive-sequence-expand-once-from-each-unique-start)
+  - [Example 19 — Sort Colors: shrink one unknown region](#example-19--sort-colors-shrink-one-unknown-region)
+  - [Example 20 — Rotate Array: reverse the two logical chunks](#example-20--rotate-array-reverse-the-two-logical-chunks)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -670,7 +674,7 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first fifteen solved problems
+## 4. Core pattern lab — first twenty solved problems
 
 The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first sixteen: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, Squares of a Sorted Array, 3Sum, Container With Most Water, Trapping Rain Water, Minimum Size Subarray Sum, Fruit Into Baskets, Sliding Window Maximum, Range Sum Query — Immutable, Product of Array Except Self, and Subarray Sum Equals K. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude; problems 8–10 use sorted or boundary monotonicity to discard state safely; problems 11–13 maintain just enough window state; problem 14 precomputes cancellable prefix state for repeated immutable queries; problem 15 combines two exclusive directional aggregates without division; and problem 16 counts matching prior prefix boundaries. Problems 17–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
@@ -2609,6 +2613,139 @@ flowchart TD
 
 Executable evidence is in `SortColorsContracts.java`. It checks 20 scenario groups covering all four worked behaviors, each singleton/color pattern, invalid-input atomicity, and mutation semantics, then compares 20,000 seeded arrays with an independent `Arrays.sort` oracle while verifying multiplicities and exactly one classification per element.
 
+### Example 20 — Rotate Array: reverse the two logical chunks
+
+**Requirement.** Given a non-null integer array and a non-negative step count `k`, mutate the same array so every value moves `k` positions to the right, wrapping at the end. The source problem guarantees `1 <= nums.length <= 100,000`, `0 <= k <= 100,000`, and asks for an in-place `O(1)`-auxiliary-space follow-up. This guide's reusable wrapper additionally accepts an empty array as a no-op, rejects `null`, and rejects a negative `k` before mutation.
+
+Normalize first: for non-empty input, `shift = k % n`. Rotations that differ by a multiple of `n` are the same permutation. If `shift == 0`, return without touching the array. Do not apply `% n` before the empty-array guard because Java remainder by zero throws.
+
+| Input contract | Result contract | Mutation / space |
+|---|---|---|
+| `nums != null`, `k >= 0`; values may be any `int` | original index `i` finishes at `(i + shift) % n` | mutate that array; `O(1)` auxiliary space |
+| `nums.length == 0` reusable extension | unchanged empty array | no division and no writes |
+| invalid `null` or negative `k` | `IllegalArgumentException` | reject before any array mutation |
+
+#### Why three reversals realize the rotation
+
+Split the original sequence into `A | B`, where `B` contains the final `shift` values. A right rotation needs `B | A`. Reversing the whole array produces `reverse(B) | reverse(A)`; reversing each of those two regions restores their internal order.
+
+```mermaid
+flowchart TD
+    S["start: A | B"] --> W["reverse all: rev(B) | rev(A)"]
+    W --> P["reverse first shift: B | rev(A)"]
+    P --> R["reverse remainder: B | A"]
+```
+
+The baseline extra-array solution writes `out[(i + shift) % n] = nums[i]` for every `i`, then copies back: `O(n)` time and `O(n)` extra space. Repeated one-step shifts are `O(n * k)` and obscure the required constant-space solution. Three reversals perform the same permutation in `O(n)` time and `O(1)` auxiliary space.
+
+```java
+static void rotateRight(int[] nums, int k) {
+    if (nums == null) {
+        throw new IllegalArgumentException("nums must not be null");
+    }
+    if (k < 0) {
+        throw new IllegalArgumentException("k must be non-negative");
+    }
+    if (nums.length < 2) {
+        return; // also avoids k % 0 for the reusable empty-array contract
+    }
+
+    int shift = k % nums.length;
+    if (shift == 0) {
+        return;
+    }
+
+    reverse(nums, 0, nums.length - 1);
+    reverse(nums, 0, shift - 1);
+    reverse(nums, shift, nums.length - 1);
+}
+
+private static void reverse(int[] nums, int left, int right) {
+    while (left < right) {
+        int temporary = nums[left];
+        nums[left] = nums[right];
+        nums[right] = temporary;
+        left++;
+        right--;
+    }
+}
+```
+
+```mermaid
+flowchart TD
+    V{"valid nums and k?"} -->|no| X["reject before mutation"]
+    V -->|yes| N{"length < 2?"}
+    N -->|yes| D["done"]
+    N -->|no| M["shift = k % length"]
+    M --> Z{"shift == 0?"}
+    Z -->|yes| D
+    Z -->|no| T["reverse all, prefix, suffix"]
+    T --> D
+```
+
+#### Worked case 1 — canonical full trace
+
+For `nums = [1,2,3,4,5,6,7]` and `k = 3`, `shift = 3`, `A = [1,2,3,4]`, and `B = [5,6,7]`.
+
+| phase | inclusive range | array after phase |
+|---|---|---|
+| start | — | `[1,2,3,4,5,6,7]` |
+| reverse whole array | `[0,6]` | `[7,6,5,4,3,2,1]` |
+| reverse rotated prefix | `[0,2]` | `[5,6,7,4,3,2,1]` |
+| reverse remaining suffix | `[3,6]` | `[5,6,7,1,2,3,4]` |
+
+```mermaid
+flowchart LR
+    A["1 2 3 4 | 5 6 7"] --> B["7 6 5 | 4 3 2 1"]
+    B --> C["5 6 7 | 4 3 2 1"]
+    C --> D["5 6 7 | 1 2 3 4"]
+```
+
+The result matches the destination rule: original index 0 moves to 3, index 3 moves to 6, and index 6 wraps to 2.
+
+#### Worked case 2 — values are opaque
+
+For `[-1,-100,3,99]` and `k = 2`, `shift = 2`; the result is `[3,99,-1,-100]`. Rotation never compares or performs arithmetic on component values, so negatives, duplicates, `Integer.MIN_VALUE`, and `Integer.MAX_VALUE` behave exactly like any other payload. Only positions matter.
+
+#### Worked case 3 — normalize a large step count
+
+For `[1,2,3,4,5]` and `k = 7`, `shift = 7 % 5 = 2`, so the result is `[4,5,1,2,3]`. For the same input, `k = 0`, `5`, or `10` normalizes to zero and returns without swaps. A one-element array is unchanged for every non-negative `k`, including `Integer.MAX_VALUE`.
+
+```mermaid
+flowchart LR
+    K["k = 7"] --> N["shift = 2"]
+    N --> A["A = 1 2 3"]
+    N --> B["B = 4 5"]
+    A --> O["B | A = 4 5 1 2 3"]
+    B --> O
+```
+
+#### Worked case 4 — reusable boundary and failure behavior
+
+`[]` with `k = 9` remains `[]`; the wrapper returns before evaluating `9 % 0`. `null` is rejected. `[1,2,3]` with `k = -1` is rejected before any reversal, and the array remains `[1,2,3]`. The original problem does not permit negative `k`; if a different API defines negative values as left rotation, normalize with `Math.floorMod(k, n)` only after the empty-array guard and document that changed contract.
+
+**Index proof.** Let `n > 1` and `0 < shift < n`.
+
+- If original index `i < n - shift`, its value is in `A`. Whole reversal moves it to `n - 1 - i`, inside the final `n - shift` positions. Reversing that suffix maps it to `shift + i`, which equals `(i + shift) % n` without wrap.
+- If `i >= n - shift`, its value is in `B`. Whole reversal moves it to `n - 1 - i`, inside the first `shift` positions. Reversing that prefix maps it to `shift - 1 - (n - 1 - i) = i - (n - shift)`, which equals `(i + shift) % n` after wrap.
+
+Every original index belongs to exactly one case, and each reversal is a bijection, so no value is lost or duplicated. Therefore the final array is exactly the required rotation.
+
+| Original region | Destination after all reversals | Required destination |
+|---|---:|---:|
+| `A`: `0 <= i < n - shift` | `i + shift` | `(i + shift) % n` |
+| `B`: `n - shift <= i < n` | `i - (n - shift)` | `(i + shift) % n` |
+
+**Termination and bounds.** Each `reverse` iteration increments `left` and decrements `right`, shrinking `right - left + 1` by two until `left >= right`. The three ranges are valid because `0 < shift < n`. Across all three reversals, the algorithm performs at most `n` swaps and at most `2n` component writes. Its running time is `O(n)` and auxiliary space is `O(1)`; it does not allocate an output array and preserves the caller's array identity.
+
+**Memory line:** `right rotate = reverse all, reverse first shift, reverse the rest.`
+
+**Common interview errors:** taking `% nums.length` before checking an empty reusable input; forgetting to normalize `k`; reversing `[0, shift]` instead of `[0, shift - 1]`; mixing inclusive and exclusive endpoints; omitting the `shift == 0` no-op; claiming repeated one-step shifting is linear for arbitrary `k`; silently accepting negative `k` with Java's signed remainder; or returning a new array when the contract requires mutation.
+
+**Follow-ups:** compare the reversal method with cycle replacement and the greatest-common-divisor block-swap method; adapt the split for left rotation; support object arrays without changing the positional proof; or return a rotated copy when mutation is forbidden.
+
+Executable evidence is in `RotateArrayContracts.java`. It checks 20 deterministic scenario groups covering the four worked behaviors, large `k`, no-op rotations, singleton/empty extensions, full-width values, caller mutation and failure atomicity, then compares 20,000 seeded cases against an independent destination-index oracle. It also verifies the normalized shift and the at-most-`n` swap bound.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -2633,6 +2770,9 @@ Executable evidence is in `SortColorsContracts.java`. It checks 20 scenario grou
 - [LeetCode, “Range Sum Query — Immutable”](https://leetcode.com/problems/range-sum-query-immutable/) — primary repeated inclusive-query contract, canonical example and original bounds.
 - [LeetCode, “Product of Array Except Self”](https://leetcode.com/problems/product-of-array-except-self/) — primary no-division, linear-time, output-space-exclusion and 32-bit-product contract.
 - [LeetCode, “Subarray Sum Equals K”](https://leetcode.com/problems/subarray-sum-equals-k/) — primary non-empty contiguous-subarray, signed-input, exact-target and result-count contract.
+- [LeetCode, “Rotate Array”](https://leetcode.com/problems/rotate-array/) — primary non-negative right-rotation contract, canonical examples, constraints and in-place constant-space follow-up.
+- [Java Language Specification, Java SE 25, §15.17.3](https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.17.3) — integer remainder semantics and the zero-divisor exception relevant to `k % n`.
+- [Java SE 25 `Math.floorMod`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html#floorMod(int,int)) — non-negative modulus normalization for an explicitly extended signed-rotation API.
 - [LeetCode, “Subarray Sums Divisible by K”](https://leetcode.com/problems/subarray-sums-divisible-by-k/) — primary non-empty contiguous-subarray, signed-input, positive-modulus and result-count contract.
 - [LeetCode, “Longest Consecutive Sequence”](https://leetcode.com/problems/longest-consecutive-sequence/) — primary unsorted-input, consecutive-value and linear-time contract.
 - [LeetCode, “Sort Colors”](https://leetcode.com/problems/sort-colors/) — primary in-place three-color contract, no-library-sort rule, examples, value bounds and one-pass/constant-space follow-up.
