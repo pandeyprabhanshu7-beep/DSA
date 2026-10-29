@@ -2746,6 +2746,137 @@ Every original index belongs to exactly one case, and each reversal is a bijecti
 
 Executable evidence is in `RotateArrayContracts.java`. It checks 20 deterministic scenario groups covering the four worked behaviors, large `k`, no-op rotations, singleton/empty extensions, full-width values, caller mutation and failure atomicity, then compares 20,000 seeded cases against an independent destination-index oracle. It also verifies the normalized shift and the at-most-`n` swap bound.
 
+### Example 21 — Next Permutation: make the smallest possible increase
+
+**Requirement.** Given a non-null integer array, mutate that same array into the lexicographically next greater arrangement of its current multiset. If no greater arrangement exists, wrap to the lexicographically smallest arrangement. The original problem guarantees `1 <= nums.length <= 100` and `0 <= nums[i] <= 100`; this reusable implementation also accepts an empty array as an unchanged boundary case and permits every Java `int` value. It uses constant auxiliary space and does not allocate or return a replacement array.
+
+Lexicographic order compares the first position at which two equal-length arrays differ. To make the immediate successor, preserve the longest possible prefix, increase the next position by the smallest possible amount, then minimize everything to its right.
+
+| Approach | Time | Extra space | Judgment |
+|---|---:|---:|---|
+| Generate every permutation, sort, find the current one | `O(n! * n)` or worse | `O(n! * n)` | Useful only as a tiny-input oracle |
+| Copy, sort, and repeatedly advance permutations | potentially factorial | at least `O(n)` | Violates the in-place/constant-space target |
+| Rightmost pivot, rightmost greater successor, reverse suffix | `O(n)` | `O(1)` | Meets the contract |
+
+#### The three structural facts
+
+Scan from right to left while `nums[i] >= nums[i + 1]`. The scanned suffix is non-increasing, so it is already the greatest arrangement of those suffix values.
+
+```mermaid
+flowchart LR
+    P["unchanged prefix"] --> I["pivot i"]
+    I --> S["non-increasing suffix"]
+    S --> C["rightmost value greater than pivot"]
+```
+
+1. The first index `i` with `nums[i] < nums[i + 1]` is the **rightmost pivot** that can be increased. If none exists, the whole array is the greatest permutation; reversing it performs the required wrap.
+2. In the non-increasing suffix, the rightmost value strictly greater than the pivot is the **smallest available greater value**. Swap it with the pivot. Strict `>` matters when duplicates exist.
+3. After that swap, the suffix is still non-increasing. Reverse it to make the tail non-decreasing—the smallest possible tail for the newly increased prefix.
+
+```java
+static void nextPermutation(int[] nums) {
+    if (nums == null) {
+        throw new IllegalArgumentException("nums must not be null");
+    }
+
+    int pivot = nums.length - 2;
+    while (pivot >= 0 && nums[pivot] >= nums[pivot + 1]) {
+        pivot--;
+    }
+
+    if (pivot >= 0) {
+        int successor = nums.length - 1;
+        while (nums[successor] <= nums[pivot]) {
+            successor--;
+        }
+        swap(nums, pivot, successor);
+    }
+    reverse(nums, pivot + 1, nums.length - 1);
+}
+
+private static void reverse(int[] nums, int left, int right) {
+    while (left < right) {
+        swap(nums, left, right);
+        left++;
+        right--;
+    }
+}
+
+private static void swap(int[] nums, int left, int right) {
+    int temporary = nums[left];
+    nums[left] = nums[right];
+    nums[right] = temporary;
+}
+```
+
+```mermaid
+flowchart TD
+    A["scan from n-2 for nums[i] < nums[i+1]"] --> Q{"pivot exists?"}
+    Q -->|no| W["reverse the entire array"]
+    Q -->|yes| J["scan from right for nums[j] > nums[i]"]
+    J --> X["swap pivot and successor"]
+    X --> R["reverse suffix i+1 through n-1"]
+    W --> D["done"]
+    R --> D
+```
+
+#### Worked case 1 — canonical one-step increase
+
+For `[1,2,3]`, the pivot is index 1 because `2 < 3`. The rightmost greater value is 3 at index 2. Swapping gives `[1,3,2]`; the one-element suffix is already minimal. This is the immediate successor, not merely some greater permutation.
+
+| phase | indices / comparison | array after phase |
+|---|---|---|
+| find pivot | `i=1`, `2 < 3` | `[1,2,3]` |
+| find successor | `j=2`, `3 > 2` | `[1,2,3]` |
+| swap | indices 1 and 2 | `[1,3,2]` |
+| reverse suffix | `[2,2]` | `[1,3,2]` |
+
+#### Worked case 2 — a longer decreasing suffix
+
+For `[1,4,3,2]`, indices 1 through 3 form a non-increasing suffix. The pivot is index 0 with value 1. Scanning from the right selects 2—the smallest suffix value greater than 1—not the larger 4 encountered near the left. Swap to get `[2,4,3,1]`, then reverse the suffix to obtain `[2,1,3,4]`.
+
+```mermaid
+flowchart LR
+    A["1 | 4 3 2"] -->|"pivot 1; successor 2"| B["2 | 4 3 1"]
+    B -->|"reverse suffix"| C["2 | 1 3 4"]
+```
+
+| phase | pivot | successor | suffix state | array |
+|---|---:|---:|---|---|
+| start | — | — | `4,3,2` decreasing | `[1,4,3,2]` |
+| select | index 0: 1 | index 3: 2 | greatest ordering for its values | `[1,4,3,2]` |
+| swap | value 2 | value 1 | `4,3,1` decreasing | `[2,4,3,1]` |
+| minimize tail | — | — | reverse to `1,3,4` | `[2,1,3,4]` |
+
+#### Worked case 3 — duplicates require strict comparisons
+
+For `[1,1,5]`, index 1 is the pivot and 5 is its successor, producing `[1,5,1]`. For `[1,2,2,3]`, the result is `[1,2,3,2]`. The pivot test uses `<`, and the successor must be strictly greater; swapping an equal value would not increase the permutation. The rightmost-greater rule automatically selects the least greater value even when the suffix contains repeated components.
+
+#### Worked case 4 — wrap and reusable boundaries
+
+`[3,2,1]` has no ascent, so it is already the greatest permutation; reversing the whole array yields `[1,2,3]`. `[7,7,7]` also has no pivot and remains value-equivalent after reversal. `[]` and `[42]` are unchanged. `null` is rejected before mutation.
+
+```mermaid
+flowchart LR
+    G["3 2 1: no pivot"] --> R["reverse indices 0..2"]
+    R --> L["1 2 3: smallest permutation"]
+    E["empty or singleton"] --> N["reverse range is empty; unchanged"]
+```
+
+**Why the result is immediate.** Let `i` be the rightmost pivot. Keeping positions `0..i` unchanged cannot produce a larger permutation because the suffix `i+1..n-1` is already maximal. Changing a position left of `i` would discard permutations obtainable by changing the less-significant position `i`, so the immediate successor must change `i`. Because the suffix is non-increasing, its rightmost component greater than `nums[i]` is the least such component; choosing any larger successor would skip a valid permutation. After the swap, reversing the still non-increasing suffix gives its smallest ordering. Thus no lexicographically greater arrangement lies between the input and the result.
+
+If no pivot exists, every adjacent pair is non-increasing, so the entire array is the greatest arrangement of its multiset. Reversal produces the non-decreasing smallest arrangement and satisfies the wrap rule.
+
+**Termination and complexity.** Each scan moves one index strictly left or right, and each reversal iteration shrinks its range by two. The three phases inspect at most a constant multiple of `n` components, so time is `O(n)`. Only indices and one swap temporary are stored, so auxiliary space is `O(1)`. At most one pivot swap plus `floor((n - i - 1) / 2)` suffix swaps occur; in the wrap case there are `floor(n / 2)` swaps. The caller's array identity and component multiset are preserved.
+
+**Memory line:** `rightmost ascent; swap with rightmost greater; reverse the suffix.`
+
+**Common interview errors:** looking for the leftmost ascent; choosing the largest rather than least-greater successor; accepting an equal successor; sorting the suffix in `O(n log n)` when reversal is sufficient; reversing from `pivot` instead of `pivot + 1`; forgetting the no-pivot wrap; returning a new array; treating duplicates as distinct identities; or claiming that `[1,4,3,2]` jumps to `[2,4,3,1]` without minimizing its suffix.
+
+**Follow-ups:** produce the previous permutation by mirroring every comparison and reversing a non-decreasing suffix; compute the `k`th next permutation with rank/unrank methods when repeated stepping is too slow; generalize to object arrays with a comparator; or enumerate all distinct multiset permutations by starting from sorted order and repeatedly applying this transformation until it wraps.
+
+Executable evidence is in `NextPermutationContracts.java`. It checks 20 deterministic scenario groups covering all four worked behaviors, duplicates, signed and full-width values, empty/singleton extensions, caller identity, wraparound and null rejection. It then compares 20,000 seeded arrays of length at most six with an independent exhaustive-permutation oracle, while verifying multiplicity preservation and the swap bound.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -2771,6 +2902,7 @@ Executable evidence is in `RotateArrayContracts.java`. It checks 20 deterministi
 - [LeetCode, “Product of Array Except Self”](https://leetcode.com/problems/product-of-array-except-self/) — primary no-division, linear-time, output-space-exclusion and 32-bit-product contract.
 - [LeetCode, “Subarray Sum Equals K”](https://leetcode.com/problems/subarray-sum-equals-k/) — primary non-empty contiguous-subarray, signed-input, exact-target and result-count contract.
 - [LeetCode, “Rotate Array”](https://leetcode.com/problems/rotate-array/) — primary non-negative right-rotation contract, canonical examples, constraints and in-place constant-space follow-up.
+- [LeetCode, “Next Permutation”](https://leetcode.com/problems/next-permutation/) — primary lexicographic-successor, in-place mutation, wraparound and constant-extra-memory contract, including duplicate-value examples.
 - [Java Language Specification, Java SE 25, §15.17.3](https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.17.3) — integer remainder semantics and the zero-divisor exception relevant to `k % n`.
 - [Java SE 25 `Math.floorMod`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html#floorMod(int,int)) — non-negative modulus normalization for an explicitly extended signed-rotation API.
 - [LeetCode, “Subarray Sums Divisible by K”](https://leetcode.com/problems/subarray-sums-divisible-by-k/) — primary non-empty contiguous-subarray, signed-input, positive-modulus and result-count contract.
@@ -2788,9 +2920,9 @@ Executable evidence is in `RotateArrayContracts.java`. It checks 20 deterministi
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 19 (problem 19 is lines 1961–2055, bounded before the problem 20 anchor at line 2056). Selected as the editable structural source.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 19 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 18 at lines 1841–1935 and problem 19 at lines 1936–2028, bounded before problem 20 at line 2029). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 21 (Next Permutation is lines 2153–2249, bounded before problem 22 at line 2250). Selected as the editable structural source.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 21 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 21 at lines 2122–2218, bounded before problem 22 at line 2219). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 19, “Sort Colors,” is promoted from Markdown lines 1961–2055 and fresh no-wrap DOCX GFM-extracted lines 1936–2028; problem 20, “Rotate Array,” begins at Markdown line 2056 and no-wrap DOCX GFM-extracted line 2029.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 21, “Next Permutation,” is promoted from Markdown lines 2153–2249 and fresh no-wrap DOCX GFM-extracted lines 2122–2218; problem 22, “Find the Duplicate Number,” begins at Markdown line 2250 and no-wrap DOCX GFM-extracted line 2219.
 
 
