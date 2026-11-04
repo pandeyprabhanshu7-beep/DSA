@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–26 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 27–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–29 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 30–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first twenty-four solved problems](#4-core-pattern-lab--first-twenty-four-solved-problems)
+- [4. Core pattern lab — first twenty-nine solved problems](#4-core-pattern-lab--first-twenty-nine-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -53,6 +53,11 @@
   - [Example 22 — Find the Duplicate Number: find a cycle entrance without mutation](#example-22--find-the-duplicate-number-find-a-cycle-entrance-without-mutation)
   - [Example 23 — First Missing Positive: place only useful values into home indices](#example-23--first-missing-positive-place-only-useful-values-into-home-indices)
   - [Example 24 — Search in Rotated Sorted Array: prove one half is ordered, then discard the other](#example-24--search-in-rotated-sorted-array-prove-one-half-is-ordered-then-discard-the-other)
+  - [Example 25 — Find First and Last Position: search for two monotonic boundaries](#example-25--find-first-and-last-position-search-for-two-monotonic-boundaries)
+  - [Example 26 — Koko Eating Bananas: binary-search the first feasible rate](#example-26--koko-eating-bananas-binary-search-the-first-feasible-rate)
+  - [Example 27 — Split Array Largest Sum: minimize a contiguous capacity](#example-27--split-array-largest-sum-minimize-a-contiguous-capacity)
+  - [Example 28 — Merge Intervals: sort once, close one component at a time](#example-28--merge-intervals-sort-once-close-one-component-at-a-time)
+  - [Example 29 — Insert Interval: preserve the three ordered regions](#example-29--insert-interval-preserve-the-three-ordered-regions)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -680,9 +685,9 @@ Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite 
 
 <a id="4-core-pattern-lab--first-twenty-solved-problems"></a>
 
-## 4. Core pattern lab — first twenty-four solved problems
+## 4. Core pattern lab — first twenty-nine solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first sixteen: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, Squares of a Sorted Array, 3Sum, Container With Most Water, Trapping Rain Water, Minimum Size Subarray Sum, Fruit Into Baskets, Sliding Window Maximum, Range Sum Query — Immutable, Product of Array Except Self, and Subarray Sum Equals K. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude; problems 8–10 use sorted or boundary monotonicity to discard state safely; problems 11–13 maintain just enough window state; problem 14 precomputes cancellable prefix state for repeated immutable queries; problem 15 combines two exclusive directional aggregates without division; and problem 16 counts matching prior prefix boundaries. Problems 17–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–29. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; and 28–29 normalize or preserve interval components. Problems 30–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -3751,6 +3756,120 @@ For `[[Integer.MAX_VALUE,Integer.MAX_VALUE],[Integer.MIN_VALUE,-1],[-1,0]]`, saf
 
 Executable evidence is in `MergeIntervalsContracts.java`. It covers 20 deterministic groups, including all four worked behaviors, duplicates, empty/singleton/disjoint inputs, nested and transitive chains, full-width endpoints, canonical ordering, deep ownership, input preservation and malformed-row rejection. It then checks 20,000 seeded interval sets against an independent repeated-pair union oracle while verifying exact point coverage, canonical output and nonmutation.
 
+### Example 29 — Insert Interval: preserve the three ordered regions
+
+**Official contract.** `intervals` is already sorted by start and pairwise non-overlapping, and every row plus `newInterval` is a closed interval `[start,end]`. Insert the new interval, merge every component that shares at least one point with it, and return a sorted, non-overlapping result. The official problem permits a new output and supplies non-negative endpoints. The reusable implementation below also accepts empty input and the full Java `int` endpoint range, validates the sorted/disjoint precondition, preserves both caller inputs, and returns fresh rows.
+
+Re-sorting would solve a more general problem than the contract requires. Existing intervals fall into exactly three consecutive regions relative to the growing inserted component:
+
+1. **before:** `interval.end < mergedStart` — copy it unchanged;
+2. **overlap:** `interval.start <= mergedEnd` — absorb it and widen both boundaries;
+3. **after:** every remaining interval starts after `mergedEnd` — append the merged component once, then copy the suffix.
+
+```mermaid
+flowchart LR
+    B["before: end < new start"] --> O["overlap: start <= new end"]
+    O --> N["append merged new interval"]
+    N --> A["after: copy remaining suffix"]
+```
+
+```java
+static int[][] insertInterval(int[][] intervals, int[] newInterval) {
+    validateNormalized(intervals);
+    if (newInterval == null || newInterval.length != 2
+            || newInterval[0] > newInterval[1]) {
+        throw new IllegalArgumentException("newInterval must be [start,end]");
+    }
+
+    int[][] result = new int[intervals.length + 1][2];
+    int read = 0, write = 0;
+    int mergedStart = newInterval[0];
+    int mergedEnd = newInterval[1];
+
+    while (read < intervals.length && intervals[read][1] < mergedStart) {
+        result[write++] = intervals[read++].clone();
+    }
+    while (read < intervals.length && intervals[read][0] <= mergedEnd) {
+        mergedStart = Math.min(mergedStart, intervals[read][0]);
+        mergedEnd = Math.max(mergedEnd, intervals[read][1]);
+        read++;
+    }
+    result[write++] = new int[] {mergedStart, mergedEnd};
+    while (read < intervals.length) {
+        result[write++] = intervals[read++].clone();
+    }
+    return Arrays.copyOf(result, write);
+}
+```
+
+Validation requires `previous.end < current.start`, not merely `previous.end <= current.start`, because the closed intervals `[1,4]` and `[4,5]` share point 4 and therefore are not a normalized non-overlapping input pair. The strict-before test uses the same semantics: equality belongs to the overlap phase.
+
+```mermaid
+flowchart TD
+    I["next normalized interval"] --> P{"end < merged start?"}
+    P -->|yes| C["copy before interval"]
+    P -->|no| Q{"start <= merged end?"}
+    Q -->|yes| M["widen merged boundaries"]
+    Q -->|no| F["merged component is final"]
+```
+
+#### Worked case 1 — insert across one component
+
+For `intervals = [[1,3],[6,9]]` and `newInterval = [2,5]`, `[1,3]` is not strictly before because `3 < 2` is false; it overlaps because `1 <= 5`, widening the active component to `[1,5]`. `[6,9]` begins after 5, so the result is `[[1,5],[6,9]]`.
+
+#### Worked case 2 — bridge several components
+
+For `[[1,2],[3,5],[6,7],[8,10],[12,16]]` and `[4,8]`:
+
+| phase | current interval | merged interval before | decision | output prefix after |
+|---|---|---|---|---|
+| before | `[1,2]` | `[4,8]` | `2 < 4`, copy | `[[1,2]]` |
+| overlap | `[3,5]` | `[4,8]` | `3 <= 8`, widen start | `[[1,2]]` |
+| overlap | `[6,7]` | `[3,8]` | `6 <= 8`, contained | `[[1,2]]` |
+| overlap | `[8,10]` | `[3,8]` | endpoint 8 touches, widen end | `[[1,2]]` |
+| boundary | `[12,16]` | `[3,10]` | `12 > 10`, append merged | `[[1,2],[3,10]]` |
+| after | `[12,16]` | already final | copy suffix | `[[1,2],[3,10],[12,16]]` |
+
+```mermaid
+flowchart LR
+    A["[3,5]"] --> B["new [4,8]"]
+    B --> C["[6,7]"]
+    C --> D["[8,10]"]
+    D --> U["one component [3,10]"]
+```
+
+#### Worked case 3 — before all, after all, and empty input
+
+- Insert `[1,2]` into `[[5,7],[9,11]]` to get `[[1,2],[5,7],[9,11]]`.
+- Insert `[12,14]` into the same input to get `[[5,7],[9,11],[12,14]]`.
+- Insert `[-3,-3]` into `[]` to get `[[-3,-3]]`.
+
+These are not separate algorithms. In the first case the overlap phase is empty; in the second the before phase consumes the entire input; in the third both input-copy phases are empty.
+
+#### Worked case 4 — full-width bridge and ownership
+
+For `[[Integer.MIN_VALUE,-10],[10,Integer.MAX_VALUE]]` and `[-10,10]`, closed-endpoint contact absorbs both existing intervals and returns `[[Integer.MIN_VALUE,Integer.MAX_VALUE]]`. No subtraction or endpoint increment is used, so the extreme values are safe. Mutating the result cannot change either input matrix or `newInterval`, because every returned row is newly allocated.
+
+```mermaid
+flowchart LR
+    L["caller intervals"] -->|"clone copied rows"| R["result rows"]
+    N["caller newInterval"] -->|"copy two endpoints"| M["fresh merged row"]
+    R -. "no aliases" .- L
+    M -. "no alias" .- N
+```
+
+**Three-phase invariant.** Before each comparison, the output prefix contains exactly the original intervals proven strictly before the growing merged interval; `mergedStart..mergedEnd` is the union of `newInterval` and every consumed overlapping interval; and all unread intervals remain sorted, normalized, and no earlier than the consumed prefix. A before interval cannot overlap the active component by the strict inequality. Absorbing an overlap preserves the union, and normalization ensures no skipped interval lies between consumed ones.
+
+When the first after interval is reached, its start is greater than `mergedEnd`. Every later start is at least as large, so the merged component can never grow again and is safe to append. Copying the untouched suffix preserves its internal gaps and its strict gap from the merged component. At termination the output is therefore sorted, pairwise non-overlapping, and covers exactly the old intervals plus `newInterval`.
+
+**Complexity.** Each existing interval is examined once, so time is `O(n)`. The result holds at most `n + 1` rows, hence output space is `O(n)`; aside from returned storage, the scan uses `O(1)` state. Validation is another `O(n)` pass and does not change the asymptotic bound. Appending, sorting, and merging would cost `O(n log n)` and discard the strongest input guarantee.
+
+**Common interview errors:** sorting normalized input unnecessarily; using `<=` in the before phase for closed intervals; forgetting that endpoint contact overlaps; mutating `newInterval` while claiming preservation; returning original row aliases; validating only row shapes but not sorted/disjoint order; widening only the end and missing a new interval that begins inside an existing interval; appending the merged interval more than once; losing the suffix after a bridge; using endpoint `+ 1` or subtraction near integer limits; or claiming constant total space while returning a new matrix.
+
+**Follow-ups:** mutate the input when spare capacity is available; insert into half-open intervals by changing the equality rules deliberately; accept unsorted/overlapping input by falling back to sort-and-merge; insert many intervals online with a balanced interval map; return provenance IDs for every absorbed component; delete a closed interval and split components; or compute the newly covered length with overflow-safe arithmetic.
+
+Executable evidence is in `InsertIntervalContracts.java`. It covers 20 deterministic groups, including both official examples, all three empty-phase shapes, touching endpoints, complete containment, full-width endpoints, input and inserted-interval preservation, fresh ownership and malformed/non-normalized rejection. It then compares 20,000 seeded normalized inputs with an independent append-sort-merge oracle while checking canonical output and exact small-domain point coverage.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -3760,6 +3879,7 @@ Executable evidence is in `MergeIntervalsContracts.java`. It covers 20 determini
 - [LeetCode, “Koko Eating Bananas”](https://leetcode.com/problems/koko-eating-bananas/) — primary pile/hour model, minimum-speed result, examples and feasible input bounds for problem 26.
 - [LeetCode, “Split Array Largest Sum”](https://leetcode.com/problems/split-array-largest-sum/) — primary exact-`k`, non-empty contiguous-subarray, minimized-largest-sum contract, examples and non-negative input bounds for problem 27.
 - [LeetCode, “Merge Intervals”](https://leetcode.com/problems/merge-intervals/) — primary closed-interval overlap, union-coverage, canonical examples and input bounds for problem 28.
+- [LeetCode, “Insert Interval”](https://leetcode.com/problems/insert-interval/) — primary sorted, non-overlapping closed-interval input contract, canonical examples, allowed new output and endpoint bounds for problem 29.
 - [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
 - [Java Language Specification, Java SE 17, §15.17.2](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17.2) — integer-division truncation used to derive exact positive ceiling division.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — Java integer-overflow guidance and `max` contract used by the answer-space bound.
@@ -3806,9 +3926,9 @@ Executable evidence is in `MergeIntervalsContracts.java`. It covers 20 determini
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 28 (Merge Intervals is lines 2877–2980, bounded before problem 29 at line 2981). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 28 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 28 at lines 2817–2911, bounded before problem 29 at line 2912). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 29 (Insert Interval is lines 2981–3074, bounded before problem 30 at line 3075). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 29 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 29 at lines 2912–3006, bounded before problem 30 at line 3007). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 28, “Merge Intervals,” is promoted from Markdown lines 2877–2980 and fresh no-wrap DOCX GFM-extracted lines 2817–2911; problem 29, “Insert Interval,” begins at Markdown line 2981 and no-wrap DOCX GFM-extracted line 2912.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 29, “Insert Interval,” is promoted from Markdown lines 2981–3074 and fresh no-wrap DOCX GFM-extracted lines 2912–3006; problem 30, “Set Matrix Zeroes,” begins at Markdown line 3075 and no-wrap DOCX GFM-extracted line 3007.
 
 

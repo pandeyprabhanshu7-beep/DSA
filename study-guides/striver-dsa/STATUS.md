@@ -306,4 +306,12 @@ The deterministic responsive reader embeds the exact 236,965 canonical Markdown 
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 29, Insert Interval, is the next exact source continuation, subject to the next fair-domain rotation check.
 
+## Arrays Insert Interval enrichment — 2026-11-04 ET
+
+Arrays Section 4 problem 29 now states the sorted, pairwise-disjoint closed-interval precondition; separates the before, overlap and after regions; and preserves both caller inputs with fresh output rows. The section adds four worked cases, four diagrams, an exact bridge trace, a three-phase invariant, a linear-time correctness proof, full-width endpoint handling and validation for malformed or non-normalized input. `InsertIntervalContracts` validates 20 deterministic groups plus 20,000 seeded normalized inputs against an independent append-sort-merge oracle while checking exact point coverage, canonical output, input preservation and fresh row ownership. All 29 Arrays evidence programs passed in Java 17 source-file mode: 540 scenario groups and 560,000 seeded/randomized oracle trials or comparisons. A standalone `javac` executable was not available.
+
+The deterministic responsive reader embeds the exact 245,397 canonical Markdown bytes at SHA-256 `9a895fdbf228d7480625a342f7c0fc6ff644bfda77527ec332ad6528fabf4bd9`; validation found 1,037 unique IDs, 57 unique search entries, 887 resolved fragment links, zero relative links, 310 balanced fence markers, 114 Mermaid sources and four syntactically valid script blocks. Rebuilding produced byte-identical HTML at SHA-256 `1268ada6ba689fb754093572b952d65822904827112f47f8af94bb3c5dd2634f`. Both confirmed source artifacts agree on problem 29 and remain unchanged at their recorded hashes.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 30, Set Matrix Zeroes, is the next exact source continuation, subject to the next fair-domain rotation check.
+
 
