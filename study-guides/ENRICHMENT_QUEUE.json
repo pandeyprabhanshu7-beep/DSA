@@ -270,9 +270,9 @@
       "modified_at": "2026-09-08T00:10:00.740223Z",
       "size_bytes": 229697,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-11-04T13:21:54-05:00",
+      "last_read_at": "2026-11-04T14:47:42-05:00",
       "sha256": "735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda",
-      "selection": "Selected as the editable structural source; Sections 1-3 lines 141-251 and Section 4 problems 1-27 were compared and promoted. Problem 27, Split Array Largest Sum, is bounded by lines 2761-2876; problem 28 begins at line 2877. Refreshed Library metadata, source bytes and hash are unchanged."
+      "selection": "Selected as the editable structural source; Sections 1-3 lines 141-251 and Section 4 problems 1-28 were compared and promoted. Problem 28, Merge Intervals, is bounded by lines 2877-2980; problem 29 begins at line 2981. Refreshed Library metadata, source bytes and hash are unchanged."
     },
     {
       "name": "Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
@@ -345,9 +345,9 @@
       "modified_at": "2026-09-03T01:55:56.718502Z",
       "size_bytes": 125274,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-11-04T13:21:54-05:00",
+      "last_read_at": "2026-11-04T14:47:42-05:00",
       "sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-      "selection": "Compared as the corroborating companion; Sections 1-3 and Section 4 problems 1-27 agree with the Markdown source. Fresh Pandoc 3.1.3 GFM extraction with --wrap=none places problem 27 at lines 2709-2816 and problem 28 at line 2817. All 116 rendered pages were previously visually inspected; no duplicate guide was created."
+      "selection": "Compared as the corroborating companion; Sections 1-3 and Section 4 problems 1-28 agree with the Markdown source. Fresh Pandoc 3.1.3 GFM extraction with --wrap=none places problem 28 at lines 2817-2911 and problem 29 at line 2912. All 116 rendered pages were previously visually inspected; no duplicate guide was created."
     },
     {
       "name": "AI_RAG_CAG_Deep_Learning_Developer_Guide.docx",
@@ -502,7 +502,7 @@
         "DSA_Arrays_FAANG_Mermaid_Question_Workbook.md",
         "DSA_Arrays_FAANG_Question_Workbook_Expanded.docx"
       ],
-      "last_processed_at": "2026-11-04T13:21:54-05:00",
+      "last_processed_at": "2026-11-04T14:47:42-05:00",
       "processed_sections": [
         "Section 1: Array Mental Model and Invariants — Markdown lines 141-182 / DOCX extracted lines 65-108",
         "Section 2: Pattern-Recognition Decision Tree — Markdown lines 183-229 / DOCX extracted lines 93-135",
@@ -530,11 +530,12 @@
         "Section 4 problem 24: Search in Rotated Sorted Array — ordered-half elimination, four worked cases, exact candidate trace, logarithmic proof, duplicate caveat and randomized linear oracle — Markdown lines 2455-2556 / Pandoc 3.1.3 no-wrap DOCX GFM lines 2420-2517",
         "Section 4 problem 25: Find First and Last Position of Element — half-open lower/upper boundaries, four worked cases, corrected trace, overflow-safe full-width target and randomized linear oracle — Markdown lines 2557-2666 / Pandoc 3.1.3 no-wrap DOCX GFM lines 2518-2611",
         "Section 4 problem 26: Koko Eating Bananas — first-feasible answer search, four worked cases, exact rate trace, overflow-safe ceiling division and randomized brute-force oracle — Markdown lines 2667-2760 / Pandoc 3.1.3 no-wrap DOCX GFM lines 2612-2708",
-        "Section 4 problem 27: Split Array Largest Sum — first-feasible capacity search, four worked cases, exact group trace, widened arithmetic, greedy/exact-k proof and randomized exact-DP oracle — Markdown lines 2761-2876 / Pandoc 3.1.3 no-wrap DOCX GFM lines 2709-2816"
+        "Section 4 problem 27: Split Array Largest Sum — first-feasible capacity search, four worked cases, exact group trace, widened arithmetic, greedy/exact-k proof and randomized exact-DP oracle — Markdown lines 2761-2876 / Pandoc 3.1.3 no-wrap DOCX GFM lines 2709-2816",
+        "Section 4 problem 28: Merge Intervals — start-ordered active-component sweep, four worked cases, exact trace, closed-endpoint proof, ownership-safe copy and randomized repeated-pair oracle — Markdown lines 2877-2980 / Pandoc 3.1.3 no-wrap DOCX GFM lines 2817-2911"
       ],
-      "last_successful_commit": "d8c99a1e02e23f7dbf84bd155386d406f92898ac",
-      "validation": "The refreshed paired Arrays workbooks agree on bounded Split Array Largest Sum at Markdown lines 2761-2876 and Pandoc 3.1.3 --wrap=none DOCX GFM lines 2709-2816; both source hashes are unchanged, the editable Markdown remains structural, and no duplicate guide was created. Four worked cases, four diagrams, an exact capacity trace, greedy minimum-group proof, exact-k refinement and SplitArrayLargestSumContracts cover endpoint partitions, zero values, full-width totals, monotonic feasibility, input preservation, invalid-input rejection and widened arithmetic against an independent exact partition-DP oracle. Java 17 source-file launch passed all twenty-seven Arrays executables: 500 scenario groups and 520,000 seeded/randomized oracle trials or comparisons; the new contract passed 20 groups and 20,000 seeded comparisons. Deterministic reader validation passed exact 228739-byte Markdown recovery, SHA-256 f853641bcee2488c56bad038ea63653806f1cc361ba69465e141cc552ec6da74, 968 unique HTML IDs, 55 unique search entries, 825 resolved fragments, 0 relative links, 290 balanced fence markers, 106 Mermaid sources, four syntactically valid script blocks and deterministic HTML SHA-256 40d4ea6b2dc613ca4796b5ac04fcc00f23487c6e66e08dc337681770778739c3. Five content files were atomically published at d8c99a1e02e23f7dbf84bd155386d406f92898ac with an expected-head guard and matching Git blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
-      "next_action": "Arrays problem 27 is complete. Re-evaluate fair domain rotation, then process Arrays problem 28, Merge Intervals, at Markdown line 2877 / DOCX no-wrap GFM line 2817; Arrays problems 28-47 remain queued.",
+      "last_successful_commit": "3679e9d93dfc84d65dc8e88a47cf50cc4f737e94",
+      "validation": "The refreshed paired Arrays workbooks agree on bounded Merge Intervals at Markdown lines 2877-2980 and Pandoc 3.1.3 --wrap=none DOCX GFM lines 2817-2911; both source hashes are unchanged, the editable Markdown remains structural, and no duplicate guide was created. Four worked cases, four diagrams, an exact sweep trace, closed-endpoint component proof and MergeIntervalsContracts cover touching, nesting, transitive chains, full-width endpoints, canonical output, fresh ownership and input preservation against an independent repeated-pair oracle. Java 17 source-file launch passed all twenty-eight Arrays executables: 520 scenario groups and 540,000 seeded/randomized oracle trials or comparisons; the new contract passed 20 groups and 20,000 seeded comparisons. Deterministic reader validation passed exact 236965-byte Markdown recovery, SHA-256 995654088ecb270d91c843a80947eaf9afb1151b5a02138e0f4d6402fc218d2e, 1005 unique HTML IDs, 56 unique search entries, 856 resolved fragments, 0 relative links, 300 balanced fence markers, 110 Mermaid sources, four syntactically valid script blocks and deterministic HTML SHA-256 0418785d54588d2c53422740c21fb116a7fb123bbc892b1ff9c005fc0790503e. Five content files were atomically published at 3679e9d93dfc84d65dc8e88a47cf50cc4f737e94 with an expected-head guard and matching Git blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
+      "next_action": "Arrays problem 28 is complete. Re-evaluate fair domain rotation, then process Arrays problem 29, Insert Interval, at Markdown line 2981 / DOCX no-wrap GFM line 2912; Arrays problems 29-47 remain queued.",
       "priority": 6,
       "source_revision": {
         "baseline_commit": "a9f582b5dbe8b6fcda6e275054f217350a810d52",
@@ -545,7 +546,7 @@
         "compared_file_id": "file_00000000672882118a9ca69f00c30be7",
         "compared_version_id": "1",
         "compared_sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-        "canonical_sha256_after": "f853641bcee2488c56bad038ea63653806f1cc361ba69465e141cc552ec6da74"
+        "canonical_sha256_after": "995654088ecb270d91c843a80947eaf9afb1151b5a02138e0f4d6402fc218d2e"
       }
     },
     {
@@ -639,7 +640,7 @@
       },
       "last_successful_commit": "798b230fb5d40502a49345bdf78195bce57e3bd4",
       "validation": "Selected master direct HTML lines 754-773 (fresh Pandoc 3.1.3 GFM lines 864-902) were read through the final mastery check; the companion Markdown and byte-identical illustrated HTML end after Chapter 13, so no duplicate guide was created and this selected source is exhausted. Twelve worked cases across three exercises, five diagrams, current primary references and PlatformDesignExercisesContracts.java cover scoped support answers, citation/epoch/deadline gates, approval-bound refunds, unknown-outcome reconciliation, fair resumable ingestion, poison quarantine, generation-CAS publication and complete rollback identity. Java 17 source-file launch passed all twenty-one AI-platform contracts; the new contract passed 28 scenario groups plus 10,000 seeded trials. Deterministic reader generation passed exact 289924-byte Markdown recovery, SHA-256 0404941b3dffa9eeac3ef9dff1f0ecc8a0e385a5d02e5d634071fd56344550b6, 701 unique HTML IDs, 76 search entries, 487 resolved fragments, 292 balanced fence markers, 96 Mermaid sources, parseable search JSON and JavaScript, responsive/search controls and deterministic rebuild identity. Eight content files were atomically published at 798b230fb5d40502a49345bdf78195bce57e3bd4 with an expected-head guard and matching Git blob hashes. Standalone javac, live identity/order/payment/queue/index integration, browser, assistive-technology and rendered Mermaid QA were unavailable. The live canonical Markdown marker audit is 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
-      "next_action": "Selected AI-platform master and Spring AI/Python source are exhausted. Re-evaluate fair domain rotation, then continue with Arrays problem 28; retain wider confirmed intake and placeholder backlog.",
+      "next_action": "Selected AI-platform master and Spring AI/Python source are exhausted. Re-evaluate fair domain rotation, then continue with Arrays problem 29; retain wider confirmed intake and placeholder backlog.",
       "priority": 9
     },
     {
@@ -852,7 +853,7 @@
       },
       "last_successful_commit": "9349877c7f6468b83f0cdab6f034d237f0487e24",
       "validation": "The refreshed selected ZIP member final Section 25 at editable lines 1359-1370 and byte-identical standalone HTML direct lines 1403-1415 were compared through both source endings; no duplicate guide was created. Four worked implementation traces and four diagrams cover exact offline parity, bounded model traces, server-owned identity, crash-convergent ingestion, explicit stream completion, digest/provenance verification and fixed-slice promotion. Java 17 source-file launch and Python 3 passed all twenty-five contract pairs; the new pair produced identical parity output, 21 scenario groups and 20,000 seeded trials per language. The full suites passed 710 Java and 709 Python scenario groups plus 250,000 trials per language. Reader validation passed exact 352703-byte Markdown recovery, SHA-256 c205cf37e4d2d99ac78ce34cfbda1774b8de8ffae79f00b41fb7c6a3e5ddc22c, 969 unique IDs, 26 search entries, 653 resolved fragments, 22 relative links, 484 fence markers, 111 Mermaid sources, four script blocks, JavaScript syntax, responsive/search controls and deterministic rebuilding. Six content files were published at 9349877c7f6468b83f0cdab6f034d237f0487e24 with an expected-head guard and matching Git blob hashes. Standalone javac, live identity/ACL/provider/outbox/stream/build/deployment integration, browser, assistive-technology and rendered Mermaid integration were unavailable. The canonical literal-marker audit remains 170.",
-      "next_action": "Selected Spring AI/Python source is exhausted after Section 25. Re-evaluate fair domain rotation, then continue with Arrays problem 28; retain the wider confirmed intake and 170-placeholder backlog.",
+      "next_action": "Selected Spring AI/Python source is exhausted after Section 25. Re-evaluate fair domain rotation, then continue with Arrays problem 29; retain the wider confirmed intake and 170-placeholder backlog.",
       "priority": 14
     },
     {
@@ -1083,7 +1084,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25 and Arrays Section 4 problems 1-27 are promoted. The selected AI-platform and Spring AI/Python sources are exhausted. Re-evaluate fair rotation, then process Arrays problem 28; retain wider confirmed intake and placeholders.",
+    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25 and Arrays Section 4 problems 1-28 are promoted. The selected AI-platform and Spring AI/Python sources are exhausted. Re-evaluate fair rotation, then process Arrays problem 29; retain wider confirmed intake and placeholders.",
     "batch_policy": {
       "max_sections_per_run": 1,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1263,14 +1264,15 @@
       "Spring AI/Python Section 25: evidence-gated implementation, adversarial identity matrix, crash-convergent ingestion, terminal streams, digest/provenance promotion and fixed evaluation slices",
       "DSA Arrays Section 4 problem 25: half-open lower/upper boundaries, corrected exact trace, overflow-safe full-width target, proof and randomized linear oracle",
       "DSA Arrays Section 4 problem 26: first-feasible answer search, exact rate trace, overflow-safe ceiling division, minimality proof and randomized brute-force oracle",
-      "DSA Arrays Section 4 problem 27: first-feasible capacity search, exact group trace, widened arithmetic, greedy/exact-k proof and randomized exact-DP oracle"
+      "DSA Arrays Section 4 problem 27: first-feasible capacity search, exact group trace, widened arithmetic, greedy/exact-k proof and randomized exact-DP oracle",
+      "DSA Arrays Section 4 problem 28: start-ordered component sweep, exact merge trace, closed-endpoint proof, ownership-safe copy and randomized repeated-pair oracle"
     ],
-    "processed_section": "DSA Arrays Section 4 problem 27, Split Array Largest Sum, Markdown lines 2761-2876 / DOCX no-wrap GFM lines 2709-2816",
-    "validation": "Fresh paired-source comparison agreed on problem 27 and its first-feasible capacity search without creating a duplicate guide. Four worked cases, four diagrams, exact group trace, greedy/exact-k proof and SplitArrayLargestSumContracts were added. Java 17 source-file launch passed all twenty-seven Arrays executables: 500 scenario groups and 520,000 seeded/randomized oracle trials or comparisons. Reader validation passed exact 228739-byte recovery at SHA-256 f853641bcee2488c56bad038ea63653806f1cc361ba69465e141cc552ec6da74, 968 unique IDs, 55 search entries, 825 fragments, zero relative links, 290 fences, 106 Mermaid sources, four syntactically valid scripts and deterministic rebuilding. Five content files were published at d8c99a1e02e23f7dbf84bd155386d406f92898ac with an expected-head guard and matching blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical placeholders remain 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
+    "processed_section": "DSA Arrays Section 4 problem 28, Merge Intervals, Markdown lines 2877-2980 / DOCX no-wrap GFM lines 2817-2911",
+    "validation": "Fresh paired-source comparison agreed on problem 28 and its start-ordered component sweep without creating a duplicate guide. Four worked cases, four diagrams, exact trace, closed-endpoint proof and MergeIntervalsContracts were added. Java 17 source-file launch passed all twenty-eight Arrays executables: 520 scenario groups and 540,000 seeded/randomized oracle trials or comparisons. Reader validation passed exact 236965-byte recovery at SHA-256 995654088ecb270d91c843a80947eaf9afb1151b5a02138e0f4d6402fc218d2e, 1005 unique IDs, 56 search entries, 856 fragments, zero relative links, 300 fences, 110 Mermaid sources, four syntactically valid scripts and deterministic rebuilding. Five content files were published at 3679e9d93dfc84d65dc8e88a47cf50cc4f737e94 with an expected-head guard and matching blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical placeholders remain 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
     "estimated_next_tokens": 9800,
-    "estimate_method": "Heuristic only for one bounded Arrays problem 28 pass with paired-source comparison, examples, contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "d8c99a1e02e23f7dbf84bd155386d406f92898ac",
-    "last_processed_at": "2026-11-04T13:21:54-05:00",
-    "next_batch_decision": "Arrays problem 27 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair domain rotation, then continue with Arrays problem 28 at Markdown line 2877 / DOCX line 2817."
+    "estimate_method": "Heuristic only for one bounded Arrays problem 29 pass with paired-source comparison, examples, contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "3679e9d93dfc84d65dc8e88a47cf50cc4f737e94",
+    "last_processed_at": "2026-11-04T14:47:42-05:00",
+    "next_batch_decision": "Arrays problem 28 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair domain rotation, then continue with Arrays problem 29 at Markdown line 2981 / DOCX line 2912."
   }
 }

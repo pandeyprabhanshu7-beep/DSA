@@ -304,6 +304,6 @@ Arrays Section 4 problem 28 now states the closed-interval, union-coverage, dete
 
 The deterministic responsive reader embeds the exact 236,965 canonical Markdown bytes at SHA-256 `995654088ecb270d91c843a80947eaf9afb1151b5a02138e0f4d6402fc218d2e`; validation found 1,005 unique IDs, 56 unique search entries, 856 resolved fragment links, zero relative links, 300 balanced fence markers, 110 Mermaid sources and four syntactically valid script blocks. Rebuilding produced byte-identical HTML at SHA-256 `0418785d54588d2c53422740c21fb116a7fb123bbc892b1ff9c005fc0790503e`. Both confirmed source artifacts agree on problem 28 and remain unchanged at their recorded hashes.
 
-Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; fair rotation selects Spring AI/Python Section 28 next, followed by Arrays problem 29, Insert Interval.
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 29, Insert Interval, is the next exact source continuation, subject to the next fair-domain rotation check.
 
 
