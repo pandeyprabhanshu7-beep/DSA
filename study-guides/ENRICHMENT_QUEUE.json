@@ -51,10 +51,10 @@
       "version_id": null,
       "modified_at": "2026-09-17T05:55:54.714170Z",
       "size_bytes": 2535466,
-      "status": "IN_PROGRESS",
-      "last_read_at": "2026-11-04T01:54:37-05:00",
+      "status": "PROMOTED",
+      "last_read_at": "2026-11-04T08:47:06-05:00",
       "sha256": "c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31",
-      "selection": "Archive integrity/traversal checks passed. Its CI/CD source is promoted separately; Spring/Python member atlas_guides/spring_ai_python_api_interview_guide.md (SHA-256 af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553) remains the selected editable source. Sections 1-24 are promoted through line 1357; Section 25 begins at line 1359."
+      "selection": "Archive integrity/traversal checks passed. Its CI/CD source is promoted separately; Spring/Python member atlas_guides/spring_ai_python_api_interview_guide.md (SHA-256 af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553) remains the selected editable source. All 25 sections are promoted through the final source line 1370."
     },
     {
       "name": "ai_platform_master_guide.html",
@@ -76,9 +76,9 @@
       "modified_at": "2026-09-17T05:55:54.480720Z",
       "size_bytes": 149762,
       "status": "READY",
-      "last_read_at": "2026-11-04T01:54:37-05:00",
+      "last_read_at": "2026-11-04T08:47:06-05:00",
       "sha256": "6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3",
-      "selection": "Read and compared through direct standalone HTML lines 1389-1402 for Section 24; Section 25 begins at direct line 1403. It agrees with the selected editable member, is byte-identical to the bundle HTML and remains a comparison source rather than a duplicate canonical guide."
+      "selection": "Read and compared through final Section 25 at direct standalone HTML lines 1403-1415. It agrees with the selected editable member, is byte-identical to the bundle HTML and remains a comparison source rather than a duplicate canonical guide."
     },
     {
       "name": "ai_platform_engineering_complete_bundle.zip",
@@ -803,12 +803,12 @@
       "domain": "DevOps/backend",
       "canonical_target": "study-guides/backend/spring-ai-python/",
       "target_exists": true,
-      "status": "IN_PROGRESS",
+      "status": "PROMOTED",
       "source_names": [
         "ai_cicd_spring_python_guides_complete.zip",
         "spring_ai_python_api_interview_guide.html"
       ],
-      "last_processed_at": "2026-11-04T01:54:37-05:00",
+      "last_processed_at": "2026-11-04T08:47:06-05:00",
       "processed_sections": [
         "Section 1: choose the layer before choosing the library — requirements, four selection examples, authority/retry/release boundaries, paired Java/Python contracts and current primary references",
         "Section 2: Python library map — all 17 source projects mapped by responsibility, four decision proofs, trace tables, replay/failure boundaries, paired Java/Python contracts and current primary references",
@@ -833,7 +833,8 @@
         "Section 21: foundations and APIs — exact/semantic/hybrid retrieval selection, runtime-boundary ownership, provider capability admission, replay identity, typed API outcomes, layered validation and paired contracts",
         "Section 22: concurrency, data migrations and tool safety — admission-before-offload dispatch, fleet dependency capacity, single-owner retries, generation-safe embedding migration, tenant-prefiltered ANN, bounded agent loops and ambiguous-effect reconciliation",
         "Section 23: coding and debugging scenarios — scoped cache and tool authorization, explicit SSE completion, layered Kubernetes endpoint diagnosis, question-preserving context packing, deterministic crash-safe ingestion and paired contracts",
-        "Section 24: architecture interview answer paths — authorized knowledge retrieval, capability-gated provider routing, digest-bound approval/execution, tenant-fair resumable ingestion, atomic generation publication and paired contracts"
+        "Section 24: architecture interview answer paths — authorized knowledge retrieval, capability-gated provider routing, digest-bound approval/execution, tenant-fair resumable ingestion, atomic generation publication and paired contracts",
+        "Section 25: practical implementation sequence — evidence-gated progression, adversarial identity checks, crash-convergent ingestion, explicit stream completion, digest/provenance promotion, fixed evaluation slices and paired contracts"
       ],
       "source_revision": {
         "baseline_commit": "3296b794f00a24f206148599d249246d69ed8942",
@@ -844,11 +845,11 @@
         "selected_inner_sha256": "af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553",
         "compared_library_file_id": "libfile_a6efee022fb881919d2e8ff61bd758ed",
         "compared_html_sha256": "6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3",
-        "canonical_sha256_after": "cb9e980b7cd0e5a6f9403a2887371f506cfdb6b676f0eb2e08cf0531a0ebb3b6"
+        "canonical_sha256_after": "c205cf37e4d2d99ac78ce34cfbda1774b8de8ffae79f00b41fb7c6a3e5ddc22c"
       },
-      "last_successful_commit": "3dea272110d1da555a422bc9c14eeeb9443c1c96",
-      "validation": "The refreshed selected ZIP member Section 24 at editable lines 1333-1357 and byte-identical standalone HTML direct lines 1389-1402 were compared and bounded before Section 25 at lines 1359/1403; no duplicate guide was created. Four worked architecture traces and five diagrams cover authorized knowledge retrieval, capability-gated routing, digest-bound approvals, unknown-effect reconciliation, fair resumable ingestion and atomic publication. Java 17 source-file launch and Python 3 passed all twenty-four contract pairs; the new pair produced identical parity output, 21 scenario groups and 20,000 seeded trials per language. The full suites passed 689 Java and 688 Python scenario groups plus 230,000 trials per language. Reader validation passed exact 335086-byte Markdown recovery, SHA-256 cb9e980b7cd0e5a6f9403a2887371f506cfdb6b676f0eb2e08cf0531a0ebb3b6, 947 unique IDs, 25 search entries, 643 resolved fragments, 20 relative links, 468 fence markers, 107 Mermaid sources, four script blocks, JavaScript syntax, responsive/search controls and deterministic rebuilding. Six content files were published at 3dea272110d1da555a422bc9c14eeeb9443c1c96 with an expected-head guard and matching Git blob hashes. Standalone javac, live identity/ACL/provider/deployment/queue/index integration, browser, assistive-technology and rendered Mermaid integration were unavailable. The canonical literal-marker audit remains 170.",
-      "next_action": "Section 24 is complete. Process Spring AI/Python Section 25 next at editable line 1359 / direct HTML line 1403; then rotate to Arrays problem 25 at Markdown line 2557 / DOCX no-wrap GFM line 2518. Section 25 remains queued.",
+      "last_successful_commit": "9349877c7f6468b83f0cdab6f034d237f0487e24",
+      "validation": "The refreshed selected ZIP member final Section 25 at editable lines 1359-1370 and byte-identical standalone HTML direct lines 1403-1415 were compared through both source endings; no duplicate guide was created. Four worked implementation traces and four diagrams cover exact offline parity, bounded model traces, server-owned identity, crash-convergent ingestion, explicit stream completion, digest/provenance verification and fixed-slice promotion. Java 17 source-file launch and Python 3 passed all twenty-five contract pairs; the new pair produced identical parity output, 21 scenario groups and 20,000 seeded trials per language. The full suites passed 710 Java and 709 Python scenario groups plus 250,000 trials per language. Reader validation passed exact 352703-byte Markdown recovery, SHA-256 c205cf37e4d2d99ac78ce34cfbda1774b8de8ffae79f00b41fb7c6a3e5ddc22c, 969 unique IDs, 26 search entries, 653 resolved fragments, 22 relative links, 484 fence markers, 111 Mermaid sources, four script blocks, JavaScript syntax, responsive/search controls and deterministic rebuilding. Six content files were published at 9349877c7f6468b83f0cdab6f034d237f0487e24 with an expected-head guard and matching Git blob hashes. Standalone javac, live identity/ACL/provider/outbox/stream/build/deployment integration, browser, assistive-technology and rendered Mermaid integration were unavailable. The canonical literal-marker audit remains 170.",
+      "next_action": "Selected Spring AI/Python source is exhausted after Section 25. Rotate to Arrays problem 25 at Markdown line 2557 / DOCX no-wrap GFM line 2518; retain the wider confirmed intake and 170-placeholder backlog.",
       "priority": 14
     },
     {
@@ -1079,7 +1080,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-24 and Arrays Section 4 problems 1-24 are promoted. The selected AI-platform master is exhausted. Process Spring AI/Python Section 25 next, then Arrays problem 25 after fair domain rotation; retain wider confirmed intake and placeholders.",
+    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25 and Arrays Section 4 problems 1-24 are promoted. The selected AI-platform and Spring AI/Python sources are exhausted. Process Arrays problem 25 next; retain wider confirmed intake and placeholders.",
     "batch_policy": {
       "max_sections_per_run": 1,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1255,14 +1256,15 @@
       "Spring AI/Python Section 23: scoped cache and tool authorization, explicit SSE completion, layered Kubernetes endpoint diagnosis, question-preserving packing and crash-convergent ingestion",
       "DSA Arrays Section 4 problem 23: bounded candidate window, duplicate-safe home placement, exact displacement trace, permanent-home proof, full-width guards and randomized HashSet oracle",
       "Spring AI/Python Section 24: authorized knowledge retrieval, capability-gated provider routing, digest-bound approval/execution, fair resumable ingestion and atomic generation publication",
-      "DSA Arrays Section 4 problem 24: ordered-half rotated search, exact candidate trace, logarithmic proof, duplicate caveat and randomized linear oracle"
+      "DSA Arrays Section 4 problem 24: ordered-half rotated search, exact candidate trace, logarithmic proof, duplicate caveat and randomized linear oracle",
+      "Spring AI/Python Section 25: evidence-gated implementation, adversarial identity matrix, crash-convergent ingestion, terminal streams, digest/provenance promotion and fixed evaluation slices"
     ],
-    "processed_section": "DSA Arrays Section 4 problem 24, Search in Rotated Sorted Array, Markdown lines 2455-2556 / DOCX no-wrap GFM lines 2420-2517",
-    "validation": "Fresh paired-source comparison agreed on the problem 24 contract and bounds without creating a duplicate guide. Four worked cases, four diagrams, exact trace, proof and SearchRotatedContracts were added. Java 17 source-file launch passed all twenty-four Arrays programs: 440 scenario groups and 460,000 seeded/randomized oracle trials or comparisons. Reader validation passed exact 203931-byte recovery at SHA-256 fd23a2e5fa0533aae307f46f2951ba10c13c1cd659da43e70b0027e8374d84ff, 858 unique IDs, 52 search entries, 733 resolved fragments, 0 relative links, 260 balanced fences, 94 Mermaid sources, four syntactically valid scripts and deterministic rebuilding. Five content files were published at 9f7e2ac257f311ae087a25497e90ffff0cb2ed6d with an expected-head guard and matching blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical placeholders remain 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
+    "processed_section": "Spring AI/Python Section 25, A practical study and implementation sequence, editable lines 1359-1370 / standalone HTML lines 1403-1415; selected source exhausted",
+    "validation": "Final paired-source comparison agreed through both source endings without creating a duplicate guide. Four worked traces, four diagrams and PracticalSequenceContracts were added. Java 17 source-file launch and Python 3 passed all twenty-five contract pairs: 710 Java and 709 Python scenario groups plus 250,000 seeded trials per language. Reader validation passed exact 352703-byte recovery at SHA-256 c205cf37e4d2d99ac78ce34cfbda1774b8de8ffae79f00b41fb7c6a3e5ddc22c, 969 unique IDs, 26 search entries, 653 fragments, 22 relative links, 484 fences, 111 Mermaid sources, four scripts and deterministic rebuilding. Six content files were published at 9349877c7f6468b83f0cdab6f034d237f0487e24 with an expected-head guard and matching blob hashes. Standalone javac, live identity/ACL/provider/outbox/stream/build/deployment integration, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical placeholders remain 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
     "estimated_next_tokens": 9800,
     "estimate_method": "Heuristic only for one bounded Spring AI/Python Section 25 pass with paired-source comparison, examples, contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "9f7e2ac257f311ae087a25497e90ffff0cb2ed6d",
-    "last_processed_at": "2026-11-04T02:29:15-05:00",
-    "next_batch_decision": "Arrays problem 24 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Rotate next to Spring AI/Python Section 25, then Arrays problem 25 after fair domain rotation."
+    "last_successful_commit": "9349877c7f6468b83f0cdab6f034d237f0487e24",
+    "last_processed_at": "2026-11-04T08:47:06-05:00",
+    "next_batch_decision": "Spring AI/Python Section 25 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. The selected source is exhausted; rotate next to Arrays problem 25 at Markdown line 2557 / DOCX line 2518."
   }
 }
