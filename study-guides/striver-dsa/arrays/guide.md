@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–23 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 24–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–24 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 25–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first twenty-three solved problems](#4-core-pattern-lab--first-twenty-three-solved-problems)
+- [4. Core pattern lab — first twenty-four solved problems](#4-core-pattern-lab--first-twenty-four-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -52,6 +52,7 @@
   - [Example 21 — Next Permutation: make the smallest possible increase](#example-21--next-permutation-make-the-smallest-possible-increase)
   - [Example 22 — Find the Duplicate Number: find a cycle entrance without mutation](#example-22--find-the-duplicate-number-find-a-cycle-entrance-without-mutation)
   - [Example 23 — First Missing Positive: place only useful values into home indices](#example-23--first-missing-positive-place-only-useful-values-into-home-indices)
+  - [Example 24 — Search in Rotated Sorted Array: prove one half is ordered, then discard the other](#example-24--search-in-rotated-sorted-array-prove-one-half-is-ordered-then-discard-the-other)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -679,7 +680,7 @@ Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite 
 
 <a id="4-core-pattern-lab--first-twenty-solved-problems"></a>
 
-## 4. Core pattern lab — first twenty-three solved problems
+## 4. Core pattern lab — first twenty-four solved problems
 
 The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes the first sixteen: Two Sum, one-transaction stock profit, maximum subarray, majority element, Move Zeroes, Remove Duplicates from Sorted Array, Squares of a Sorted Array, 3Sum, Container With Most Water, Trapping Rain Water, Minimum Size Subarray Sum, Fruit Into Baskets, Sliding Window Maximum, Range Sum Query — Immutable, Product of Array Except Self, and Subarray Sum Equals K. The first four compress decision state; problems 5–6 finalize a prefix; problem 7 consumes the only two places that can still hold the largest magnitude; problems 8–10 use sorted or boundary monotonicity to discard state safely; problems 11–13 maintain just enough window state; problem 14 precomputes cancellable prefix state for repeated immutable queries; problem 15 combines two exclusive directional aggregates without division; and problem 16 counts matching prior prefix boundaries. Problems 17–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
@@ -3151,6 +3152,132 @@ flowchart TD
 
 Executable evidence is in `FirstMissingPositiveContracts.java`. It covers 20 deterministic groups, including the four traces, duplicate-heavy inputs, already-complete ranges, empty and singleton extensions, full-width values, array identity, multiset preservation, the permanent-home postcondition and null rejection. It then checks 20,000 seeded arrays against an independent `HashSet` oracle while enforcing the linear swap bound.
 
+### Example 24 — Search in Rotated Sorted Array: prove one half is ordered, then discard the other
+
+**Official contract.** `nums` is a non-empty array of distinct integers that was strictly increasing before a possible rotation. Return the zero-based index of `target`, or `-1` when it is absent, in `O(log n)` time. The method must not mutate the input. The reusable wrapper below additionally returns `-1` for an empty array and rejects `null`; it deliberately does not spend `O(n)` time validating the distinct/rotated-sorted precondition because that would violate the requested logarithmic bound.
+
+An ordinary binary search cannot call `Arrays.binarySearch(nums, target)` directly: that API requires the searched range to be globally sorted. A rotated array instead contains two increasing runs separated by one drop. At any midpoint of a distinct-value instance, **at least one closed half is sorted**. Identify that half first; its endpoint values then prove whether the target can lie inside it.
+
+```mermaid
+flowchart LR
+    A["strictly increasing source"] --> B["rotate once"]
+    B --> L["upper increasing run"]
+    B --> R["lower increasing run"]
+    L --> P["single drop / pivot"]
+    R --> P
+```
+
+```java
+static int searchRotatedDistinct(int[] nums, int target) {
+    if (nums == null) {
+        throw new IllegalArgumentException("nums must not be null");
+    }
+    int left = 0;
+    int right = nums.length - 1;
+    while (left <= right) {
+        int mid = left + ((right - left) >>> 1);
+        if (nums[mid] == target) {
+            return mid;
+        }
+
+        if (nums[left] <= nums[mid]) {              // left half is sorted
+            if (nums[left] <= target && target < nums[mid]) {
+                right = mid - 1;
+            } else {
+                left = mid + 1;
+            }
+        } else {                                    // right half is sorted
+            if (nums[mid] < target && target <= nums[right]) {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+    }
+    return -1;
+}
+```
+
+The range tests intentionally use one inclusive and one strict endpoint. `nums[mid]` was already checked for equality, so the left sorted interval uses `nums[left] <= target && target < nums[mid]`; the right interval uses `nums[mid] < target && target <= nums[right]`. This keeps `mid` out of the next range and guarantees progress.
+
+```mermaid
+flowchart TD
+    A["closed candidate interval [left,right]"] --> B["mid = left + ((right-left) >>> 1)"]
+    B --> C{"nums[mid] == target?"}
+    C -->|yes| F["return mid"]
+    C -->|no| D{"nums[left] <= nums[mid]?"}
+    D -->|yes| E{"target in [nums[left], nums[mid])?"}
+    D -->|no| G{"target in (nums[mid], nums[right]]?"}
+    E -->|yes| H["right = mid - 1"]
+    E -->|no| I["left = mid + 1"]
+    G -->|yes| I
+    G -->|no| H
+```
+
+#### Worked case 1 — canonical target across the pivot
+
+For `nums = [4,5,6,7,0,1,2]` and `target = 0`, each decision preserves the invariant: if the target exists, its index remains inside the closed candidate interval.
+
+| step | `left,mid,right` | endpoint values | proven sorted half | target-range test | next interval |
+|---:|---|---|---|---|---|
+| 1 | `0,3,6` | `4,7,2` | left `[4,5,6,7]` | `0` is not in `[4,7)` | `[4,6]` |
+| 2 | `4,5,6` | `0,1,2` | left `[0,1]` | `0` is in `[0,1)` | `[4,4]` |
+| 3 | `4,4,4` | `0,0,0` | equality checked first | found | return `4` |
+
+```mermaid
+sequenceDiagram
+    participant I as candidate interval
+    participant T as target 0
+    I->>I: [0,6], mid 3 has 7
+    T-->>I: not in sorted values [4,7)
+    I->>I: keep [4,6], mid 5 has 1
+    T-->>I: inside sorted values [0,1)
+    I->>I: keep [4,4], return index 4
+```
+
+#### Worked case 2 — absent target empties the interval
+
+For the same array and `target = 3`, step 1 discards the sorted left run because 3 is below 4. In `[4,6]`, the left half `[0,1]` is sorted but cannot contain 3, so keep index 6. At index 6 the value is 2; the one-element left half is sorted, 3 is outside it, and `left` becomes 7. Now `left > right`, proving absence and returning `-1`.
+
+| candidate sizes | `7 → 3 → 1 → 0` |
+|---|---|
+| inspected values | `7, 1, 2` |
+| result | `-1` |
+
+#### Worked case 3 — no rotation is ordinary binary search
+
+For `[-10,-2,3,9,14]` and target `9`, the left half is sorted at every decision. Midpoint value 3 proves the target is to the right; the next midpoint is 9, so return index 3. “Possibly rotated” includes rotation by zero—the method must not require a visible pivot.
+
+```mermaid
+flowchart LR
+    A["[-10,-2,3,9,14]"] -->|"mid 2: 3 < 9"| B["[9,14]"]
+    B -->|"mid 3: 9"| C["return 3"]
+```
+
+#### Worked case 4 — smallest and two-element boundaries
+
+`[1]` with target 1 returns 0; `[1]` with target 0 performs one comparison and returns `-1`. For the valid rotation `[3,-4]` of `[-4,3]`, target `-4` returns index 1: at `mid=0`, the one-element left half counts as sorted, `-4` is outside `[3,3)`, and the search advances right. These cases are why the classification is `nums[left] <= nums[mid]`, not a strict comparison.
+
+**Invariant.** Before every loop, if `target` occurs, its unique index lies in `[left,right]`. If the left half is sorted, an endpoint range test decides exactly whether that half can contain the target; otherwise the target can only be in the right half. If the left half is not sorted, distinctness plus the one-rotation promise makes the right half sorted, so the symmetric test is exact. Equality with `mid` is handled first, and the chosen next interval excludes `mid`; therefore the invariant is preserved and the interval strictly shrinks.
+
+**Termination and complexity.** Every unsuccessful iteration replaces the interval by at most one half that excludes `mid`. A candidate interval of size `n` therefore reaches size zero after at most `floor(log2 n) + 1` inspections. Time is `O(log n)`, the method stores three indices and uses `O(1)` auxiliary space, and no component is assigned, so array identity and contents are preserved. The midpoint expression subtracts before halving and is safe for every legal Java array length.
+
+```mermaid
+flowchart TD
+    I["target index, if present, is in [left,right]"] --> S["one half is sorted"]
+    S --> R["endpoint test selects the only possible half"]
+    R --> P["mid excluded; interval strictly shrinks"]
+    P --> I
+```
+
+**Common interview errors:** searching for the pivot first and accidentally turning a simple one-pass binary search into two bug-prone searches; using a global binary-search library on the rotated array; testing the target range before checking `nums[mid]`; using `nums[left] < nums[mid]` and mishandling a one-element half; mixing closed and half-open interval rules; using `target <= nums[mid]` after midpoint equality was already rejected; discarding the sorted half without testing its endpoint range; claiming the same logic supports duplicates; validating rotation in linear time while still claiming an `O(log n)` API; or returning the value instead of its index.
+
+**Duplicate variant.** If duplicates are allowed, `nums[left] == nums[mid] == nums[right]` does not reveal which half contains the pivot. A correct variant may shrink both equal endpoints, but adversarial all-equal inputs degrade to `O(n)`. That is a different contract from this distinct-values problem.
+
+**Follow-ups:** find the minimum/pivot; search a duplicate-allowed rotation; return an insertion location in the unrotated order; prove the two-search alternative (find pivot, then ordinary binary search); or generalize the invariant to a monotonic predicate on a circularly shifted domain.
+
+Executable evidence is in `SearchRotatedContracts.java`. It covers 20 deterministic groups, including the four worked behaviors, every rotation of a fixed sorted array, pivot-adjacent targets, full-width values, input preservation, the empty extension and null rejection. It then generates 20,000 strictly increasing arrays, rotates them, chooses present and guaranteed-absent targets, compares the result with an independent linear scan and checks the logarithmic inspection bound.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -3179,6 +3306,8 @@ Executable evidence is in `FirstMissingPositiveContracts.java`. It covers 20 det
 - [LeetCode, “Next Permutation”](https://leetcode.com/problems/next-permutation/) — primary lexicographic-successor, in-place mutation, wraparound and constant-extra-memory contract, including duplicate-value examples.
 - [LeetCode, “Find the Duplicate Number”](https://leetcode.com/problems/find-the-duplicate-number/) — primary `n+1`/`[1,n]`, one-distinct-duplicate, no-mutation and constant-extra-space contract, including duplicates occurring more than twice.
 - [LeetCode, “First Missing Positive”](https://leetcode.com/problems/first-missing-positive/) — primary unsorted-input, full-width component bounds, linear-time and constant-auxiliary-space contract and canonical examples.
+- [LeetCode, “Search in Rotated Sorted Array”](https://leetcode.com/problems/search-in-rotated-sorted-array/) — primary distinct-value, possible-rotation, zero-based-index result and `O(log n)` runtime contract.
+- [Java SE 17 `java.util.Arrays.binarySearch`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Arrays.html#binarySearch(int%5B%5D,int)) — requires its input array to be sorted before searching, explaining why it cannot be applied directly to a rotated array.
 - [Java Language Specification, Java SE 27, Chapter 10](https://docs.oracle.com/en/java/javase/27/docs/specs/jls/jls-10.html) — current array-object, fixed-length and zero-based component-index model used by the in-place home mapping.
 - [Java Language Specification, Java SE 25, §15.17.3](https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.17.3) — integer remainder semantics and the zero-divisor exception relevant to `k % n`.
 - [Java SE 25 `Math.floorMod`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html#floorMod(int,int)) — non-negative modulus normalization for an explicitly extended signed-rotation API.
@@ -3197,9 +3326,9 @@ Executable evidence is in `FirstMissingPositiveContracts.java`. It covers 20 det
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 23 (First Missing Positive is lines 2344–2454, bounded before problem 24 at line 2455). Selected as the editable structural source. This refresh corrects the prior checkpoint's two-line offset for the unchanged source bytes.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 23 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 23 at lines 2312–2419, bounded before problem 24 at line 2420). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 24 (Search in Rotated Sorted Array is lines 2455–2556, bounded before problem 25 at line 2557). Selected as the editable structural source; the refreshed bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 24 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 24 at lines 2420–2517, bounded before problem 25 at line 2518). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 23, “First Missing Positive,” is promoted from Markdown lines 2344–2454 and fresh no-wrap DOCX GFM-extracted lines 2312–2419; problem 24, “Search in Rotated Sorted Array,” begins at Markdown line 2455 and no-wrap DOCX GFM-extracted line 2420.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 24, “Search in Rotated Sorted Array,” is promoted from Markdown lines 2455–2556 and fresh no-wrap DOCX GFM-extracted lines 2420–2517; problem 25, “Find First and Last Position of Element,” begins at Markdown line 2557 and no-wrap DOCX GFM-extracted line 2518.
 
 

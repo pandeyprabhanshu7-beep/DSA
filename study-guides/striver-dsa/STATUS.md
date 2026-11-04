@@ -55,6 +55,11 @@
 | Arrays §4 Problem 17 — Subarrays Divisible by K | ✅ | ✅ | Normalized-remainder frequencies, four worked cases, complete trace, proof, widened arithmetic and randomized quadratic oracle |
 | Arrays §4 Problem 18 — Longest Consecutive Sequence | ✅ | ✅ | Unique-start expansion, four worked cases, start/skip trace, integer-boundary guards, proof and randomized sorted-copy oracle |
 | Arrays §4 Problem 19 — Sort Colors | ✅ | ✅ | Dutch National Flag zones, four worked cases, exact trace, termination proof, validation/core split and randomized sorting oracle |
+| Arrays §4 Problem 20 — Rotate Array | ✅ | ✅ | Reversal-based rotation, four worked cases, exact mutation trace, modulo normalization, proof and randomized snapshot oracle |
+| Arrays §4 Problem 21 — Next Permutation | ✅ | ✅ | Pivot/successor/suffix construction, four worked cases, exact trace, lexicographic proof and randomized enumeration oracle |
+| Arrays §4 Problem 22 — Find the Duplicate Number | ✅ | ✅ | Floyd cycle mapping, four worked cases, phase traces, proof, strict-domain validation and randomized frequency oracle |
+| Arrays §4 Problem 23 — First Missing Positive | ✅ | ✅ | In-place cyclic placement, four worked cases, swap trace, proof, mutation contract and randomized set oracle |
+| Arrays §4 Problem 24 — Search in Rotated Sorted Array | ✅ | ✅ | Ordered-half elimination, four worked cases, exact binary-search trace, proof, inspection bound and randomized linear oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -260,5 +265,13 @@ Fresh literal-marker audit remains **170** across the five placeholder-bearing c
 Arrays Section 4 problem 19 now states the in-place three-category, value-domain, one-classification-pass, constant-space and non-stability contracts; separates a defensive prevalidation wrapper from the one-pass interview core; and adds four worked cases, an exact six-step trace, four diagrams, a four-region invariant and a strictly decreasing unknown-region proof. `SortColorsContracts` validates 20 scenario groups plus 20,000 seeded arrays against an independent `Arrays.sort` oracle while checking color multiplicities, validation atomicity, at most one swap per classification and exactly one classification per element. The responsive reader embeds the exact canonical Markdown bytes. Both confirmed sources agree on the Dutch National Flag partition and the crucial rule not to advance the scan pointer after moving a 2; the editable Markdown remains the structural winner rather than duplicating the older Word companion.
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. Section 4 problem 20 and the broader intake remain incomplete; fair rotation selects Spring AI/Python Section 20 next, followed by AI-platform Chapter 21 before the next Arrays turn.
+
+## Arrays Search in Rotated Sorted Array enrichment — 2026-11-04 ET
+
+Arrays Section 4 problem 24 now states the distinct-value, possible-rotation, index-result, nonmutation and logarithmic-time contracts; explains why a global sorted-array search API is not directly applicable; and adds four worked cases, a complete candidate-interval trace, four diagrams, the ordered-half invariant, a strict-shrink proof and the duplicate-input degradation caveat. `SearchRotatedContracts` validates 20 deterministic groups plus 20,000 seeded rotations against an independent linear oracle while checking input preservation and the exact `floor(log2 n) + 1` inspection bound. All 24 Arrays evidence programs passed in Java 17 source-file mode: 440 scenario groups and 460,000 seeded/randomized oracle trials or comparisons. A standalone `javac` executable was not available.
+
+The deterministic responsive reader embeds the exact 203,931 canonical Markdown bytes at SHA-256 `fd23a2e5fa0533aae307f46f2951ba10c13c1cd659da43e70b0027e8374d84ff`; validation found 858 unique IDs, 52 unique search entries, 733 resolved fragment links, zero relative links, 260 balanced fence markers, 94 Mermaid sources and four syntactically valid script blocks. Both confirmed source artifacts agree on this problem and remain unchanged at their recorded source hashes.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. The collection and intake backlog remain incomplete; fair rotation selects Spring AI/Python Section 25 next, followed by Arrays problem 25.
 
 
