@@ -30,6 +30,7 @@ java -ea study-guides/striver-dsa/arrays/FindDuplicateContracts.java
 java -ea study-guides/striver-dsa/arrays/FirstMissingPositiveContracts.java
 java -ea study-guides/striver-dsa/arrays/SearchRotatedContracts.java
 java -ea study-guides/striver-dsa/arrays/SearchRangeContracts.java
+java -ea study-guides/striver-dsa/arrays/KokoEatingContracts.java
 ```
 
 Rebuild the reader:
@@ -38,6 +39,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–25 are promoted. Section 4 problems 26–47 and later source material remain queued.
+This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–26 are promoted. Section 4 problems 27–47 and later source material remain queued.
 
 

@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–25 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 26–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–26 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 27–47 and later source material remain queued.
 
 ## Study index
 
@@ -3402,12 +3402,132 @@ flowchart LR
 
 Executable evidence is in `SearchRangeContracts.java`. It covers 20 deterministic groups, including all four worked behaviors, endpoint duplicate runs, empty and singleton inputs, the full Java integer range, boundary sentinels, input preservation, defensive sortedness validation and null rejection. It then checks 20,000 seeded sorted arrays against an independent linear oracle while enforcing the logarithmic inspection bound for each boundary search.
 
+### Example 26 — Koko Eating Bananas: binary-search the first feasible rate
+
+**Official contract.** `piles` contains positive pile sizes, and `h` is at least the number of piles. At integer speed `k`, Koko chooses one pile each hour, removes up to `k` bananas from it, and does not switch piles during that hour. Return the smallest positive `k` that finishes every pile within `h` hours. The method must not mutate `piles`. The reusable implementation rejects null, empty, non-positive-pile and `h < piles.length` inputs rather than inventing a result outside the official feasible domain.
+
+This is not a search over array indices—the array is unsorted. It is a search over possible answers. For a fixed positive speed,
+
+`requiredHours(k) = Σ ceil(pile / k)`.
+
+If speed `k` is feasible, every larger speed is feasible because no pile can require more hours when its per-hour capacity increases. The predicate therefore has one false-to-true boundary in `[1,maxPile]`, and the answer is its first true position.
+
+```mermaid
+flowchart LR
+    S["candidate speeds 1..maxPile"] --> F["too slow: hours > h"]
+    F --> B["first feasible speed"]
+    B --> T["all larger speeds feasible"]
+```
+
+```java
+static int minEatingSpeed(int[] piles, int h) {
+    if (piles == null || piles.length == 0) {
+        throw new IllegalArgumentException("piles must be non-null and non-empty");
+    }
+    int low = 1, high = 0;
+    for (int pile : piles) {
+        if (pile <= 0) throw new IllegalArgumentException("piles must be positive");
+        high = Math.max(high, pile);
+    }
+    if (h < piles.length) {
+        throw new IllegalArgumentException("h must be at least the pile count");
+    }
+
+    while (low < high) {
+        int mid = low + ((high - low) >>> 1);
+        if (finishesWithin(piles, h, mid)) high = mid;
+        else low = mid + 1;
+    }
+    return low;
+}
+
+static boolean finishesWithin(int[] piles, int h, int speed) {
+    long required = 0;
+    for (int pile : piles) {
+        required += 1L + (pile - 1L) / speed;
+        if (required > h) return false;
+    }
+    return true;
+}
+```
+
+For a positive pile, `1 + (pile - 1) / speed` is exact ceiling division under Java's truncating integer division. It avoids floating-point conversion and also avoids the overflow-prone numerator `pile + speed - 1`. Accumulating in `long` and returning early once `required > h` prevents an `int` total from wrapping and avoids needless work on clearly infeasible candidates.
+
+```mermaid
+flowchart TD
+    A["candidate interval [low,high]"] --> M["midpoint speed"]
+    M --> H["sum overflow-safe ceiling hours"]
+    H --> Q{"required <= h?"}
+    Q -->|yes| L["high = mid; keep feasible boundary"]
+    Q -->|no| R["low = mid + 1; discard slow speeds"]
+    L --> A
+    R --> A
+```
+
+#### Worked case 1 — canonical first-feasible trace
+
+For `piles = [3,6,7,11]` and `h = 8`, search speeds `[1,11]`.
+
+| before `[low,high]` | `mid` | per-pile hours | total | feasible? | next interval |
+|---|---:|---|---:|---|---|
+| `[1,11]` | 6 | `1,1,2,2` | 6 | yes | `[1,6]` |
+| `[1,6]` | 3 | `1,2,3,4` | 10 | no | `[4,6]` |
+| `[4,6]` | 5 | `1,2,2,3` | 8 | yes | `[4,5]` |
+| `[4,5]` | 4 | `1,2,2,3` | 8 | yes | `[4,4]` |
+
+The interval converges to 4. Speed 3 is proven infeasible and speed 4 feasible, so 4 is minimal—not merely a working speed.
+
+#### Worked case 2 — exactly one hour per pile
+
+For `[30,11,23,4,20]` and `h = 5`, every positive pile consumes at least one whole hour, so each must finish in its single allotted hour. The answer is therefore the largest pile, 30. This is also why `[1,maxPile]` has a guaranteed feasible upper bound when `h >= n`.
+
+```mermaid
+flowchart LR
+    P1["30"] --> H1["one hour needs speed >= 30"]
+    P2["11,23,4,20"] --> H2["each also consumes one hour"]
+    H1 --> R["minimum speed 30"]
+    H2 --> R
+```
+
+#### Worked case 3 — one spare hour changes the boundary
+
+For the same piles with `h = 6`, speed 22 needs `2+1+2+1+1 = 7` hours, while speed 23 needs `2+1+1+1+1 = 6`. Thus the first feasible speed is 23. A lower bound such as average bananas per hour is not sufficient by itself because pile boundaries force separate rounded-up hour counts.
+
+#### Worked case 4 — full-width piles and safe ceiling division
+
+For `[Integer.MAX_VALUE, Integer.MAX_VALUE]` and `h = 3`, speed `Integer.MAX_VALUE - 1` needs `2+2 = 4` hours, while speed `Integer.MAX_VALUE` needs `1+1 = 2`; the answer is `Integer.MAX_VALUE`. The expression `pile + speed - 1` would overflow even a signed `int` long before division. `1L + (pile - 1L) / speed` remains exact across the complete positive-`int` pile domain.
+
+```mermaid
+flowchart LR
+    A["pile > 0"] --> Q["q = (pile - 1) / speed"]
+    Q --> C["ceil = 1 + q"]
+    C --> S["add to long total"]
+    S --> E{"total > h?"}
+    E -->|yes| X["stop: infeasible"]
+    E -->|no| N["inspect next pile"]
+```
+
+**Search invariant.** At the start of every iteration, the first feasible speed lies in `[low,high]`; every speed below `low` is known infeasible, and `high` is feasible. When `mid` is feasible, monotonicity permits discarding only speeds above it while retaining `mid` as a possible first feasible answer. When `mid` is infeasible, every speed at or below it is infeasible, so `low = mid + 1` is safe.
+
+**Termination and correctness.** Each unsuccessful iteration strictly reduces `high - low`: `high` becomes `mid < high`, or `low` becomes `mid + 1 > low`. At termination `low == high`. The invariant says this speed is feasible and no smaller speed can be feasible, so it is exactly the required minimum.
+
+**Complexity.** Let `n` be the pile count and `M` the maximum pile. Each feasibility test scans at most `n` piles, and the answer interval needs at most `ceil(log2 M)` tests. Time is `O(n log M)`, auxiliary space is `O(1)`, and no input component is assigned. Early exit improves work for slow candidates without changing the bound.
+
+**Common interview errors:** binary-searching array indices instead of the answer range; returning any feasible speed; using a non-monotonic predicate; using `Math.ceil((double) pile / speed)` unnecessarily; computing `(pile + speed - 1) / speed` in `int`; accumulating hours in `int`; using `high = mid - 1` while also retaining a half-open-style first-true invariant; forgetting that one pile cannot share an hour with another; accepting `h < piles.length` as feasible; mutating or sorting the piles; or claiming `O(log M)` without the `n`-pile feasibility factor.
+
+**Follow-ups:** tighten the initial lower bound using a widened total; find the minimum machine capacity for deadline-constrained jobs; compare this first-true template with last-true searches; handle a model that allows switching piles within an hour; return the feasibility trace; or generalize to other monotonic capacity predicates such as shipping packages within days.
+
+Executable evidence is in `KokoEatingContracts.java`. It covers 20 deterministic groups, including all four worked behaviors, exact-deadline and slack cases, singleton/all-one/equal piles, the full positive Java `int` range, monotonic feasibility, input preservation and invalid-input rejection. It then checks 20,000 seeded valid instances against an independent brute-force speed oracle while proving feasibility, minimality, nonmutation and the logarithmic search bound.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
 - [Java Language Specification, Java SE 17, Chapter 4: Types, Values, and Variables](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — primitive values versus reference values and array reference semantics.
 - [Java SE 17 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Arrays.html) — copying, filling, comparison, sorting, and searching utilities.
 - [LeetCode, “Find First and Last Position of Element in Sorted Array”](https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/) — primary sorted-input, absent-result, example and logarithmic-time contract for problem 25.
+- [LeetCode, “Koko Eating Bananas”](https://leetcode.com/problems/koko-eating-bananas/) — primary pile/hour model, minimum-speed result, examples and feasible input bounds for problem 26.
+- [Java Language Specification, Java SE 17, §15.17.2](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17.2) — integer-division truncation used to derive exact positive ceiling division.
+- [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — Java integer-overflow guidance and `max` contract used by the answer-space bound.
 - [Java SE 17 `java.util.HashMap`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/HashMap.html) — key/value map behavior and the `getOrDefault`/merge operations used by prefix-frequency counting.
 - [Java SE 17 `java.util.Map`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html) — map equality semantics and the `merge`/`getOrDefault` contracts used by the toolkit.
 - [Java SE 17 `java.util.ArrayDeque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayDeque.html) — resizable deque behavior, null prohibition, and amortized constant-time end operations.

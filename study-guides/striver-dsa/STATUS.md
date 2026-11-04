@@ -61,6 +61,7 @@
 | Arrays §4 Problem 23 — First Missing Positive | ✅ | ✅ | In-place cyclic placement, four worked cases, swap trace, proof, mutation contract and randomized set oracle |
 | Arrays §4 Problem 24 — Search in Rotated Sorted Array | ✅ | ✅ | Ordered-half elimination, four worked cases, exact binary-search trace, proof, inspection bound and randomized linear oracle |
 | Arrays §4 Problem 25 — First and Last Position | ✅ | ✅ | Half-open lower/upper bounds, four worked cases, corrected traces, overflow-safe full-width target and randomized linear oracle |
+| Arrays §4 Problem 26 — Koko Eating Bananas | ✅ | ✅ | First-feasible answer search, four worked cases, exact rate trace, overflow-safe ceiling division and randomized brute-force oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -280,5 +281,11 @@ Fresh literal-marker audit remains **170** across the five placeholder-bearing c
 Arrays Section 4 problem 25 now states the nondecreasing-input, exact-endpoint, absent-result, nonmutation and logarithmic-time contracts; separates the `O(log n)` core from optional linear sortedness validation; and replaces inconsistent older dry-run labels with exact half-open lower/upper-bound traces. The section adds four worked cases, four diagrams, boundary invariants, a strict-shrink proof and direct `>` comparison that avoids `target + 1` overflow. `SearchRangeContracts` validates 20 deterministic groups plus 20,000 seeded sorted arrays against an independent linear oracle while checking input preservation and per-search logarithmic inspection bounds.
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. The collection and intake backlog remain incomplete; Arrays problem 26 is the next exact continuation, subject to the next fair-rotation check.
+
+## Arrays Koko Eating Bananas enrichment — 2026-11-04 ET
+
+Arrays Section 4 problem 26 now states the positive-pile, one-pile-per-hour, minimum-speed, feasible-deadline and nonmutation contracts; derives a monotonic first-feasible predicate; and separates the official feasible domain from reusable invalid-input handling. The section adds four worked cases, four diagrams, an exact answer-space trace, a boundary invariant, strict-shrink/minimality proof and overflow-safe ceiling division `1 + (pile - 1) / speed`. `KokoEatingContracts` validates 20 deterministic groups plus 20,000 seeded valid instances against an independent brute-force speed oracle while checking feasibility, minimality, nonmutation and the logarithmic search bound.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. The collection and intake backlog remain incomplete; Arrays problem 27 is the next exact source continuation, subject to the next fair-domain rotation check.
 
 
