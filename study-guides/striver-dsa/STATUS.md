@@ -289,4 +289,12 @@ Arrays Section 4 problem 26 now states the positive-pile, one-pile-per-hour, min
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. The collection and intake backlog remain incomplete; Arrays problem 27 is the next exact source continuation, subject to the next fair-domain rotation check.
 
+## Arrays Split Array Largest Sum enrichment — 2026-11-04 ET
+
+Arrays Section 4 problem 27 now states the exact-`k`, non-empty contiguous-group, non-negative-input, minimized-maximum and nonmutation contracts; derives a monotonic first-feasible capacity predicate; and proves why the greedy scan minimizes group count and why an at-most-`k` witness can be refined to exactly `k`. The section adds four worked cases, four diagrams, an exact capacity trace, widened arithmetic and reusable invalid-input handling. `SplitArrayLargestSumContracts` validates 20 deterministic groups plus 20,000 seeded arrays against an independent exact partition-DP oracle while checking feasibility, predecessor infeasibility, nonmutation and the logarithmic search bound. All 27 Arrays evidence programs passed in Java 17 source-file mode: 500 scenario groups and 520,000 seeded/randomized oracle trials or comparisons. A standalone `javac` executable was not available.
+
+The deterministic responsive reader embeds the exact 228,739 canonical Markdown bytes at SHA-256 `f853641bcee2488c56bad038ea63653806f1cc361ba69465e141cc552ec6da74`; validation found 968 unique IDs, 55 unique search entries, 825 resolved fragment links, zero relative links, 290 balanced fence markers, 106 Mermaid sources and four syntactically valid script blocks. Both confirmed source artifacts agree on problem 27 and remain unchanged at their recorded hashes.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 28 is the next exact source continuation, subject to the next fair-domain rotation check.
+
 
