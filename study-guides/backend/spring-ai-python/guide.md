@@ -4666,3 +4666,186 @@ Verified on 29 October 2026:
 ### Source provenance and continuation
 
 The refreshed selected bundle member's complete Section 23 is source lines 1307–1332, bounded before Section 24 at line 1333. Fresh Pandoc 3.1.3 extraction places the standalone HTML section at lines 1398–1423, ending before Section 24 at line 1424; the bundle's generated HTML remains byte-identical to the standalone source. Both sources contain the same six scenarios on tenant cache leakage, incomplete SSE, Kubernetes endpoint diagnosis, question-preserving context packing, crash-safe ingestion and wrong-account tool authorization. The editable Markdown remains the structural source and no duplicate guide was created. This canonical section preserves all six scenarios while adding four connected production traces, five diagrams, current primary references and paired 31-scenario/20,000-trial contracts. Section 24, **Architecture interview questions**, begins at editable line 1333. Sections 24–25 remain queued; the wider collection is not complete.
+
+## 24. Four architecture interview questions with complete answer paths
+
+These four designs look different, but the same staff-level answer frame works for each: **name the business contract, bind every decision to trusted identity, make capacity and deadlines explicit, represent uncertainty as state, publish only validated immutable versions, and prove rollback before launch**. A strong interview answer does not begin with products. It first states who owns each fact, retry and irreversible effect.
+
+| Design | Non-negotiable invariant | Degraded behavior | Publication or execution gate |
+| --- | --- | --- | --- |
+| Enterprise knowledge assistant | no unauthorized evidence enters the candidate set or prompt | authorized search-only result or explicit abstention | citations resolve inside the same tenant, ACL revision and index generation |
+| Multi-provider model gateway | policy and required capabilities are checked before health or price | reject when no compliant route exists | selected adapter satisfies policy, capability, budget and remaining deadline |
+| AI-assisted change workflow | approval binds the exact operation digest | revalidate, reapprove or reconcile; never guess | server-side authorization and current preconditions immediately before execution |
+| High-volume ingestion | partial generations never become query-visible | old generation remains active while retry/quarantine proceeds | expected identities, validation gates and compare-and-swap publication all succeed |
+
+### Example 1 — enterprise knowledge assistant: authorize before ranking
+
+**Requirements.** The assistant serves multiple tenants, indexes mutable documents asynchronously, returns evidence-backed answers below a latency target and may continue in search-only mode when generation is unavailable. Identity, membership and object ACLs come from authoritative services; request text and model output never create access. The release identity is a tuple such as `(prompt, model, embedding, reranker, index generation, policy revision)` so an answer can be explained and rolled back.
+
+```mermaid
+flowchart TD
+    A[Verified subject and tenant] --> B[Authorized candidate filter]
+    B --> C[Hybrid retrieval and reranking]
+    C --> D[Budgeted evidence pack]
+    D --> E[Model adapter]
+    E --> F[Citation and policy validator]
+    F -->|valid| G[Answer plus release tuple]
+    F -->|invalid| H[Abstain or authorized search results]
+```
+
+**Trace.** A user in tenant `acme`, membership revision `r18`, asks about a renewal. The catalog exposes documents `D7` and `D8`; only `D7` is visible under `r18`. Filtering occurs before vector/lexical ranking, so `D8` cannot become a candidate. The packer reserves the user question and output budget, selects `D7`, and records generation `g42`. Before return, the validator proves every citation belongs to the selected evidence and remains visible under `(acme, r18, g42)`.
+
+| Boundary | Evidence | Decision |
+| --- | --- | --- |
+| identity | verified subject, tenant `acme`, membership `r18` | continue |
+| retrieval | `D7` authorized; `D8` excluded before ranking | rank only `D7` |
+| generation | index `g42` is current; model is unavailable | return authorized search result, not an invented answer |
+| citation | generated answer cites unknown `D9` | reject/repair within the same evidence set, then abstain if still invalid |
+
+Failure handling must preserve the invariant: an ACL revocation turns cached material into a miss; a stale index exposes its age and may be rejected by policy; a model outage may degrade to search, but never to ungrounded generation. Measure authorization-filter rejects, retrieval recall on fixed slices, citation validity, abstention correctness, index age, end-to-end tail latency and cost by release tuple—not just HTTP success.
+
+### Example 2 — multi-provider model gateway: policy before availability
+
+**Requirements.** The application sends a provider-neutral request containing data classification, allowed regions/models, required capabilities, quality class, budget and an absolute deadline. Adapters own provider serialization. The router never silently drops a requirement to find a healthy route, and it never assumes two available models are semantically equivalent.
+
+```mermaid
+flowchart TD
+    A[Application request contract] --> B{Policy-approved routes}
+    B -->|none| X[Typed rejection]
+    B --> C{Capability match}
+    C -->|none| X
+    C --> D{Budget and deadline feasible}
+    D -->|no| X
+    D --> E[Health and evaluated-quality ranking]
+    E --> F[Versioned provider adapter]
+    F --> G[Usage, outcome and route evidence]
+```
+
+**Routing trace.** A confidential request requires tools and JSON schema, allows `us-east`, has `$0.04` remaining and 1.8 seconds remaining.
+
+| Candidate | Policy | Capabilities | Predicted cost / latency | Result |
+| --- | --- | --- | --- | --- |
+| A | approved | tools + schema | `$0.03` / 1.1 s | eligible |
+| B | wrong region | tools + schema | `$0.02` / 0.8 s | reject before health ranking |
+| C | approved | schema only | `$0.01` / 0.6 s | reject: missing tools |
+| D | approved | tools + schema | `$0.05` / 1.0 s | reject: budget |
+
+Route A is selected only if its circuit/admission state can meet the remaining deadline. If A becomes unhealthy before send, reject or choose another route that passes *all* gates; do not relax data policy. Retries consume the same deadline and budget and have one owner. After a tool or other external effect, reconcile that effect before attempting another provider. Cancellation and usage are accounted per attempt so hidden fallbacks cannot hide cost.
+
+Spring AI's portable model API is useful at the adapter boundary, but provider-specific capabilities still require explicit qualification. Keep configuration snapshots versioned and independently revocable. Evaluate each fallback against the same fixed dataset and publish the evaluation identity with routing configuration.
+
+### Example 3 — AI-assisted change management: approve exactly what executes
+
+**Requirements.** The model may summarize evidence and draft operations; it cannot approve, expand scope or execute. Persist an immutable proposal containing target, ordered operations, expected artifact digest, preconditions and a canonical digest. Human approval signs that digest. Immediately before execution, deterministic code rechecks approval, server-side authorization and live preconditions.
+
+```mermaid
+stateDiagram-v2
+    [*] --> DRAFTED
+    DRAFTED --> APPROVED: human approves exact digest
+    APPROVED --> REAPPROVAL: proposal digest changed
+    APPROVED --> REVALIDATE: live precondition changed
+    APPROVED --> EXECUTING: digest, scope and preconditions match
+    EXECUTING --> SUCCEEDED: authoritative state confirms effect
+    EXECUTING --> FAILED: definitive failure
+    EXECUTING --> RECONCILING: response lost or outcome unknown
+    RECONCILING --> SUCCEEDED: lookup proves desired state
+    RECONCILING --> FAILED: lookup proves no effect
+```
+
+**Exact trace.** Proposal `p17` changes deployment `billing` from artifact `sha256:old` to `sha256:new`, with operation digest `h17`. An approver sees and approves `h17`. Before execution, a new draft adds a database migration and now hashes to `h18`: the old approval is invalid and state becomes `REAPPROVAL`. On the second attempt `h18` is approved, but live artifact precondition changed to `sha256:other`: state becomes `REVALIDATE`. On the third attempt all checks pass; the deployment call times out after send. State is `RECONCILING`, not `FAILED`, and the executor queries rollout state using the original operation identity.
+
+```java
+ChangeDecision decide(Change change, Approval approval, LiveState live, Identity actor) {
+    if (!approval.digest().equals(change.digest())) return REAPPROVE;
+    if (!policy.allowed(actor, change.target(), change.operations())) return DENY_SCOPE;
+    if (change.priorEffectUnknown()) return RECONCILE;
+    if (!live.matches(change.preconditions())) return REVALIDATE;
+    return EXECUTE;
+}
+```
+
+The execution service uses least-privilege credentials scoped to the declared target. The audit record includes proposal and approval identities, digest, actor, policy decision, artifact digest, precondition snapshot, idempotency identity and authoritative observed result. This implements “what you see is what you authorize”: changing significant transaction data invalidates the earlier approval.
+
+```mermaid
+sequenceDiagram
+    participant M as Model drafter
+    participant P as Proposal store
+    participant H as Human approver
+    participant E as Deterministic executor
+    participant R as Runtime authority
+    M->>P: immutable proposal plus operation digest
+    H->>P: approve exact digest
+    E->>P: load proposal and approval
+    E->>R: read current preconditions and authorization
+    alt all gates match
+        E->>R: execute with stable operation identity
+        R-->>E: result or ambiguous timeout
+    else changed or denied
+        E-->>P: reapprove, revalidate or deny
+    end
+```
+
+### Example 4 — high-volume ingestion: resume privately, publish atomically
+
+**Requirements.** Upload acceptance records tenant, immutable source identity, content checksum and policy; it does not make content searchable. Tenant-aware scheduling limits noisy-neighbor dwell time. Parsing and embedding have separate bounded pools/quotas. Every stage writes under a generation identity, poison inputs are quarantined with bounded attempts, and queries continue to use the previous validated generation until atomic publication.
+
+```mermaid
+flowchart TD
+    A[Accepted immutable source] --> B[Tenant-fair queue]
+    B --> C[Restricted parser]
+    C -->|poison| Q[Quarantine and evidence]
+    C --> D[Deterministic chunks]
+    D --> E[Quota-bounded embeddings]
+    E --> F[Private candidate generation]
+    F --> G{Counts, ACLs, recall and failures valid?}
+    G -->|no| H[Retry or reject; old generation stays live]
+    G -->|yes| I[Atomic catalog or alias switch]
+```
+
+**Crash and capacity trace.** Tenant A submits 900 documents and tenant B submits 10. Messages carry trusted tenant scheduling identity; fair delivery prevents A's burst from monopolizing all in-flight work, but per-tenant and fleet admission still bound parser and embedding capacity. Generation `g53` expects 10,000 deterministic chunk IDs. A worker crashes after 6,000 upserts; redelivery recomputes the same IDs, 6,000 become no-ops and 4,000 complete. One corrupt PDF exceeds its bounded parse attempts and moves to quarantine. Because the expected set is incomplete, `g53` cannot publish. After policy decides whether the quarantined source may be excluded, validation records the exact expected set, and an atomic alias/catalog switch replaces `g52` with `g53`.
+
+Capacity estimates must show assumptions. One million 768-dimensional float32 vectors use `1,000,000 × 768 × 4 = 3,072,000,000` bytes (3.072 GB decimal, about 2.861 GiB) of raw values before document text, metadata, ANN structures, replicas and retained generations. Queue depth alone is insufficient: track tenant dwell time, quiet-tenant age, stage utilization, retry/quarantine rates, generation completeness, publication lag and rollback retention.
+
+### Shared decision contract and proof obligations
+
+[`ArchitectureInterviewContracts.java`](ArchitectureInterviewContracts.java) and [`architecture_interview_contracts.py`](architecture_interview_contracts.py) encode the same fail-closed ordering:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/ArchitectureInterviewContracts.java
+python3 study-guides/backend/spring-ai-python/architecture_interview_contracts.py
+```
+
+Both print the same parity line:
+
+```text
+PARITY|KNOWLEDGE=AUTHORIZED|ROUTE=CAPABILITY_GATED|CHANGE=DIGEST_BOUND|INGEST=GENERATION_PUBLISHED
+```
+
+Each runs 21 explicit scenario groups plus 10,000 seeded knowledge-admission trials and 10,000 seeded route-admission trials. The contracts prove decision ordering, not production integration. Real validation still needs identity/ACL fixtures, provider sandboxes and fault injection, a deployment target with ambiguous-response reconciliation, multi-tenant queue load, parser isolation, vector/index evaluation and atomic publication/rollback drills.
+
+### Correctness checklist and interview follow-ups
+
+- Authorization narrows candidates before ranking, and cited objects are rechecked under the same trusted scope.
+- Release identity binds prompt, model, retrieval artifacts, index generation and policy revision.
+- Provider routing rejects before relaxing policy, capability, budget or deadline requirements.
+- Retry ownership is singular; external effects are reconciled before a provider switch.
+- Approval is bound to an immutable operation digest and rechecked server-side at execution.
+- Unknown execution outcomes remain reconciling, never silently replayed under a new identity.
+- Ingestion work is deterministic and private until the expected set and validation gates pass.
+- Tenant fairness complements rather than replaces per-tenant/fleet admission and idempotency.
+- Publication is one atomic pointer/catalog transition with a retained rollback generation.
+
+Useful follow-ups are: “Can an unauthorized vector enter the ANN candidate set?”, “What happens if every healthy provider violates data policy?”, “Which exact bytes did the approver authorize?”, “How is a timeout after send represented?”, “What proves a redelivery converged?”, “Can a poison file block every tenant?”, and “Which tuple restores the previous answer behavior?”
+
+### Current primary references
+
+Verified on 4 November 2026:
+
+- Spring AI, [API overview](https://docs.spring.io/spring-ai/reference/api/index.html) and [Chat Model API](https://docs.spring.io/spring-ai/reference/api/chatmodel.html) — portable model APIs and provider-specific options support a provider-neutral core, but do not remove explicit capability qualification.
+- OWASP, [Transaction Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Transaction_Authorization_Cheat_Sheet.html) — significant transaction data must be visible, server-generated/protected, bound to authorization and rechecked at the execution gate.
+- Amazon SQS, [Fair queues](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fair-queues.html) — `MessageGroupId` identifies tenants on standard queues and reduces quiet-tenant dwell-time impact; it does not provide FIFO ordering or application idempotency.
+- Elasticsearch, [Aliases](https://www.elastic.co/docs/manage-data/data-store/aliases) — a remove/add alias batch can switch generations atomically without an interval pointing to neither or both targets.
+
+### Source provenance and continuation
+
+The refreshed selected bundle member's complete Section 24 is editable source lines 1333–1357, bounded before Section 25 at line 1359. The standalone HTML exposes the same four architecture questions at direct HTML lines 1389–1403 and remains byte-identical to the bundle HTML. Both sources cover the enterprise knowledge assistant, multi-provider gateway, AI-assisted change workflow and high-volume ingestion platform; the editable Markdown remains the structural source, and no duplicate guide was created. This canonical section preserves all four source questions while adding four full traces, five diagrams, exact vector-size arithmetic, fail-closed code, paired 21-scenario/20,000-trial contracts and current primary references. Section 25, **A practical study and implementation sequence**, begins at editable line 1359; it remains queued, and the wider collection is not complete.
