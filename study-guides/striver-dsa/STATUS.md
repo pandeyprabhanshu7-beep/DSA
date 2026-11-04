@@ -63,6 +63,7 @@
 | Arrays §4 Problem 25 — First and Last Position | ✅ | ✅ | Half-open lower/upper bounds, four worked cases, corrected traces, overflow-safe full-width target and randomized linear oracle |
 | Arrays §4 Problem 26 — Koko Eating Bananas | ✅ | ✅ | First-feasible answer search, four worked cases, exact rate trace, overflow-safe ceiling division and randomized brute-force oracle |
 | Arrays §4 Problem 27 — Split Array Largest Sum | ✅ | ✅ | First-feasible capacity search, four worked cases, exact group trace, widened sums and randomized exact-DP oracle |
+| Arrays §4 Problem 28 — Merge Intervals | ✅ | ✅ | Start-ordered component sweep, four worked cases, exact trace, ownership-safe copy and randomized repeated-pair oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -296,5 +297,13 @@ Arrays Section 4 problem 27 now states the exact-`k`, non-empty contiguous-group
 The deterministic responsive reader embeds the exact 228,739 canonical Markdown bytes at SHA-256 `f853641bcee2488c56bad038ea63653806f1cc361ba69465e141cc552ec6da74`; validation found 968 unique IDs, 55 unique search entries, 825 resolved fragment links, zero relative links, 290 balanced fence markers, 106 Mermaid sources and four syntactically valid script blocks. Both confirmed source artifacts agree on problem 27 and remain unchanged at their recorded hashes.
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 28 is the next exact source continuation, subject to the next fair-domain rotation check.
+
+## Arrays Merge Intervals enrichment — 2026-11-04 ET
+
+Arrays Section 4 problem 28 now states the closed-interval, union-coverage, deterministic-order, nonmutation and fresh-row-ownership contracts; derives the start-ordered active-component sweep; and explains why touching endpoints merge under closed semantics. The section adds four worked cases, four diagrams, an exact sweep trace, a final-component invariant, a completeness proof and overflow-safe comparator construction. `MergeIntervalsContracts` validates 20 deterministic groups plus 20,000 seeded interval sets against an independent repeated-pair fixed-point oracle while checking exact point coverage, canonical output, input preservation and fresh row ownership. All 28 Arrays evidence programs passed in Java 17 source-file mode: 520 scenario groups and 540,000 seeded/randomized oracle trials or comparisons. A standalone `javac` executable was not available.
+
+The deterministic responsive reader embeds the exact 236,965 canonical Markdown bytes at SHA-256 `995654088ecb270d91c843a80947eaf9afb1151b5a02138e0f4d6402fc218d2e`; validation found 1,005 unique IDs, 56 unique search entries, 856 resolved fragment links, zero relative links, 300 balanced fence markers, 110 Mermaid sources and four syntactically valid script blocks. Rebuilding produced byte-identical HTML at SHA-256 `0418785d54588d2c53422740c21fb116a7fb123bbc892b1ff9c005fc0790503e`. Both confirmed source artifacts agree on problem 28 and remain unchanged at their recorded hashes.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; fair rotation selects Spring AI/Python Section 28 next, followed by Arrays problem 29, Insert Interval.
 
 

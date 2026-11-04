@@ -3638,6 +3638,119 @@ flowchart LR
 
 Executable evidence is in `SplitArrayLargestSumContracts.java`. It covers 20 deterministic groups, including all four worked behaviors, zero values, exact endpoint contracts, repeated values, full-width totals, monotonic feasibility, nonmutation and invalid-input rejection. It then checks 20,000 seeded arrays against an independent exact partition-DP oracle while proving feasibility, predecessor infeasibility and the logarithmic search bound.
 
+### Example 28 — Merge Intervals: sort once, close one component at a time
+
+**Official contract.** Each input row is a closed interval `[start,end]` with `start <= end`. Return non-overlapping closed intervals whose union equals the input union. The result is ordered by start, and endpoint contact counts as overlap: `[1,4]` and `[4,5]` merge to `[1,5]`. The official problem supplies at least one interval with non-negative endpoints; the reusable implementation also accepts empty input and the full Java `int` endpoint range, rejects malformed rows, and preserves every caller-owned row.
+
+Before sorting, an overlap chain can appear anywhere. Sorting by start creates a **frontier**: the current interval can interact only with the last merged component. If `current.start <= last.end`, the closed intervals overlap and `last.end` extends to `max(last.end,current.end)`. Otherwise, `current.start > last.end`; because all later starts are at least `current.start`, the last component is final forever.
+
+```mermaid
+flowchart LR
+    U["unsorted intervals"] --> S["sort by start, then end"]
+    S --> C["one active merged component"]
+    C --> O["overlap or touch: extend end"]
+    C --> D["strict gap: close component"]
+```
+
+```java
+static int[][] mergeIntervals(int[][] intervals) {
+    if (intervals == null) {
+        throw new IllegalArgumentException("intervals must not be null");
+    }
+    int[][] sorted = new int[intervals.length][2];
+    for (int i = 0; i < intervals.length; i++) {
+        int[] row = intervals[i];
+        if (row == null || row.length != 2 || row[0] > row[1]) {
+            throw new IllegalArgumentException("each row must be [start,end]");
+        }
+        sorted[i][0] = row[0];
+        sorted[i][1] = row[1];
+    }
+
+    Arrays.sort(sorted, Comparator
+            .comparingInt((int[] row) -> row[0])
+            .thenComparingInt(row -> row[1]));
+
+    int[][] merged = new int[sorted.length][2];
+    int size = 0;
+    for (int[] current : sorted) {
+        if (size == 0 || current[0] > merged[size - 1][1]) {
+            merged[size][0] = current[0];
+            merged[size][1] = current[1];
+            size++;
+        } else {
+            merged[size - 1][1] = Math.max(merged[size - 1][1], current[1]);
+        }
+    }
+    return Arrays.copyOf(merged, size);
+}
+```
+
+The deep copy occurs before sorting, so neither row order nor endpoints in the caller's matrix change. `Comparator.comparingInt` supplies a total ordering without the overflow bug in `a[0] - b[0]`. Ties are ordered by end only to make traces deterministic; correctness needs only nondecreasing starts.
+
+```mermaid
+flowchart TD
+    I["next interval in start order"] --> Q{"start <= active end?"}
+    Q -->|yes| E["active end = max ends"]
+    Q -->|no| F["active interval is final"]
+    F --> N["append next active interval"]
+    E --> I
+    N --> I
+```
+
+#### Worked case 1 — canonical merge trace
+
+For `[[1,3],[2,6],[8,10],[15,18]]`, sorting changes nothing.
+
+| current | active before | decision | output prefix after |
+|---|---|---|---|
+| `[1,3]` | none | seed | `[[1,3]]` |
+| `[2,6]` | `[1,3]` | `2 <= 3`, extend end to 6 | `[[1,6]]` |
+| `[8,10]` | `[1,6]` | `8 > 6`, append | `[[1,6],[8,10]]` |
+| `[15,18]` | `[8,10]` | `15 > 10`, append | `[[1,6],[8,10],[15,18]]` |
+
+The output components are disjoint, sorted, and cover exactly the four original intervals.
+
+```mermaid
+flowchart LR
+    A["[1,3]"] --> B["[2,6]"]
+    B --> M["merged [1,6]"]
+    M --> G["gap before [8,10]"]
+    G --> H["gap before [15,18]"]
+```
+
+#### Worked case 2 — closed endpoints touch
+
+For `[[1,4],[4,5]]`, `4 <= 4`, so the result is `[[1,5]]`. Using `<` instead of `<=` would implement half-open interval semantics and contradict this closed-interval contract. State interval semantics before coding; the inequality follows from that choice.
+
+#### Worked case 3 — nesting and transitive overlap
+
+Sort `[[4,7],[1,4],[2,3],[6,8]]` into `[[1,4],[2,3],[4,7],[6,8]]`. The nested `[2,3]` must not shrink the active end 4. Then `[4,7]` touches the component and extends it to 7; `[6,8]` extends it to 8. The result is `[[1,8]]`. Pairwise overlap is not required between the first and last inputs—the connected chain is what matters.
+
+```mermaid
+flowchart LR
+    A["[1,4]"] --> B["contains [2,3]"]
+    B --> C["touches [4,7]"]
+    C --> D["overlaps [6,8]"]
+    D --> U["one component [1,8]"]
+```
+
+#### Worked case 4 — full-width endpoints and ownership
+
+For `[[Integer.MAX_VALUE,Integer.MAX_VALUE],[Integer.MIN_VALUE,-1],[-1,0]]`, safe start ordering yields `[[Integer.MIN_VALUE,-1],[-1,0],[Integer.MAX_VALUE,Integer.MAX_VALUE]]`; the first two touch and merge, producing `[[Integer.MIN_VALUE,0],[Integer.MAX_VALUE,Integer.MAX_VALUE]]`. Comparator subtraction would overflow for the extreme starts and could violate the sort contract. Mutating either returned row does not alter an input row because the implementation owns fresh output storage.
+
+**Sweep invariant.** Before processing the next sorted interval, the output prefix is sorted, pairwise disjoint, and covers exactly the processed inputs. Every component except the last is final; the last is the union of the final connected overlap component among processed intervals. On overlap, extending only the last end preserves its start and union while `max` prevents nested intervals from shrinking it. On a strict gap, no future interval can reach the last end because future starts are no smaller than the current start, so appending starts the only possible new component.
+
+**Correctness and termination.** The invariant holds after seeding. Each iteration handles exactly one sorted input and preserves exact coverage without inventing points outside overlapping closed intervals. When the loop ends, all inputs are processed and the active component is also final; therefore the output is precisely the sorted connected components of the input union. The loop index advances once per interval, so termination is immediate.
+
+**Complexity.** Deep copying and sweeping take `O(n)` time. Sorting dominates at `O(n log n)` time. The preserved-input implementation uses `O(n)` working/output storage plus the object-array sort's implementation-dependent working storage; if mutation is explicitly allowed, rows may be sorted in place and the write prefix reused. Output itself can contain `n` intervals.
+
+**Common interview errors:** omitting the sort; sorting by end rather than start without changing the proof; using subtraction in the comparator; using `<` for closed endpoints; checking against every output interval instead of only the active one; replacing rather than maximizing the active end; failing on nested intervals; returning aliases to caller rows; claiming input preservation after `Arrays.sort(intervals, ...)`; accepting reversed endpoints silently; forgetting the empty reusable case; or claiming linear total time while ignoring sorting.
+
+**Follow-ups:** switch deliberately to half-open intervals; insert one interval into an already sorted disjoint list in `O(n)`; return the total covered length with overflow-safe arithmetic; find the minimum removals needed for non-overlap; compute intersections of two sorted interval lists; merge streaming input already ordered by start; or preserve provenance by returning each merged component with the source interval IDs it absorbed.
+
+Executable evidence is in `MergeIntervalsContracts.java`. It covers 20 deterministic groups, including all four worked behaviors, duplicates, empty/singleton/disjoint inputs, nested and transitive chains, full-width endpoints, canonical ordering, deep ownership, input preservation and malformed-row rejection. It then checks 20,000 seeded interval sets against an independent repeated-pair union oracle while verifying exact point coverage, canonical output and nonmutation.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -3646,6 +3759,8 @@ Executable evidence is in `SplitArrayLargestSumContracts.java`. It covers 20 det
 - [LeetCode, “Find First and Last Position of Element in Sorted Array”](https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/) — primary sorted-input, absent-result, example and logarithmic-time contract for problem 25.
 - [LeetCode, “Koko Eating Bananas”](https://leetcode.com/problems/koko-eating-bananas/) — primary pile/hour model, minimum-speed result, examples and feasible input bounds for problem 26.
 - [LeetCode, “Split Array Largest Sum”](https://leetcode.com/problems/split-array-largest-sum/) — primary exact-`k`, non-empty contiguous-subarray, minimized-largest-sum contract, examples and non-negative input bounds for problem 27.
+- [LeetCode, “Merge Intervals”](https://leetcode.com/problems/merge-intervals/) — primary closed-interval overlap, union-coverage, canonical examples and input bounds for problem 28.
+- [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
 - [Java Language Specification, Java SE 17, §15.17.2](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17.2) — integer-division truncation used to derive exact positive ceiling division.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — Java integer-overflow guidance and `max` contract used by the answer-space bound.
 - [Java SE 17 `java.util.HashMap`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/HashMap.html) — key/value map behavior and the `getOrDefault`/merge operations used by prefix-frequency counting.
@@ -3691,9 +3806,9 @@ Executable evidence is in `SplitArrayLargestSumContracts.java`. It covers 20 det
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 27 (Split Array Largest Sum is lines 2761–2876, bounded before problem 28 at line 2877). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 27 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 27 at lines 2709–2816, bounded before problem 28 at line 2817). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 28 (Merge Intervals is lines 2877–2980, bounded before problem 29 at line 2981). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 28 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 28 at lines 2817–2911, bounded before problem 29 at line 2912). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 27, “Split Array Largest Sum,” is promoted from Markdown lines 2761–2876 and fresh no-wrap DOCX GFM-extracted lines 2709–2816; problem 28, “Merge Intervals,” begins at Markdown line 2877 and no-wrap DOCX GFM-extracted line 2817.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 28, “Merge Intervals,” is promoted from Markdown lines 2877–2980 and fresh no-wrap DOCX GFM-extracted lines 2817–2911; problem 29, “Insert Interval,” begins at Markdown line 2981 and no-wrap DOCX GFM-extracted line 2912.
 
 
