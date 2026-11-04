@@ -29,6 +29,7 @@ java -ea study-guides/backend/spring-ai-python/FoundationsApiContracts.java
 java -ea study-guides/backend/spring-ai-python/ConcurrencyDataToolsContracts.java
 java -ea study-guides/backend/spring-ai-python/DebuggingScenariosContracts.java
 java -ea study-guides/backend/spring-ai-python/ArchitectureInterviewContracts.java
+java -ea study-guides/backend/spring-ai-python/PracticalSequenceContracts.java
 python3 study-guides/backend/spring-ai-python/layer_selection_contracts.py
 python3 study-guides/backend/spring-ai-python/library_selection_contracts.py
 python3 study-guides/backend/spring-ai-python/java_library_map_contracts.py
@@ -53,6 +54,7 @@ python3 study-guides/backend/spring-ai-python/foundations_api_contracts.py
 python3 study-guides/backend/spring-ai-python/concurrency_data_tools_contracts.py
 python3 study-guides/backend/spring-ai-python/debugging_scenarios_contracts.py
 python3 study-guides/backend/spring-ai-python/architecture_interview_contracts.py
+python3 study-guides/backend/spring-ai-python/practical_sequence_contracts.py
 ```
 
-This is an incremental guide. Sections 1–24 are promoted; Section 25 remains queued.
+All 25 sections from the selected Spring AI/Python source are promoted. The wider repository intake and enrichment backlog remain open; the next fair rotation is Arrays problem 25.

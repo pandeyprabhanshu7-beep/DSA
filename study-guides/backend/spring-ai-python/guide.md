@@ -4849,3 +4849,212 @@ Verified on 4 November 2026:
 ### Source provenance and continuation
 
 The refreshed selected bundle member's complete Section 24 is editable source lines 1333–1357, bounded before Section 25 at line 1359. The standalone HTML exposes the same four architecture questions at direct HTML lines 1389–1402, ending before Section 25 at line 1403, and remains byte-identical to the bundle HTML. Both sources cover the enterprise knowledge assistant, multi-provider gateway, AI-assisted change workflow and high-volume ingestion platform; the editable Markdown remains the structural source, and no duplicate guide was created. This canonical section preserves all four source questions while adding four full traces, five diagrams, exact vector-size arithmetic, fail-closed code, paired 21-scenario/20,000-trial contracts and current primary references. Section 25, **A practical study and implementation sequence**, begins at editable line 1359; it remains queued, and the wider collection is not complete.
+
+## 25. A practical study and implementation sequence
+
+Treat the seven source steps as an evidence ladder, not a calendar. A stage is complete only when it leaves a reproducible artifact for the next stage: exact offline contracts, a bounded live trace, adversarial authorization results, crash-recovery evidence, terminal-stream tests, an immutable release identity and a fixed evaluation comparison. Framework count, elapsed weeks and a successful demo are not exit criteria.
+
+| Gate | Smallest useful deliverable | Required failure proof | Exit evidence |
+| --- | --- | --- | --- |
+| Offline core | deterministic retrieval, packing and validation functions | invalid vectors, duplicate IDs, over-budget input | exact expected outputs in both languages |
+| Model-backed API | one local synchronous path with typed outcomes | timeout, malformed output, missing citation | request/release identity and phase timings |
+| Identity boundary | server-owned tenant and object scope | foreign tenant through HTTP, retrieval and tool paths | deny matrix tied to verified identities |
+| Durable ingestion | outbox, deterministic work IDs and atomic publication | crash before/after send and before acknowledgement | replay converges to one logical generation |
+| Streaming | bounded admission and explicit terminal events | disconnect, gap, overflow and cancellation | no transport close becomes false success |
+| Immutable release | one artifact digest promoted unchanged | tag movement, unverified provenance, config drift | verified digest, provenance and rollback target |
+| Fixed evaluation | same cases, identities and budgets for candidate/baseline | security failure or slice regression | signed decision record: promote or reject |
+
+### Requirements and invariants
+
+1. **Advance by evidence, not enthusiasm.** The first missing gate is the next task. Later success cannot compensate for an unproved earlier boundary.
+2. **Keep one release vector.** Record source revision, artifact digest, prompt/model/embedding/index identities, policy revision, configuration digest and evaluation-set revision. All evidence in a promotion decision must refer to that same vector.
+3. **Separate deterministic and probabilistic claims.** Authorization, citation membership, token arithmetic, idempotency and terminal-state reduction have exact oracles. Model relevance and answer quality need fixed datasets, slices and explicit thresholds.
+4. **Use synthetic data honestly.** Small fixtures make edge cases reproducible; they do not prove production recall, quality, load capacity or provider behavior. Name every untested integration.
+5. **Make trusted scope server-owned.** Tenant and object authority come from verified identity and current membership, not prompt text, retrieved text, model arguments or client-supplied tenant fields.
+6. **Make replays converge.** Stable operation identities bind trusted scope and immutable payload. A timeout after send is `UNKNOWN` until an authoritative lookup reconciles it.
+7. **Make completion explicit.** A stream is successful only after a validated terminal event. EOF, disconnect and a final text delta are not equivalent to completion.
+8. **Promote immutable bytes.** Build once, identify by digest, verify provenance, deploy the same digest and retain the prior digest plus compatible data/configuration for rollback.
+9. **Fail promotion closed.** Release mismatch, security failure, deterministic functional failure, quality regression, budget violation or unproved rollback each reject the candidate independently.
+
+### Example 1 — start with a dependency-free evidence ledger
+
+**Requirement.** Before adding a model or framework, prove the exact control plane: authorized candidates only, deterministic tie-breaking, reservation-first packing and citation membership. Run the same input vectors through Java and Python and store the parity line with the source revision.
+
+```mermaid
+flowchart TD
+    A[Versioned fixture] --> B[Java exact core]
+    A --> C[Python exact core]
+    B --> D[Expected decisions and trace]
+    C --> D
+    D --> E{Byte-stable parity?}
+    E -->|no| F[Stop and reconcile semantics]
+    E -->|yes| G[Open model-backed gate]
+```
+
+A minimal ledger records claims rather than only commands:
+
+```json
+{
+  "release": {"source": "git:7d2…", "fixture": "sha256:91a…"},
+  "claim": "ranked evidence is authorized and question reservation is preserved",
+  "oracle": "exact",
+  "java": {"runtime": "17", "exit": 0, "trace": "PARITY|..."},
+  "python": {"runtime": "3.13", "exit": 0, "trace": "PARITY|..."},
+  "not_proved": ["production retrieval recall", "provider behavior", "load capacity"]
+}
+```
+
+**Trace.** The fixture has two authorized passages with equal score and one higher-scoring foreign-tenant passage. Both implementations must exclude the foreign item before ranking, order the tie by stable document ID, reserve the question before evidence and reject a generated citation outside the selected set. If Java and Python return different tie order, the stage remains open even when both processes exit successfully.
+
+| Observation | Decision |
+| --- | --- |
+| same decisions, different whitespace in diagnostic text | normalize declared diagnostics or compare structured fields |
+| different selected evidence IDs | stop; semantic parity failed |
+| exact fixtures pass, randomized invariant test fails | stop; the invariant is not proved |
+| every exact contract passes | advance, while preserving the explicit `not_proved` list |
+
+This gate is intentionally small. It localizes semantic mistakes before network retries, serialization and framework defaults make them harder to diagnose.
+
+### Example 2 — add one live path, then attack the identity boundary
+
+**Requirement.** Add one model-backed local API only after the exact core is stable. Capture the canonical request size, queue wait, retrieval time, provider/connect/read time, validation outcome and release vector. Then add verified identity and prove that a foreign tenant cannot enter through any equivalent path.
+
+```mermaid
+sequenceDiagram
+    participant C as Test client
+    participant A as API boundary
+    participant R as Authorized retrieval
+    participant M as Model adapter
+    C->>A: token + question + untrusted tenant hint
+    A->>A: verify issuer, audience and membership
+    A->>R: server-owned tenant predicate
+    R-->>A: authorized evidence IDs
+    A->>M: bounded request + deadline
+    M-->>A: output + usage or typed failure
+    A->>A: schema, citation and policy validation
+    A-->>C: typed outcome + release ID
+```
+
+Use an adversarial matrix rather than one happy-path test:
+
+| Path | Attack | Required outcome |
+| --- | --- | --- |
+| direct HTTP | body names tenant B while token belongs to A | ignore/reject the hint; no B lookup |
+| retrieval | foreign high-score vector is present | excluded before ranking |
+| cache | A and B ask identical text | different trusted scope identity; no cross-hit |
+| tool | model emits B's account ID with valid JSON | object-level authorization rejects |
+
+**Live trace.** Request `req-17` uses release `(prompt p3, model m8, index g12, policy r5)`, 1.5-second deadline and 24 KiB serialized request. It waits 12 ms, retrieves in 41 ms and the provider times out after 900 ms. The API returns a typed upstream-timeout outcome with no answer marked valid. A second request receives syntactically valid JSON citing `B-9`; the citation gate rejects it because the selected authorized set is `{A-2, A-4}`. These failures are useful evidence: they prove the boundary remains visible instead of being flattened into `500` or accepted because the model was confident.
+
+Do not log bearer tokens, raw sensitive prompts or unrestricted model output merely to make the trace rich. Prefer hashes, bounded identifiers, typed outcomes and protected sampling with retention/access controls.
+
+### Example 3 — combine crash-convergent ingestion with honest stream completion
+
+**Requirement.** The write path uses a transactional outbox and stable work identity; the read/stream path exposes only a committed validated generation and marks success with an explicit terminal event. Both paths must survive interruption without inventing success or duplicating effects.
+
+```mermaid
+stateDiagram-v2
+    [*] --> ACCEPTED
+    ACCEPTED --> OUTBOXED: job and event commit together
+    OUTBOXED --> PROCESSING: claimed by stable work ID
+    PROCESSING --> PROCESSING: redelivery reuses IDs
+    PROCESSING --> PRIVATE_READY: expected chunks validated
+    PRIVATE_READY --> PUBLISHED: atomic generation switch
+    PUBLISHED --> STREAMING: answer uses published generation
+    STREAMING --> COMPLETE: validated terminal event committed
+    STREAMING --> INCOMPLETE: EOF, disconnect or deadline
+```
+
+The same operation identity must survive retries:
+
+```text
+work_id = H(tenant || source_id || source_revision || stage || canonical_payload_hash)
+```
+
+**Crash/replay trace.** Creating source revision `rev-8` and its outbox row commits once. A worker writes chunks 0–4 and crashes. Redelivery claims the same `work_id`; deterministic chunk IDs make five upserts no-ops and complete chunks 5–9. The provider acknowledgement is then lost. The worker queries durable state using the original identity, finds the completed generation and records success without creating a second generation. Only after counts, failures, ACL metadata and evaluation checks pass does an atomic pointer switch expose `g31`.
+
+The first query against `g31` streams deltas 71–74, then the connection closes. The reducer stores `INCOMPLETE` and cursor 74; it does not convert EOF into success. On reconnect, the server either resumes with a committed `complete` event or returns an explicit replay-unavailable outcome. Admission and buffers are bounded: an overflow produces a typed terminal/close policy, not unbounded memory growth.
+
+| Interruption | Durable truth | Safe retry behavior |
+| --- | --- | --- |
+| before outbox commit | no job exists | client may resubmit under same idempotency identity |
+| after commit, before publish | private generation may be partial | redelivery reuses work/chunk IDs |
+| after provider send, before response | effect is unknown | reconcile by original key; do not invent a new one |
+| after deltas, before terminal event | answer is incomplete | resume by trusted cursor or restart read-only generation |
+
+### Example 4 — build once, promote by digest and compare on fixed evidence
+
+**Requirement.** CI builds one candidate from the reviewed source revision, records its digest and verifiable provenance, then every environment deploys that same digest. Evaluation compares candidate and baseline on the same versioned cases, identities, index snapshot and budgets. Promotion requires all hard gates and a proved rollback.
+
+```mermaid
+flowchart TD
+    A[Reviewed source revision] --> B[Isolated build]
+    B --> C[Artifact digest + provenance]
+    C --> D{Verify builder, source and digest}
+    D -->|fail| X[Reject]
+    D -->|pass| E[Disposable environment by digest]
+    E --> F[Security, function, quality and budget gates]
+    F -->|any hard failure| X
+    F --> G[Promote same digest]
+    G --> H[Observe and retain prior digest]
+    H --> I[Rollback drill]
+```
+
+Suppose baseline `sha256:aaa` and candidate `sha256:bbb` are evaluated on dataset `eval-19`, index `g31`, policy `r5` and prompt `p3`:
+
+| Gate | Baseline | Candidate | Rule | Decision |
+| --- | ---:| ---:| --- | --- |
+| foreign-tenant leaks | 0/400 | 0/400 | must equal zero | pass |
+| citation membership | 99.5% | 100% | at least 99.5% | pass |
+| billing-slice answer score | 0.84 | 0.78 | no slice below 0.82 | **reject** |
+| p95 latency | 620 ms | 570 ms | at most 700 ms | pass |
+| mean cost | $0.011 | $0.010 | at most $0.015 | pass |
+
+The candidate is rejected despite better latency, cost and aggregate citation membership because the predeclared billing slice regressed. Do not tune against the held-out result and rerun until it passes; create a new candidate and decision record. Model-based evaluators may contribute one versioned signal, but deterministic security and citation checks remain authoritative and human-labelled slices remain necessary for business meaning.
+
+Promotion evidence should include the candidate digest, verified provenance identity, environment configuration digest, dataset/slice revision, every threshold, raw result artifact, approver decision and prior rollback digest. A tag such as `stable` is a pointer, not an immutable release identity. Kubernetes image digests are content-addressed; provenance links those bytes to a builder and source, but neither property alone proves the artifact is secure or good enough.
+
+### Paired executable sequence and promotion contract
+
+[`PracticalSequenceContracts.java`](PracticalSequenceContracts.java) and [`practical_sequence_contracts.py`](practical_sequence_contracts.py) implement the same first-missing-gate and fail-closed promotion decisions:
+
+```bash
+java -ea study-guides/backend/spring-ai-python/PracticalSequenceContracts.java
+python3 study-guides/backend/spring-ai-python/practical_sequence_contracts.py
+```
+
+Both print the same first line:
+
+```text
+PARITY|SEQUENCE=EVIDENCE_GATED|IDENTITY=SERVER_OWNED|INGEST=REPLAY_SAFE|STREAM=TERMINAL_EVENT|RELEASE=DIGEST_PINNED|PROMOTION=EVALUATED
+```
+
+Each runs 21 explicit scenario groups plus 10,000 seeded sequence trials and 10,000 seeded promotion trials. The contracts prove ordering: later evidence never masks the first missing stage, and release mismatch, security, function, quality, budget or rollback failures reject before promotion. They do not call a model, authenticate tokens, start Spring/FastAPI, run a database/outbox, cut an SSE connection, build an image, verify a real attestation, deploy Kubernetes or measure production quality/load. Those require the named integration environments and fault-injection fixtures.
+
+### Completion checklist
+
+- Every gate has a versioned claim, oracle, command/environment, result and honest `not_proved` list.
+- Java and Python exact cores agree on structured decisions, not merely exit code.
+- The model-backed trace contains one release vector, phase budgets and typed failures.
+- Tenant isolation is tested through direct HTTP, retrieval, cache and tool boundaries.
+- Outbox/chunk/effect identities remain stable across crash and acknowledgement loss.
+- Only a committed validated terminal event marks a streamed answer complete.
+- The built artifact is verified and promoted by digest; tags never substitute for identity.
+- Candidate and baseline use the same cases, slices, scope, index and budgets.
+- Security and deterministic correctness are hard gates; quality slices cannot be averaged away.
+- Rollback restores compatible artifact, configuration and data/index identity and is exercised before promotion.
+
+### Current primary references
+
+Verified on 4 November 2026:
+
+- Spring AI, [Evaluation Testing](https://docs.spring.io/spring-ai/reference/api/testing.html) — `Evaluator`, `EvaluationRequest`, contextual relevancy and fact-checking evaluators; these are useful versioned signals, not replacements for deterministic authorization or human-labelled business slices.
+- Spring Security, [Testing](https://docs.spring.io/spring-security/reference/servlet/test/index.html) and [HTTP authorization](https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html) — request/method security test support and deny-by-default authorization rules for the adversarial identity matrix.
+- Python, [`asyncio.Queue`](https://docs.python.org/3/library/asyncio-queue.html) and [task cancellation](https://docs.python.org/3/library/asyncio-task.html) — positive `maxsize` bounds queue growth; queue operations need explicit timeouts, and cancellation is delivered at suspension points.
+- Kubernetes, [Images](https://kubernetes.io/docs/concepts/containers/images/) and [Security Checklist](https://kubernetes.io/docs/concepts/security/security-checklist/) — image digests are immutable content identities; the security checklist recommends digest references or signature/provenance verification at admission.
+- GitHub, [Artifact attestations](https://docs.github.com/en/actions/concepts/security/artifact-attestations) — attestations link artifacts to workflow, repository, commit and build identity, must be verified to provide value, and do not by themselves assert that an artifact is secure.
+- SLSA 1.2, [Provenance](https://slsa.dev/spec/v1.2/provenance) and [verifying artifacts](https://slsa.dev/spec/v1.2/verifying-artifacts) — provenance records where, when and how artifacts were produced; consumers still apply verification policy to artifact identity and provenance fields.
+
+### Source provenance and continuation
+
+The refreshed selected bundle member's complete final Section 25 is editable source lines 1359–1370. The standalone HTML exposes the same seven-step list and closing principle at direct HTML lines 1403–1415; its source hash still matches the confirmed comparison edition. The editable Markdown remains the structural source, and no duplicate guide was created. This canonical section preserves every source step while adding an evidence-gated ladder, four worked traces, four diagrams, a fixed release/evaluation decision table, paired 21-scenario/20,000-trial contracts and current primary references. All 25 sections from this selected source have now been processed, but the repository intake and wider enrichment backlog are not complete; the fair queue continues with Arrays problem 25.
