@@ -3519,6 +3519,125 @@ flowchart LR
 
 Executable evidence is in `KokoEatingContracts.java`. It covers 20 deterministic groups, including all four worked behaviors, exact-deadline and slack cases, singleton/all-one/equal piles, the full positive Java `int` range, monotonic feasibility, input preservation and invalid-input rejection. It then checks 20,000 seeded valid instances against an independent brute-force speed oracle while proving feasibility, minimality, nonmutation and the logarithmic search bound.
 
+### Example 27 — Split Array Largest Sum: minimize a contiguous capacity
+
+**Official contract.** Given a non-negative integer array `nums` and `k` with `1 <= k <= nums.length`, split the array into exactly `k` non-empty contiguous subarrays. Return the smallest possible value of the largest subarray sum. Order is fixed, elements cannot be skipped or reordered, and the implementation does not mutate `nums`. The official constraints make the answer fit in `int`; the reusable implementation below returns `long` so the same reasoning remains correct for full-width `int` components.
+
+For a candidate limit `L`, greedily append each value to the current group until the next value would make its sum exceed `L`; then start a new group. This greedy scan uses the **fewest possible groups** under `L`. Therefore
+
+`feasible(L) = greedyGroups(nums, L) <= k`
+
+is monotonic: raising the limit can never require more groups. Binary-search the first feasible limit in `[max(nums), sum(nums)]`. Although the scan tests “at most `k`,” the result satisfies “exactly `k`”: any solution with fewer groups can be split at internal boundaries until it has `k` non-empty groups, and non-negative values ensure splitting cannot increase a group sum.
+
+```mermaid
+flowchart LR
+    A["candidate limits max..sum"] --> F["too small: groups > k"]
+    F --> B["first feasible limit"]
+    B --> T["all larger limits feasible"]
+```
+
+```java
+static long splitArray(int[] nums, int k) {
+    if (nums == null || nums.length == 0 || k <= 0 || k > nums.length) {
+        throw new IllegalArgumentException("require non-empty nums and 1 <= k <= n");
+    }
+    long low = 0, high = 0;
+    for (int value : nums) {
+        if (value < 0) throw new IllegalArgumentException("values must be non-negative");
+        low = Math.max(low, value);
+        high += value;                       // widened accumulator
+    }
+
+    while (low < high) {
+        long mid = low + ((high - low) >>> 1);
+        if (fitsInAtMost(nums, k, mid)) high = mid;
+        else low = mid + 1;
+    }
+    return low;
+}
+
+static boolean fitsInAtMost(int[] nums, int k, long limit) {
+    int groups = 1;
+    long current = 0;
+    for (int value : nums) {
+        if (value > limit) return false;
+        if (current > limit - value) {       // equivalent to current + value > limit
+            if (++groups > k) return false;
+            current = value;
+        } else {
+            current += value;
+        }
+    }
+    return true;
+}
+```
+
+The subtraction-form comparison avoids forming a potentially overflowing sum in a reusable implementation. Here `limit >= 0` and `value >= 0`, so `current > limit - value` is equivalent to `current + value > limit`. Bounds and accumulators are `long`; Java integer operators otherwise use their promoted fixed-width type and do not report ordinary overflow.
+
+```mermaid
+flowchart TD
+    S["scan next non-negative value"] --> Q{"fits current group?"}
+    Q -->|yes| A["append to current sum"]
+    Q -->|no| N["start new group"]
+    N --> K{"groups > k?"}
+    K -->|yes| X["candidate infeasible"]
+    K -->|no| S
+    A --> S
+```
+
+#### Worked case 1 — canonical first-feasible trace
+
+For `nums = [7,2,5,10,8]` and `k = 2`, the search starts at `[10,32]`.
+
+| before `[low,high]` | `mid` | greedy groups | count | feasible? | next interval |
+|---|---:|---|---:|---|---|
+| `[10,32]` | 21 | `[7,2,5] \| [10,8]` | 2 | yes | `[10,21]` |
+| `[10,21]` | 15 | `[7,2,5] \| [10] \| [8]` | 3 | no | `[16,21]` |
+| `[16,21]` | 18 | `[7,2,5] \| [10,8]` | 2 | yes | `[16,18]` |
+| `[16,18]` | 17 | `[7,2,5] \| [10] \| [8]` | 3 | no | `[18,18]` |
+
+The interval converges to 18. The feasibility transition between 17 and 18 proves minimality; `[7,2,5] | [10,8]` witnesses the exact two-part answer.
+
+```mermaid
+flowchart LR
+    A["7 + 2 + 5 = 14"] --> B["cut before 10"]
+    B --> C["10 + 8 = 18"]
+    C --> R["largest group = 18"]
+```
+
+#### Worked case 2 — official increasing sequence
+
+For `[1,2,3,4,5]`, `k = 2`, limit 8 produces `[1,2,3] | [4] | [5]`, so it is infeasible. Limit 9 produces `[1,2,3] | [4,5]`, so the answer is 9. A balanced number of elements is not required; group sums, not lengths, define the objective.
+
+#### Worked case 3 — the endpoint contracts
+
+For `[1,2,3,4,5]`, `k = 1`, no cut is allowed and the result is the total, 15. For `[1,4,4]`, `k = 3`, every element must stand alone and the result is the maximum element, 4. These cases explain the safe search bounds: `max(nums)` is unavoidable, while `sum(nums)` is always feasible.
+
+#### Worked case 4 — zeros and widened totals
+
+For `[0,0,0,0]`, `k = 3`, the answer is 0. Greedy may initially use only one group at limit 0, but two additional cuts create exactly three non-empty zero-sum groups without increasing the maximum. For `[Integer.MAX_VALUE, Integer.MAX_VALUE]`, `k = 1`, the reusable result is `4_294_967_294L`; an `int` accumulator would wrap negative. With `k = 2`, the answer is `Integer.MAX_VALUE`.
+
+```mermaid
+flowchart LR
+    G["greedy uses g <= k groups"] --> C["choose internal cut in a group"]
+    C --> M["both new sums <= old sum"]
+    M --> E{"now k groups?"}
+    E -->|no| C
+    E -->|yes| R["exact-k witness"]
+```
+
+**Why greedy minimizes the group count.** Consider the first greedy cut. Greedy places it after the farthest prefix whose sum is at most `L`. No valid partition under `L` can place its first cut later, because that would contain the same non-negative prefix plus at least one more value and exceed `L`. Removing the first group leaves the identical problem on a suffix; induction proves every greedy cut is at least as far right as the corresponding cut of any valid partition. Greedy therefore uses no more groups than any alternative.
+
+**Search invariant and correctness.** At every iteration the first feasible limit lies in `[low,high]`, every value below `low` is known infeasible, and `high` is feasible. If `mid` is feasible, retain it with `high = mid`; monotonicity discards only larger non-minimal candidates. If it is infeasible, all limits at or below it are infeasible, so `low = mid + 1` is safe. Each update strictly shrinks the interval. At `low == high`, the invariant gives a feasible limit with no smaller feasible predecessor—exactly the optimum. The exact-`k` splitting argument converts its at-most-`k` greedy witness into the required partition count.
+
+**Complexity.** Let `n` be the array length and `S = sum(nums) - max(nums)`. Each feasibility check scans at most `n` values, and the inclusive answer interval needs `O(log(S + 1))` checks. Total time is `O(n log(S + 1))`; auxiliary space is `O(1)`. Early rejection after group `k + 1` reduces work for small candidates without changing the bound.
+
+**Common interview errors:** sorting the input and destroying contiguity; minimizing group length instead of group sum; searching from zero rather than `max(nums)`; using ordinary greedy once without binary search; treating “at most `k`” as incompatible with “exactly `k`”; forgetting that the exact-`k` conversion depends on non-negative values; using `int` for a reusable total; returning the first feasible midpoint encountered; using `high = mid - 1` with this first-true template; making empty groups; reconstructing cuts without reserving enough elements for the remaining groups; or quoting `O(log S)` while omitting the `n`-element scan.
+
+**Follow-ups:** return the cut positions by reconstructing from the right while reserving one element per remaining group; compare the answer search with `O(k n^2)` prefix-partition DP; minimize the largest daily shipping load; allocate ordered books to students; support a fixed upper capacity and return the minimum group count; or explain why signed values break greedy monotonic feasibility and require a different dynamic program.
+
+Executable evidence is in `SplitArrayLargestSumContracts.java`. It covers 20 deterministic groups, including all four worked behaviors, zero values, exact endpoint contracts, repeated values, full-width totals, monotonic feasibility, nonmutation and invalid-input rejection. It then checks 20,000 seeded arrays against an independent exact partition-DP oracle while proving feasibility, predecessor infeasibility and the logarithmic search bound.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -3526,6 +3645,7 @@ Executable evidence is in `KokoEatingContracts.java`. It covers 20 deterministic
 - [Java SE 17 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Arrays.html) — copying, filling, comparison, sorting, and searching utilities.
 - [LeetCode, “Find First and Last Position of Element in Sorted Array”](https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/) — primary sorted-input, absent-result, example and logarithmic-time contract for problem 25.
 - [LeetCode, “Koko Eating Bananas”](https://leetcode.com/problems/koko-eating-bananas/) — primary pile/hour model, minimum-speed result, examples and feasible input bounds for problem 26.
+- [LeetCode, “Split Array Largest Sum”](https://leetcode.com/problems/split-array-largest-sum/) — primary exact-`k`, non-empty contiguous-subarray, minimized-largest-sum contract, examples and non-negative input bounds for problem 27.
 - [Java Language Specification, Java SE 17, §15.17.2](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17.2) — integer-division truncation used to derive exact positive ceiling division.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — Java integer-overflow guidance and `max` contract used by the answer-space bound.
 - [Java SE 17 `java.util.HashMap`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/HashMap.html) — key/value map behavior and the `getOrDefault`/merge operations used by prefix-frequency counting.
@@ -3571,9 +3691,9 @@ Executable evidence is in `KokoEatingContracts.java`. It covers 20 deterministic
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 24 (Search in Rotated Sorted Array is lines 2455–2556, bounded before problem 25 at line 2557). Selected as the editable structural source; the refreshed bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 24 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 24 at lines 2420–2517, bounded before problem 25 at line 2518). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 27 (Split Array Largest Sum is lines 2761–2876, bounded before problem 28 at line 2877). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 27 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 27 at lines 2709–2816, bounded before problem 28 at line 2817). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 24, “Search in Rotated Sorted Array,” is promoted from Markdown lines 2455–2556 and fresh no-wrap DOCX GFM-extracted lines 2420–2517; problem 25, “Find First and Last Position of Element,” begins at Markdown line 2557 and no-wrap DOCX GFM-extracted line 2518.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 27, “Split Array Largest Sum,” is promoted from Markdown lines 2761–2876 and fresh no-wrap DOCX GFM-extracted lines 2709–2816; problem 28, “Merge Intervals,” begins at Markdown line 2877 and no-wrap DOCX GFM-extracted line 2817.
 
 

@@ -62,6 +62,7 @@
 | Arrays §4 Problem 24 — Search in Rotated Sorted Array | ✅ | ✅ | Ordered-half elimination, four worked cases, exact binary-search trace, proof, inspection bound and randomized linear oracle |
 | Arrays §4 Problem 25 — First and Last Position | ✅ | ✅ | Half-open lower/upper bounds, four worked cases, corrected traces, overflow-safe full-width target and randomized linear oracle |
 | Arrays §4 Problem 26 — Koko Eating Bananas | ✅ | ✅ | First-feasible answer search, four worked cases, exact rate trace, overflow-safe ceiling division and randomized brute-force oracle |
+| Arrays §4 Problem 27 — Split Array Largest Sum | ✅ | ✅ | First-feasible capacity search, four worked cases, exact group trace, widened sums and randomized exact-DP oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
