@@ -15,7 +15,7 @@ Source comparison:
 
 - Selected `atlas_guides/spring_ai_python_api_interview_guide.md` from `ai_cicd_spring_python_guides_complete.zip`, bundle SHA-256 `c52c8295ae7ff7d08013e30a8d7097480719db78104a91b79e367a382465dd31`, member SHA-256 `af25c41d54a3ca18dfc60b6cf828515ab6afb7e39cf64c7df94fe4a44eb4a553`.
 - Compared standalone `spring_ai_python_api_interview_guide.html`, SHA-256 `6289a19e0ce5514c25d96d44806d47063e726244b5d55d13422234d3e499f3a3`; it is byte-identical to the generated HTML inside the bundle, so it was not promoted as a duplicate source.
-- Section 24 is exactly editable-source lines 1333–1357 and direct standalone-HTML lines 1389–1403, ending before Section 25 at editable line 1359.
+- Section 24 is exactly editable-source lines 1333–1357 and direct standalone-HTML lines 1389–1402, ending before Section 25 at editable line 1359 / direct HTML line 1403.
 - The ZIP passed integrity and path-traversal checks.
 
 Completed sections:
@@ -48,7 +48,7 @@ Completed sections:
 Validation:
 
 - Java 17 source-file launch and Python 3 passed all twenty-four contract pairs. Section 24 produced the identical `PARITY|KNOWLEDGE=AUTHORIZED|ROUTE=CAPABILITY_GATED|CHANGE=DIGEST_BOUND|INGEST=GENERATION_PUBLISHED` trace, 21 scenario groups and 20,000 seeded trials per language; the complete suites passed 689 Java and 688 Python scenario groups plus 230,000 seeded trials per language.
-- Deterministic reader generation passed exact 335046-byte Markdown recovery, SHA-256 `838a6bf1ba6980471161d2b22ef28e9181466031a27ac54fb1002f8f3a83c483`, 947 unique HTML IDs, 25 search entries, 643 resolved fragments, 20 resolved relative links, 468 balanced fence markers, 107 Mermaid sources, parseable JSON, four script blocks, JavaScript syntax, responsive/search controls and rebuild identity.
+- Deterministic reader generation passed exact 335086-byte Markdown recovery, SHA-256 `cb9e980b7cd0e5a6f9403a2887371f506cfdb6b676f0eb2e08cf0531a0ebb3b6`, 947 unique HTML IDs, 25 search entries, 643 resolved fragments, 20 resolved relative links, 468 balanced fence markers, 107 Mermaid sources, parseable JSON, four script blocks, JavaScript syntax, responsive/search controls and rebuild identity.
 - A fresh literal-marker audit found 170 live Java placeholders across the five canonical DSA guide folders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this backend section added none.
 - Standalone `javac`, live identity/ACL/provider/deployment/queue/index integration, browser/accessibility integration and rendered Mermaid QA were unavailable and are not represented as passes; Java 17 source-file launch was the available Java execution path.
 
