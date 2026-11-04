@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–24 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 25–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–25 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 26–47 and later source material remain queued.
 
 ## Study index
 
@@ -3278,11 +3278,136 @@ flowchart TD
 
 Executable evidence is in `SearchRotatedContracts.java`. It covers 20 deterministic groups, including the four worked behaviors, every rotation of a fixed sorted array, pivot-adjacent targets, full-width values, input preservation, the empty extension and null rejection. It then generates 20,000 strictly increasing arrays, rotates them, chooses present and guaranteed-absent targets, compares the result with an independent linear scan and checks the logarithmic inspection bound.
 
+### Example 25 — Find First and Last Position: search for two monotonic boundaries
+
+**Official contract.** Given a nondecreasing `int[] nums`, return the first and last zero-based indices whose value equals `target`. Return `[-1,-1]` when no occurrence exists. The required time is `O(log n)`; the input is not mutated. The reusable core below rejects `null` and treats an empty array as absent. It assumes the sorted-input precondition because checking sortedness costs `O(n)`; `validatedSearchRange` in the executable evidence provides that defensive linear-time wrapper when trust is more important than the interview bound.
+
+Finding *an* equal element is not enough. Java's `Arrays.binarySearch` requires sorted input but, when equal elements repeat, does not guarantee which matching index it returns. Scanning outward from that arbitrary match can inspect every element. Instead, search the two monotonic predicates directly:
+
+- `lowerBound(target)` is the first index whose value is **at least** `target`.
+- `upperBound(target)` is the first index whose value is **greater than** `target`.
+- If the lower-bound position actually contains `target`, the answer is `[lower, upper - 1]`.
+
+```mermaid
+flowchart TD
+    A["sorted values"] --> L["first value >= target"]
+    A --> U["first value > target"]
+    L --> V{"lower contains target?"}
+    V -->|no| N["return [-1,-1]"]
+    V -->|yes| R["return [lower, upper-1]"]
+```
+
+```java
+static int[] searchRange(int[] values, int target) {
+    if (values == null) {
+        throw new IllegalArgumentException("values must not be null");
+    }
+    int first = lowerBound(values, target);
+    if (first == values.length || values[first] != target) {
+        return new int[] {-1, -1};
+    }
+    return new int[] {first, upperBound(values, target) - 1};
+}
+
+static int lowerBound(int[] values, int target) {
+    int low = 0, high = values.length;          // candidate boundary in [low, high]
+    while (low < high) {
+        int mid = low + ((high - low) >>> 1);
+        if (values[mid] >= target) high = mid;  // mid may be the first true index
+        else low = mid + 1;                     // mid is definitely too small
+    }
+    return low;
+}
+
+static int upperBound(int[] values, int target) {
+    int low = 0, high = values.length;
+    while (low < high) {
+        int mid = low + ((high - low) >>> 1);
+        if (values[mid] > target) high = mid;
+        else low = mid + 1;
+    }
+    return low;
+}
+```
+
+Both searches use the half-open data interval `[low,high)`, while allowing the returned boundary itself to be `n`. The midpoint is always a valid array index because the loop requires `low < high`. The update `high = mid` retains a possible boundary; `low = mid + 1` discards a proven-false index. Implementing upper bound as `lowerBound(target + 1)` is incorrect for `target == Integer.MAX_VALUE`, because Java integer addition wraps rather than widening automatically.
+
+```mermaid
+flowchart TD
+    I["candidate boundary in [low,high]"] --> C{"low < high?"}
+    C -->|no| R["low is first true index"]
+    C -->|yes| M["mid inside [low,high)"]
+    M --> P{"boundary predicate true at mid?"}
+    P -->|yes| H["high = mid"]
+    P -->|no| L["low = mid + 1"]
+    H --> I
+    L --> I
+```
+
+#### Worked case 1 — canonical duplicate run
+
+For `nums = [5,7,7,8,8,10]` and `target = 8`, the original source's prose answer `[3,4]` is correct, but its older dry-run labels were not. These two traces use one consistent zero-based, half-open convention.
+
+| search | before `[low,high)` | `mid` | value | decision | after |
+|---|---|---:|---:|---|---|
+| lower (`>= 8`) | `[0,6)` | 3 | 8 | true → keep `mid` | `[0,3)` |
+| lower | `[0,3)` | 1 | 7 | false → discard through `mid` | `[2,3)` |
+| lower | `[2,3)` | 2 | 7 | false | `[3,3)` → `3` |
+| upper (`> 8`) | `[0,6)` | 3 | 8 | false | `[4,6)` |
+| upper | `[4,6)` | 5 | 10 | true | `[4,5)` |
+| upper | `[4,5)` | 4 | 8 | false | `[5,5)` → `5` |
+
+Thus `first = 3` and `last = 5 - 1 = 4`.
+
+```mermaid
+flowchart LR
+    A["5  7  7"] --> B["8  8"]
+    B --> C["10"]
+    A -. "lower = 3" .-> B
+    B -. "upper = 5" .-> C
+```
+
+#### Worked case 2 — insertion position is not proof of presence
+
+For the same array and target `6`, lower bound is index 1 because 7 is the first value at least 6. Since `nums[1] != 6`, return `[-1,-1]` immediately. A boundary is always defined—even for an absent key—so the equality check is part of the result contract, not an optional optimization.
+
+#### Worked case 3 — the run occupies the whole array
+
+For `[2,2,2,2]` and target 2, the lower predicate is true everywhere, so its first true index is 0. The upper predicate is false everywhere, so its first true position is the sentinel `n = 4`. The result is `[0,3]`; no outward scan is required.
+
+| predicate across indices `0..3` | boundary |
+|---|---:|
+| `value >= 2`: `T T T T` | 0 |
+| `value > 2`: `F F F F` | 4 |
+
+#### Worked case 4 — full-width target without overflow
+
+For `[0, Integer.MAX_VALUE, Integer.MAX_VALUE]`, target `Integer.MAX_VALUE` has lower bound 1 and upper bound 3, so return `[1,2]`. A `target + 1` shortcut would wrap to `Integer.MIN_VALUE` and incorrectly search from the start. Directly testing `values[mid] > target` makes the full `int` domain safe. Empty input and singleton absence both return `[-1,-1]` through the same lower-bound validation.
+
+```mermaid
+flowchart LR
+    F["indices before lower: value < target"] --> M["target run [lower,upper)"]
+    M --> G["indices from upper: value > target"]
+```
+
+**Lower-bound invariant.** Every index below `low` is known to contain a value `< target`; every index at or above `high` is known to contain a value `>= target`. Sortedness extends the midpoint comparison to the discarded region, so each update preserves the invariant. At termination `low == high`; all earlier indices are false and that position is the first true position, or `n` when none exists.
+
+**Upper-bound invariant.** Replace the partition with values `<= target` below `low` and values `> target` at or above `high`. The identical argument proves that the returned position is the first index after the target run. If lower bound contains target, sortedness makes every index from lower through `upper - 1` equal target, and no earlier or later equal value can exist. Therefore the reported endpoints are exact.
+
+**Termination and complexity.** Each iteration excludes `mid` from the next half-open data interval: either `high` decreases to `mid`, or `low` increases to `mid + 1`. Each boundary search performs at most `floor(log2 n) + 1` inspections for nonempty input. Two such searches are still `O(log n)` time; the method uses `O(1)` auxiliary state besides the two-cell result and never assigns an input component.
+
+**Common interview errors:** returning the first equality found by a generic binary search; scanning left and right and claiming logarithmic time; mixing closed `[low,high]` and half-open `[low,high)` updates; using `high = mid - 1` in this boundary template; forgetting the equality check after lower bound; returning `upper` rather than `upper - 1`; computing `target + 1`; evaluating `values[first]` before checking `first == n`; validating sortedness inside the supposedly logarithmic core; or claiming a duplicate match from `Arrays.binarySearch` must be first or last.
+
+**Follow-ups:** return only lower bound as an insertion position; count occurrences as `upper - lower`; answer many target queries against one immutable array; adapt the predicate to the first value meeting a threshold; search a virtual monotonic domain; or expose the defensive `O(n)` sortedness validator separately from the `O(log n)` core.
+
+Executable evidence is in `SearchRangeContracts.java`. It covers 20 deterministic groups, including all four worked behaviors, endpoint duplicate runs, empty and singleton inputs, the full Java integer range, boundary sentinels, input preservation, defensive sortedness validation and null rejection. It then checks 20,000 seeded sorted arrays against an independent linear oracle while enforcing the logarithmic inspection bound for each boundary search.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
 - [Java Language Specification, Java SE 17, Chapter 4: Types, Values, and Variables](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — primitive values versus reference values and array reference semantics.
 - [Java SE 17 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Arrays.html) — copying, filling, comparison, sorting, and searching utilities.
+- [LeetCode, “Find First and Last Position of Element in Sorted Array”](https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/) — primary sorted-input, absent-result, example and logarithmic-time contract for problem 25.
 - [Java SE 17 `java.util.HashMap`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/HashMap.html) — key/value map behavior and the `getOrDefault`/merge operations used by prefix-frequency counting.
 - [Java SE 17 `java.util.Map`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html) — map equality semantics and the `merge`/`getOrDefault` contracts used by the toolkit.
 - [Java SE 17 `java.util.ArrayDeque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayDeque.html) — resizable deque behavior, null prohibition, and amortized constant-time end operations.

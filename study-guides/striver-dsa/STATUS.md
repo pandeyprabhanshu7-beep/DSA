@@ -60,6 +60,7 @@
 | Arrays §4 Problem 22 — Find the Duplicate Number | ✅ | ✅ | Floyd cycle mapping, four worked cases, phase traces, proof, strict-domain validation and randomized frequency oracle |
 | Arrays §4 Problem 23 — First Missing Positive | ✅ | ✅ | In-place cyclic placement, four worked cases, swap trace, proof, mutation contract and randomized set oracle |
 | Arrays §4 Problem 24 — Search in Rotated Sorted Array | ✅ | ✅ | Ordered-half elimination, four worked cases, exact binary-search trace, proof, inspection bound and randomized linear oracle |
+| Arrays §4 Problem 25 — First and Last Position | ✅ | ✅ | Half-open lower/upper bounds, four worked cases, corrected traces, overflow-safe full-width target and randomized linear oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -273,5 +274,11 @@ Arrays Section 4 problem 24 now states the distinct-value, possible-rotation, in
 The deterministic responsive reader embeds the exact 203,931 canonical Markdown bytes at SHA-256 `fd23a2e5fa0533aae307f46f2951ba10c13c1cd659da43e70b0027e8374d84ff`; validation found 858 unique IDs, 52 unique search entries, 733 resolved fragment links, zero relative links, 260 balanced fence markers, 94 Mermaid sources and four syntactically valid script blocks. Both confirmed source artifacts agree on this problem and remain unchanged at their recorded source hashes.
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. The collection and intake backlog remain incomplete; fair rotation selects Spring AI/Python Section 25 next, followed by Arrays problem 25.
+
+## Arrays Find First and Last Position enrichment — 2026-11-04 ET
+
+Arrays Section 4 problem 25 now states the nondecreasing-input, exact-endpoint, absent-result, nonmutation and logarithmic-time contracts; separates the `O(log n)` core from optional linear sortedness validation; and replaces inconsistent older dry-run labels with exact half-open lower/upper-bound traces. The section adds four worked cases, four diagrams, boundary invariants, a strict-shrink proof and direct `>` comparison that avoids `target + 1` overflow. `SearchRangeContracts` validates 20 deterministic groups plus 20,000 seeded sorted arrays against an independent linear oracle while checking input preservation and per-search logarithmic inspection bounds.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: this bounded source problem added none. The collection and intake backlog remain incomplete; Arrays problem 26 is the next exact continuation, subject to the next fair-rotation check.
 
 
