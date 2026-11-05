@@ -64,6 +64,14 @@
 | Arrays §4 Problem 26 — Koko Eating Bananas | ✅ | ✅ | First-feasible answer search, four worked cases, exact rate trace, overflow-safe ceiling division and randomized brute-force oracle |
 | Arrays §4 Problem 27 — Split Array Largest Sum | ✅ | ✅ | First-feasible capacity search, four worked cases, exact group trace, widened sums and randomized exact-DP oracle |
 | Arrays §4 Problem 28 — Merge Intervals | ✅ | ✅ | Start-ordered component sweep, four worked cases, exact trace, ownership-safe copy and randomized repeated-pair oracle |
+| Arrays §4 Problem 29 — Insert Interval | ✅ | ✅ | Three ordered regions, four worked cases, exact bridge trace, input ownership and randomized append-sort-merge oracle |
+| Arrays §4 Problem 30 — Set Matrix Zeroes | ✅ | ✅ | Border markers, four worked cases, exact trace, in-place identity checks and randomized marker-array oracle |
+| Arrays §4 Problem 31 — Spiral Matrix | ✅ | ✅ | Four shrinking boundaries, four worked cases, exact layer trace, post-shrink guards and randomized simulation oracle |
+| Arrays §4 Problem 32 — Median of Two Sorted Arrays | ✅ | ✅ | Shorter-array partition search, four worked cases, odd/even traces, widened average and randomized merge oracle |
+| Arrays §4 Problem 33 — Count Inversions | ✅ | ✅ | Merge block counting, four worked cases, exact cross trace, long count and randomized quadratic oracle |
+| Arrays §4 Problem 34 — Maximum Product Subarray | ✅ | ✅ | Maximum/minimum ending states, four worked cases, sign/zero traces and randomized quadratic oracle |
+| Arrays §4 Problem 35 — Maximum Sum Circular Subarray | ✅ | ✅ | Ordinary/wrapping dual Kadane, four worked cases, fixed-buffer proof and randomized circular oracle |
+| Arrays §4 Problem 36 — Largest Rectangle in Histogram | ✅ | ✅ | Earliest-start monotonic stack, four worked cases, exact boundary trace, duplicate ownership and randomized quadratic oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -360,5 +368,13 @@ Arrays Section 4 problem 35 now states the non-empty circular-range, fixed-buffe
 The deterministic responsive reader embeds the exact 300,915 canonical Markdown bytes at SHA-256 `eabda301a97332b11829cb2bb78fe99d2225159158a66282c9240f60b8ac9c18`; validation found 1,293 unique IDs, 63 search entries, 1,114 resolved fragment links, zero relative links, 376 balanced fence markers, 140 Mermaid sources and four script blocks. Rebuilding produced byte-identical HTML at SHA-256 `ff23851ff2f5407aeeb73c772862231e17a35bbe6dbebb9e80ac4bf85047b6a3`. Both confirmed source artifacts agree on ordinary/wrapping Kadane duality, the all-negative exception and `O(n)` time / `O(1)` auxiliary space; the public section adds exact fixed-buffer, arithmetic, proof and executable-evidence contracts rather than copying either source. The editable Markdown remains the structural source and no duplicate guide was created.
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 36, Largest Rectangle in Histogram, is the next exact source continuation, subject to the next fair-domain rotation check.
+
+## Arrays Largest Rectangle in Histogram enrichment — 2026-11-05 ET
+
+Arrays Section 4 problem 36 now states the unit-width, consecutive-range, non-negative-height, nonmutation and numeric-range contracts; derives each candidate's earliest supported start; and makes equal-height ownership explicit with a strictly increasing `(start,height)` stack. The section adds four worked cases, five diagrams, the exact six-bar trace, a sentinel/duplicate proof, widened multiplication and a checked official-compatible wrapper. `LargestRectangleHistogramContracts` validates 20 deterministic groups plus 20,000 seeded histograms against an independent quadratic range-minimum oracle while checking preservation, repeatability, reversal invariance, height scaling and zero-append separation. All 36 Arrays evidence programs passed in Java 17 source-file mode: 680 scenario groups and 700,000 seeded/randomized oracle trials or comparisons. A standalone `javac` executable was not available.
+
+The deterministic responsive reader embeds the exact 311,453 canonical Markdown bytes at SHA-256 `33953625f28ca9d67c1080626424fbd26018d4909e4ce34cbe7f77abe6172585`; validation found 1,332 unique IDs, 64 search entries, 1,148 resolved fragment links, zero relative links, 388 balanced fence markers, 145 Mermaid sources and four script blocks. Rebuilding produced byte-identical HTML at SHA-256 `ce96332b0bd7120c62d7e22ac9240dbd524212257a22628078d8bef0599c3bd4`. Both confirmed source artifacts agree on first-smaller boundary discovery and `O(n)` time / `O(n)` auxiliary space; the public section adds exact duplicate ownership, validation, arithmetic and executable-evidence contracts rather than copying either source. The editable Markdown remains the structural source and no duplicate guide was created.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 37, Shortest Subarray with Sum at Least K, is the next exact source continuation, subject to the next fair-domain rotation check.
 
 

@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–35 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 36–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–36 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 37–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first thirty-five solved problems](#4-core-pattern-lab--first-thirty-five-solved-problems)
+- [4. Core pattern lab — first thirty-six solved problems](#4-core-pattern-lab--first-thirty-six-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -64,6 +64,7 @@
   - [Example 33 — Count Inversions: count an entire cross block during merge](#example-33--count-inversions-count-an-entire-cross-block-during-merge)
   - [Example 34 — Maximum Product Subarray: retain both ending extremes](#example-34--maximum-product-subarray-retain-both-ending-extremes)
   - [Example 35 — Maximum Sum Circular Subarray: exclude one minimum middle](#example-35--maximum-sum-circular-subarray-exclude-one-minimum-middle)
+  - [Example 36 — Largest Rectangle in Histogram: finalize a height at its right boundary](#example-36--largest-rectangle-in-histogram-finalize-a-height-at-its-right-boundary)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -689,7 +690,7 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first thirty-five solved problems
+## 4. Core pattern lab — first thirty-six solved problems
 
 The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–33. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; and 33 counts whole cross-inversion blocks while merge-sorting. Problems 34–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
@@ -4652,6 +4653,150 @@ Every legal circular subarray either avoids the boundary or crosses it. Kadane c
 
 Executable evidence is in `MaximumSumCircularSubarrayContracts.java`. It covers 20 deterministic groups, including all three official examples, singletons, zeros, all-positive/all-negative inputs, ordinary-versus-wrapping selection, fixed-buffer non-reuse, input preservation, invalid boundaries, widened sums and wrapper overflow. It then performs 20,000 seeded comparisons against an independent quadratic circular oracle while separately checking preservation, repeatability, reversal invariance and rotation invariance.
 
+### Example 36 — Largest Rectangle in Histogram: finalize a height at its right boundary
+
+**Contract.** Each non-negative array element is the height of a unit-width histogram bar. Choose one non-empty consecutive range and use its minimum height across the entire range; return the greatest `minimumHeight × barCount`. LeetCode's primary contract supplies `1..100,000` bars with heights in `0..10,000`, so its answer fits `int`. The reusable boundary below additionally accepts an empty array with result zero, rejects null or negative heights, never mutates the input, computes area in `long`, and exposes a checked `int` wrapper.
+
+For a bar of height `h`, the useful question is not “which rectangles start here?” It is “how far can height `h` extend before a lower bar blocks it?” A monotonic stack delays that answer until the right boundary arrives. Each stack entry stores `(earliestStart,height)`: `earliestStart` is the farthest left index through which that height has remained supportable.
+
+```mermaid
+flowchart TD
+    B["read current bar"] --> Q{"stack height >= current?"}
+    Q -->|yes| P["pop and score [start,currentIndex)"]
+    P --> L["inherit popped earliest start"]
+    L --> Q
+    Q -->|no| S["push current with earliest start"]
+    S --> B
+```
+
+The stack is strictly increasing by height from bottom to top. Popping `>=` gives one deliberate equal-height policy: a newer equal bar replaces the older entry but inherits its left reach. A final sentinel height `-1` is lower than every validated bar and flushes the stack without adding a fake bar.
+
+```java
+record Entry(int start, int height) {}
+
+static long largestRectangleAreaLong(int[] heights) {
+    if (heights == null) {
+        throw new IllegalArgumentException("heights must be non-null");
+    }
+    for (int height : heights) {
+        if (height < 0) throw new IllegalArgumentException("negative height");
+    }
+
+    Deque<Entry> increasing = new ArrayDeque<>();
+    long best = 0L;
+    for (int index = 0; index <= heights.length; index++) {
+        int current = index == heights.length ? -1 : heights[index];
+        int earliestStart = index;
+        while (!increasing.isEmpty()
+                && increasing.peek().height() >= current) {
+            Entry resolved = increasing.pop();
+            long area = (long) resolved.height()
+                    * (index - resolved.start());
+            best = Math.max(best, area);
+            earliestStart = resolved.start();
+        }
+        if (index < heights.length) {
+            increasing.push(new Entry(earliestStart, current));
+        }
+    }
+    return best;
+}
+
+static int largestRectangleArea(int[] heights) {
+    return Math.toIntExact(largestRectangleAreaLong(heights));
+}
+```
+
+Widen before multiplying: `(long) height * width`. Assigning an already-overflowed `int` product to `long` does not repair it. Under the official bounds the maximum possible area is `100,000 × 10,000 = 1,000,000,000`; the wider core makes its extension policy explicit rather than relying on those bounds silently.
+
+#### Worked case 1 — canonical six-bar trace
+
+For `[2,1,5,6,2,3]`, show entries bottom-to-top. At index 4, height 2 is the first lower bar to the right of both 6 and 5. Their inherited starts distinguish widths one and two.
+
+| index / current | stack before | resolved areas | pushed entry / stack after | best |
+|---|---|---|---|---:|
+| `0 / 2` | `[]` | — | `(0,2)` | `0` |
+| `1 / 1` | `[(0,2)]` | `2×(1-0)=2` | `(0,1)` | `2` |
+| `2 / 5` | `[(0,1)]` | — | `(2,5)` | `2` |
+| `3 / 6` | `[(0,1),(2,5)]` | — | `(3,6)` | `2` |
+| `4 / 2` | `[(0,1),(2,5),(3,6)]` | `6×1=6`, then `5×2=10` | `(2,2)` | `10` |
+| `5 / 3` | `[(0,1),(2,2)]` | — | `(5,3)` | `10` |
+| `6 / -1` | `[(0,1),(2,2),(5,3)]` | `3×1=3`, `2×4=8`, `1×6=6` | sentinel not pushed | `10` |
+
+The winning range is indices `[2,4)`, bars `[5,6]`, whose minimum is 5 and width is 2.
+
+```mermaid
+flowchart LR
+    A["index 2: height 5"] --> R["range [2,4)"]
+    B["index 3: height 6"] --> R
+    C["index 4: height 2"] --> X["right boundary"]
+    R --> Z["minimum 5 × width 2 = 10"]
+```
+
+#### Worked case 2 — increasing input needs the sentinel
+
+For `[1,2,3,4]`, no real bar closes a candidate. The sentinel resolves `4×1=4`, `3×2=6`, `2×3=6`, and `1×4=4`, so the result is 6. Without a final lower height, an increasing suffix remains unresolved and the implementation can return zero or an earlier partial answer.
+
+The official second example `[2,4]` similarly resolves both bars only at the sentinel: `4×1=4` and `2×2=4`.
+
+```mermaid
+flowchart LR
+    I["1 < 2 < 3 < 4"] --> D["no real pop"]
+    D --> S["sentinel -1"]
+    S --> F["flush widths 1,2,3,4"]
+    F --> A["answer 6"]
+```
+
+#### Worked case 3 — equal bars transfer their left reach
+
+For `[2,2,2]`, index 1 pops `(0,2)`, scores area 2, then pushes `(0,2)` rather than `(1,2)`. Index 2 repeats the transfer after scoring area 4. The sentinel finally scores `2×3=6`. This makes the stack strictly increasing while preserving the full plateau.
+
+| event | popped | inherited start | replacement | best |
+|---|---|---:|---|---:|
+| read index 0 | — | `0` | `(0,2)` | `0` |
+| read index 1 | `(0,2)`, area `2` | `0` | `(0,2)` | `2` |
+| read index 2 | `(0,2)`, area `4` | `0` | `(0,2)` | `4` |
+| sentinel | `(0,2)`, area `6` | — | — | `6` |
+
+```mermaid
+flowchart LR
+    E0["(0,2)"] -->|"equal at 1"| E1["replace with (0,2)"]
+    E1 -->|"equal at 2"| E2["replace with (0,2)"]
+    E2 -->|"sentinel"| A["2 × 3 = 6"]
+```
+
+Using only `>` is also correct with a non-decreasing index stack, but then duplicate ownership and the left-boundary proof differ. Mixing one tie policy's code with the other's invariant is a common source of off-by-one explanations.
+
+#### Worked case 4 — zeros, reusable emptiness and numeric policy
+
+- `[2,0,2]` returns 2. Height zero closes the left candidate; a rectangle cannot jump across the zero while retaining positive height.
+- `[0,0,0]` returns 0. Zero-height ranges are legal but cannot improve the initial best.
+- `[]` returns 0 in the reusable API; the official problem itself guarantees at least one bar.
+- `[Integer.MAX_VALUE,Integer.MAX_VALUE]` returns `4,294,967,294` from the `long` core. This is outside the official height domain, and the compatible `int` wrapper raises `ArithmeticException` through `Math.toIntExact` rather than narrowing silently.
+- `[2,-1,2]` is rejected before scanning because negative histogram heights violate both the geometric model and the `-1` sentinel assumption.
+
+```mermaid
+flowchart TD
+    V{"all heights non-negative?"} -->|no| X["reject before scan"]
+    V -->|yes| L["long height × width"]
+    L --> R["reusable long result"]
+    R --> W["checked int wrapper"]
+    W -->|"official bounds"| I["int result"]
+    W -->|"extended overflow"| E["ArithmeticException"]
+```
+
+**Stack invariant.** Before reading index `i`, stack heights are strictly increasing from bottom to top. Each entry `(start,h)` represents an unresolved height `h` that is supported by every processed bar in `[start,i)`; `start` is the earliest such boundary retained for that candidate. Every rectangle whose limiting height was removed earlier has already been scored or is dominated by an equal-height replacement with at least as much left reach.
+
+When `current` is lower than a popped height, index `i` is the first blocking right boundary, so `[start,i)` is that candidate's widest possible range. When it is equal, the popped area is safe to score but may extend farther; inheriting `start` into the equal replacement preserves exactly that future possibility. After all heights at least `current` are removed, pushing `(earliestStart,current)` restores strict height order and records the farthest legal left boundary. The `-1` sentinel eventually resolves every remaining non-negative height. Thus every potentially maximal limiting height is evaluated across its widest supported range, proving the maximum returned area.
+
+**Complexity.** Each real bar is pushed once and popped once, so the total stack work is `O(n)` time rather than `O(n²)` despite the nested `while`. The stack can hold `n` entries, so auxiliary space is `O(n)`. Validation is another linear read-only pass. The independent test oracle enumerates every `[left,right]` range while maintaining its minimum, using `O(n²)` time and `O(1)` auxiliary space.
+
+**Common interview errors:** using width `right-left` for inclusive endpoints or `index-start-1` for this half-open pair representation; storing heights without enough boundary information; calculating the left boundary before rather than after all required pops; forgetting to flush an increasing suffix; using sentinel zero while also forgetting how real zero bars are handled; changing `>=` to `>` without changing the duplicate invariant; failing to transfer an equal bar's earliest start; multiplying in `int` and widening afterward; accepting negative heights despite using `-1` as a guaranteed-lower sentinel; mutating the input unnecessarily; or claiming nested loops make the optimized method quadratic.
+
+**Follow-ups:** return one maximizing half-open range with deterministic tie-breaking; compute previous/next smaller arrays explicitly and compare the extra storage; reduce Maximal Rectangle in a binary matrix to one histogram per row; explain why Trapping Rain Water uses boundary maxima rather than range minima; support variable bar widths with prefix positions; process an online histogram when a final flush event is supplied; or choose exception, saturation, `long`, or `BigInteger` policy for broader numeric domains.
+
+Executable evidence is in `LargestRectangleHistogramContracts.java`. It covers 20 deterministic groups, including both official examples, empty and singleton boundaries, increasing/decreasing inputs, equal plateaus, zero separators, preservation, invalid heights, widened area and wrapper overflow. It then performs 20,000 seeded comparisons against an independent quadratic range-minimum oracle while separately checking preservation, repeatability, reversal invariance, height scaling and zero-append separation.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -4671,6 +4816,7 @@ Executable evidence is in `MaximumSumCircularSubarrayContracts.java`. It covers 
 - [Java SE 17 `Math.multiplyExact`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#multiplyExact(int,int)) — explicit exception-throwing multiplication option for a wider production boundary whose overflow policy differs from the primary problem.
 - [LeetCode, “Maximum Sum Circular Subarray”](https://leetcode.com/problems/maximum-sum-circular-subarray/) — primary non-empty circular-subarray, fixed-buffer non-reuse, official examples and input bounds for problem 35.
 - [Java SE 17 `Math.toIntExact`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#toIntExact(long)) — explicit checked narrowing used by the official-compatible wrapper after widened reusable accumulation.
+- [LeetCode, “Largest Rectangle in Histogram”](https://leetcode.com/problems/largest-rectangle-in-histogram/) — primary unit-width histogram model, maximum-area result, official examples and input bounds for problem 36.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
 - [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
@@ -4719,9 +4865,9 @@ Executable evidence is in `MaximumSumCircularSubarrayContracts.java`. It covers 
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 35 (Maximum Sum Circular Subarray is lines 3598–3693, bounded before problem 36 at line 3694). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 35 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 35 at lines 3512–3607, bounded before problem 36 at line 3608). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 36 (Largest Rectangle in Histogram is lines 3694–3809, bounded before problem 37 at line 3810). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 36 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 36 at lines 3608–3721, bounded before problem 37 at line 3722). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 35, “Maximum Sum Circular Subarray,” is promoted from Markdown lines 3598–3693 and fresh no-wrap DOCX GFM-extracted lines 3512–3607; problem 36, “Largest Rectangle in Histogram,” begins at Markdown line 3694 and no-wrap DOCX GFM-extracted line 3608.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 36, “Largest Rectangle in Histogram,” is promoted from Markdown lines 3694–3809 and fresh no-wrap DOCX GFM-extracted lines 3608–3721; problem 37, “Shortest Subarray with Sum at Least K,” begins at Markdown line 3810 and no-wrap DOCX GFM-extracted line 3722.
 
 
