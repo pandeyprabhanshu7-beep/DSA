@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–34 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 35–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–35 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 36–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first thirty-four solved problems](#4-core-pattern-lab--first-thirty-four-solved-problems)
+- [4. Core pattern lab — first thirty-five solved problems](#4-core-pattern-lab--first-thirty-five-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -63,6 +63,7 @@
   - [Example 32 — Median of Two Sorted Arrays: binary-search a valid partition](#example-32--median-of-two-sorted-arrays-binary-search-a-valid-partition)
   - [Example 33 — Count Inversions: count an entire cross block during merge](#example-33--count-inversions-count-an-entire-cross-block-during-merge)
   - [Example 34 — Maximum Product Subarray: retain both ending extremes](#example-34--maximum-product-subarray-retain-both-ending-extremes)
+  - [Example 35 — Maximum Sum Circular Subarray: exclude one minimum middle](#example-35--maximum-sum-circular-subarray-exclude-one-minimum-middle)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -688,7 +689,7 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first thirty-four solved problems
+## 4. Core pattern lab — first thirty-five solved problems
 
 The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–33. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; and 33 counts whole cross-inversion blocks while merge-sorting. Problems 34–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
@@ -4522,6 +4523,135 @@ The invariant holds at index zero because the only ending subarray is the single
 
 Executable evidence is in `MaximumProductSubarrayContracts.java`. It covers 20 deterministic groups: both official examples, negative sign reversal, singleton signs, zeros, even/odd negative counts, duplicate and segmented cases, non-contiguity, preservation, invalid inputs, a large legal product and definition-oracle parity. It then performs 20,000 seeded comparisons against an independent quadratic oracle while separately checking input preservation, repeatability, reversal invariance and the effect of appending a zero.
 
+### Example 35 — Maximum Sum Circular Subarray: exclude one minimum middle
+
+**Contract.** Given a non-empty circular `int[]`, return the maximum sum of a non-empty contiguous circular subarray. After the last index, traversal may continue at index zero, but no physical array element may be selected more than once. The result is a sum, not indices; the implementation does not mutate the input. LeetCode's primary contract allows `1..30,000` elements with each value in `[-30,000,30,000]`, so the official result fits `int`. This reusable core accumulates in `long` and exposes an `int` wrapper with `Math.toIntExact` so an extended caller cannot silently wrap.
+
+A circular answer has exactly two shapes:
+
+1. It does not cross the array boundary, so ordinary maximum-subarray Kadane finds it.
+2. It uses a suffix plus a prefix. Its unselected elements form one non-empty, ordinary contiguous middle segment. Maximizing the selected sum is therefore equivalent to subtracting the minimum ordinary subarray from the total.
+
+```mermaid
+flowchart TD
+    C["circular candidate"] --> N["does not cross boundary"]
+    C --> W["suffix + prefix"]
+    N --> K["maximum Kadane"]
+    W --> E["total − minimum middle"]
+    K --> B["take larger legal result"]
+    E --> B
+```
+
+The only invalid complement occurs when the minimum subarray is the entire array: subtraction would select nothing. That happens when every element is negative, which ordinary Kadane detects because `maxSubarray < 0`. A zero makes a legal non-empty zero-sum answer, so the guard is strictly negative rather than non-positive.
+
+```java
+static long maxCircularSubarraySum(int[] values) {
+    if (values == null || values.length == 0) {
+        throw new IllegalArgumentException("values must be non-null and non-empty");
+    }
+
+    long total = values[0];
+    long maxEnding = values[0], minEnding = values[0];
+    long maxSubarray = values[0], minSubarray = values[0];
+
+    for (int index = 1; index < values.length; index++) {
+        long value = values[index];
+        maxEnding = Math.max(value, maxEnding + value);
+        minEnding = Math.min(value, minEnding + value);
+        maxSubarray = Math.max(maxSubarray, maxEnding);
+        minSubarray = Math.min(minSubarray, minEnding);
+        total += value;
+    }
+
+    if (maxSubarray < 0L) return maxSubarray;
+    return Math.max(maxSubarray, total - minSubarray);
+}
+
+static int maxSubarraySumCircular(int[] values) {
+    return Math.toIntExact(maxCircularSubarraySum(values));
+}
+```
+
+#### Worked case 1 — ordinary Kadane wins
+
+For `[1,-2,3,-2]`, the official answer is singleton `[3]`, sum `3`. The wrapping candidate excludes the minimum ordinary subarray `[-2]` at index 1, giving `total 0 - (-2) = 2`; it loses to the non-wrapping result.
+
+| index, `x` | `total` | `maxEnding` | `maxSubarray` | `minEnding` | `minSubarray` |
+|---|---:|---:|---:|---:|---:|
+| `0, 1` | `1` | `1` | `1` | `1` | `1` |
+| `1, -2` | `-1` | `-1` | `1` | `-2` | `-2` |
+| `2, 3` | `2` | `3` | `3` | `1` | `-2` |
+| `3, -2` | `0` | `1` | `3` | `-2` | `-2` |
+
+```mermaid
+flowchart LR
+    A["ordinary max = 3"] --> M{"larger?"}
+    W["wrap = total 0 − min -2 = 2"] --> M
+    M --> R["answer = 3"]
+```
+
+#### Worked case 2 — exclude the minimum middle to wrap
+
+For `[5,-3,5]`, the ordinary maximum is `7` from the whole linear array. The minimum subarray is the middle singleton `[-3]`, and the total is `7`, so `total - minSubarray = 10`. The chosen circular sequence is suffix index `2` followed by prefix index `0`: `[5,5]`.
+
+| candidate | selected indices | sum | legal? |
+|---|---|---:|---|
+| ordinary whole array | `0,1,2` | `7` | yes |
+| wrapping complement | `2,0` | `10` | yes; each index once |
+| imagined repeated endpoints | `0,2,0` | `15` | no; index `0` repeats |
+
+```mermaid
+flowchart LR
+    P["prefix: index 0 = 5"] --> J["circular join"]
+    S["suffix: index 2 = 5"] --> J
+    X["excluded middle: index 1 = -3"] --> T["total 7 − (-3) = 10"]
+    J --> T
+```
+
+The complement proof depends on the fixed-buffer rule. Allowing repeated laps would make positive cycles unbounded, so “each element at most once” is a semantic requirement, not an implementation detail.
+
+#### Worked case 3 — all-negative guard prevents an empty answer
+
+For `[-3,-2,-3]`, maximum Kadane is `-2`, minimum Kadane is the whole array at `-8`, and `total - minSubarray = 0`. That zero represents excluding every element and selecting the empty complement, which the contract forbids. Because `maxSubarray < 0`, return `-2`.
+
+```mermaid
+flowchart TD
+    K["maxSubarray = -2"] --> G{"maxSubarray < 0?"}
+    G -->|yes| R["return -2"]
+    E["total − min = -8 − (-8) = 0"] --> Q["empty complement: illegal"]
+    Q -. "discard" .-> R
+```
+
+This is why initializing Kadane states to zero is wrong: it would fabricate an empty zero-sum candidate and beat every legal negative singleton. Initialize all five states from the first real element.
+
+#### Worked case 4 — zeros, singletons and extended arithmetic
+
+- `[0]` returns `0`; the singleton is a legal non-empty answer even though the complement arithmetic also yields zero.
+- `[-2,0,-3]` returns `0`, so the strict-negative guard correctly permits a real zero.
+- `[1,2,3,4]` returns `10`; all elements may be selected exactly once, and wrapping cannot improve on the whole array.
+- `[Integer.MAX_VALUE,-1,Integer.MAX_VALUE]` returns `4,294,967,294` from the two endpoints in the reusable `long` API. The LeetCode-compatible `int` wrapper deliberately throws `ArithmeticException` for this out-of-contract extension rather than narrowing silently.
+
+```mermaid
+flowchart TD
+    I["int[] input"] --> L["long Kadane states + total"]
+    L --> R["reusable long result"]
+    R --> W["Math.toIntExact wrapper"]
+    W -->|"official range"| O["int result"]
+    W -->|"extended overflow"| X["ArithmeticException"]
+```
+
+**Dual-Kadane invariant.** After index `i`, `maxEnding` and `minEnding` are the maximum and minimum sums of non-empty ordinary subarrays ending exactly at `i`; `maxSubarray` and `minSubarray` are the corresponding extrema anywhere in `0..i`; `total` is the sum of `0..i`. Each ending subarray either starts at `i` or extends an ending subarray from `i-1`, so the max/min recurrences preserve these claims by induction.
+
+Every legal circular subarray either avoids the boundary or crosses it. Kadane covers the first class. For a crossing choice, the omitted indices lie strictly between its prefix and suffix and form one ordinary contiguous segment; conversely, the complement of any non-empty ordinary middle segment is one crossing selection with no repeated index. Thus the best crossing sum is `total - minSubarray`, except when the minimum is the entire array and its complement is empty. The negative guard handles exactly that case; taking the larger legal class proves the result.
+
+**Complexity.** One scan performs constant work per value: `O(n)` time and `O(1)` auxiliary space. The input is read-only. The independent test oracle explores every start and lengths `1..n`, so it is `O(n²)` and never used by the optimized method.
+
+**Common interview errors:** considering only wrapping candidates; duplicating the array and accidentally allowing more than `n` selected elements; forgetting the all-negative empty-complement case; using `<= 0` and mishandling a real zero; initializing ending or global states to zero; subtracting the maximum rather than minimum ordinary segment; returning `total-minSubarray` without comparing ordinary Kadane; updating global extrema before ending states; accumulating in `int` while advertising a full-width reusable API; narrowing a `long` result with a cast instead of an explicit policy; mutating the array despite needing only reads; or claiming the quadratic modular-index baseline is linear.
+
+**Follow-ups:** return a deterministic circular `[start,end]` representation; distinguish a wrapped interval from an ordinary interval; count all maximizing circular ranges; solve with prefix/suffix maxima instead of min-Kadane; handle a required maximum length smaller than `n` with a monotonic deque over prefix sums; support a stream whose total length is not known in advance; or define saturation/exception/`BigInteger` policy for sums beyond `long`.
+
+Executable evidence is in `MaximumSumCircularSubarrayContracts.java`. It covers 20 deterministic groups, including all three official examples, singletons, zeros, all-positive/all-negative inputs, ordinary-versus-wrapping selection, fixed-buffer non-reuse, input preservation, invalid boundaries, widened sums and wrapper overflow. It then performs 20,000 seeded comparisons against an independent quadratic circular oracle while separately checking preservation, repeatability, reversal invariance and rotation invariance.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -4539,6 +4669,8 @@ Executable evidence is in `MaximumProductSubarrayContracts.java`. It covers 20 d
 - [LeetCode, “Maximum Product Subarray”](https://leetcode.com/problems/maximum-product-subarray/) — primary non-empty contiguous-subarray result, official examples, input bounds and every-subarray-product 32-bit guarantee for problem 34.
 - [Java Language Specification, Java SE 17, §15.17.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17.1) — integer multiplication promotion and low-order-bit overflow behavior behind the arithmetic precondition.
 - [Java SE 17 `Math.multiplyExact`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#multiplyExact(int,int)) — explicit exception-throwing multiplication option for a wider production boundary whose overflow policy differs from the primary problem.
+- [LeetCode, “Maximum Sum Circular Subarray”](https://leetcode.com/problems/maximum-sum-circular-subarray/) — primary non-empty circular-subarray, fixed-buffer non-reuse, official examples and input bounds for problem 35.
+- [Java SE 17 `Math.toIntExact`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#toIntExact(long)) — explicit checked narrowing used by the official-compatible wrapper after widened reusable accumulation.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
 - [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
@@ -4587,9 +4719,9 @@ Executable evidence is in `MaximumProductSubarrayContracts.java`. It covers 20 d
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 34 (Maximum Product Subarray is lines 3502–3597, bounded before problem 35 at line 3598). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 34 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 34 at lines 3417–3511, bounded before problem 35 at line 3512). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 35 (Maximum Sum Circular Subarray is lines 3598–3693, bounded before problem 36 at line 3694). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 35 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 35 at lines 3512–3607, bounded before problem 36 at line 3608). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 34, “Maximum Product Subarray,” is promoted from Markdown lines 3502–3597 and fresh no-wrap DOCX GFM-extracted lines 3417–3511; problem 35, “Maximum Sum Circular Subarray,” begins at Markdown line 3598 and no-wrap DOCX GFM-extracted line 3512.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 35, “Maximum Sum Circular Subarray,” is promoted from Markdown lines 3598–3693 and fresh no-wrap DOCX GFM-extracted lines 3512–3607; problem 36, “Largest Rectangle in Histogram,” begins at Markdown line 3694 and no-wrap DOCX GFM-extracted line 3608.
 
 
