@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–33 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 34–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–34 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 35–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first thirty-three solved problems](#4-core-pattern-lab--first-thirty-three-solved-problems)
+- [4. Core pattern lab — first thirty-four solved problems](#4-core-pattern-lab--first-thirty-four-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -62,6 +62,7 @@
   - [Example 31 — Spiral Matrix: peel one valid boundary at a time](#example-31--spiral-matrix-peel-one-valid-boundary-at-a-time)
   - [Example 32 — Median of Two Sorted Arrays: binary-search a valid partition](#example-32--median-of-two-sorted-arrays-binary-search-a-valid-partition)
   - [Example 33 — Count Inversions: count an entire cross block during merge](#example-33--count-inversions-count-an-entire-cross-block-during-merge)
+  - [Example 34 — Maximum Product Subarray: retain both ending extremes](#example-34--maximum-product-subarray-retain-both-ending-extremes)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -687,7 +688,7 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first thirty-three solved problems
+## 4. Core pattern lab — first thirty-four solved problems
 
 The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–33. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; and 33 counts whole cross-inversion blocks while merge-sorting. Problems 34–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
@@ -4395,6 +4396,132 @@ Every inversion is either wholly inside the left half, wholly inside the right h
 
 Executable evidence is in `CountInversionsContracts.java`. It covers 20 deterministic groups, including the canonical and HackerRank examples, empty/singleton/sorted/reverse/equal arrays, negatives, full-width values, nonmutation, null rejection, reverse-complement accounting and a 100,000-element overflow case. It then performs 20,000 seeded comparisons against the direct quadratic definition while separately checking preservation, legal count bounds, sorted-input zero and repeatability.
 
+### Example 34 — Maximum Product Subarray: retain both ending extremes
+
+**Contract.** Given a non-empty `int[]`, return the largest product of any non-empty contiguous subarray. A one-element subarray is legal, indices do not need to be returned, and the caller's array is preserved. The primary LeetCode contract limits length to `1..20,000`, values to `-10..10`, and guarantees that every subarray product fits in a signed 32-bit integer. That final guarantee is an arithmetic precondition: Java `int` multiplication wraps rather than reporting overflow if a caller extends the API beyond it.
+
+The quadratic definition fixes every left boundary, multiplies toward every right boundary, and records the best product. The repeated work is the product of a run ending at the preceding index. Unlike maximum-sum Kadane, retaining only the largest ending product is insufficient: multiplying by a negative reverses order, so yesterday's smallest product may become today's largest.
+
+For current value `x`, every non-empty subarray ending here belongs to exactly one of three classes: `[x]`, a previous maximum-ending subarray extended by `x`, or a previous minimum-ending subarray extended by `x`. Therefore compute both extremes from the same saved prior state:
+
+```text
+newMax = max(x, previousMax * x, previousMin * x)
+newMin = min(x, previousMax * x, previousMin * x)
+best   = max(best, newMax)
+```
+
+```mermaid
+flowchart TD
+    X["current value x"] --> S["start new: x"]
+    P["previous max ending"] --> A["extend: previousMax × x"]
+    N["previous min ending"] --> B["extend: previousMin × x"]
+    S --> H["new max and new min"]
+    A --> H
+    B --> H
+```
+
+The implementation below uses the symmetric three-candidate recurrence instead of an in-place swap. Saving both prior values first prevents the `newMin` calculation from accidentally reading an already-updated `newMax`.
+
+```java
+static int maxProduct(int[] values) {
+    if (values == null || values.length == 0) {
+        throw new IllegalArgumentException("values must be non-null and non-empty");
+    }
+
+    int maxEnding = values[0];
+    int minEnding = values[0];
+    int best = values[0];
+    for (int index = 1; index < values.length; index++) {
+        int value = values[index];
+        int previousMax = maxEnding;
+        int previousMin = minEnding;
+        maxEnding = Math.max(value,
+                Math.max(previousMax * value, previousMin * value));
+        minEnding = Math.min(value,
+                Math.min(previousMax * value, previousMin * value));
+        best = Math.max(best, maxEnding);
+    }
+    return best;
+}
+```
+
+#### Worked case 1 — official positive run and exact state trace
+
+For `[2,3,-2,4]`, the optimal subarray is `[2,3]` with product `6`. Each table row uses the two saved states from the preceding row.
+
+| index, `x` | candidates for new extremes | `maxEnding` | `minEnding` | `best` |
+|---|---|---:|---:|---:|
+| `0, 2` | initialization | `2` | `2` | `2` |
+| `1, 3` | `3, 2×3, 2×3` | `6` | `3` | `6` |
+| `2, -2` | `-2, 6×-2, 3×-2` | `-2` | `-12` | `6` |
+| `3, 4` | `4, -2×4, -12×4` | `4` | `-48` | `6` |
+
+The last state says only that the best product **ending at index 3** is `4`; the global `best` correctly preserves the earlier answer `6`.
+
+```mermaid
+flowchart LR
+    I0["2: max=2 min=2 best=2"] --> I1["3: max=6 min=3 best=6"]
+    I1 --> I2["-2: max=-2 min=-12 best=6"]
+    I2 --> I3["4: max=4 min=-48 best=6"]
+```
+
+#### Worked case 2 — zero is a selectable reset, not special control flow
+
+For `[-2,0,-1]`, processing zero yields candidates `0,0,0`, so both ending states become zero and `best` becomes zero. Processing `-1` then yields `-1,0,0`, retaining a zero-product subarray ending at that position. The answer is `0`; multiplying the two negative values would give `2`, but `[-2,-1]` is not contiguous because zero lies between them.
+
+| `x` | old `(max,min)` | new `(max,min)` | `best` |
+|---:|---:|---:|---:|
+| `-2` | — | `(-2,-2)` | `-2` |
+| `0` | `(-2,-2)` | `(0,0)` | `0` |
+| `-1` | `(0,0)` | `(0,-1)` | `0` |
+
+```mermaid
+flowchart TD
+    L["segment product -2"] --> Z["x=0 makes both ending states 0"]
+    Z --> R["next subarray may start at -1"]
+    L -. "cannot skip zero" .-> R
+```
+
+#### Worked case 3 — the previous minimum becomes the new maximum
+
+For `[-2,3,-4]`, the state after `3` is `maxEnding=3`, `minEnding=-6`. At `-4`, the three candidates are `-4`, `3×-4=-12`, and `-6×-4=24`. The previous minimum represents `[-2,3]`; extending it produces `[-2,3,-4]`, so the answer is `24`.
+
+```mermaid
+flowchart LR
+    MN["previous min = -6"] -->|"× -4"| POS["new max = 24"]
+    MX["previous max = 3"] -->|"× -4"| NEG["candidate = -12"]
+    X["start at -4"] --> NEG2["candidate = -4"]
+```
+
+This is the decisive counterexample to tracking only the maximum ending product. The equivalent swap formulation swaps `maxEnding` and `minEnding` before multiplying by a negative; the explicit three-candidate recurrence makes the dependency on the old pair easier to audit.
+
+#### Worked case 4 — singleton, signs and the numeric precondition
+
+- `[-7]` returns `-7`, not zero: the result must be a non-empty subarray, so initialize from the first value rather than from multiplicative identity `1` or a fabricated empty answer.
+- `[-2,-3,-4]` returns `12` from `[-3,-4]`; using the entire odd-negative run would give `-24`.
+- `[-2,0,-3,-4,0,5]` returns `12`; zero-delimited segments cannot be joined, but zero remains a legal candidate.
+- Nine `10` values return `1,000,000,000`, still within the stated contract. The source problem guarantees every subarray product fits `int`; without that precondition, ordinary `*` may wrap. A production API with broader values must choose a larger numeric model or use `Math.multiplyExact` and disclose that overflow raises `ArithmeticException`—merely changing the return type after an `int` multiplication is too late.
+
+```mermaid
+flowchart TD
+    C{"all subarray products fit int?"} -->|"yes: primary contract"| I["use int DP"]
+    C -->|"unknown"| E["choose wider/exact arithmetic policy"]
+    E --> X["detect overflow or use arbitrary precision"]
+    I --> O["O(n) time, O(1) auxiliary space"]
+```
+
+**Ending-extremes invariant.** After processing index `i`, `maxEnding` and `minEnding` are respectively the maximum and minimum products among all non-empty contiguous subarrays whose right endpoint is exactly `i`; `best` is the maximum product among all non-empty subarrays contained in indices `0..i`.
+
+The invariant holds at index zero because the only ending subarray is the singleton. For the induction step, every subarray ending at `i` either starts at `i`, or extends a subarray ending at `i-1`. Multiplication by a positive value preserves product order, multiplication by a negative reverses it, and multiplication by zero collapses every extension to zero. Consequently the extrema of all extensions come from one of the two prior extrema; adding singleton `[x]` gives exactly the three candidates in the recurrence. Taking their maximum and minimum re-establishes the ending states, and updating `best` covers both subarrays ending now and all earlier subarrays. Induction proves the returned result.
+
+**Complexity.** One pass performs constant work per value: `O(n)` time and `O(1)` auxiliary space. The algorithm reads but never writes the input. The independent definition oracle is `O(n²)` and exists only for tests. The primary input must be non-empty; a reusable boundary rejects null and empty inputs rather than indexing blindly.
+
+**Common interview errors:** applying maximum-sum Kadane and tracking only one ending state; initializing `best` to zero and thereby allowing an illegal empty subarray; combining values across a zero; updating `maxEnding` before saving the old value needed by `minEnding`; swapping only one state when using the negative-swap variant; returning the final ending maximum instead of the global maximum; multiplying in `int` and widening only afterward; claiming arbitrary-`int` safety when relying on the source's every-subarray-product guarantee; allocating a DP array while claiming constant auxiliary space; or mutating the caller's array despite needing only reads.
+
+**Follow-ups:** return one maximizing `[left,right]` interval with deterministic tie-breaking; use `BigInteger` when exact unbounded products are required; compare the ending-extremes DP with a two-direction prefix/suffix scan; explain why maximum product of a non-contiguous subsequence is a different problem; count all subarrays attaining the maximum; or adapt the recurrence to floating-point inputs while defining behavior for negative zero, infinities and `NaN`.
+
+Executable evidence is in `MaximumProductSubarrayContracts.java`. It covers 20 deterministic groups: both official examples, negative sign reversal, singleton signs, zeros, even/odd negative counts, duplicate and segmented cases, non-contiguity, preservation, invalid inputs, a large legal product and definition-oracle parity. It then performs 20,000 seeded comparisons against an independent quadratic oracle while separately checking input preservation, repeatability, reversal invariance and the effect of appending a zero.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -4409,6 +4536,9 @@ Executable evidence is in `CountInversionsContracts.java`. It covers 20 determin
 - [LeetCode, “Spiral Matrix”](https://leetcode.com/problems/spiral-matrix/) — primary non-empty rectangular input, clockwise-order result, canonical examples and value/dimension bounds for problem 31.
 - [LeetCode, “Median of Two Sorted Arrays”](https://leetcode.com/problems/median-of-two-sorted-arrays/) — primary sorted-input, non-empty-total, canonical examples, input bounds and logarithmic-time requirement for problem 32.
 - [HackerRank, “Merge Sort: Counting Inversions”](https://www.hackerrank.com/challenges/ctci-merge-sort/problem) — primary strict index-pair definition, long-result contract, sample cases and adjacent-swap interpretation for problem 33.
+- [LeetCode, “Maximum Product Subarray”](https://leetcode.com/problems/maximum-product-subarray/) — primary non-empty contiguous-subarray result, official examples, input bounds and every-subarray-product 32-bit guarantee for problem 34.
+- [Java Language Specification, Java SE 17, §15.17.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17.1) — integer multiplication promotion and low-order-bit overflow behavior behind the arithmetic precondition.
+- [Java SE 17 `Math.multiplyExact`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#multiplyExact(int,int)) — explicit exception-throwing multiplication option for a wider production boundary whose overflow policy differs from the primary problem.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
 - [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
@@ -4457,9 +4587,9 @@ Executable evidence is in `CountInversionsContracts.java`. It covers 20 determin
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 33 (Count Inversions is lines 3386–3501, bounded before problem 34 at line 3502). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 33 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 33 at lines 3314–3416, bounded before problem 34 at line 3417). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 34 (Maximum Product Subarray is lines 3502–3597, bounded before problem 35 at line 3598). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 34 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 34 at lines 3417–3511, bounded before problem 35 at line 3512). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 33, “Count Inversions,” is promoted from Markdown lines 3386–3501 and fresh no-wrap DOCX GFM-extracted lines 3314–3416; problem 34, “Maximum Product Subarray,” begins at Markdown line 3502 and no-wrap DOCX GFM-extracted line 3417.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 34, “Maximum Product Subarray,” is promoted from Markdown lines 3502–3597 and fresh no-wrap DOCX GFM-extracted lines 3417–3511; problem 35, “Maximum Sum Circular Subarray,” begins at Markdown line 3598 and no-wrap DOCX GFM-extracted line 3512.
 
 
