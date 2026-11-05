@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–29 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 30–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–30 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 31–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first twenty-nine solved problems](#4-core-pattern-lab--first-twenty-nine-solved-problems)
+- [4. Core pattern lab — first thirty solved problems](#4-core-pattern-lab--first-thirty-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -58,6 +58,7 @@
   - [Example 27 — Split Array Largest Sum: minimize a contiguous capacity](#example-27--split-array-largest-sum-minimize-a-contiguous-capacity)
   - [Example 28 — Merge Intervals: sort once, close one component at a time](#example-28--merge-intervals-sort-once-close-one-component-at-a-time)
   - [Example 29 — Insert Interval: preserve the three ordered regions](#example-29--insert-interval-preserve-the-three-ordered-regions)
+  - [Example 30 — Set Matrix Zeroes: store discovery metadata in the borders](#example-30--set-matrix-zeroes-store-discovery-metadata-in-the-borders)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -685,9 +686,9 @@ Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite 
 
 <a id="4-core-pattern-lab--first-twenty-solved-problems"></a>
 
-## 4. Core pattern lab — first twenty-nine solved problems
+## 4. Core pattern lab — first thirty solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–29. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; and 28–29 normalize or preserve interval components. Problems 30–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–30. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; and 30 reuses matrix borders as discovery metadata. Problems 31–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -3870,6 +3871,159 @@ When the first after interval is reached, its start is greater than `mergedEnd`.
 
 Executable evidence is in `InsertIntervalContracts.java`. It covers 20 deterministic groups, including both official examples, all three empty-phase shapes, touching endpoints, complete containment, full-width endpoints, input and inserted-interval preservation, fresh ownership and malformed/non-normalized rejection. It then compares 20,000 seeded normalized inputs with an independent append-sort-merge oracle while checking canonical output and exact small-domain point coverage.
 
+### Example 30 — Set Matrix Zeroes: store discovery metadata in the borders
+
+**Official contract.** Given a non-empty rectangular `m x n` integer matrix, mutate the same matrix so that every row and column containing an **original** zero becomes all zero. The official bounds are `1 <= m,n <= 200`, every component may use the full signed 32-bit range, and the follow-up asks for constant auxiliary space. The output is the mutation itself: do not allocate a replacement matrix, do not replace row arrays, and do not let zeros written during materialization create new markers.
+
+A boolean `zeroRow[m]` plus `zeroColumn[n]` solution is direct but costs `O(m+n)` space. The constant-space version stores those bits in `matrix[row][0]` and `matrix[0][column]`. Because `matrix[0][0]` cannot independently represent both border facts, preserve `firstRowZero` and `firstColumnZero` before reusing the borders.
+
+```mermaid
+flowchart TD
+    V["validate non-empty rectangle"] --> B["snapshot first-row and first-column zero facts"]
+    B --> M["mark interior zeros in row 0 / column 0"]
+    M --> I["materialize interior from markers"]
+    I --> R["zero first row if originally required"]
+    R --> C["zero first column if originally required"]
+```
+
+The order is the algorithm. Discovery must finish before interior materialization, and both marker borders must remain readable until every interior cell has been decided.
+
+```java
+static void setZeroes(int[][] matrix) {
+    validateRectangular(matrix);
+    int rows = matrix.length;
+    int columns = matrix[0].length;
+
+    boolean firstRowZero = false;
+    for (int column = 0; column < columns; column++) {
+        if (matrix[0][column] == 0) {
+            firstRowZero = true;
+            break;
+        }
+    }
+
+    boolean firstColumnZero = false;
+    for (int row = 0; row < rows; row++) {
+        if (matrix[row][0] == 0) {
+            firstColumnZero = true;
+            break;
+        }
+    }
+
+    for (int row = 1; row < rows; row++) {
+        for (int column = 1; column < columns; column++) {
+            if (matrix[row][column] == 0) {
+                matrix[row][0] = 0;          // row marker
+                matrix[0][column] = 0;       // column marker
+            }
+        }
+    }
+
+    for (int row = 1; row < rows; row++) {
+        for (int column = 1; column < columns; column++) {
+            if (matrix[row][0] == 0 || matrix[0][column] == 0) {
+                matrix[row][column] = 0;
+            }
+        }
+    }
+
+    if (firstRowZero) Arrays.fill(matrix[0], 0);
+    if (firstColumnZero) {
+        for (int row = 0; row < rows; row++) matrix[row][0] = 0;
+    }
+}
+
+static void validateRectangular(int[][] matrix) {
+    if (matrix == null || matrix.length == 0 || matrix[0] == null
+            || matrix[0].length == 0) {
+        throw new IllegalArgumentException("matrix must be non-empty and rectangular");
+    }
+    int columns = matrix[0].length;
+    for (int row = 1; row < matrix.length; row++) {
+        if (matrix[row] == null || matrix[row].length != columns) {
+            throw new IllegalArgumentException("matrix must be non-empty and rectangular");
+        }
+    }
+}
+```
+
+Validation is outside the LeetCode core because its input already satisfies the rectangular bounds. It matters in reusable Java: an `int[][]` is an array of row references, so rows can be null or have different lengths. The complete validation pass occurs before the first assignment, making rejection atomic.
+
+```mermaid
+flowchart LR
+    X["original interior zero at (r,c)"] --> RM["matrix[r][0] = 0"]
+    X --> CM["matrix[0][c] = 0"]
+    RM --> ZR["zero interior of row r"]
+    CM --> ZC["zero interior of column c"]
+```
+
+#### Worked case 1 — center zero with exact phase trace
+
+For `[[1,1,1],[1,0,1],[1,1,1]]`, neither border originally contains zero. The interior zero at `(1,1)` writes the row marker at `(1,0)` and the column marker at `(0,1)`.
+
+| phase | first-row flag | first-column flag | matrix state | meaning |
+|---|---:|---:|---|---|
+| start | — | — | `[[1,1,1],[1,0,1],[1,1,1]]` | no mutation yet |
+| preserve borders | false | false | unchanged | border intent is safe in scalars |
+| mark interior | false | false | `[[1,0,1],[0,0,1],[1,1,1]]` | row 1 and column 1 are metadata-marked |
+| materialize interior | false | false | `[[1,0,1],[0,0,0],[1,0,1]]` | every non-border cell consults metadata |
+| restore borders | false | false | unchanged | marker zeros already are required output |
+
+Result: `[[1,0,1],[0,0,0],[1,0,1]]`.
+
+```mermaid
+flowchart LR
+    O["original zero (1,1)"] --> A["markers (1,0) and (0,1)"]
+    A --> B["row 1 zero"]
+    A --> C["column 1 zero"]
+    B --> F["final cross"]
+    C --> F
+```
+
+#### Worked case 2 — both border facts are independent
+
+For `[[0,1,2,0],[3,4,5,2],[1,3,1,5]]`, the first row originally contains zeros, so `firstRowZero=true`; the first column also contains a zero at `(0,0)`, so `firstColumnZero=true`. Interior marking finds no additional zero. Materialization uses the existing column-3 marker at `matrix[0][3]`, then the final border phases clear row 0 and column 0:
+
+`[[0,0,0,0],[0,4,5,0],[0,3,1,0]]`.
+
+One bit stored in `matrix[0][0]` cannot say whether only row 0, only column 0, or both must be cleared. Two scalar flags make those decisions explicit.
+
+#### Worked case 3 — degenerate dimensions use the same algorithm
+
+- `[[5,0,7]]` becomes `[[0,0,0]]`: the interior row loops are empty, and the preserved first-row fact performs the work.
+- `[[5],[0],[7]]` becomes `[[0],[0],[0]]`: there are no interior columns, and the preserved first-column fact performs the work.
+- `[[7]]` remains `[[7]]`, while `[[0]]` remains `[[0]]`.
+
+No special-case return is required after validation; empty loop ranges plus the two border phases cover all one-dimensional shapes.
+
+#### Worked case 4 — written zeros do not cascade, and identity is preserved
+
+For `[[1,0,3],[4,5,6],[7,8,9]]`, only original row 0 and column 1 should be cleared. The final matrix is `[[0,0,0],[4,0,6],[7,0,9]]`. Although `matrix[1][1]` becomes zero, it is written during materialization, after discovery; it must not cause row 1 to be cleared. Values 4, 6, 7 and 9 prove that no false cascade occurred.
+
+The method assigns only components. The outer matrix reference and every row reference remain identical, including with `Integer.MIN_VALUE` and `Integer.MAX_VALUE`; ordinary nonzero values need no sentinel encoding.
+
+```mermaid
+flowchart LR
+    O["caller int[][] object"] --> R0["same row 0 object"]
+    O --> R1["same row 1 object"]
+    O --> R2["same row 2 object"]
+    R0 -->|"component assignments only"| F["same shape and identities"]
+    R1 --> F
+    R2 --> F
+```
+
+**Marker invariant.** After the marking pass, for every interior row `r > 0`, `matrix[r][0] == 0` exactly when that row contained an original interior zero or column 0 originally forced the row through the preserved flag; similarly, for every interior column `c > 0`, `matrix[0][c] == 0` exactly when that column contained an original interior zero or row 0 originally held that zero itself. The two scalar flags retain the original border facts without depending on overwritten metadata.
+
+During interior materialization, a cell `(r,c)` is cleared iff its row marker or column marker is zero. Those markers were produced only from original zeros, so every required cell is cleared and no unrequired interior cell is changed. Materialization never reads newly written interior cells as metadata. Finally, clearing row 0 and column 0 from their saved flags completes exactly the border obligations. Therefore the final matrix matches the original-zero specification.
+
+**Complexity.** Validation, border discovery, marking and materialization each inspect at most `mn` components, so total time is `O(mn)`. The two booleans and loop indices are `O(1)` auxiliary space. The input matrix supplies marker storage, and the algorithm allocates neither a replacement matrix nor row/column marker arrays.
+
+**Common interview errors:** zeroing a row immediately when its zero is discovered; using a magic nonzero sentinel that can collide with the full `int` domain; forgetting that `matrix[0][0]` represents two dimensions; clearing the first row before interior cells consume its column markers; starting the interior passes at index 0; replacing rows with new arrays while claiming identity preservation; assuming every Java `int[][]` is rectangular; mutating before complete validation; returning a new matrix instead of modifying the input; or calling the output matrix “extra space” even though this problem returns no output allocation.
+
+**Follow-ups:** implement the simpler `O(m+n)` marker-array baseline; use only one explicit boolean and let `matrix[0][0]` encode the first-row fact; stream a matrix that cannot be revisited; adapt the method to an immutable matrix API; report which original zeros caused each cleared cell; make validation optional for a trusted hot path; or generalize the metadata-reuse idea to Game of Life state encoding.
+
+Executable evidence is in `SetMatrixZeroesContracts.java`. It covers 20 deterministic groups, including both official examples, no/all-zero matrices, singleton/one-row/one-column shapes, first-row, first-column and top-left zeros, multiple zeros, full-width values, non-cascading writes, object/row identity and atomic rejection of invalid Java shapes. It then checks 20,000 seeded rectangular matrices against an independent `O(m+n)` marker-array oracle while separately verifying exact original-zero semantics, shape preservation and reference identity.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -3880,6 +4034,7 @@ Executable evidence is in `InsertIntervalContracts.java`. It covers 20 determini
 - [LeetCode, “Split Array Largest Sum”](https://leetcode.com/problems/split-array-largest-sum/) — primary exact-`k`, non-empty contiguous-subarray, minimized-largest-sum contract, examples and non-negative input bounds for problem 27.
 - [LeetCode, “Merge Intervals”](https://leetcode.com/problems/merge-intervals/) — primary closed-interval overlap, union-coverage, canonical examples and input bounds for problem 28.
 - [LeetCode, “Insert Interval”](https://leetcode.com/problems/insert-interval/) — primary sorted, non-overlapping closed-interval input contract, canonical examples, allowed new output and endpoint bounds for problem 29.
+- [LeetCode, “Set Matrix Zeroes”](https://leetcode.com/problems/set-matrix-zeroes/) — primary in-place original-zero propagation contract, canonical examples, rectangular/full-width input bounds and constant-space follow-up for problem 30.
 - [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
 - [Java Language Specification, Java SE 17, §15.17.2](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17.2) — integer-division truncation used to derive exact positive ceiling division.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — Java integer-overflow guidance and `max` contract used by the answer-space bound.
