@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–30 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 31–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–31 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 32–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first thirty solved problems](#4-core-pattern-lab--first-thirty-solved-problems)
+- [4. Core pattern lab — first thirty-one solved problems](#4-core-pattern-lab--first-thirty-one-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -59,6 +59,7 @@
   - [Example 28 — Merge Intervals: sort once, close one component at a time](#example-28--merge-intervals-sort-once-close-one-component-at-a-time)
   - [Example 29 — Insert Interval: preserve the three ordered regions](#example-29--insert-interval-preserve-the-three-ordered-regions)
   - [Example 30 — Set Matrix Zeroes: store discovery metadata in the borders](#example-30--set-matrix-zeroes-store-discovery-metadata-in-the-borders)
+  - [Example 31 — Spiral Matrix: peel one valid boundary at a time](#example-31--spiral-matrix-peel-one-valid-boundary-at-a-time)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -684,11 +685,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-<a id="4-core-pattern-lab--first-twenty-solved-problems"></a>
+## 4. Core pattern lab — first thirty-one solved problems
 
-## 4. Core pattern lab — first thirty solved problems
-
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–30. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; and 30 reuses matrix borders as discovery metadata. Problems 31–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–31. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; and 31 peels a matrix through four shrinking boundaries. Problems 32–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -4024,6 +4023,142 @@ During interior materialization, a cell `(r,c)` is cleared iff its row marker or
 
 Executable evidence is in `SetMatrixZeroesContracts.java`. It covers 20 deterministic groups, including both official examples, no/all-zero matrices, singleton/one-row/one-column shapes, first-row, first-column and top-left zeros, multiple zeros, full-width values, non-cascading writes, object/row identity and atomic rejection of invalid Java shapes. It then checks 20,000 seeded rectangular matrices against an independent `O(m+n)` marker-array oracle while separately verifying exact original-zero semantics, shape preservation and reference identity.
 
+### Example 31 — Spiral Matrix: peel one valid boundary at a time
+
+**Official contract.** Given a non-empty rectangular `m x n` integer matrix, return its values in clockwise spiral order, beginning at `(0,0)`. The official bounds are `1 <= m,n <= 10` and `-100 <= matrix[r][c] <= 100`. A reusable Java boundary should additionally reject null, empty and ragged shapes before reading components. This implementation does not mutate the matrix or replace any row; the returned `List<Integer>` is independent output storage containing exactly `m*n` values.
+
+Track the inclusive unvisited rectangle with `top`, `bottom`, `left`, and `right`. In each layer, traverse its top edge left-to-right and its right edge top-to-bottom. After those edges shrink the rectangle, traverse the bottom edge only when `top <= bottom`, and the left edge only when `left <= right`. Those post-shrink guards are correctness conditions.
+
+```mermaid
+flowchart TD
+    V["validate rectangle"] --> T["top edge: left → right"]
+    T --> R["right edge: top → bottom"]
+    R --> B{"a bottom row remains?"}
+    B -->|yes| D["bottom edge: right → left"]
+    B -->|no| W["next layer or stop"]
+    D --> L{"a left column remains?"}
+    L -->|yes| U["left edge: bottom → top"]
+    L -->|no| W
+    U --> W
+```
+
+```java
+static List<Integer> spiralOrder(int[][] matrix) {
+    validateRectangular(matrix);
+    int rows = matrix.length;
+    int columns = matrix[0].length;
+    long cellCount = (long) rows * columns;
+    if (cellCount > Integer.MAX_VALUE) {
+        throw new IllegalArgumentException("matrix has too many cells for a Java List");
+    }
+
+    List<Integer> order = new ArrayList<>((int) cellCount);
+    int top = 0, bottom = rows - 1;
+    int left = 0, right = columns - 1;
+
+    while (top <= bottom && left <= right) {
+        for (int column = left; column <= right; column++) {
+            order.add(matrix[top][column]);
+        }
+        top++;
+
+        for (int row = top; row <= bottom; row++) {
+            order.add(matrix[row][right]);
+        }
+        right--;
+
+        if (top <= bottom) {
+            for (int column = right; column >= left; column--) {
+                order.add(matrix[bottom][column]);
+            }
+            bottom--;
+        }
+
+        if (left <= right) {
+            for (int row = bottom; row >= top; row--) {
+                order.add(matrix[row][left]);
+            }
+            left++;
+        }
+    }
+    return order;
+}
+
+static void validateRectangular(int[][] matrix) {
+    if (matrix == null || matrix.length == 0 || matrix[0] == null
+            || matrix[0].length == 0) {
+        throw new IllegalArgumentException("matrix must be non-empty and rectangular");
+    }
+    int columns = matrix[0].length;
+    for (int row = 1; row < matrix.length; row++) {
+        if (matrix[row] == null || matrix[row].length != columns) {
+            throw new IllegalArgumentException("matrix must be non-empty and rectangular");
+        }
+    }
+}
+```
+
+#### Worked case 1 — square matrix with an exact boundary trace
+
+For `[[1,2,3],[4,5,6],[7,8,9]]`, begin with `[top..bottom] = [0..2]` and `[left..right] = [0..2]`.
+
+| operation | emitted values | bounds after the operation |
+|---|---|---|
+| top edge | `1,2,3` | `top=1, bottom=2, left=0, right=2` |
+| right edge | `6,9` | `top=1, bottom=2, left=0, right=1` |
+| guarded bottom edge | `8,7` | `top=1, bottom=1, left=0, right=1` |
+| guarded left edge | `4` | `top=1, bottom=1, left=1, right=1` |
+| inner top edge | `5` | `top=2, bottom=1, left=1, right=1` → stop |
+
+Result: `[1,2,3,6,9,8,7,4,5]`.
+
+```mermaid
+flowchart LR
+    A["outer top: 1,2,3"] --> B["outer right: 6,9"]
+    B --> C["outer bottom: 8,7"]
+    C --> D["outer left: 4"]
+    D --> E["inner cell: 5"]
+```
+
+#### Worked case 2 — rectangular matrix preserves the same four phases
+
+For `[[1,2,3,4],[5,6,7,8],[9,10,11,12]]`, the outer layer emits `1,2,3,4`, then `8,12`, then `11,10,9`, then `5`. The remaining rectangle is the single row `6,7`, so the next top pass consumes it and the bottom guard prevents a duplicate reverse pass. Result: `[1,2,3,4,8,12,11,10,9,5,6,7]`.
+
+```mermaid
+flowchart TD
+    O["outer layer: 10 cells"] --> I["remaining rectangle: row 1, columns 1..2"]
+    I --> P["top pass emits 6,7"]
+    P --> G["top > bottom; skip bottom and stop"]
+```
+
+#### Worked case 3 — thin shapes explain both guards
+
+- `[[1,2,3,4]]` emits the only top row. After `top++`, `top > bottom`, so no bottom edge can replay `3,2,1`.
+- `[[1],[2],[3],[4]]` emits `1` on the top edge and `2,3,4` on the right edge. After `right--`, `left > right`, so no left edge can replay `3,2`.
+- `[[1,2],[3,4]]` emits `[1,2,4,3]`; both guarded phases are still valid.
+
+```mermaid
+flowchart LR
+    S["single remaining row"] --> SR["bottom guard blocks replay"]
+    C["single remaining column"] --> CR["left guard blocks replay"]
+```
+
+#### Worked case 4 — values are payload, not visit markers
+
+For `[[0,-1],[-2,-3]]`, the result is `[0,-1,-3,-2]`. For `[[7,7,7],[7,7,7]]`, all six equal values are retained; equality cannot identify whether a coordinate was visited. `Integer.MIN_VALUE` and `Integer.MAX_VALUE` are ordinary payloads in the reusable method. The algorithm reads only, so the outer array identity, every row identity and every component remain unchanged; changing the returned list cannot alter the matrix.
+
+**Boundary invariant.** At the start of every loop, the rectangle `[top..bottom] x [left..right]` is exactly the set of unvisited coordinates, and `order` is the clockwise traversal of every layer already removed. The top and right passes visit distinct edges and shrink them. If a row remains, the bottom pass visits its still-unvisited coordinates; if a column remains, the left pass does the same. Thus every pass preserves the invariant while strictly reducing the rectangle.
+
+The loop ends only when no coordinate remains. No coordinate can appear twice because an edge is removed immediately after traversal and the two guards reject collapsed edges. No coordinate can be omitted because each non-empty rectangle loses every coordinate on its clockwise boundary, after which the invariant applies to the smaller rectangle. Therefore the output visits every matrix coordinate exactly once in clockwise spiral order.
+
+**Complexity.** Every component is appended exactly once, so time is `O(mn)`. The four bounds and loop indices use `O(1)` auxiliary space. The required output list uses `O(mn)` space and is not counted as auxiliary working storage. Validation is another `O(m)` row-reference pass and does not change the bound.
+
+**Common interview errors:** using only `while (top <= bottom)` and ignoring columns; omitting the bottom or left post-shrink guard; decrementing a boundary before traversing its edge; mixing inclusive and exclusive bounds; using a visited grid while claiming constant auxiliary space; treating duplicate values as visited markers; mutating the input unnecessarily; assuming every Java `int[][]` is rectangular; multiplying dimensions as `int` when sizing output; or claiming `O(1)` total space despite returning `mn` boxed values.
+
+**Follow-ups:** traverse counter-clockwise; start at another corner; return coordinates instead of values; stream values through a consumer; generate an `n x n` spiral; traverse ragged rows under an explicitly defined adjacency rule; compare a visited-direction simulation's space trade-off; or expose the traversal as an iterator.
+
+Executable evidence is in `SpiralMatrixContracts.java`. It covers 20 deterministic groups, including both official examples, singleton and thin shapes, two-row/two-column boundaries, multiple layers, duplicates, negative/full-width values, nonmutation, outer/row identity, output independence and atomic rejection of invalid Java shapes. It then compares 20,000 seeded rectangular matrices with an independent visited-grid direction-simulation oracle while checking cardinality and preservation on every trial.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -4035,6 +4170,8 @@ Executable evidence is in `SetMatrixZeroesContracts.java`. It covers 20 determin
 - [LeetCode, “Merge Intervals”](https://leetcode.com/problems/merge-intervals/) — primary closed-interval overlap, union-coverage, canonical examples and input bounds for problem 28.
 - [LeetCode, “Insert Interval”](https://leetcode.com/problems/insert-interval/) — primary sorted, non-overlapping closed-interval input contract, canonical examples, allowed new output and endpoint bounds for problem 29.
 - [LeetCode, “Set Matrix Zeroes”](https://leetcode.com/problems/set-matrix-zeroes/) — primary in-place original-zero propagation contract, canonical examples, rectangular/full-width input bounds and constant-space follow-up for problem 30.
+- [LeetCode, “Spiral Matrix”](https://leetcode.com/problems/spiral-matrix/) — primary non-empty rectangular input, clockwise-order result, canonical examples and value/dimension bounds for problem 31.
+- [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
 - [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
 - [Java Language Specification, Java SE 17, §15.17.2](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17.2) — integer-division truncation used to derive exact positive ceiling division.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — Java integer-overflow guidance and `max` contract used by the answer-space bound.
@@ -4081,9 +4218,9 @@ Executable evidence is in `SetMatrixZeroesContracts.java`. It covers 20 determin
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 29 (Insert Interval is lines 2981–3074, bounded before problem 30 at line 3075). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 29 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 29 at lines 2912–3006, bounded before problem 30 at line 3007). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 31 (Spiral Matrix is lines 3177–3273, bounded before problem 32 at line 3274). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 31 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 31 at lines 3103–3197, bounded before problem 32 at line 3198). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 29, “Insert Interval,” is promoted from Markdown lines 2981–3074 and fresh no-wrap DOCX GFM-extracted lines 2912–3006; problem 30, “Set Matrix Zeroes,” begins at Markdown line 3075 and no-wrap DOCX GFM-extracted line 3007.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 31, “Spiral Matrix,” is promoted from Markdown lines 3177–3273 and fresh no-wrap DOCX GFM-extracted lines 3103–3197; problem 32, “Median of Two Sorted Arrays,” begins at Markdown line 3274 and no-wrap DOCX GFM-extracted line 3198.
 
 
