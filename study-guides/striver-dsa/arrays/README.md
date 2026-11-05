@@ -36,6 +36,7 @@ java -ea study-guides/striver-dsa/arrays/MergeIntervalsContracts.java
 java -ea study-guides/striver-dsa/arrays/InsertIntervalContracts.java
 java -ea study-guides/striver-dsa/arrays/SetMatrixZeroesContracts.java
 java -ea study-guides/striver-dsa/arrays/SpiralMatrixContracts.java
+java -ea study-guides/striver-dsa/arrays/MedianTwoSortedArraysContracts.java
 ```
 
 Rebuild the reader:
@@ -44,6 +45,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–31 are promoted. Section 4 problems 32–47 and later source material remain queued.
+This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–32 are promoted. Section 4 problems 33–47 and later source material remain queued.
 
 

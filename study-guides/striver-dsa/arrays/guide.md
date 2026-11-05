@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–31 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 32–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–32 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 33–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first thirty-one solved problems](#4-core-pattern-lab--first-thirty-one-solved-problems)
+- [4. Core pattern lab — first thirty-two solved problems](#4-core-pattern-lab--first-thirty-two-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -60,6 +60,7 @@
   - [Example 29 — Insert Interval: preserve the three ordered regions](#example-29--insert-interval-preserve-the-three-ordered-regions)
   - [Example 30 — Set Matrix Zeroes: store discovery metadata in the borders](#example-30--set-matrix-zeroes-store-discovery-metadata-in-the-borders)
   - [Example 31 — Spiral Matrix: peel one valid boundary at a time](#example-31--spiral-matrix-peel-one-valid-boundary-at-a-time)
+  - [Example 32 — Median of Two Sorted Arrays: binary-search a valid partition](#example-32--median-of-two-sorted-arrays-binary-search-a-valid-partition)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -685,9 +686,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first thirty-one solved problems
+## 4. Core pattern lab — first thirty-two solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–31. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; and 31 peels a matrix through four shrinking boundaries. Problems 32–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–32. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; and 32 binary-searches a partition of two sorted arrays. Problems 33–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -4159,6 +4160,125 @@ The loop ends only when no coordinate remains. No coordinate can appear twice be
 
 Executable evidence is in `SpiralMatrixContracts.java`. It covers 20 deterministic groups, including both official examples, singleton and thin shapes, two-row/two-column boundaries, multiple layers, duplicates, negative/full-width values, nonmutation, outer/row identity, output independence and atomic rejection of invalid Java shapes. It then compares 20,000 seeded rectangular matrices with an independent visited-grid direction-simulation oracle while checking cardinality and preservation on every trial.
 
+### Example 32 — Median of Two Sorted Arrays: binary-search a valid partition
+
+**Official contract.** Given two arrays sorted in nondecreasing order, with at least one value in total, return the median of their conceptual merged order in `O(log(m+n))` time. The official bounds allow either individual array to be empty, lengths through 1,000, a combined length from 1 through 2,000, and values from `-10^6` through `10^6`. The reusable core below accepts the full Java `int` domain, rejects null references and the both-empty case, does not mutate either array, and assumes the documented sortedness precondition. A defensive wrapper may verify sortedness, but that scan costs `O(m+n)` and therefore is deliberately separate from the logarithmic core.
+
+Do not merge. Instead, choose cuts `cutA` and `cutB` so the left partition contains `ceil((m+n)/2)` values. Binary-search `cutA` only in the shorter array; `cutB = leftSize - cutA` is then forced. Four boundary values decide whether the partition is valid:
+
+```mermaid
+flowchart TD
+    S["search shorter array A"] --> C["choose cutA; derive cutB"]
+    C --> P["left side has ceil(total / 2) values"]
+    P --> V{"leftA ≤ rightB and leftB ≤ rightA?"}
+    V -->|yes| M["median from the two boundary pairs"]
+    V -->|no| D["discard half of A's cut positions"]
+```
+
+```java
+static double findMedianSortedArrays(int[] first, int[] second) {
+    if (first == null || second == null) {
+        throw new IllegalArgumentException("arrays must be non-null");
+    }
+    if (first.length == 0 && second.length == 0) {
+        throw new IllegalArgumentException("at least one value is required");
+    }
+
+    int[] a = first, b = second;
+    if (a.length > b.length) {
+        a = second;
+        b = first;
+    }
+    int m = a.length, n = b.length;
+    long total = (long) m + n;
+    int leftSize = (int) ((total + 1L) / 2L);
+    int low = 0, high = m;
+
+    while (low <= high) {
+        int cutA = low + (high - low) / 2;
+        int cutB = leftSize - cutA;
+
+        int leftA = cutA == 0 ? Integer.MIN_VALUE : a[cutA - 1];
+        int rightA = cutA == m ? Integer.MAX_VALUE : a[cutA];
+        int leftB = cutB == 0 ? Integer.MIN_VALUE : b[cutB - 1];
+        int rightB = cutB == n ? Integer.MAX_VALUE : b[cutB];
+
+        if (leftA <= rightB && leftB <= rightA) {
+            int leftMax = Math.max(leftA, leftB);
+            if ((total & 1L) == 1L) return leftMax;
+            int rightMin = Math.min(rightA, rightB);
+            return ((long) leftMax + rightMin) / 2.0;
+        }
+        if (leftA > rightB) high = cutA - 1;
+        else low = cutA + 1;
+    }
+    throw new IllegalArgumentException("no valid partition; inputs must be sorted");
+}
+```
+
+The `Integer.MIN_VALUE` and `Integer.MAX_VALUE` sentinels represent missing boundary values, not data markers. Equality keeps real extreme values correct. Widening before the even-length addition is essential: `(Integer.MIN_VALUE + Integer.MAX_VALUE) / 2.0` would first overflow as `int`, while `((long) leftMax + rightMin) / 2.0` correctly yields `-0.5`.
+
+#### Worked case 1 — official odd example and exact cut trace
+
+For `first=[1,3]`, `second=[2]`, the method swaps only local references so `A=[2]`, `B=[1,3]`, `leftSize=2`, `low=0`, and `high=1`.
+
+| iteration | `cutA`,`cutB` | `leftA`,`rightA` | `leftB`,`rightB` | decision |
+|---|---|---|---|---|
+| 1 | `0,2` | `-∞,2` | `3,+∞` | `leftB > rightA`; move `low` right |
+| 2 | `1,1` | `2,+∞` | `1,3` | both cross-order tests hold |
+
+The total is odd, so the median is the largest left boundary: `max(2,1)=2.0`. Swapping local references neither reorders nor replaces the caller's arrays.
+
+```mermaid
+flowchart LR
+    I1["cutA=0: leftB 3 > rightA 2"] --> R["search cuts to the right"]
+    R --> I2["cutA=1: 2 ≤ 3 and 1 ≤ +∞"]
+    I2 --> O["odd median = max(2,1) = 2"]
+```
+
+#### Worked case 2 — official even example
+
+For `A=[1,2]`, `B=[3,4]`, `leftSize=2`. The first cuts `1,1` produce `leftB=3 > rightA=2`, so the search moves right. Cuts `2,0` produce boundaries `leftA=2`, `rightA=+∞`, `leftB=-∞`, `rightB=3`; both cross-order tests hold. The middle pair is therefore `2,3`, and the answer is `(2+3)/2.0 = 2.5`.
+
+```mermaid
+flowchart TD
+    O{"total length odd?"} -->|yes| L["max(leftA,leftB)"]
+    O -->|no| E["leftMax=max(leftA,leftB)"]
+    E --> R["rightMin=min(rightA,rightB)"]
+    R --> A["widen, add, divide by 2.0"]
+```
+
+#### Worked case 3 — empty, unequal and duplicate-heavy inputs
+
+- `[]` and `[1]` use sentinels around the empty array and return `1.0`.
+- `[1,2]` and `[3,4,5]` return `3.0`; unequal lengths change only the legal cut range.
+- `[1,2,2]` and `[2,2,3]` return `2.0`. Non-strict `<=` comparisons are required because equal values may legitimately touch across a partition.
+- `[-5,-3]` and `[-4,-2,-1]` return `-3.0`; signs do not affect partition monotonicity.
+
+#### Worked case 4 — the full `int` domain and contract layering
+
+`[Integer.MIN_VALUE]` with `[Integer.MAX_VALUE]` returns `-0.5`; two maximum values return `2147483647.0`; two minimum values return `-2147483648.0`. Those cases prove why the sum must be widened. For a trusted interview input, the core preserves the required logarithmic bound. At an untrusted API boundary, `findMedianSortedArraysValidated` first checks every adjacent pair and then calls the core; malformed sortedness is rejected before binary search, at the disclosed linear cost.
+
+```mermaid
+flowchart LR
+    T["trusted sorted inputs"] --> C["partition core: O(log min(m,n))"]
+    U["untrusted inputs"] --> S["sortedness scan: O(m+n)"]
+    S --> C
+    C --> N["no mutation; O(1) auxiliary space"]
+```
+
+**Partition invariant.** Every retained `cutA` is a possible count of values contributed by the shorter array to a left partition of fixed size `leftSize`; `cutB` supplies the remainder. If `leftA > rightB`, `cutA` is too far right, and every larger cut is also impossible because `leftA` cannot decrease while `rightB` cannot increase. If `leftB > rightA`, `cutA` is too far left, and every smaller cut is impossible by the symmetric monotonic argument. Thus each rejection safely discards half the remaining cut positions.
+
+At a valid partition, every left-side value is no greater than every right-side value: within-array order is given, and the two cross-order tests establish the missing comparisons. The left side has exactly the required cardinality. For odd total length its maximum is the median; for even length the median is the average of the left maximum and right minimum. Because some valid partition exists in the merged sorted order, binary search must find one.
+
+**Complexity.** Searching `m+1` cut positions in the shorter array takes `O(log(min(m,n)+1))` time and `O(1)` auxiliary space. No merged array is allocated and neither input is modified. The optional defensive sortedness wrapper costs `O(m+n)` time; describing that wrapper as logarithmic would be incorrect.
+
+**Common interview errors:** binary-searching the longer array and allowing `cutB` outside its legal range; using floor rather than ceiling for the left partition; testing only one cross-order condition; reversing the search directions; indexing before handling a boundary cut; using strict `<` with duplicates; merging and still claiming logarithmic time; averaging as `int`; summing two `int` boundaries before widening; treating sentinels as forbidden payloads; silently accepting both arrays empty; performing a sortedness scan while claiming the core bound; or mutating inputs during a method that needs only reads.
+
+**Follow-ups:** return the two central values instead of their average; find the `k`th element by changing the required left size; support `long[]` with explicit infinities rather than value sentinels; compare the partition proof with a discard-`k/2` selection method; expose a validated production boundary; or generalize selection to more than two sorted sources.
+
+Executable evidence is in `MedianTwoSortedArraysContracts.java`. It covers 20 deterministic groups, including both official examples, either array empty, unequal and singleton lengths, duplicates, negatives, zeros, interleaving, disjoint ranges, full-width overflow cases, symmetry, nonmutation and validation failures. It then performs 20,000 seeded comparisons against an independent `O(m+n)` merge-selection oracle while separately checking both input snapshots, swap symmetry and validated-wrapper parity on every trial.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -4171,6 +4291,7 @@ Executable evidence is in `SpiralMatrixContracts.java`. It covers 20 determinist
 - [LeetCode, “Insert Interval”](https://leetcode.com/problems/insert-interval/) — primary sorted, non-overlapping closed-interval input contract, canonical examples, allowed new output and endpoint bounds for problem 29.
 - [LeetCode, “Set Matrix Zeroes”](https://leetcode.com/problems/set-matrix-zeroes/) — primary in-place original-zero propagation contract, canonical examples, rectangular/full-width input bounds and constant-space follow-up for problem 30.
 - [LeetCode, “Spiral Matrix”](https://leetcode.com/problems/spiral-matrix/) — primary non-empty rectangular input, clockwise-order result, canonical examples and value/dimension bounds for problem 31.
+- [LeetCode, “Median of Two Sorted Arrays”](https://leetcode.com/problems/median-of-two-sorted-arrays/) — primary sorted-input, non-empty-total, canonical examples, input bounds and logarithmic-time requirement for problem 32.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
 - [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
 - [Java Language Specification, Java SE 17, §15.17.2](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17.2) — integer-division truncation used to derive exact positive ceiling division.
@@ -4218,9 +4339,9 @@ Executable evidence is in `SpiralMatrixContracts.java`. It covers 20 determinist
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 31 (Spiral Matrix is lines 3177–3273, bounded before problem 32 at line 3274). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 31 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 31 at lines 3103–3197, bounded before problem 32 at line 3198). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 32 (Median of Two Sorted Arrays is lines 3274–3385, bounded before problem 33 at line 3386). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 32 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 32 at lines 3198–3313, bounded before problem 33 at line 3314). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 31, “Spiral Matrix,” is promoted from Markdown lines 3177–3273 and fresh no-wrap DOCX GFM-extracted lines 3103–3197; problem 32, “Median of Two Sorted Arrays,” begins at Markdown line 3274 and no-wrap DOCX GFM-extracted line 3198.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 32, “Median of Two Sorted Arrays,” is promoted from Markdown lines 3274–3385 and fresh no-wrap DOCX GFM-extracted lines 3198–3313; problem 33, “Count Inversions,” begins at Markdown line 3386 and no-wrap DOCX GFM-extracted line 3314.
 
 
