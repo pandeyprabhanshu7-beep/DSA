@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–32 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 33–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–33 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 34–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first thirty-two solved problems](#4-core-pattern-lab--first-thirty-two-solved-problems)
+- [4. Core pattern lab — first thirty-three solved problems](#4-core-pattern-lab--first-thirty-three-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -61,6 +61,7 @@
   - [Example 30 — Set Matrix Zeroes: store discovery metadata in the borders](#example-30--set-matrix-zeroes-store-discovery-metadata-in-the-borders)
   - [Example 31 — Spiral Matrix: peel one valid boundary at a time](#example-31--spiral-matrix-peel-one-valid-boundary-at-a-time)
   - [Example 32 — Median of Two Sorted Arrays: binary-search a valid partition](#example-32--median-of-two-sorted-arrays-binary-search-a-valid-partition)
+  - [Example 33 — Count Inversions: count an entire cross block during merge](#example-33--count-inversions-count-an-entire-cross-block-during-merge)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -686,9 +687,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first thirty-two solved problems
+## 4. Core pattern lab — first thirty-three solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–32. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; and 32 binary-searches a partition of two sorted arrays. Problems 33–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–33. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; and 33 counts whole cross-inversion blocks while merge-sorting. Problems 34–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -4279,6 +4280,121 @@ At a valid partition, every left-side value is no greater than every right-side 
 
 Executable evidence is in `MedianTwoSortedArraysContracts.java`. It covers 20 deterministic groups, including both official examples, either array empty, unequal and singleton lengths, duplicates, negatives, zeros, interleaving, disjoint ranges, full-width overflow cases, symmetry, nonmutation and validation failures. It then performs 20,000 seeded comparisons against an independent `O(m+n)` merge-selection oracle while separately checking both input snapshots, swap symmetry and validated-wrapper parity on every trial.
 
+### Example 33 — Count Inversions: count an entire cross block during merge
+
+**Contract.** An inversion is an index pair `(i,j)` with `i < j` and `values[i] > values[j]`. Return the number of such pairs, not the pairs themselves. Equal values are not inversions. The HackerRank formulation asks for a long integer and interprets the count as the number of adjacent swaps required to sort the array. This reusable Java boundary rejects a null reference, accepts an empty array, returns `long`, and preserves the caller's array by merge-sorting a clone.
+
+The quadratic definition checks every pair. Merge sort removes that repeated work: after the left and right halves are individually sorted, one comparison can classify an entire block of cross pairs. If `right[j] < left[i]`, then that right value is also smaller than every remaining value `left[i..middle)`, so add `middle-i` at once.
+
+```mermaid
+flowchart TD
+    A["range [low,high)"] --> L["count and sort left half"]
+    A --> R["count and sort right half"]
+    L --> M["merge sorted halves"]
+    R --> M
+    M --> C["left count + right count + cross count"]
+```
+
+```java
+static long countInversions(int[] values) {
+    if (values == null) {
+        throw new IllegalArgumentException("values must be non-null");
+    }
+    int[] working = values.clone();
+    return countAndSort(working, new int[working.length], 0, working.length);
+}
+
+static long countAndSort(int[] values, int[] buffer, int low, int high) {
+    if (high - low <= 1) return 0L;
+
+    int middle = low + (high - low) / 2;
+    long count = countAndSort(values, buffer, low, middle)
+            + countAndSort(values, buffer, middle, high);
+
+    int left = low, right = middle, output = low;
+    while (left < middle && right < high) {
+        if (values[left] <= values[right]) {
+            buffer[output++] = values[left++];
+        } else {
+            buffer[output++] = values[right++];
+            count += middle - left;
+        }
+    }
+    while (left < middle) buffer[output++] = values[left++];
+    while (right < high) buffer[output++] = values[right++];
+    System.arraycopy(buffer, low, values, low, high - low);
+    return count;
+}
+```
+
+Half-open ranges make the size, split, base case and copy length consistent. The public clone is an intentional `O(n)` preservation cost; an interviewer who allows mutation can call the same recursion on the input directly and retain the same asymptotic bounds.
+
+#### Worked case 1 — canonical cross-merge trace
+
+For `[2,4,1,3,5]`, recursive work sorts the halves into `left=[2,4]` and `right=[1,3,5]`; neither half contains an internal inversion. The final merge counts all three inversions:
+
+| left value | right value | action | added | merged prefix |
+|---:|---:|---|---:|---|
+| `2` | `1` | take `1`; it is below both remaining left values | `2` | `[1]` |
+| `2` | `3` | take `2`; equality/order branch never counts | `0` | `[1,2]` |
+| `4` | `3` | take `3`; it is below the one remaining left value | `1` | `[1,2,3]` |
+| `4` | `5` | take `4`, then append `5` | `0` | `[1,2,3,4,5]` |
+
+Result: `3`, representing `(2,1)`, `(4,1)` and `(4,3)`.
+
+```mermaid
+flowchart LR
+    C1["2 > 1"] --> B1["add 2: (2,1),(4,1)"]
+    B1 --> C2["2 ≤ 3: add 0"]
+    C2 --> C3["4 > 3"]
+    C3 --> B2["add 1: (4,3)"]
+```
+
+#### Worked case 2 — recursive counts and cross counts are disjoint
+
+For `[2,1,3,1,2]`, the answer is `4`: `(0,1)`, `(0,3)`, `(2,3)` and `(2,4)`. A pair whose endpoints remain in the same recursive half is counted below the root. A pair spanning the two root halves is counted only during the root merge. Therefore recursive counts plus the cross count cover every legal pair once, without overlap.
+
+```mermaid
+flowchart TD
+    P["all index pairs"] --> LL["both endpoints in left half"]
+    P --> RR["both endpoints in right half"]
+    P --> X["one endpoint in each half"]
+    LL --> RC["left recursive count"]
+    RR --> RC2["right recursive count"]
+    X --> MC["current merge count"]
+```
+
+#### Worked case 3 — equality, negatives and full-width values
+
+- `[1,1,1,2,2]` has `0` inversions. The `<=` branch consumes a left equal value without counting it.
+- `[3,3,1]` has `2`, not `3`: each `3` forms an inversion with `1`, but the equal pair does not.
+- `[-1,-3,-2]` has `2`: `-1` is greater than both later values.
+- `[Integer.MAX_VALUE,0,Integer.MIN_VALUE]` has `3`. Comparisons are safe across the full `int` domain because the implementation never subtracts values.
+
+#### Worked case 4 — reverse order proves the return type
+
+A reverse-sorted array of length `n` has the maximum `n(n-1)/2` inversions. For `n=5`, `[5,4,3,2,1]` returns `10`. For `n=100,000`, the result is `4,999,950,000`, already larger than `Integer.MAX_VALUE`; `long` is required. The arithmetic `(long)n * (n-1) / 2` must widen before multiplication when computing the bound.
+
+```mermaid
+flowchart LR
+    I["caller int[]"] --> CL["clone once"]
+    CL --> MS["merge-count with one reusable buffer"]
+    MS --> N["long inversion count"]
+    I --> P["caller array remains unchanged"]
+```
+
+**Merge invariant.** Before every merge comparison, `buffer[low..output)` contains the smallest already-consumed values in sorted order; `values[left..middle)` and `values[right..high)` are the unconsumed sorted suffixes. If the left value is no greater, copying it creates no cross inversion with any unconsumed right value. If the right value is smaller, every remaining left value is at least `values[left]` and therefore strictly greater than it, so exactly `middle-left` new cross inversions become final.
+
+Every inversion is either wholly inside the left half, wholly inside the right half, or crosses the split. The recursive calls count the first two disjoint classes. The invariant proves that the merge counts the cross class exactly once. Induction on range length therefore proves both the returned count and the sorted postcondition used by the parent merge.
+
+**Complexity.** The recurrence is `T(n)=2T(n/2)+O(n)`, giving `O(n log n)` time. The clone, reusable buffer and recursion stack use `O(n)` auxiliary space overall. The definition oracle is `O(n^2)` time and `O(1)` auxiliary space. Preserving rather than mutating the input changes ownership semantics, not the asymptotic space bound already required by merge sort.
+
+**Common interview errors:** counting equal values by using `<` instead of `<=` on the non-counting branch; adding one instead of the whole remaining-left length; using `high-middle` or another wrong block size; counting after incrementing `left`; forgetting internal inversions from recursive calls; allocating new left/right arrays at every merge while claiming one buffer; returning `int`; multiplying `n*(n-1)` as `int`; subtracting values in a comparator and overflowing; mixing inclusive and half-open boundaries; forgetting to copy the merged range back; silently mutating an input promised to be preserved; or treating a null reference as an empty array.
+
+**Follow-ups:** return the sorted array with the count; expose an in-place fast path; count reverse pairs under `values[i] > 2*values[j]`; count smaller elements to the right while preserving per-index answers; coordinate-compress values for a Fenwick tree solution; process a stream with a bounded value domain; or explain why adjacent-swap distance equals the inversion count.
+
+Executable evidence is in `CountInversionsContracts.java`. It covers 20 deterministic groups, including the canonical and HackerRank examples, empty/singleton/sorted/reverse/equal arrays, negatives, full-width values, nonmutation, null rejection, reverse-complement accounting and a 100,000-element overflow case. It then performs 20,000 seeded comparisons against the direct quadratic definition while separately checking preservation, legal count bounds, sorted-input zero and repeatability.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -4292,6 +4408,8 @@ Executable evidence is in `MedianTwoSortedArraysContracts.java`. It covers 20 de
 - [LeetCode, “Set Matrix Zeroes”](https://leetcode.com/problems/set-matrix-zeroes/) — primary in-place original-zero propagation contract, canonical examples, rectangular/full-width input bounds and constant-space follow-up for problem 30.
 - [LeetCode, “Spiral Matrix”](https://leetcode.com/problems/spiral-matrix/) — primary non-empty rectangular input, clockwise-order result, canonical examples and value/dimension bounds for problem 31.
 - [LeetCode, “Median of Two Sorted Arrays”](https://leetcode.com/problems/median-of-two-sorted-arrays/) — primary sorted-input, non-empty-total, canonical examples, input bounds and logarithmic-time requirement for problem 32.
+- [HackerRank, “Merge Sort: Counting Inversions”](https://www.hackerrank.com/challenges/ctci-merge-sort/problem) — primary strict index-pair definition, long-result contract, sample cases and adjacent-swap interpretation for problem 33.
+- [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
 - [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
 - [Java Language Specification, Java SE 17, §15.17.2](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17.2) — integer-division truncation used to derive exact positive ceiling division.
@@ -4339,9 +4457,9 @@ Executable evidence is in `MedianTwoSortedArraysContracts.java`. It covers 20 de
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 32 (Median of Two Sorted Arrays is lines 3274–3385, bounded before problem 33 at line 3386). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 32 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 32 at lines 3198–3313, bounded before problem 33 at line 3314). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 33 (Count Inversions is lines 3386–3501, bounded before problem 34 at line 3502). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 33 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 33 at lines 3314–3416, bounded before problem 34 at line 3417). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 32, “Median of Two Sorted Arrays,” is promoted from Markdown lines 3274–3385 and fresh no-wrap DOCX GFM-extracted lines 3198–3313; problem 33, “Count Inversions,” begins at Markdown line 3386 and no-wrap DOCX GFM-extracted line 3314.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 33, “Count Inversions,” is promoted from Markdown lines 3386–3501 and fresh no-wrap DOCX GFM-extracted lines 3314–3416; problem 34, “Maximum Product Subarray,” begins at Markdown line 3502 and no-wrap DOCX GFM-extracted line 3417.
 
 

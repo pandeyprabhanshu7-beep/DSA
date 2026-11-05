@@ -337,4 +337,12 @@ The deterministic responsive reader embeds the exact 272,833 canonical Markdown 
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 33, Count Inversions, is the next exact source continuation, subject to the next fair-domain rotation check.
 
+## Arrays Count Inversions enrichment — 2026-11-05 ET
+
+Arrays Section 4 problem 33 now states the strict index-pair, equality, long-result and nonmutation contracts; derives whole-block cross counting from two sorted merge halves; and proves recursive-left, recursive-right and cross pairs form a disjoint exhaustive partition. The section adds four worked cases, four diagrams, an exact cross-merge trace, full-width comparisons and a 100,000-element overflow example. `CountInversionsContracts` validates 20 deterministic groups plus 20,000 seeded arrays against the direct quadratic definition while checking preservation, legal count bounds, sorted-input zero and repeatability. All 33 Arrays evidence programs passed in Java 17 source-file mode: 620 scenario groups and 640,000 seeded/randomized oracle trials or comparisons. A standalone `javac` executable was not available.
+
+The deterministic responsive reader embeds the exact 281,378 canonical Markdown bytes at SHA-256 `e9b7f694534d3626cb2662caf6dc6a12cb6aa5bd3702a47bd9a94acfb263c750`; validation found 1,236 unique IDs, 61 search entries, 1,067 resolved fragment links, zero relative links, 350 balanced fence markers, 130 Mermaid sources and four syntactically balanced script blocks. Rebuilding produced byte-identical HTML at SHA-256 `4fd232669155e44638a167037af210c7f00d1a24082faf2ddaf95dbe4190dd85`. Both confirmed source artifacts agree on recursive merge counting, the strict comparison and `O(n log n)` time / `O(n)` auxiliary space; the public repository implementation adds an explicit preservation boundary and independent executable evidence. The editable Markdown remains the structural source and no duplicate guide was created.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 34, Maximum Product Subarray, is the next exact source continuation, subject to the next fair-domain rotation check.
+
 
