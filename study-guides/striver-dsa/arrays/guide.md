@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–36 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 37–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–37 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 38–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first thirty-six solved problems](#4-core-pattern-lab--first-thirty-six-solved-problems)
+- [4. Core pattern lab — first thirty-seven solved problems](#4-core-pattern-lab--first-thirty-seven-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -65,6 +65,7 @@
   - [Example 34 — Maximum Product Subarray: retain both ending extremes](#example-34--maximum-product-subarray-retain-both-ending-extremes)
   - [Example 35 — Maximum Sum Circular Subarray: exclude one minimum middle](#example-35--maximum-sum-circular-subarray-exclude-one-minimum-middle)
   - [Example 36 — Largest Rectangle in Histogram: finalize a height at its right boundary](#example-36--largest-rectangle-in-histogram-finalize-a-height-at-its-right-boundary)
+  - [Example 37 — Shortest Subarray with Sum at Least K: keep only useful prefix boundaries](#example-37--shortest-subarray-with-sum-at-least-k-keep-only-useful-prefix-boundaries)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -690,7 +691,7 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first thirty-six solved problems
+## 4. Core pattern lab — first thirty-seven solved problems
 
 The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–33. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; and 33 counts whole cross-inversion blocks while merge-sorting. Problems 34–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
@@ -4797,6 +4798,140 @@ When `current` is lower than a popped height, index `i` is the first blocking ri
 
 Executable evidence is in `LargestRectangleHistogramContracts.java`. It covers 20 deterministic groups, including both official examples, empty and singleton boundaries, increasing/decreasing inputs, equal plateaus, zero separators, preservation, invalid heights, widened area and wrapper overflow. It then performs 20,000 seeded comparisons against an independent quadratic range-minimum oracle while separately checking preservation, repeatability, reversal invariance, height scaling and zero-append separation.
 
+### Example 37 — Shortest Subarray with Sum at Least K: keep only useful prefix boundaries
+
+**Contract.** Given a non-empty `int[] nums` and positive target `k`, return the length of the shortest non-empty contiguous subarray whose sum is at least `k`; return `-1` when none exists. Values may be negative, the result is a length rather than the range itself, and the input remains unchanged. LeetCode's primary contract allows `1..100,000` values in `[-100,000,100,000]` with `k` in `[1,10^9]`. A legal prefix sum may therefore reach magnitude `10^10`, so accumulate and subtract in `long` even though the input and returned length are `int`.
+
+Let `prefix[0]=0` and `prefix[i+1]=prefix[i]+nums[i]`. A half-open range `[left,right)` qualifies exactly when:
+
+`prefix[right] - prefix[left] >= k`.
+
+The question becomes: for every right boundary, retain only left boundaries that could still produce the shortest future range. Their indices and prefix values must both be ordered.
+
+```mermaid
+flowchart LR
+    L["prefix[left]"] --> D["difference >= k"]
+    R["prefix[right]"] --> D
+    D --> S["candidate length = right - left"]
+    S --> B["minimize over non-empty ranges"]
+```
+
+An ordinary positive-only sliding window is invalid here. Removing the leftmost value can increase or decrease a signed window sum, so “shrink until infeasible” is no longer a monotonic decision. The prefix formulation restores monotonicity in a deque of candidate boundary indices:
+
+1. **Front = answer finalization.** While the current prefix minus the front prefix reaches `k`, score that range and remove the front. For this same left boundary, every future right index would only make the range longer.
+2. **Back = dominance removal.** While the back prefix is at least the current prefix, remove it. The current boundary is newer and no larger, so it produces an equal-or-larger future sum with a strictly shorter range.
+3. Append the current prefix index. The deque now has increasing indices and strictly increasing prefix values.
+
+```mermaid
+flowchart TD
+    C["current prefix index right"] --> F{"front qualifies?"}
+    F -->|yes| A["score length; remove front"]
+    A --> F
+    F -->|no| D{"back prefix >= current?"}
+    D -->|yes| X["remove dominated back"]
+    X --> D
+    D -->|no| P["append right"]
+```
+
+```java
+static int shortestSubarray(int[] nums, long k) {
+    if (nums == null || nums.length == 0) {
+        throw new IllegalArgumentException("nums must be non-null and non-empty");
+    }
+    if (k <= 0L) {
+        throw new IllegalArgumentException("k must be positive");
+    }
+
+    long[] prefix = new long[nums.length + 1];
+    for (int index = 0; index < nums.length; index++) {
+        prefix[index + 1] = prefix[index] + nums[index];
+    }
+
+    Deque<Integer> increasing = new ArrayDeque<>();
+    int best = nums.length + 1;
+    for (int right = 0; right <= nums.length; right++) {
+        while (!increasing.isEmpty()
+                && prefix[right] - prefix[increasing.peekFirst()] >= k) {
+            best = Math.min(best, right - increasing.removeFirst());
+        }
+        while (!increasing.isEmpty()
+                && prefix[increasing.peekLast()] >= prefix[right]) {
+            increasing.removeLast();
+        }
+        increasing.addLast(right);
+    }
+    return best <= nums.length ? best : -1;
+}
+```
+
+#### Worked case 1 — one element can be the whole answer
+
+For official input `nums=[1], k=1`, the prefixes are `[0,1]`. At `right=1`, `1-0>=1`, so remove prefix index 0 and record length 1. The answer is `1`, demonstrating that “non-empty” still permits a singleton.
+
+```mermaid
+flowchart LR
+    P0["P[0]=0"] -->|"P[1]-P[0]=1"| P1["P[1]=1"]
+    P1 --> A["length 1"]
+```
+
+#### Worked case 2 — absence returns `-1`
+
+For official input `nums=[1,2], k=4`, prefixes are `[0,1,3]`. No difference from a later prefix to an earlier one reaches 4, so no front removal occurs and the answer remains absent. Return `-1`, not zero: zero would be a plausible length but would also describe an illegal empty subarray.
+
+| right | current prefix | deque after processing | best |
+|---:|---:|---|---|
+| `0` | `0` | `[0]` | absent |
+| `1` | `1` | `[0,1]` | absent |
+| `2` | `3` | `[0,1,2]` | absent |
+
+#### Worked case 3 — negative values invalidate the positive-window proof
+
+For official input `nums=[2,-1,2], k=3`, prefixes are `[0,2,1,3]`. At prefix index 2, value 1 dominates prefix index 1, value 2, so index 1 is removed from the back. At index 3, `3-0=3`, producing the only qualifying range `[0,3)` and answer `3`.
+
+The sharper counterexample is `nums=[1,-1,5], k=5`: the answer is singleton `[5]`, length 1. A positive-only window that reaches sum 5, removes `1`, observes sum 4 and stops shrinking can incorrectly retain length 3 because removing the next value `-1` would increase the sum again. The deque does remove the dominated prefix boundary and finds length 1.
+
+```mermaid
+flowchart TD
+    W["signed window reaches target"] --> R["remove left value"]
+    R --> Q{"sum decreased?"}
+    Q -->|"not proof of minimality"| N["a following negative may still be removable"]
+    N --> M["use ordered prefix boundaries"]
+```
+
+#### Worked case 4 — exact front and back trace
+
+For `nums=[84,-37,32,40,95], k=167`, prefixes are `[0,84,47,79,119,214]`. Show deque indices front-to-back; their prefix values are strictly increasing.
+
+| `right / prefix` | front removals | back removals | deque after append | best |
+|---|---|---|---|---:|
+| `0 / 0` | — | — | `[0]` | absent |
+| `1 / 84` | — | — | `[0,1]` | absent |
+| `2 / 47` | — | remove `1` because `84>=47` | `[0,2]` | absent |
+| `3 / 79` | — | — | `[0,2,3]` | absent |
+| `4 / 119` | — | — | `[0,2,3,4]` | absent |
+| `5 / 214` | remove `0`: sum `214`, length `5`; remove `2`: sum `167`, length `3` | — | `[3,4,5]` | `3` |
+
+The winning range is `[2,5)`, values `[32,40,95]`, sum 167. Prefix index 0 is safe to discard after scoring because any future endpoint yields a length greater than 5; prefix index 2 is also safe after scoring because any future endpoint yields a length greater than 3.
+
+```mermaid
+flowchart LR
+    P2["P[2]=47"] -->|"range [2,5)"| P5["P[5]=214"]
+    P5 --> D["214-47=167"]
+    D --> A["length 3"]
+```
+
+**Deque invariant.** Before processing prefix index `right`, the deque contains increasing indices drawn from `0..right-1`, and their prefix values are strictly increasing. Every removed index is final: it either already formed its shortest possible qualifying range at a front removal, or a newer prefix boundary with a no-greater prefix value dominates it.
+
+The front rule is correct because once `[left,right)` qualifies, any later endpoint paired with the same `left` has greater length and cannot improve that left boundary's contribution. Repeating the front removal is necessary because several candidate left boundaries may qualify at the same endpoint, and later fronts produce shorter ranges. The back rule is correct because if `old<right` and `prefix[old]>=prefix[right]`, then for every future `end`, `prefix[end]-prefix[right]` is at least `prefix[end]-prefix[old]`, while `end-right` is smaller than `end-old`. Thus `old` can never beat `right`. After both loops, appending `right` restores both orders. Every prefix index is eventually retained or removed for one of these proved reasons, so the minimum scored length is exactly the optimum.
+
+**Complexity.** Prefix construction is `O(n)`. Every prefix index enters the deque once and leaves at most once from one end, so total deque work is `O(n)` despite two nested `while` loops. Prefix storage and the deque use `O(n)` auxiliary space. The input is never modified. The independent test oracle enumerates all ranges in `O(n²)` time and is not part of the optimized path.
+
+**Common interview errors:** using the positive-number sliding-window proof with negative values; storing array indices instead of the `n+1` prefix-boundary indices; omitting prefix zero and losing ranges that begin at index 0; reversing the subtraction; using `int` prefix sums; checking only one qualifying front; confusing the front finalization proof with the back dominance proof; using `>` instead of `>=` for back domination and retaining equal-prefix dead weight; returning zero for absence; permitting an empty range; mutating the input unnecessarily; or claiming the nested loops are quadratic without amortized accounting.
+
+**Follow-ups:** return one shortest `[left,right)` interval with deterministic tie-breaking; count all shortest qualifying ranges; process prefix sums online without storing the full prefix array; contrast this deque with the positive-only minimum-window algorithm; impose an upper bound on range length by expiring old prefix indices; handle many target queries over one immutable array; or define a broader numeric contract when total sums might exceed `long`.
+
+Executable evidence is in `ShortestSubarrayAtLeastKContracts.java`. It covers 20 deterministic groups: the three official examples, the exact mixed-sign trace, singleton and absent results, equal prefixes, negative dominance, zeros, wide prefix arithmetic, preservation and invalid boundaries. It then performs 20,000 seeded comparisons against an independent quadratic definition oracle while separately checking preservation, repeatability, reversal invariance and positive scaling.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -4817,6 +4952,7 @@ Executable evidence is in `LargestRectangleHistogramContracts.java`. It covers 2
 - [LeetCode, “Maximum Sum Circular Subarray”](https://leetcode.com/problems/maximum-sum-circular-subarray/) — primary non-empty circular-subarray, fixed-buffer non-reuse, official examples and input bounds for problem 35.
 - [Java SE 17 `Math.toIntExact`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#toIntExact(long)) — explicit checked narrowing used by the official-compatible wrapper after widened reusable accumulation.
 - [LeetCode, “Largest Rectangle in Histogram”](https://leetcode.com/problems/largest-rectangle-in-histogram/) — primary unit-width histogram model, maximum-area result, official examples and input bounds for problem 36.
+- [LeetCode, “Shortest Subarray with Sum at Least K”](https://leetcode.com/problems/shortest-subarray-with-sum-at-least-k/) — primary non-empty contiguous-range, signed-input, positive-target, absent-result, examples and input bounds for problem 37.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
 - [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
@@ -4865,9 +5001,9 @@ Executable evidence is in `LargestRectangleHistogramContracts.java`. It covers 2
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 36 (Largest Rectangle in Histogram is lines 3694–3809, bounded before problem 37 at line 3810). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 36 (fresh local Pandoc 3.1.3 GFM extraction with `--wrap=none` places problem 36 at lines 3608–3721, bounded before problem 37 at line 3722). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 37 (Shortest Subarray with Sum at Least K is lines 3810–3914; problem 38's heading is line 3915). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 37 (the retained no-wrap GFM boundary starts problem 37 at line 3722; direct pages 82–84 contain problem 37 and page 85 begins problem 38). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 36, “Largest Rectangle in Histogram,” is promoted from Markdown lines 3694–3809 and fresh no-wrap DOCX GFM-extracted lines 3608–3721; problem 37, “Shortest Subarray with Sum at Least K,” begins at Markdown line 3810 and no-wrap DOCX GFM-extracted line 3722.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 37, “Shortest Subarray with Sum at Least K,” is promoted from Markdown lines 3810–3914 and the DOCX companion's pages 82–84; problem 38, “Jump Game II,” begins at Markdown line 3915 and DOCX page 85.
 
 

@@ -72,6 +72,7 @@
 | Arrays §4 Problem 34 — Maximum Product Subarray | ✅ | ✅ | Maximum/minimum ending states, four worked cases, sign/zero traces and randomized quadratic oracle |
 | Arrays §4 Problem 35 — Maximum Sum Circular Subarray | ✅ | ✅ | Ordinary/wrapping dual Kadane, four worked cases, fixed-buffer proof and randomized circular oracle |
 | Arrays §4 Problem 36 — Largest Rectangle in Histogram | ✅ | ✅ | Earliest-start monotonic stack, four worked cases, exact boundary trace, duplicate ownership and randomized quadratic oracle |
+| Arrays §4 Problem 37 — Shortest Subarray with Sum at Least K | ✅ | ✅ | Increasing prefix deque, four worked cases, exact two-ended trace, dominance proof and randomized quadratic oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -376,5 +377,13 @@ Arrays Section 4 problem 36 now states the unit-width, consecutive-range, non-ne
 The deterministic responsive reader embeds the exact 311,453 canonical Markdown bytes at SHA-256 `33953625f28ca9d67c1080626424fbd26018d4909e4ce34cbe7f77abe6172585`; validation found 1,332 unique IDs, 64 search entries, 1,148 resolved fragment links, zero relative links, 388 balanced fence markers, 145 Mermaid sources and four script blocks. Rebuilding produced byte-identical HTML at SHA-256 `ce96332b0bd7120c62d7e22ac9240dbd524212257a22628078d8bef0599c3bd4`. Both confirmed source artifacts agree on first-smaller boundary discovery and `O(n)` time / `O(n)` auxiliary space; the public section adds exact duplicate ownership, validation, arithmetic and executable-evidence contracts rather than copying either source. The editable Markdown remains the structural source and no duplicate guide was created.
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 37, Shortest Subarray with Sum at Least K, is the next exact source continuation, subject to the next fair-domain rotation check.
+
+## Arrays Shortest Subarray with Sum at Least K enrichment — 2026-11-05 ET
+
+Arrays Section 4 problem 37 now states the non-empty contiguous-range, signed-input, positive-target, absent-result, nonmutation and widened-prefix contracts; derives range sums from prefix-boundary differences; and separates front answer finalization from back dominance removal. The section adds four worked cases, five diagrams, the exact mixed-sign two-ended trace, a strictly increasing prefix-value invariant and a proof for both removal rules. `ShortestSubarrayAtLeastKContracts` validates 20 deterministic groups plus 20,000 seeded arrays against an independent quadratic definition oracle while checking preservation, repeatability, reversal invariance and positive scaling. All 37 unique Arrays evidence programs passed in Java 17 source-file mode: 700 scenario groups and 720,000 seeded/randomized oracle trials or comparisons. A standalone `javac` executable was not available.
+
+The deterministic responsive reader embeds the exact 321,193 canonical Markdown bytes at SHA-256 `1b3c39467cd8044f6fbeb8da05f353fa194afa7e361df29a1ef02f957cd29142`; validation found 1,366 unique IDs, 65 search entries, 1,177 resolved fragment links, zero relative links, 400 balanced fence markers, 150 Mermaid sources and four script blocks. Rebuilding produced byte-identical HTML at SHA-256 `5aa56573365aba8a3a66b10cf2c1ef65c8c8e81990eb3f2153b14ce0bbf9081a`. Both confirmed source artifacts agree on increasing-prefix deque candidates, the two removal rules and `O(n)` time / `O(n)` auxiliary space; the public section adds exact contracts, proof, counterexample and independent executable evidence rather than copying either source. The editable Markdown remains the structural source and no duplicate guide was created.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 38, Jump Game II, is the next exact source continuation, subject to the next fair-domain rotation check.
 
 
