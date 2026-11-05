@@ -270,9 +270,9 @@
       "modified_at": "2026-09-08T00:10:00.740223Z",
       "size_bytes": 229697,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-11-04T20:52:27-05:00",
+      "last_read_at": "2026-11-05T00:12:14-05:00",
       "sha256": "735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda",
-      "selection": "Selected as the editable structural source; Sections 1-3 lines 141-251 and Section 4 problems 1-31 were compared and promoted. Problem 31, Spiral Matrix, is bounded by lines 3177-3273; problem 32 begins at line 3274. Refreshed Library metadata, source bytes and hash are unchanged."
+      "selection": "Selected as the editable structural source; Sections 1-3 lines 141-251 and Section 4 problems 1-32 were compared and promoted. Problem 32, Median of Two Sorted Arrays, is bounded by lines 3274-3385; problem 33 begins at line 3386. Refreshed Library metadata, source bytes and hash are unchanged."
     },
     {
       "name": "Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
@@ -345,9 +345,9 @@
       "modified_at": "2026-09-03T01:55:56.718502Z",
       "size_bytes": 125274,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-11-04T20:52:27-05:00",
+      "last_read_at": "2026-11-05T00:12:14-05:00",
       "sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-      "selection": "Compared as the corroborating companion; Sections 1-3 and Section 4 problems 1-31 agree with the Markdown source. Fresh Pandoc 3.1.3 GFM extraction with --wrap=none places problem 31 at lines 3103-3197 and problem 32 at line 3198. All 116 rendered pages were previously visually inspected; no duplicate guide was created."
+      "selection": "Compared as the corroborating companion; Sections 1-3 and Section 4 problems 1-32 agree with the Markdown source. Fresh Pandoc 3.1.3 GFM extraction with --wrap=none places problem 32 at lines 3198-3313 and problem 33 at line 3314. All 116 rendered pages were previously visually inspected; no duplicate guide was created."
     },
     {
       "name": "AI_RAG_CAG_Deep_Learning_Developer_Guide.docx",
@@ -502,7 +502,7 @@
         "DSA_Arrays_FAANG_Mermaid_Question_Workbook.md",
         "DSA_Arrays_FAANG_Question_Workbook_Expanded.docx"
       ],
-      "last_processed_at": "2026-11-04T20:52:27-05:00",
+      "last_processed_at": "2026-11-05T00:12:14-05:00",
       "processed_sections": [
         "Section 1: Array Mental Model and Invariants — Markdown lines 141-182 / DOCX extracted lines 65-108",
         "Section 2: Pattern-Recognition Decision Tree — Markdown lines 183-229 / DOCX extracted lines 93-135",
@@ -534,11 +534,12 @@
         "Section 4 problem 28: Merge Intervals — start-ordered active-component sweep, four worked cases, exact trace, closed-endpoint proof, ownership-safe copy and randomized repeated-pair oracle — Markdown lines 2877-2980 / Pandoc 3.1.3 no-wrap DOCX GFM lines 2817-2911",
         "Section 4 problem 29: Insert Interval — three-phase normalized scan, four worked cases, exact bridge trace, closed-endpoint proof, ownership-safe copy and randomized append-sort-merge oracle — Markdown lines 2981-3074 / Pandoc 3.1.3 no-wrap DOCX GFM lines 2912-3006",
         "Section 4 problem 30: Set Matrix Zeroes — border metadata reuse, four worked cases, exact marker trace, non-cascade proof, reference identity and randomized marker-array oracle — Markdown lines 3075-3176 / Pandoc 3.1.3 no-wrap DOCX GFM lines 3007-3102",
-        "Section 4 problem 31: Spiral Matrix — four shrinking boundaries, four worked cases, exact layer trace, post-shrink guards, nonmutation and randomized visited-simulation oracle — Markdown lines 3177-3273 / Pandoc 3.1.3 no-wrap DOCX GFM lines 3103-3197"
+        "Section 4 problem 31: Spiral Matrix — four shrinking boundaries, four worked cases, exact layer trace, post-shrink guards, nonmutation and randomized visited-simulation oracle — Markdown lines 3177-3273 / Pandoc 3.1.3 no-wrap DOCX GFM lines 3103-3197",
+        "Section 4 problem 32: Median of Two Sorted Arrays — shorter-array partition binary search, four worked cases, exact odd/even cut traces, widened average, validation/core split and randomized merge-selection oracle — Markdown lines 3274-3385 / Pandoc 3.1.3 no-wrap DOCX GFM lines 3198-3313"
       ],
-      "last_successful_commit": "1eaa8840cb0e1cca9c1af3e872edc185d52aac63",
-      "validation": "The refreshed paired Arrays workbooks agree on bounded Spiral Matrix at Markdown lines 3177-3273 and Pandoc 3.1.3 --wrap=none DOCX GFM lines 3103-3197; both source hashes are unchanged, the editable Markdown remains structural, and no duplicate guide was created. Four worked cases, four diagrams, an exact boundary trace, layer invariant and SpiralMatrixContracts cover square/rectangular/thin shapes, post-shrink guards, duplicates, full-width values, nonmutation, identity and output independence against an independent visited-grid direction-simulation oracle. Java 17 source-file launch passed all thirty-one Arrays executables: 580 scenario groups and 600,000 seeded/randomized oracle trials or comparisons; the new contract passed 20 groups and 20,000 seeded comparisons. Deterministic reader validation passed exact 263925-byte Markdown recovery, SHA-256 fd4baf2993f88287c8b1323da42859eb8f05416d28d2bbae9e6d2facf785e9db, 1157 unique HTML IDs, 59 unique search entries, 998 resolved fragments, zero relative links, 330 balanced fence markers, 122 Mermaid sources, four syntactically valid script blocks and deterministic HTML SHA-256 7e1c8412e11bbdf59368f132ec5637f9657b4e6dda3c4e537af9d3341e4d0db0. Six content files were atomically published at 1eaa8840cb0e1cca9c1af3e872edc185d52aac63 with an expected-head guard and matching Git blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
-      "next_action": "Arrays problem 31 is complete. Re-evaluate fair domain rotation, then process Arrays problem 32, Median of Two Sorted Arrays, at Markdown line 3274 / DOCX no-wrap GFM line 3198; Arrays problems 32-47 remain queued.",
+      "last_successful_commit": "5f6b1d05489d79e8b59b2ed1a83b4cd29bbf790d",
+      "validation": "The refreshed paired Arrays workbooks agree on bounded Median of Two Sorted Arrays at Markdown lines 3274-3385 and Pandoc 3.1.3 --wrap=none DOCX GFM lines 3198-3313; both source hashes are unchanged, the editable Markdown remains structural, and no duplicate guide was created. Four worked cases, four diagrams, exact odd/even cut traces, partition proof and MedianTwoSortedArraysContracts cover empty/unequal/duplicate/full-width inputs, nonmutation, symmetry and validation layering against an independent merge-selection oracle. Java 17 source-file launch passed all thirty-two Arrays executables: 600 scenario groups and 620,000 seeded/randomized oracle trials or comparisons; the new contract passed 20 groups and 20,000 seeded comparisons. Deterministic reader validation passed exact 272833-byte Markdown recovery, SHA-256 b8ff8f464968ee0ff890952450547d0395aa6484ab78223879a440428690a8ea, 1201 unique HTML IDs, 60 unique search entries, 1037 resolved fragments, zero relative links, 340 balanced fence markers, 126 Mermaid sources, four syntactically balanced script blocks and deterministic HTML SHA-256 8c700317f9c501737444f0b57176ad3d5bd3207e88aa788f2dbf570bdee64c49. Six content files were atomically published at 5f6b1d05489d79e8b59b2ed1a83b4cd29bbf790d with an expected-head guard and matching Git blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
+      "next_action": "Arrays problem 32 is complete. Re-evaluate fair domain rotation, then process Arrays problem 33, Count Inversions, at Markdown line 3386 / DOCX no-wrap GFM line 3314; Arrays problems 33-47 remain queued.",
       "priority": 6,
       "source_revision": {
         "baseline_commit": "a9f582b5dbe8b6fcda6e275054f217350a810d52",
@@ -549,7 +550,7 @@
         "compared_file_id": "file_00000000672882118a9ca69f00c30be7",
         "compared_version_id": "1",
         "compared_sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-        "canonical_sha256_after": "fd4baf2993f88287c8b1323da42859eb8f05416d28d2bbae9e6d2facf785e9db"
+        "canonical_sha256_after": "b8ff8f464968ee0ff890952450547d0395aa6484ab78223879a440428690a8ea"
       }
     },
     {
@@ -1087,7 +1088,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25 and Arrays Section 4 problems 1-31 are promoted. The selected AI-platform and Spring AI/Python sources are exhausted. Re-evaluate fair rotation, then process Arrays problem 32; retain wider confirmed intake and placeholders.",
+    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25 and Arrays Section 4 problems 1-32 are promoted. The selected AI-platform and Spring AI/Python sources are exhausted. Re-evaluate fair rotation, then process Arrays problem 33; retain wider confirmed intake and placeholders.",
     "batch_policy": {
       "max_sections_per_run": 1,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1271,14 +1272,15 @@
       "DSA Arrays Section 4 problem 28: start-ordered component sweep, exact merge trace, closed-endpoint proof, ownership-safe copy and randomized repeated-pair oracle",
       "DSA Arrays Section 4 problem 29: three-phase normalized scan, exact bridge trace, closed-endpoint proof, ownership-safe copy and randomized append-sort-merge oracle",
       "DSA Arrays Section 4 problem 30: border metadata reuse, exact marker trace, non-cascade proof, reference identity and randomized marker-array oracle",
-      "DSA Arrays Section 4 problem 31: four shrinking boundaries, exact layer trace, post-shrink guards, nonmutation and randomized visited-simulation oracle"
+      "DSA Arrays Section 4 problem 31: four shrinking boundaries, exact layer trace, post-shrink guards, nonmutation and randomized visited-simulation oracle",
+      "DSA Arrays Section 4 problem 32: shorter-array partition binary search, exact odd/even cut traces, widened average, validation/core split and randomized merge-selection oracle"
     ],
-    "processed_section": "DSA Arrays Section 4 problem 31, Spiral Matrix, Markdown lines 3177-3273 / DOCX no-wrap GFM lines 3103-3197",
-    "validation": "Fresh paired-source comparison agreed on problem 31 and its four-boundary traversal without creating a duplicate guide. Four worked cases, four diagrams, exact layer trace, post-shrink guards and SpiralMatrixContracts were added. Java 17 source-file launch passed all thirty-one Arrays executables: 580 scenario groups and 600,000 seeded/randomized oracle trials or comparisons. Reader validation passed exact 263925-byte recovery at SHA-256 fd4baf2993f88287c8b1323da42859eb8f05416d28d2bbae9e6d2facf785e9db, 1157 unique IDs, 59 search entries, 998 fragments, zero relative links, 330 fences, 122 Mermaid sources, four syntactically valid scripts and deterministic rebuilding at HTML SHA-256 7e1c8412e11bbdf59368f132ec5637f9657b4e6dda3c4e537af9d3341e4d0db0. Six content files were published at 1eaa8840cb0e1cca9c1af3e872edc185d52aac63 with an expected-head guard and matching blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical placeholders remain 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
+    "processed_section": "DSA Arrays Section 4 problem 32, Median of Two Sorted Arrays, Markdown lines 3274-3385 / DOCX no-wrap GFM lines 3198-3313",
+    "validation": "Fresh paired-source comparison agreed on problem 32 and its shorter-array partition search without creating a duplicate guide. Four worked cases, four diagrams, exact odd/even cut traces, widened average and MedianTwoSortedArraysContracts were added. Java 17 source-file launch passed all thirty-two Arrays executables: 600 scenario groups and 620,000 seeded/randomized oracle trials or comparisons. Reader validation passed exact 272833-byte recovery at SHA-256 b8ff8f464968ee0ff890952450547d0395aa6484ab78223879a440428690a8ea, 1201 unique IDs, 60 search entries, 1037 fragments, zero relative links, 340 fences, 126 Mermaid sources, four syntactically balanced scripts and deterministic rebuilding at HTML SHA-256 8c700317f9c501737444f0b57176ad3d5bd3207e88aa788f2dbf570bdee64c49. Six content files were published at 5f6b1d05489d79e8b59b2ed1a83b4cd29bbf790d with an expected-head guard and matching blob hashes. Standalone javac, browser, assistive-technology and rendered Mermaid QA were unavailable. Live canonical placeholders remain 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
     "estimated_next_tokens": 9800,
-    "estimate_method": "Heuristic only for one bounded Arrays problem 31 pass with paired-source comparison, examples, contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
-    "last_successful_commit": "1eaa8840cb0e1cca9c1af3e872edc185d52aac63",
-    "last_processed_at": "2026-11-04T20:52:27-05:00",
-    "next_batch_decision": "Arrays problem 31 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair domain rotation, then continue with Arrays problem 32 at Markdown line 3274 / DOCX line 3198."
+    "estimate_method": "Heuristic only for one bounded Arrays problem 32 pass with paired-source comparison, examples, contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
+    "last_successful_commit": "5f6b1d05489d79e8b59b2ed1a83b4cd29bbf790d",
+    "last_processed_at": "2026-11-05T00:12:14-05:00",
+    "next_batch_decision": "Arrays problem 32 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair domain rotation, then continue with Arrays problem 33 at Markdown line 3386 / DOCX line 3314."
   }
 }
