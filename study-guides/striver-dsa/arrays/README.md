@@ -42,6 +42,7 @@ java -ea study-guides/striver-dsa/arrays/MaximumProductSubarrayContracts.java
 java -ea study-guides/striver-dsa/arrays/MaximumSumCircularSubarrayContracts.java
 java -ea study-guides/striver-dsa/arrays/LargestRectangleHistogramContracts.java
 java -ea study-guides/striver-dsa/arrays/ShortestSubarrayAtLeastKContracts.java
+java -ea study-guides/striver-dsa/arrays/JumpGameIIContracts.java
 ```
 
 Rebuild the reader:
@@ -50,6 +51,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–37 are promoted. Section 4 problems 38–47 and later source material remain queued.
+This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–38 are promoted. Section 4 problems 39–47 and later source material remain queued.
 
 

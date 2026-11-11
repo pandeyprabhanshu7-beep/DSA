@@ -386,4 +386,12 @@ The deterministic responsive reader embeds the exact 321,193 canonical Markdown 
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 38, Jump Game II, is the next exact source continuation, subject to the next fair-domain rotation check.
 
+## Arrays Jump Game II enrichment — 2026-11-11 ET
+
+Arrays Section 4 problem 38 now states the zero-based maximum-forward-jump, minimum-edge-count, reachable-official-input, reusable-unreachable, non-negative-value and nonmutation contracts; interprets the array as an implicit unweighted graph; and compresses each contiguous BFS layer into `currentEnd` and `farthest`. The section adds four worked cases, four diagrams, the exact official layer trace, a local-landing counterexample, a stall proof and widened reach arithmetic. `JumpGameIIContracts` validates 20 deterministic groups plus 20,000 seeded arrays against an independent quadratic dynamic-programming oracle while checking preservation, repeatability, reach-clamping equivalence and monotonicity after strengthening a jump. All 38 unique Arrays evidence programs passed in Java 17 source-file mode: 720 scenario groups and 740,000 seeded/randomized oracle trials or comparisons. A standalone `javac` executable was not available.
+
+The paired source artifacts agree on the BFS-layer-compressed greedy frontier, boundary commit and `O(n)` time / `O(1)` auxiliary space; the public section adds exact extended contracts, proof, counterexample, arithmetic and independent executable evidence rather than copying either source. The editable Markdown remains the structural source and no duplicate guide was created.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 39, Candy, is the next exact source continuation, subject to the next fair-domain rotation check.
+
 

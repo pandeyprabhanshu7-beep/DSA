@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–37 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 38–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–38 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 39–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first thirty-seven solved problems](#4-core-pattern-lab--first-thirty-seven-solved-problems)
+- [4. Core pattern lab — first thirty-eight solved problems](#4-core-pattern-lab--first-thirty-eight-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -66,6 +66,7 @@
   - [Example 35 — Maximum Sum Circular Subarray: exclude one minimum middle](#example-35--maximum-sum-circular-subarray-exclude-one-minimum-middle)
   - [Example 36 — Largest Rectangle in Histogram: finalize a height at its right boundary](#example-36--largest-rectangle-in-histogram-finalize-a-height-at-its-right-boundary)
   - [Example 37 — Shortest Subarray with Sum at Least K: keep only useful prefix boundaries](#example-37--shortest-subarray-with-sum-at-least-k-keep-only-useful-prefix-boundaries)
+  - [Example 38 — Jump Game II: compress BFS layers into two frontiers](#example-38--jump-game-ii-compress-bfs-layers-into-two-frontiers)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -691,7 +692,7 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first thirty-seven solved problems
+## 4. Core pattern lab — first thirty-eight solved problems
 
 The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–33. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; and 33 counts whole cross-inversion blocks while merge-sorting. Problems 34–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
@@ -4932,6 +4933,121 @@ The front rule is correct because once `[left,right)` qualifies, any later endpo
 
 Executable evidence is in `ShortestSubarrayAtLeastKContracts.java`. It covers 20 deterministic groups: the three official examples, the exact mixed-sign trace, singleton and absent results, equal prefixes, negative dominance, zeros, wide prefix arithmetic, preservation and invalid boundaries. It then performs 20,000 seeded comparisons against an independent quadratic definition oracle while separately checking preservation, repeatability, reversal invariance and positive scaling.
 
+### Example 38 — Jump Game II: compress BFS layers into two frontiers
+
+**Contract.** Given a non-empty array of non-negative maximum jump lengths, begin at index `0` and return the minimum number of forward jumps needed to reach index `n-1`. From index `i`, a jump may land at any in-bounds index from `i` through `i+nums[i]`. The official problem guarantees that the destination is reachable; its current bounds are `1 <= n <= 10,000` and `0 <= nums[i] <= 1,000`. The reusable implementation below additionally returns `-1` for an unreachable array, rejects negative jump lengths, and leaves the input unchanged. A singleton needs zero jumps because start and destination are already the same index.
+
+The array is an implicit directed unweighted graph: index `i` has edges to every later index it can reach. Ordinary BFS would find the minimum edge count, but materializing all edges can be quadratic. The reachable indices after a fixed number of jumps form one contiguous interval, so two frontiers are enough:
+
+- `currentEnd` is the last index in the current BFS layer.
+- `farthest` is the farthest index reachable by one edge from any index scanned in that layer.
+- Crossing `currentEnd` finishes exactly one complete layer, so commit one jump and promote `farthest` to the next boundary.
+
+```mermaid
+flowchart LR
+    L0["0 jumps: [0,0]"] -->|"scan layer"| L1["1 jump: [1,currentEnd]"]
+    L1 -->|"union outgoing reaches"| L2["2 jumps: next interval"]
+    L2 --> D{"contains n-1?"}
+    D -->|yes| A["minimum layer count"]
+    D -->|no| L3["scan next layer"]
+```
+
+This is not “choose the locally best landing index.” The scan keeps the union of every legal landing in a layer; no path with the same jump count is discarded.
+
+```java
+static int minimumJumps(int[] nums) {
+    if (nums == null || nums.length == 0) {
+        throw new IllegalArgumentException("nums must be non-null and non-empty");
+    }
+    for (int value : nums) {
+        if (value < 0) throw new IllegalArgumentException("jump lengths must be non-negative");
+    }
+    if (nums.length == 1) return 0;
+
+    int jumps = 0;
+    int currentEnd = 0;
+    int farthest = 0;
+    for (int index = 0; index < nums.length - 1; index++) {
+        long rawReach = (long) index + nums[index];
+        int reach = (int) Math.min(nums.length - 1L, rawReach);
+        farthest = Math.max(farthest, reach);
+
+        if (index == currentEnd) {
+            if (farthest == currentEnd) return -1;
+            jumps++;
+            currentEnd = farthest;
+            if (currentEnd == nums.length - 1) return jumps;
+        }
+    }
+    return -1;
+}
+```
+
+The widened `rawReach` avoids wrapping in the reusable API before the result is clamped to the last valid index. Under the official bounds, ordinary `int` addition is already safe, but stating the broader arithmetic policy prevents a correct greedy invariant from being undermined by a different caller contract.
+
+#### Worked case 1 — exact layer trace
+
+For official input `[2,3,1,1,4]`, index `0` reaches through index `2`, so the first committed jump creates layer `[1,2]`. Scanning both positions in that layer finds a union reaching through index `4`; only after index `2` closes the layer do we commit jump two.
+
+| scanned index | `index + nums[index]` | `farthest` | boundary before commit | event | jumps |
+|---:|---:|---:|---:|---|---:|
+| `0` | `2` | `2` | `0` | close layer; `currentEnd=2` | `1` |
+| `1` | `4` | `4` | `2` | keep scanning same layer | `1` |
+| `2` | `3` | `4` | `2` | close layer; destination covered | `2` |
+
+One minimum route is `0 -> 1 -> 4`, so the answer is `2`. The algorithm does not need to store that route to prove the count.
+
+```mermaid
+flowchart LR
+    Z["index 0"] -->|"jump 1 covers 1..2"| O["layer {1,2}"]
+    O -->|"index 1 reaches 4"| F["farthest = 4"]
+    O -->|"index 2 reaches 3"| F
+    F -->|"jump 2"| T["destination 4"]
+```
+
+#### Worked case 2 — a zero inside a layer is harmless
+
+Official input `[2,3,0,1,4]` also returns `2`. Index `2` has no outgoing progress, but index `1` belongs to the same one-jump layer and reaches the destination. A zero is fatal only when the whole current layer fails to advance.
+
+| layer | indices scanned | outgoing union | result |
+|---:|---|---|---|
+| `0` | `{0}` | through `2` | jump count becomes `1` |
+| `1` | `{1,2}` | index `1` reaches `4`; index `2` reaches only `2` | jump count becomes `2` |
+
+#### Worked case 3 — farthest immediate landing is not the greedy rule
+
+For `[2,2,0,1]`, jumping immediately from index `0` to the farthest landing, index `2`, gets stuck. The optimum is `0 -> 1 -> 3`, which uses two jumps. Frontier compression succeeds because it scans both members of the first layer before committing the next boundary.
+
+```mermaid
+flowchart TD
+    S["index 0; max jump 2"] --> A["index 1; can reach 3"]
+    S --> B["index 2; reach stalls at 2"]
+    A --> T["destination 3 in 2 jumps"]
+    B --> X["dead local landing"]
+```
+
+#### Worked case 4 — reusable unreachable extension
+
+For `[3,2,1,0,4]`, the first layer reaches through index `3`. Scanning indices `1..3` never extends `farthest` beyond `3`. At that boundary, `farthest == currentEnd`, so another jump would reproduce the same reachable set; return `-1`. This case is outside the official reachable-input promise but makes the reusable method total and prevents an infinite or misleading count.
+
+```mermaid
+flowchart LR
+    L["reachable layer 1..3"] --> S["scan 1,2,3"]
+    S --> E["farthest remains 3"]
+    E --> Q{"farthest == currentEnd"}
+    Q -->|yes| U["return -1"]
+```
+
+**Layer invariant and proof.** At the start of a layer, every index through `currentEnd` is reachable in at most `jumps` moves, and every not-yet-scanned index after the previous boundary but through `currentEnd` is reachable in exactly `jumps` moves. While scanning that interval, `farthest` is the maximum endpoint of every outgoing edge seen so far. Because each source connects to a contiguous forward range, their union reaches every index up to `farthest`; no path using `jumps+1` moves can go beyond it. When the scan reaches `currentEnd`, the entire layer is exhausted, so promoting `farthest` creates exactly the next BFS layer and incrementing once is necessary. The first promoted layer containing `n-1` therefore has the minimum possible jump count. If a completed layer cannot extend, no unseen reachable source exists, proving the extended `-1` result.
+
+**Complexity.** Validation and the frontier scan each read the array once, so time is `O(n)`. The state is three counters, so auxiliary space is `O(1)`. The independent evidence oracle uses dynamic programming over every legal edge in `O(n²)` worst-case time and `O(n)` space; it is intentionally structurally different from the greedy implementation.
+
+**Common interview errors:** incrementing at every index instead of at a completed layer; choosing one landing before scanning the full layer; looping through the destination and charging an extra jump; returning `1` for a singleton; treating any zero as immediate failure; omitting the stall check in an API that permits unreachable inputs; checking for a stall before the complete layer is scanned; claiming the implicit graph requires an explicit queue or adjacency list; mutating the input; adding `index+nums[index]` in an unbounded `int` API; or saying the nested set of possible edges makes the optimized scan quadratic.
+
+**Follow-ups:** return one minimum route with parent storage; count minimum routes; contrast this problem with Jump Game reachability; support backward edges, where the interval-layer compression no longer applies; process weighted jumps with Dijkstra rather than BFS; prove why increasing any jump length cannot worsen a reachable optimum; or keep the official reachable-only signature and explain why the stall branch is then defensive rather than required.
+
+Executable evidence is in `JumpGameIIContracts.java`. It covers 20 deterministic groups: both official examples, singleton and one-jump boundaries, unit chains, the dead local landing, zeros, unreachable extensions, preservation, invalid inputs, clamped wide reach and independent deterministic parity. It then performs 20,000 seeded comparisons against an `O(n²)` dynamic-programming oracle while separately checking preservation, repeatability, reach-clamping equivalence and monotonicity under a strengthened jump.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -4953,6 +5069,7 @@ Executable evidence is in `ShortestSubarrayAtLeastKContracts.java`. It covers 20
 - [Java SE 17 `Math.toIntExact`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#toIntExact(long)) — explicit checked narrowing used by the official-compatible wrapper after widened reusable accumulation.
 - [LeetCode, “Largest Rectangle in Histogram”](https://leetcode.com/problems/largest-rectangle-in-histogram/) — primary unit-width histogram model, maximum-area result, official examples and input bounds for problem 36.
 - [LeetCode, “Shortest Subarray with Sum at Least K”](https://leetcode.com/problems/shortest-subarray-with-sum-at-least-k/) — primary non-empty contiguous-range, signed-input, positive-target, absent-result, examples and input bounds for problem 37.
+- [LeetCode, “Jump Game II”](https://leetcode.com/problems/jump-game-ii/) — primary zero-based maximum-forward-jump model, reachable-destination promise, minimum-jump result, official examples and input bounds for problem 38.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
 - [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
@@ -5001,9 +5118,9 @@ Executable evidence is in `ShortestSubarrayAtLeastKContracts.java`. It covers 20
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 37 (Shortest Subarray with Sum at Least K is lines 3810–3914; problem 38's heading is line 3915). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 37 (the retained no-wrap GFM boundary starts problem 37 at line 3722; direct pages 82–84 contain problem 37 and page 85 begins problem 38). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 38 (Jump Game II is lines 3915–3994; problem 39 begins at line 3995). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 38 (direct pages 85–86 contain problem 38 and page 87 begins problem 39). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 37, “Shortest Subarray with Sum at Least K,” is promoted from Markdown lines 3810–3914 and the DOCX companion's pages 82–84; problem 38, “Jump Game II,” begins at Markdown line 3915 and DOCX page 85.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 38, “Jump Game II,” is promoted from Markdown lines 3915–3994 and the DOCX companion's pages 85–86; problem 39, “Candy,” begins at Markdown line 3995 and DOCX page 87.
 
 
