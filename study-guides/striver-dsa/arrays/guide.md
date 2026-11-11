@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–38 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 39–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–39 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 40–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first thirty-eight solved problems](#4-core-pattern-lab--first-thirty-eight-solved-problems)
+- [4. Core pattern lab — first thirty-nine solved problems](#4-core-pattern-lab--first-thirty-nine-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -67,6 +67,7 @@
   - [Example 36 — Largest Rectangle in Histogram: finalize a height at its right boundary](#example-36--largest-rectangle-in-histogram-finalize-a-height-at-its-right-boundary)
   - [Example 37 — Shortest Subarray with Sum at Least K: keep only useful prefix boundaries](#example-37--shortest-subarray-with-sum-at-least-k-keep-only-useful-prefix-boundaries)
   - [Example 38 — Jump Game II: compress BFS layers into two frontiers](#example-38--jump-game-ii-compress-bfs-layers-into-two-frontiers)
+  - [Example 39 — Candy: satisfy both directional lower bounds](#example-39--candy-satisfy-both-directional-lower-bounds)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -692,7 +693,7 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first thirty-eight solved problems
+## 4. Core pattern lab — first thirty-nine solved problems
 
 The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–33. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; and 33 counts whole cross-inversion blocks while merge-sorting. Problems 34–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
@@ -5048,6 +5049,121 @@ flowchart LR
 
 Executable evidence is in `JumpGameIIContracts.java`. It covers 20 deterministic groups: both official examples, singleton and one-jump boundaries, unit chains, the dead local landing, zeros, unreachable extensions, preservation, invalid inputs, clamped wide reach and independent deterministic parity. It then performs 20,000 seeded comparisons against an `O(n²)` dynamic-programming oracle while separately checking preservation, repeatability, reach-clamping equivalence and monotonicity under a strengthened jump.
 
+### Example 39 — Candy: satisfy both directional lower bounds
+
+**Contract.** Given a non-empty line of children represented by `ratings`, give every child at least one candy. If a child's rating is strictly higher than an adjacent child's rating, that child must receive strictly more candy than that neighbor. Equal ratings impose no ordering requirement. Return the minimum total number of candies. The official problem currently permits `1 <= ratings.length <= 50,000` and `0 <= ratings[i] <= 50,000`. The reusable method below accepts any `int` ratings, rejects null or empty input, preserves the array, accumulates into `long`, and exposes a checked `int` wrapper for the official contract.
+
+Each adjacent comparison contributes a one-sided lower bound. A left-to-right pass computes the minimum candies needed to satisfy only the left-neighbor inequalities. A right-to-left scan computes the minimum needed to satisfy only the right-neighbor inequalities. At each index, the larger requirement is both necessary and sufficient.
+
+```mermaid
+flowchart TD
+    R["ratings"] --> L["left pass: satisfy higher-than-left"]
+    R --> Q["right scan: satisfy higher-than-right"]
+    L --> M["candies[i] = max(left[i], right[i])"]
+    Q --> M
+    M --> T["sum the pointwise minimum feasible assignment"]
+```
+
+```java
+static long minimumCandies(int[] ratings) {
+    if (ratings == null || ratings.length == 0) {
+        throw new IllegalArgumentException("ratings must be non-null and non-empty");
+    }
+
+    int[] left = new int[ratings.length];
+    Arrays.fill(left, 1);
+    for (int index = 1; index < ratings.length; index++) {
+        if (ratings[index] > ratings[index - 1]) {
+            left[index] = left[index - 1] + 1;
+        }
+    }
+
+    long total = 0L;
+    int right = 1;
+    for (int index = ratings.length - 1; index >= 0; index--) {
+        if (index < ratings.length - 1 && ratings[index] > ratings[index + 1]) {
+            right++;
+        } else {
+            right = 1;
+        }
+        total += Math.max(left[index], right);
+    }
+    return total;
+}
+
+static int candy(int[] ratings) {
+    return Math.toIntExact(minimumCandies(ratings));
+}
+```
+
+The `right` scalar is exactly the current index's right-neighbor requirement; no right array is needed. Resetting it to `1` on equality is essential because equal ratings do not continue a slope.
+
+#### Worked case 1 — official valley and exact trace
+
+For `ratings = [1,0,2]`, the left pass yields `[1,1,2]`. The right scan yields requirements `[2,1,1]`. Their pointwise maxima are `[2,1,2]`, so the minimum total is `5`.
+
+| right-scan index | rating | left requirement | right requirement after update | chosen maximum | running total |
+|---:|---:|---:|---:|---:|---:|
+| `2` | `2` | `2` | `1` | `2` | `2` |
+| `1` | `0` | `1` | `1` | `1` | `3` |
+| `0` | `1` | `1` | `2` | `2` | `5` |
+
+```mermaid
+flowchart LR
+    A["rating 1; candy 2"] -->|"higher than"| B["rating 0; candy 1"]
+    C["rating 2; candy 2"] -->|"higher than"| B
+```
+
+#### Worked case 2 — equality breaks the constraint chain
+
+For official input `[1,2,2]`, left requirements are `[1,2,1]` and right requirements are `[1,1,1]`. The final assignment `[1,2,1]` totals `4`. The two children rated `2` may receive different amounts because neither is strictly higher than the other; only the first `2` must exceed the neighboring `1`.
+
+```mermaid
+flowchart LR
+    A["rating 1; candy 1"] --> B["rating 2; candy 2"]
+    B -. "equal rating: no order" .- C["rating 2; candy 1"]
+```
+
+#### Worked case 3 — one peak needs both slopes
+
+For `[1,2,3,2,1]`, the left requirements are `[1,2,3,1,1]`; the right requirements are `[1,1,3,2,1]`. The maximum at every index is `[1,2,3,2,1]`, totaling `9`. A single directional pass would under-assign one side of the peak.
+
+| index | rating | left | right | final |
+|---:|---:|---:|---:|---:|
+| `0` | `1` | `1` | `1` | `1` |
+| `1` | `2` | `2` | `1` | `2` |
+| `2` | `3` | `3` | `3` | `3` |
+| `3` | `2` | `1` | `2` | `2` |
+| `4` | `1` | `1` | `1` | `1` |
+
+```mermaid
+flowchart TB
+    P["peak index 2"] --> L["left lower bound = 3"]
+    P --> R["right lower bound = 3"]
+    L --> M["max = 3 candies"]
+    R --> M
+```
+
+#### Worked case 4 — a valley starts two independent rises
+
+For `[3,2,1,2,3]`, left requirements are `[1,1,1,2,3]` and right requirements are `[3,2,1,1,1]`. Their maxima are `[3,2,1,2,3]`, totaling `11`. The valley keeps one candy; each outward rise is counted only as far as its adjacent inequalities require.
+
+```mermaid
+flowchart LR
+    A["3 candies"] --> B["2 candies"] --> V["1 candy"]
+    V --> C["2 candies"] --> D["3 candies"]
+```
+
+**Directional invariant and proof.** After processing index `i` in the forward pass, `left[0..i]` is the componentwise-smallest positive assignment satisfying every higher-than-left inequality in that prefix: a rise forces exactly one more than the previous requirement, while a non-rise permits the lower bound `1`. The reverse argument makes `right[i]` the smallest positive assignment satisfying every higher-than-right inequality in the suffix. Any globally feasible assignment must therefore be at least both values at index `i`, hence at least their maximum. The pointwise maximum satisfies every left and right inequality because it never falls below either directional witness. It is thus feasible and componentwise no larger than any feasible assignment, so its sum is minimum.
+
+**Complexity.** The validation, forward pass and reverse scan are each linear, so time is `O(n)`. The left requirements use `O(n)` auxiliary space, while the right side uses one scalar. The slope-counting follow-up can reduce auxiliary space to `O(1)`, but its peak accounting is easier to get wrong and harder to prove under interview pressure. The independent evidence oracle repeatedly relaxes violated adjacent inequalities to a fixed point in `O(n²)` worst-case time and `O(n)` space.
+
+**Common interview errors:** giving equal neighbors equal candies as an invented rule; continuing a slope across an equality; using only one direction; summing left and right instead of taking their maximum; overwriting the left requirement during the reverse scan before it is used; double-counting a peak; returning zero for a singleton; mutating the ratings; using `int` for an unconstrained reusable total; or claiming the pointwise maximum is minimal without proving both the lower bound and feasibility.
+
+**Follow-ups:** derive the `O(1)`-space slope method; return the actual allocation; add a per-child minimum other than one; support circular adjacency, where the endpoints become coupled; handle weighted gaps such as “one extra candy per rating difference”; explain why adding a constant or applying any strictly increasing transform to every rating leaves the answer unchanged; or compare fixed-point relaxation with the two-pass DAG-style longest-path view.
+
+Executable evidence is in `CandyContracts.java`. It covers 20 deterministic groups: both official examples, singleton, equal, monotonic, mountain, valley, repeated-valley and integer-extreme shapes, preservation, invalid inputs, reversal and independent deterministic parity. It then performs 20,000 seeded comparisons against an `O(n²)` fixed-point relaxation oracle while separately checking preservation, repeatability, reversal symmetry and invariance under a strictly increasing affine rating transform.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -5070,6 +5186,7 @@ Executable evidence is in `JumpGameIIContracts.java`. It covers 20 deterministic
 - [LeetCode, “Largest Rectangle in Histogram”](https://leetcode.com/problems/largest-rectangle-in-histogram/) — primary unit-width histogram model, maximum-area result, official examples and input bounds for problem 36.
 - [LeetCode, “Shortest Subarray with Sum at Least K”](https://leetcode.com/problems/shortest-subarray-with-sum-at-least-k/) — primary non-empty contiguous-range, signed-input, positive-target, absent-result, examples and input bounds for problem 37.
 - [LeetCode, “Jump Game II”](https://leetcode.com/problems/jump-game-ii/) — primary zero-based maximum-forward-jump model, reachable-destination promise, minimum-jump result, official examples and input bounds for problem 38.
+- [LeetCode, “Candy”](https://leetcode.com/problems/candy/) — primary positive-allocation, strict adjacent-rating, minimum-total contract, official examples and current input bounds for problem 39.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
 - [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
@@ -5118,9 +5235,9 @@ Executable evidence is in `JumpGameIIContracts.java`. It covers 20 deterministic
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 38 (Jump Game II is lines 3915–3994; problem 39 begins at line 3995). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 38 (direct pages 85–86 contain problem 38 and page 87 begins problem 39). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 39 (Candy is lines 4004–4104; problem 40 begins at line 4105). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 39 (direct pages 87–88 contain problem 39 and page 89 begins problem 40). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 38, “Jump Game II,” is promoted from Markdown lines 3915–3994 and the DOCX companion's pages 85–86; problem 39, “Candy,” begins at Markdown line 3995 and DOCX page 87.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 39, “Candy,” is promoted from Markdown lines 4004–4104 and the DOCX companion's pages 87–88; problem 40, “Missing Number,” begins at Markdown line 4105 and DOCX page 89.
 
 

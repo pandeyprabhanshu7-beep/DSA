@@ -394,4 +394,10 @@ The paired source artifacts agree on the BFS-layer-compressed greedy frontier, b
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 39, Candy, is the next exact source continuation, subject to the next fair-domain rotation check.
 
+## Arrays Candy enrichment — 2026-11-11 ET
+
+Arrays Section 4 problem 39 now states the positive-allocation, strict-adjacent-rating, equality, nonmutation and widened-total contracts; adds four worked cases, an exact reverse-scan trace and five diagrams; and proves the pointwise maximum of the two directional lower bounds is the componentwise-minimum feasible assignment. `CandyContracts` validates 20 deterministic groups plus 20,000 seeded arrays against an independent fixed-point relaxation oracle while checking preservation, repeatability, reversal symmetry and order-preserving transforms. Java 21 source-file launch passed all 39 unique Arrays executables: 740 scenario groups and 760,000 seeded/randomized oracle trials or comparisons. The responsive reader embeds the exact canonical Markdown bytes and rebuilt deterministically; standalone `javac`, browser, assistive-technology and rendered Mermaid QA were unavailable. Both confirmed sources agree on the two-pass greedy method, equality reset and complexity; the editable Markdown remains structural rather than creating a duplicate guide.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 40, Missing Number, is the next exact source continuation, subject to the next fair-domain rotation check.
+
 
