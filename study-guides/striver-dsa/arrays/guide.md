@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–40 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 41–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–41 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 42–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first forty solved problems](#4-core-pattern-lab--first-forty-solved-problems)
+- [4. Core pattern lab — first forty-one solved problems](#4-core-pattern-lab--first-forty-one-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -69,6 +69,7 @@
   - [Example 38 — Jump Game II: compress BFS layers into two frontiers](#example-38--jump-game-ii-compress-bfs-layers-into-two-frontiers)
   - [Example 39 — Candy: satisfy both directional lower bounds](#example-39--candy-satisfy-both-directional-lower-bounds)
   - [Example 40 — Missing Number: cancel expected and observed values](#example-40--missing-number-cancel-expected-and-observed-values)
+  - [Example 41 — Single Number: cancel exact duplicate pairs](#example-41--single-number-cancel-exact-duplicate-pairs)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -694,9 +695,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first forty solved problems
+## 4. Core pattern lab — first forty-one solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–40. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; and 40 uses XOR cancellation. Problems 41–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–41. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; and 40–41 use two distinct XOR cancellation contracts. Problems 42–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -5273,6 +5274,127 @@ flowchart TD
 
 Executable evidence is in `MissingNumberContracts.java`. It covers 20 deterministic scenario groups: all three official examples, empty and singleton extensions, both endpoints, unsorted interiors, the official maximum length, input preservation, order independence, validation failures and independent deterministic parity. It then performs 20,000 seeded valid-array trials against a widened arithmetic oracle while separately checking preservation, reversal, validated-core parity and shuffle invariance.
 
+### Example 41 — Single Number: cancel exact duplicate pairs
+
+**Official contract.** Given a non-empty integer array, every value appears exactly twice except one value that appears once. Return that single value in linear time using constant extra space. The current official bounds are `1 <= nums.length <= 30,000` and `-30,000 <= nums[i] <= 30,000`. The reusable core below accepts the full Java `int` domain, rejects null and empty inputs, preserves the array, and assumes the exact multiplicity promise. An optional validated boundary checks that promise with a frequency map, deliberately spending `O(n)` auxiliary space so the core's `O(1)`-space claim remains honest.
+
+The key is parity, not magnitude or ordering. Integer XOR is associative and commutative; `x ^ x = 0`, and `0 ^ y = y`. Therefore the array can be regrouped into duplicate pairs plus the single value. Every pair becomes zero and the unique value remains. Unlike Missing Number, this problem has no expected range to generate: only the observed multiplicities are canceled.
+
+```mermaid
+flowchart TD
+    A["all observed values"] --> G["regroup equal pairs"]
+    G --> P["x ^ x = 0 for every pair"]
+    P --> Z["0 ^ 0 ^ ... ^ unique"]
+    Z --> U["unique value remains"]
+```
+
+```java
+static int singleNumber(int[] nums) {
+    if (nums == null || nums.length == 0) {
+        throw new IllegalArgumentException("nums must be non-null and non-empty");
+    }
+    int unique = 0;
+    for (int value : nums) unique ^= value;
+    return unique;
+}
+
+static int singleNumberValidated(int[] nums) {
+    if (nums == null || nums.length == 0) {
+        throw new IllegalArgumentException("nums must be non-null and non-empty");
+    }
+    Map<Integer, Integer> frequencies = new HashMap<>();
+    for (int value : nums) frequencies.merge(value, 1, Integer::sum);
+
+    int singles = 0;
+    for (int frequency : frequencies.values()) {
+        if (frequency == 1) singles++;
+        else if (frequency != 2) {
+            throw new IllegalArgumentException(
+                    "every non-single value must appear exactly twice");
+        }
+    }
+    if (singles != 1) {
+        throw new IllegalArgumentException("exactly one value must appear once");
+    }
+    return singleNumber(nums);
+}
+```
+
+A frequency map is the clearest baseline: count each value, then find count one in `O(n)` expected time and `O(n)` space. Sorting a copy uses `O(n log n)` time and `O(n)` copy space, after which adjacent pairs expose the single value; sorting the input directly violates the stated nonmutation contract. A mathematical set toggled on duplicate encounters can be linear expected time but still uses linear space. XOR is the only one of these approaches that simultaneously meets the official linear-time and constant-extra-space requirements.
+
+#### Worked case 1 — official three-value trace
+
+For `nums=[2,2,1]`, begin with zero and XOR values in encounter order.
+
+| value | accumulator before | operation | accumulator after |
+|---:|---:|---|---:|
+| `2` | `0` | `0 ^ 2` | `2` |
+| `2` | `2` | `2 ^ 2` | `0` |
+| `1` | `0` | `0 ^ 1` | `1` |
+
+```mermaid
+flowchart LR
+    S["seed 0"] --> A["^ 2 = 2"]
+    A --> B["^ 2 = 0"]
+    B --> C["^ 1 = 1"]
+    C --> R["return 1"]
+```
+
+The accumulator becoming zero in the middle is ordinary cancellation, not “no answer.”
+
+#### Worked case 2 — interleaved pairs still cancel
+
+For official input `[4,1,2,1,2]`, the exact accumulator states are `4,5,7,6,4`, so the answer is `4`. The equal ones and twos are not adjacent, but associativity and commutativity permit the conceptual regrouping `(1^1) ^ (2^2) ^ 4` without reordering or mutating the array.
+
+| observed order | conceptual cancellation |
+|---|---|
+| `4 ^ 1 ^ 2 ^ 1 ^ 2` | `4 ^ (1 ^ 1) ^ (2 ^ 2)` |
+| final state `4` | `4 ^ 0 ^ 0 = 4` |
+
+```mermaid
+flowchart LR
+    O["4 ^ 1 ^ 2 ^ 1 ^ 2"] --> R["4 ^ (1 ^ 1) ^ (2 ^ 2)"]
+    R --> C["4 ^ 0 ^ 0"]
+    C --> A["answer 4"]
+```
+
+#### Worked case 3 — singleton and negative bit patterns
+
+Official input `[1]` returns `1`: the loop performs one XOR, and there are no pairs to remove. For the reusable full-`int` input `[-7,4,4]`, the two fours cancel bit-for-bit and the answer is `-7`. Java applies `^` to the two's-complement representation; the sign of a value does not change the cancellation identities.
+
+```mermaid
+flowchart LR
+    N["-7 ^ 4 ^ 4"] --> P["-7 ^ (4 ^ 4)"]
+    P --> Z["-7 ^ 0"]
+    Z --> A["answer -7"]
+```
+
+The same reasoning covers `Integer.MIN_VALUE` and `Integer.MAX_VALUE`; XOR never performs magnitude arithmetic and therefore has no addition or multiplication overflow policy to manage.
+
+#### Worked case 4 — zero is an answer; invalid multiplicities need a boundary
+
+For `[5,0,5]`, the fives cancel and the answer is zero. Zero is a valid payload, not an absence sentinel. Inputs `[1,1]`, `[1,2,3,3]`, or `[1,1,1,2]` violate the promise: respectively they have no single, two singles, or a triplicate. The constant-space core cannot certify arbitrary multiplicities while retaining its stated bound; untrusted callers should use the validated wrapper and accept its map storage.
+
+```mermaid
+flowchart TD
+    I["caller input"] --> T{"multiplicity promise trusted?"}
+    T -->|yes| X["XOR core: O(n) time, O(1) space"]
+    T -->|no| F["count every frequency"]
+    F --> V{"one count 1; all others count 2?"}
+    V -->|yes| X
+    V -->|no| R["reject before claiming an answer"]
+```
+
+**Prefix-XOR invariant and proof.** After processing the first `i` elements, `unique` equals the XOR of exactly `nums[0..i)`. The zero initialization is the XOR identity for the empty prefix, and each iteration appends precisely the next value, so induction establishes the invariant. At termination it is the XOR of the whole array. Under the official multiplicity promise, associativity and commutativity regroup every twice-occurring value into `x^x=0`; XORing any number of zero pairs has no effect, leaving the one value that occurs once. This proves both result correctness and order independence.
+
+**Complexity.** The core reads `n` values once, so time is `O(n)` and auxiliary space is `O(1)`; it performs no input writes. The optional frequency validator is `O(n)` expected time and `O(n)` space. The independent evidence oracle sorts a clone and checks adjacent pairs, using `O(n log n)` time; it shares neither the XOR operation nor the input storage with the optimized core.
+
+**Common interview errors:** using a set or map while claiming constant space; returning the first unpaired value before reading the full array; sorting the caller's array despite promising preservation; confusing zero with no answer; assuming negative integers need a special XOR case; using this proof when duplicates occur three times; accepting two singles under the one-single contract; trying to make the constant-space core also validate arbitrary multiplicities; or importing Missing Number's index/endpoint XOR even though this problem has no expected `[0,n]` range.
+
+**Follow-ups:** solve Single Number II when every other value occurs three times using bit counts or a two-register state machine; solve Single Number III when exactly two values occur once by partitioning on one differing bit; generalize to “all others occur `k` times” with per-bit residues; return the unique value from a stream; explain why a frequency validator changes the space claim; or compare pair cancellation with Boyer–Moore cancellation, which yields only a majority candidate and needs a different proof.
+
+Executable evidence is in `SingleNumberContracts.java`. It covers 20 deterministic scenario groups: all three official examples, negative and zero singles, negative/zero pairs, full-width Java integers, preservation, order independence, validation failures and deterministic sorted-oracle parity. It then performs 20,000 seeded valid-array trials against an independent sorted-copy oracle while separately checking preservation, reversal, validated-core parity and shuffle invariance.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -5297,7 +5419,8 @@ Executable evidence is in `MissingNumberContracts.java`. It covers 20 determinis
 - [LeetCode, “Jump Game II”](https://leetcode.com/problems/jump-game-ii/) — primary zero-based maximum-forward-jump model, reachable-destination promise, minimum-jump result, official examples and input bounds for problem 38.
 - [LeetCode, “Candy”](https://leetcode.com/problems/candy/) — primary positive-allocation, strict adjacent-rating, minimum-total contract, official examples and current input bounds for problem 39.
 - [LeetCode, “Missing Number”](https://leetcode.com/problems/missing-number/) — primary distinct-`[0,n]` contract, canonical examples, current input bounds and linear-time/constant-space follow-up for problem 40.
-- [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — integer bitwise XOR behavior used by the cancellation implementation.
+- [LeetCode, “Single Number”](https://leetcode.com/problems/single-number/) — primary non-empty, exactly-twice-except-one contract, canonical examples, current input bounds and linear-time/constant-space requirement for problem 41.
+- [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — associative, commutative integer bitwise XOR behavior used by the problem 40 and 41 cancellation implementations.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
 - [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
@@ -5346,9 +5469,9 @@ Executable evidence is in `MissingNumberContracts.java`. It covers 20 determinis
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 40 (Missing Number is lines 4105–4186; problem 41 begins at line 4187). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 40 (direct pages 89–90 contain problem 40 and page 91 begins problem 41). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 41 (Single Number is lines 4187–4266; problem 42 begins at line 4267). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 41 (direct pages 91–92 contain problem 41 and page 93 begins problem 42). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 40, “Missing Number,” is promoted from Markdown lines 4105–4186 and the DOCX companion's pages 89–90; problem 41, “Single Number,” begins at Markdown line 4187 and DOCX page 91.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 41, “Single Number,” is promoted from Markdown lines 4187–4266 and the DOCX companion's pages 91–92; problem 42, “Two Sum II — Sorted Input,” begins at Markdown line 4267 and DOCX page 93.
 
 
