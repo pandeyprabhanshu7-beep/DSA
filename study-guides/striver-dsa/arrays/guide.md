@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–42 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 43–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–43 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 44–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first forty-two solved problems](#4-core-pattern-lab--first-forty-two-solved-problems)
+- [4. Core pattern lab — first forty-three solved problems](#4-core-pattern-lab--first-forty-three-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -71,6 +71,7 @@
   - [Example 40 — Missing Number: cancel expected and observed values](#example-40--missing-number-cancel-expected-and-observed-values)
   - [Example 41 — Single Number: cancel exact duplicate pairs](#example-41--single-number-cancel-exact-duplicate-pairs)
   - [Example 42 — Two Sum II: discard one impossible endpoint](#example-42--two-sum-ii-discard-one-impossible-endpoint)
+  - [Example 43 — Maximum Average Subarray I: reuse the overlapping window sum](#example-43--maximum-average-subarray-i-reuse-the-overlapping-window-sum)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -696,9 +697,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first forty-two solved problems
+## 4. Core pattern lab — first forty-three solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–42. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; 40–41 use two distinct XOR cancellation contracts; and 42 returns to sorted opposite-end elimination with an exact one-based-index contract. Problems 43–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–43. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; 40–41 use two distinct XOR cancellation contracts; 42 returns to sorted opposite-end elimination with an exact one-based-index contract; and 43 reuses the exact sum of one fixed-length window. Problems 44–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -5509,6 +5510,134 @@ flowchart TD
 
 Executable evidence is in `TwoSumSortedContracts.java`. It covers 20 deterministic scenario groups: all three official examples, duplicate values at distinct indices, signed values, zeroes, full-width integer boundaries, preservation, exact wrapper/core parity, malformed order, absent/multiple solutions and an independent direct-definition check. It then performs 20,000 seeded sorted-array trials with exactly one solution against a quadratic all-pairs oracle while checking one-based index validity, preservation, validated-core parity and an order-preserving affine transformation.
 
+### Example 43 — Maximum Average Subarray I: reuse the overlapping window sum
+
+**Official contract.** Given an integer array `nums` and an integer `k`, return the maximum average among all contiguous subarrays of exactly `k` elements. An absolute calculation error below `10^-5` is accepted. Current official bounds are `n == nums.length`, `1 <= k <= n <= 100,000`, and `-10,000 <= nums[i] <= 10,000`. The implementation below rejects null, empty and invalid-window inputs, preserves the array, and widens all accumulation so the reusable core also handles full-width Java `int` components safely.
+
+Because every candidate contains the same positive number `k` of elements, division cannot change their ordering:
+
+`sum(A) > sum(B)` if and only if `sum(A)/k > sum(B)/k`.
+
+Therefore compare exact integer window sums, remember the largest sum, and divide only once at the end. Adjacent length-`k` windows overlap in `k-1` positions, so moving the right boundary one step requires only adding the incoming value and subtracting the outgoing value.
+
+```mermaid
+flowchart TD
+    Q["maximum average of exactly k consecutive values"] --> E{"all candidates have equal positive length?"}
+    E -->|yes| S["maximize exact window sum"]
+    S --> F["sum first k values once"]
+    F --> R["slide: add incoming; subtract outgoing"]
+    R --> D["divide best sum by double k once"]
+```
+
+```java
+static long maximumWindowSum(int[] nums, int k) {
+    if (nums == null || nums.length == 0) {
+        throw new IllegalArgumentException("nums must be non-null and non-empty");
+    }
+    if (k < 1 || k > nums.length) {
+        throw new IllegalArgumentException("k must satisfy 1 <= k <= nums.length");
+    }
+
+    long window = 0;
+    for (int i = 0; i < k; i++) window += nums[i];
+    long best = window;
+
+    for (int right = k; right < nums.length; right++) {
+        window += (long) nums[right] - nums[right - k];
+        best = Math.max(best, window);
+    }
+    return best;
+}
+
+static double findMaxAverage(int[] nums, int k) {
+    return maximumWindowSum(nums, k) / (double) k;
+}
+```
+
+The direct baseline re-sums each of the `n-k+1` windows and costs `O((n-k+1)k)`, commonly written `O(nk)`, with constant auxiliary space. A prefix-sum array answers each window in constant time after linear preprocessing but spends `O(n)` extra space. The rolling window retains only one sum, so it achieves `O(n)` time and `O(1)` auxiliary space without mutating input.
+
+```mermaid
+flowchart LR
+    A["old window: indices left..right-1"] --> O["remove nums[left]"]
+    O --> I["add nums[right]"]
+    I --> N["new window: indices left+1..right"]
+```
+
+#### Worked case 1 — exact official trace
+
+For `nums=[1,12,-5,-6,50,3]` and `k=4`, the first window sum is `2`. Each row then applies exactly one incoming/outgoing delta.
+
+| window indices | values | update | rolling sum | best sum |
+|---|---|---:|---:|---:|
+| `[0,3]` | `[1,12,-5,-6]` | initial | `2` | `2` |
+| `[1,4]` | `[12,-5,-6,50]` | `+50-1` | `51` | `51` |
+| `[2,5]` | `[-5,-6,50,3]` | `+3-12` | `42` | `51` |
+
+The final conversion is `51 / 4.0 = 12.75`.
+
+```mermaid
+flowchart LR
+    W0["[1,12,-5,-6] sum 2"] -->|"+50 -1"| W1["[12,-5,-6,50] sum 51"]
+    W1 -->|"+3 -12"| W2["[-5,-6,50,3] sum 42"]
+    W2 --> B["best 51; average 12.75"]
+```
+
+This trace also shows why recalculating four additions for every candidate is repeated work: three of the four values survive each slide.
+
+#### Worked case 2 — all-negative input must not use a zero seed
+
+For `nums=[-8,-3,-4,-9]` and `k=2`, the window sums are `-11`, `-7`, and `-13`; the maximum average is `-7/2.0 = -3.5`. Initializing `best` to zero would invent an empty candidate that the exact-length contract forbids. Initialize it from the first legal window instead.
+
+| candidate | sum | average | best so far |
+|---|---:|---:|---:|
+| `[-8,-3]` | `-11` | `-5.5` | `-11` |
+| `[-3,-4]` | `-7` | `-3.5` | `-7` |
+| `[-4,-9]` | `-13` | `-6.5` | `-7` |
+
+```mermaid
+flowchart TD
+    Z["wrong seed: best = 0"] --> X["empty window can incorrectly beat every legal negative window"]
+    L["correct seed: first legal sum = -11"] --> M["compare -7, then -13"]
+    M --> A["answer -3.5"]
+```
+
+#### Worked case 3 — the two window-size extremes
+
+For official singleton input `nums=[5], k=1`, the one window is `[5]`, so the result is `5.0`. For `nums=[1,2,3,4], k=4`, there is also exactly one candidate—the whole array—and the result is `10/4.0 = 2.5`. The loop naturally performs zero slides in both cases.
+
+```mermaid
+flowchart LR
+    K1["k = 1"] --> E1["each element is a candidate window"]
+    KN["k = n"] --> EN["the whole array is the only candidate"]
+    E1 --> C["same initialization and return path"]
+    EN --> C
+```
+
+No separate algorithm is required; validation plus first-window initialization already handles both boundaries.
+
+#### Worked case 4 — widen the delta before arithmetic
+
+For reusable input `[Integer.MAX_VALUE,Integer.MAX_VALUE,-1]` and `k=2`, the best mathematical sum is `4,294,967,294`, so the maximum average is `2,147,483,647.0`. An `int` accumulator would wrap that first sum to `-2`. Likewise, `nums[right] - nums[right-k]` can overflow in `int` before a compound assignment widens it. The expression `(long) nums[right] - nums[right-k]` promotes the subtraction before it occurs.
+
+```mermaid
+flowchart TD
+    I["2,147,483,647 + 2,147,483,647"] --> W["long sum 4,294,967,294"]
+    W --> C["exact comparison of window sums"]
+    C --> D["divide once as double"]
+    I --> X["int sum wraps to -2"]
+    X --> B["wrong best-window decision"]
+```
+
+**Rolling-window invariant and proof.** After initialization, `window` equals the sum of exactly `nums[0..k)`, and `best` is the maximum sum among the one window processed so far. Before an iteration with boundary `right`, `window` equals `nums[right-k..right)`, the previous length-`k` window, while `best` is the maximum over every window ending before `right`. Adding `nums[right]` and subtracting `nums[right-k]` removes precisely the old left endpoint and includes precisely the new right endpoint, so `window` becomes the sum of `nums[right-k+1..right+1)`. Updating `best` extends the maximum to include that candidate. Induction proves that after the final iteration, `best` is the maximum sum over all and only length-`k` windows. Division by the same positive `k` preserves the maximizing candidate, so the returned average is correct.
+
+**Complexity.** Initialization reads `k` elements and the slide reads the remaining `n-k`, for `O(n)` total time and `O(1)` auxiliary space. The input is never written. The final conversion performs floating-point division because one operand is explicitly `double`; without that cast, Java integer division would truncate before conversion.
+
+**Common interview errors:** maximizing arbitrary-length subarrays instead of exactly `k`; re-summing every window; dividing each candidate and introducing unnecessary floating-point work; seeding `best` with zero on all-negative input; off-by-one expiration using `right-k+1` instead of `right-k`; subtracting before the incoming index exists; computing the first sum or the delta in `int`; casting only after integer division; accepting `k=0` or `k>n`; returning a sum instead of an average; or mutating input while claiming preservation.
+
+**Follow-ups:** return the start/end indices of the earliest best window; return every tied best window; find the minimum fixed-window average; support a stream with a size-`k` ring buffer; handle many fixed-`k` queries with prefix sums; compare this fixed window with a variable window whose length changes; find the maximum average for any subarray of length at least `k` using answer-space search; or define an exact rational result as `(bestSum,k)` instead of `double`.
+
+Executable evidence is in `MaximumAverageSubarrayContracts.java`. It covers 20 deterministic scenario groups: both official examples, all-negative values, both `k` extremes, ties, zero, first/final best windows, official magnitude bounds, full-width widened accumulation, preservation, validation failures and independent direct-window checks. It then performs 20,000 seeded trials against an `O(nk)` oracle that re-sums every candidate while checking exact best-sum agreement, preservation, average conversion, reversal invariance and the fixed-window translation relation.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -5535,11 +5664,12 @@ Executable evidence is in `TwoSumSortedContracts.java`. It covers 20 determinist
 - [LeetCode, “Missing Number”](https://leetcode.com/problems/missing-number/) — primary distinct-`[0,n]` contract, canonical examples, current input bounds and linear-time/constant-space follow-up for problem 40.
 - [LeetCode, “Single Number”](https://leetcode.com/problems/single-number/) — primary non-empty, exactly-twice-except-one contract, canonical examples, current input bounds and linear-time/constant-space requirement for problem 41.
 - [LeetCode, “Two Sum II — Input Array Is Sorted”](https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/) — primary nondecreasing, one-based-index, distinct-position, unique-solution and constant-extra-space contract, official examples and current input bounds for problem 42.
+- [LeetCode, “Maximum Average Subarray I”](https://leetcode.com/problems/maximum-average-subarray-i/) — primary exact-`k` contiguous-window, maximum-average result, accepted-error tolerance, official examples and current input bounds for problem 43.
 - [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — associative, commutative integer bitwise XOR behavior used by the problem 40 and 41 cancellation implementations.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
 - [Java SE 17 `java.util.Comparator`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html) — total-order requirements and key-extractor comparators used for overflow-safe start/end ordering.
-- [Java Language Specification, Java SE 17, §15.17.2](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17.2) — integer-division truncation used to derive exact positive ceiling division.
+- [Java Language Specification, Java SE 17, §15.17.2](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17.2) — integer-division truncation used to derive exact positive ceiling division, and floating-point division used when problem 43 explicitly promotes `k` to `double`.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — Java integer-overflow guidance and `max` contract used by the answer-space bound.
 - [Java SE 17 `java.util.HashMap`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/HashMap.html) — key/value map behavior and the `getOrDefault`/merge operations used by prefix-frequency counting.
 - [Java SE 17 `java.util.Map`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html) — map equality semantics and the `merge`/`getOrDefault` contracts used by the toolkit.
@@ -5584,9 +5714,9 @@ Executable evidence is in `TwoSumSortedContracts.java`. It covers 20 determinist
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 42 (Two Sum II — Sorted Input is lines 4267–4356; problem 43 begins at line 4357). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 42 (direct pages 93–94 contain problem 42 and page 95 begins problem 43). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 43 (Maximum Average Subarray I is lines 4357–4441; problem 44 begins at line 4442). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 43 (direct pages 95–96 contain problem 43 and page 97 begins problem 44). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 42, “Two Sum II — Sorted Input,” is promoted from Markdown lines 4267–4356 and the DOCX companion's pages 93–94; problem 43, “Maximum Average Subarray I,” begins at Markdown line 4357 and DOCX page 95.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 43, “Maximum Average Subarray I,” is promoted from Markdown lines 4357–4441 and the DOCX companion's pages 95–96; problem 44, “Pivot Index,” begins at Markdown line 4442 and DOCX page 97.
 
 
