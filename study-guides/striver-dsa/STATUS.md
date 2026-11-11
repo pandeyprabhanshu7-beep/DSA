@@ -400,4 +400,12 @@ Arrays Section 4 problem 39 now states the positive-allocation, strict-adjacent-
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 40, Missing Number, is the next exact source continuation, subject to the next fair-domain rotation check.
 
+## Arrays Missing Number enrichment — 2026-11-11 ET
+
+Arrays Section 4 problem 40 now states the distinct-`[0,n]`, unique-absence, nonmutation and reusable-empty contracts; separates the official-precondition `O(1)`-space core from an optional `O(n)`-space validation boundary; and derives XOR cancellation from the complete expected range. The section adds four worked cases, an exact accumulator trace, four diagrams, a loop invariant and a proof that every present value cancels exactly once. `MissingNumberContracts` validates 20 deterministic groups plus 20,000 seeded valid arrays against an independent widened-arithmetic oracle while checking preservation, reversal, validated-core parity and shuffle invariance. Java 21 source-file launch passed all 40 unique Arrays executables: 760 scenario groups and 780,000 seeded/randomized oracle trials or comparisons. Standalone `javac`, browser, assistive-technology and rendered Mermaid QA were unavailable.
+
+The deterministic responsive reader embeds the exact 345,898 canonical Markdown bytes at SHA-256 `cfe03ac644365c037e1cc238cb86207e638ddfbec8dabfc71cca3bbdfa84024c`; validation found 1,464 unique IDs, 68 search entries, 1,260 resolved fragment links, zero relative links, 432 balanced fence markers, 163 Mermaid sources and four script blocks. Rebuilding produced byte-identical HTML at SHA-256 `da0e6dde9230417b1d56fe9a8d66a496a62620e7b59a4127893bb43150c0e739`. Both confirmed sources agree on the XOR method, missing-endpoint behavior and `O(n)` time / `O(1)` core space; the public section adds exact validation, empty-extension, proof and executable-evidence contracts rather than copying either source. The editable Markdown remains structural and no duplicate guide was created.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 41, Single Number, is the next exact source continuation, subject to the next fair-domain rotation check.
+
 
