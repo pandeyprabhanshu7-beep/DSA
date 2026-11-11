@@ -440,4 +440,14 @@ The deterministic responsive reader embeds the exact 380,407 canonical Markdown 
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 45, Maximum Consecutive Ones III, is the next exact source continuation at Markdown line 4530 / DOCX page 99, subject to the next fair-domain rotation check.
 
+## Arrays Maximum Consecutive Ones III enrichment — 2026-11-11 ET
+
+Arrays Section 4 problem 45 now states the binary-input, contiguous-range, at-most-`k` flip, nonmutation and reusable validation contracts; reframes flips as a zero budget; and repairs the left boundary until every recorded window is feasible. The section adds four worked cases, five diagrams, the exact first official trace, both official examples, zero/oversized-budget behavior and a longest-valid-ending-window proof. `MaximumConsecutiveOnesIIIContracts` validates 20 deterministic groups plus 20,000 seeded binary arrays against an independent quadratic oracle while checking preservation, reversal invariance, budget monotonicity and zero-count clamping. Java 21 source-file launch passed all 45 unique Arrays executables: 860 scenario groups and 880,000 seeded/randomized oracle trials or comparisons. Standalone `javac`, browser, assistive-technology and rendered Mermaid QA were unavailable.
+
+Both confirmed sources agree on the at-most-`k` zero budget, variable-window repair and `O(n)` time / `O(1)` auxiliary space; the public section adds exact validation, proof, current official examples and independent executable evidence rather than copying either source. The editable Markdown remains structural and no duplicate guide was created.
+
+The deterministic responsive reader embeds the exact 390,080 canonical Markdown bytes at SHA-256 `743b2a094b61bec16e1b892df88b38d1780f1effb89e6c745089eb2697d4a489`; validation found 1,597 unique IDs, 73 search entries, 1,368 resolved fragment links, zero relative links, 494 balanced fence markers, 189 Mermaid sources and four script blocks. Both executable script blocks parse as JavaScript modules. Rebuilding produced byte-identical HTML at SHA-256 `20ac412cca609c9022863a2122598596a23ca291e6cf1a1217c86ae9def100b7`.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; Arrays problem 46, Find Minimum in Rotated Sorted Array, is the next exact source continuation at Markdown line 4619 / DOCX page 101, subject to the next fair-domain rotation check.
+
 

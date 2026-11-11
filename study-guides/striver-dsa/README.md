@@ -35,7 +35,7 @@ The HTML readers provide responsive layouts, searchable section navigation, tabl
 - A focused subtopic deep dive is acceptable only when it adds substantial material and its Markdown/HTML pair is maintained intentionally.
 - Preserve source attribution boundaries: external references validate algorithms and claims; added examples, memory tricks, proofs, diagrams, and interview notes are labeled as study-guide material.
 
-The Arrays guide is incremental: source Sections 1–3 and Section 4 problems 1–44 are promoted; problems 45–47 and later material remain queued.
+The Arrays guide is incremental: source Sections 1–3 and Section 4 problems 1–45 are promoted; problems 46–47 and later material remain queued.
 
 See [STATUS.md](STATUS.md) for promotion and deep-enrichment progress.
 

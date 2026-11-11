@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–44 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 45–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–45 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 46–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first forty-four solved problems](#4-core-pattern-lab--first-forty-four-solved-problems)
+- [4. Core pattern lab — first forty-five solved problems](#4-core-pattern-lab--first-forty-five-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -73,6 +73,7 @@
   - [Example 42 — Two Sum II: discard one impossible endpoint](#example-42--two-sum-ii-discard-one-impossible-endpoint)
   - [Example 43 — Maximum Average Subarray I: reuse the overlapping window sum](#example-43--maximum-average-subarray-i-reuse-the-overlapping-window-sum)
   - [Example 44 — Pivot Index: derive the unseen suffix from one total](#example-44--pivot-index-derive-the-unseen-suffix-from-one-total)
+  - [Example 45 — Maximum Consecutive Ones III: repair an at-most-K budget window](#example-45--maximum-consecutive-ones-iii-repair-an-at-most-k-budget-window)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -698,9 +699,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first forty-four solved problems
+## 4. Core pattern lab — first forty-five solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–44. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; 40–41 use two distinct XOR cancellation contracts; 42 returns to sorted opposite-end elimination with an exact one-based-index contract; 43 reuses the exact sum of one fixed-length window; and 44 derives each unseen suffix from one total and a maintained prefix. Problems 45–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–45. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; 40–41 use two distinct XOR cancellation contracts; 42 returns to sorted opposite-end elimination with an exact one-based-index contract; 43 reuses the exact sum of one fixed-length window; 44 derives each unseen suffix from one total and a maintained prefix; and 45 maintains a variable window whose zero count consumes an at-most-`k` budget. Problems 46–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -5750,6 +5751,133 @@ The official bounds fit comfortably in `int`, but widening costs no extra asympt
 
 Executable evidence is in `PivotIndexContracts.java`. It covers 20 deterministic scenario groups: all three official examples, both edges, singleton and reusable-empty inputs, multiple pivots, negative values, no answer, full-width accumulation, maximum official length, preservation, null rejection and independent definition checks. It then performs 20,000 seeded trials against an `O(n^2)` oracle that re-sums both sides while checking exact leftmost agreement, preservation, positive-scaling invariance, negation invariance and the reversal relation between the original rightmost pivot and the reversed leftmost pivot.
 
+### Example 45 — Maximum Consecutive Ones III: repair an at-most-K budget window
+
+**Official contract.** Given a binary array `nums` and an integer `k`, return the maximum number of consecutive ones obtainable by flipping **at most** `k` zeros. Flips affect the chosen contiguous interval conceptually; the method need not and should not mutate `nums`. The current official bounds are `1 <= nums.length <= 100,000`, `nums[i]` is `0` or `1`, and `0 <= k <= nums.length`. The reusable boundary below also accepts an empty array and returns `0`, accepts a budget larger than the array, and rejects null, negative `k`, or a non-binary component.
+
+Flipping a zero inside a candidate interval makes it a one, so the problem is exactly:
+
+> Find the longest contiguous window containing at most `k` zeros.
+
+Brute force starts at every left boundary, extends every right boundary and counts zeros, taking `O(n²)` time. The optimized window retains only its two boundaries and current zero count. Adding one right endpoint may violate the budget; advancing `left` until `zeros <= k` repairs it.
+
+```mermaid
+flowchart TD
+    A["extend right by one"] --> B["add one if value is zero"]
+    B --> C{"zeros > k?"}
+    C -->|yes| D["expire nums[left]; advance left"]
+    D --> C
+    C -->|no| E["record right-left+1"]
+```
+
+```java
+static int longestOnes(int[] nums, int k) {
+    if (nums == null) throw new IllegalArgumentException("nums must be non-null");
+    if (k < 0) throw new IllegalArgumentException("k must be non-negative");
+    for (int value : nums) {
+        if (value != 0 && value != 1) {
+            throw new IllegalArgumentException("nums must contain only 0 and 1");
+        }
+    }
+
+    int left = 0;
+    int zeros = 0;
+    int best = 0;
+    for (int right = 0; right < nums.length; right++) {
+        if (nums[right] == 0) zeros++;
+        while (zeros > k) {
+            if (nums[left] == 0) zeros--;
+            left++;
+        }
+        best = Math.max(best, right - left + 1);
+    }
+    return best;
+}
+```
+
+Validation is deliberately complete before the core scan. That makes the reusable contract explicit without changing the interview algorithm: under the official binary-input promise, call the core directly for one linear pass. No actual bit is flipped because only the number of zeros in the current interval matters.
+
+#### Worked case 1 — official example and exact repair trace
+
+For `nums=[1,1,1,0,0,0,1,1,1,1,0]` and `k=2`, the first five values form a valid window. Reading the zero at index `5` raises `zeros` to three. Expiring indices `0`, `1`, and `2` does not restore the budget because they are ones; expiring index `3` removes the oldest zero and restores validity. Later, indices `4..9` form a length-six window with two zeros, so the answer is `6`.
+
+| `right`, value | `zeros` after add | repair of `left` | valid window after repair | `best` |
+|---:|---:|---|---|---:|
+| `0`, `1` | `0` | none | `[0,0]` | `1` |
+| `1`, `1` | `0` | none | `[0,1]` | `2` |
+| `2`, `1` | `0` | none | `[0,2]` | `3` |
+| `3`, `0` | `1` | none | `[0,3]` | `4` |
+| `4`, `0` | `2` | none | `[0,4]` | `5` |
+| `5`, `0` | `3` | expire indices `0..3`; zero at `3` leaves | `[4,5]` | `5` |
+| `6`, `1` | `2` | none | `[4,6]` | `5` |
+| `7`, `1` | `2` | none | `[4,7]` | `5` |
+| `8`, `1` | `2` | none | `[4,8]` | `5` |
+| `9`, `1` | `2` | none | `[4,9]` | `6` |
+| `10`, `0` | `3` | expire index `4` | `[5,10]` | `6` |
+
+```mermaid
+flowchart LR
+    V["[0..4]: five values, two zeros"] --> X["add index 5: three zeros"]
+    X --> S["advance left through 0,1,2,3"]
+    S --> R["[4..5]: two zeros again"]
+    R --> B["later [4..9] has length 6"]
+```
+
+The repair may cross several ones before the oldest zero leaves. That is why the general variable-window template uses `while`, not one unconditional step.
+
+#### Worked case 2 — the second official example
+
+For `nums=[0,0,1,1,0,0,1,1,1,0,1,1,0,0,0,1,1,1,1]` and `k=3`, indices `2..11` contain exactly three zeros and seven ones. Flipping those zeros gives a consecutive run of length `10`. Extending through index `12` would include a fourth zero, so the left boundary must move past the zero at index `4`; no longer interval is legal.
+
+```mermaid
+flowchart TD
+    W["candidate [2..11]"] --> Z["zeros at 4,5,9"]
+    Z --> F["three conceptual flips"]
+    F --> T["ten consecutive ones"]
+    T --> N["index 12 adds a fourth zero; repair required"]
+```
+
+This example also distinguishes **at most** `k` from exactly `k`: the maximizing window may use fewer flips on another input, and unused budget never invalidates a result.
+
+#### Worked case 3 — zero budget and all-zero input
+
+With `k=0`, every zero makes the window invalid and must be expired. Thus `[0,1,1,1,0,1]` returns `3`, the longest run already present. For `[0,0,0,0]` with `k=2`, every legal window has length at most two and the answer is `2`; with `k=0`, the answer is `0` because no non-empty interval contains zero zeros.
+
+| input | `k` | longest legal interval | answer |
+|---|---:|---|---:|
+| `[0,1,1,1,0,1]` | `0` | `[1,1,1]` | `3` |
+| `[0,0,0,0]` | `2` | any two adjacent zeros | `2` |
+| `[0,0,0,0]` | `0` | empty only | `0` |
+
+```mermaid
+flowchart LR
+    K["k = 0"] --> O["only existing ones may remain"]
+    A["all zeros; k = 2"] --> M["legal length = min(k,n) = 2"]
+```
+
+#### Worked case 4 — the entire array fits, including reusable boundaries
+
+If `k` is at least the total number of zeros, the whole array is legal. `[1,0,0,1,0]` with `k=3` returns `5`; `[1,0,1,1]` with `k=99` returns `4`. No clamping branch is required: `zeros > k` simply never becomes true. A singleton one returns `1`; a singleton zero returns `1` when `k>=1` and `0` when `k=0`. The reusable empty extension returns `0` without entering the loop.
+
+```mermaid
+flowchart TD
+    C{"k >= total zeros?"} -->|yes| A["entire array is legal"]
+    C -->|no| W["maintain and repair a variable window"]
+    A --> N["answer = nums.length"]
+```
+
+**Window invariant and proof.** After repair for a right endpoint `right`, `zeros` equals exactly the number of zero components in `nums[left..right]`, and that window contains at most `k` zeros. If repair moved `left`, the immediately preceding boundary `left-1` was the oldest zero whose inclusion made the window exceed the budget; if repair did not move it, `left=0` or the existing boundary was already earliest. Therefore `nums[left..right]` is the longest legal window ending at `right`. Every globally optimal interval has some right endpoint, and the algorithm records the longest legal interval at that endpoint, so taking the maximum over all endpoints returns the global optimum.
+
+The invariant is preserved because adding `nums[right]` changes the count by exactly one only when that component is zero. Each repair step removes exactly the outgoing component and decrements only when that component is zero. The loop stops exactly when feasibility is restored. Neither pointer ever moves left, so no candidate endpoint is revisited.
+
+**Complexity.** `right` advances `n` times and `left` advances at most `n` times, so the core is `O(n)` time despite the nested `while`; it uses `O(1)` auxiliary space and performs no writes to `nums`. The reusable validation scan is another `O(n)` pass and constant space. The independent evidence oracle is deliberately `O(n²)` and is used only for testing.
+
+**Common interview errors:** counting ones instead of the budget-consuming zeros; solving “exactly `k` flips”; physically mutating zeros and losing the original contract; shrinking only when a zero is at `left`; shrinking once when multiple expirations are needed; forgetting to decrement when a zero leaves; updating `best` before restoring validity; using `right-left` instead of `right-left+1`; returning the number of ones rather than the interval length; treating all-zero input as answer zero even when flips are allowed; assuming `k` must be consumed; rejecting `k` larger than the zero count unnecessarily; accepting negative `k`; or claiming the nested loops are `O(n²)` without pointer accounting.
+
+**Follow-ups:** return the earliest maximizing interval and the zero indices to flip; solve exactly `k` zeros by subtracting at-most counts when counting subarrays; replace at most `k` arbitrary “bad” values in a predicate stream; process a live stream while retaining only the last `k+1` zero positions; compare the monotonic window with Longest Repeating Character Replacement; support range queries with offline preprocessing; or explain why negative costs would destroy this one-counter monotonic repair rule.
+
+Executable evidence is in `MaximumConsecutiveOnesIIIContracts.java`. It covers 20 deterministic scenario groups: both official examples, zero and oversized budgets, all-zero/all-one/singleton/empty shapes, alternating and suffix optima, preservation, wrapper/core parity, oracle parity and invalid-input rejection. It then performs 20,000 seeded binary-array trials against an independent quadratic oracle while checking exact agreement, preservation, reversal invariance, monotonicity under a larger budget and equivalence after clamping `k` to the array's zero count.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -5778,6 +5906,7 @@ Executable evidence is in `PivotIndexContracts.java`. It covers 20 deterministic
 - [LeetCode, “Two Sum II — Input Array Is Sorted”](https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/) — primary nondecreasing, one-based-index, distinct-position, unique-solution and constant-extra-space contract, official examples and current input bounds for problem 42.
 - [LeetCode, “Maximum Average Subarray I”](https://leetcode.com/problems/maximum-average-subarray-i/) — primary exact-`k` contiguous-window, maximum-average result, accepted-error tolerance, official examples and current input bounds for problem 43.
 - [LeetCode, “Find Pivot Index”](https://leetcode.com/problems/find-pivot-index/) — primary strict-left/strict-right balance definition, leftmost-result rule, empty-edge semantics, official examples and current input bounds for problem 44.
+- [LeetCode, “Max Consecutive Ones III”](https://leetcode.com/problems/max-consecutive-ones-iii/) — primary binary-array, at-most-`k` flip contract, both official examples, sliding-window hints and current input bounds for problem 45.
 - [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — associative, commutative integer bitwise XOR behavior used by the problem 40 and 41 cancellation implementations.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
@@ -5827,9 +5956,9 @@ Executable evidence is in `PivotIndexContracts.java`. It covers 20 deterministic
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 44 (Pivot Index is lines 4442–4529; problem 45 begins at line 4530). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 44 (direct pages 97–98 contain problem 44 and page 99 begins problem 45). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 45 (Maximum Consecutive Ones III is lines 4530–4618; problem 46 begins at line 4619). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 45 (direct pages 99–100 contain problem 45 and page 101 begins problem 46). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 44, “Pivot Index,” is promoted from Markdown lines 4442–4529 and the DOCX companion's pages 97–98; problem 45, “Maximum Consecutive Ones III,” begins at Markdown line 4530 and DOCX page 99.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 45, “Maximum Consecutive Ones III,” is promoted from Markdown lines 4530–4618 and the DOCX companion's pages 99–100; problem 46, “Find Minimum in Rotated Sorted Array,” begins at Markdown line 4619 and DOCX page 101.
 
 
