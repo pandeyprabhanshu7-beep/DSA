@@ -46,6 +46,7 @@ java -ea study-guides/striver-dsa/arrays/JumpGameIIContracts.java
 java -ea study-guides/striver-dsa/arrays/CandyContracts.java
 java -ea study-guides/striver-dsa/arrays/MissingNumberContracts.java
 java -ea study-guides/striver-dsa/arrays/SingleNumberContracts.java
+java -ea study-guides/striver-dsa/arrays/TwoSumSortedContracts.java
 ```
 
 Rebuild the reader:
@@ -54,6 +55,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–41 are promoted. Section 4 problems 42–47 and later source material remain queued.
+This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–42 are promoted. Section 4 problems 43–47 and later source material remain queued.
 
 

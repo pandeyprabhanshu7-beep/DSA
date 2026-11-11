@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–41 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 42–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–42 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 43–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first forty-one solved problems](#4-core-pattern-lab--first-forty-one-solved-problems)
+- [4. Core pattern lab — first forty-two solved problems](#4-core-pattern-lab--first-forty-two-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -70,6 +70,7 @@
   - [Example 39 — Candy: satisfy both directional lower bounds](#example-39--candy-satisfy-both-directional-lower-bounds)
   - [Example 40 — Missing Number: cancel expected and observed values](#example-40--missing-number-cancel-expected-and-observed-values)
   - [Example 41 — Single Number: cancel exact duplicate pairs](#example-41--single-number-cancel-exact-duplicate-pairs)
+  - [Example 42 — Two Sum II: discard one impossible endpoint](#example-42--two-sum-ii-discard-one-impossible-endpoint)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -695,9 +696,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first forty-one solved problems
+## 4. Core pattern lab — first forty-two solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–41. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; and 40–41 use two distinct XOR cancellation contracts. Problems 42–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–42. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; 40–41 use two distinct XOR cancellation contracts; and 42 returns to sorted opposite-end elimination with an exact one-based-index contract. Problems 43–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -5395,6 +5396,119 @@ flowchart TD
 
 Executable evidence is in `SingleNumberContracts.java`. It covers 20 deterministic scenario groups: all three official examples, negative and zero singles, negative/zero pairs, full-width Java integers, preservation, order independence, validation failures and deterministic sorted-oracle parity. It then performs 20,000 seeded valid-array trials against an independent sorted-copy oracle while separately checking preservation, reversal, validated-core parity and shuffle invariance.
 
+### Example 42 — Two Sum II: discard one impossible endpoint
+
+**Official contract.** Given a 1-indexed integer array `numbers` sorted in nondecreasing order, return `[index1,index2]` for the unique pair whose values sum to `target`, with `1 <= index1 < index2 <= numbers.length`. The same element cannot be used twice, the tests guarantee exactly one solution, and the algorithm must use constant extra space. Current official bounds are `2 <= numbers.length <= 30,000`, `-1,000 <= numbers[i] <= 1,000`, and `-1,000 <= target <= 1,000`. The reusable Java core below preserves the array and safely accepts the full `int` component domain by widening before addition.
+
+Sorted order makes each comparison an elimination certificate. With candidates restricted to `[left,right]`, if `numbers[left] + numbers[right]` is below the target, then the left value paired with **any** remaining index is also too small; discard `left`. If the sum is above the target, then the right value paired with any remaining index is also too large; discard `right`. Equality returns the required one-based indices.
+
+```mermaid
+flowchart TD
+    C["candidate interval [left,right]"] --> S["compute widened endpoint sum"]
+    S --> Q{"compare with target"}
+    Q -->|smaller| L["discard left endpoint"]
+    Q -->|larger| R["discard right endpoint"]
+    Q -->|equal| A["return [left+1,right+1]"]
+    L --> C
+    R --> C
+```
+
+```java
+static int[] twoSumSorted(int[] numbers, int target) {
+    if (numbers == null || numbers.length < 2) {
+        throw new IllegalArgumentException("numbers must contain at least two values");
+    }
+    int left = 0;
+    int right = numbers.length - 1;
+    while (left < right) {
+        long sum = (long) numbers[left] + numbers[right];
+        if (sum == target) return new int[] {left + 1, right + 1};
+        if (sum < target) left++;
+        else right--;
+    }
+    throw new IllegalArgumentException("no distinct-index pair sums to target");
+}
+```
+
+The trusted core assumes the official sortedness and unique-solution promises. `TwoSumSortedContracts.java` also contains `twoSumSortedValidated`: it verifies nondecreasing order, counts matching **index pairs** up to two using duplicate-run sizes, rejects zero or multiple solutions, and then calls the core. That boundary remains `O(n)` time and `O(1)` auxiliary space, but makes two passes. It is useful when input does not come from the judge's trusted contract.
+
+A direct double loop is the definition oracle: enumerate every `i < j` pair in `O(n^2)` time and constant space. Binary-searching each suffix for the complement reduces time to `O(n log n)` and preserves constant space. A hash map can be `O(n)` expected time but costs `O(n)` space and ignores the useful sorted-order guarantee. Opposite-end pointers are the only standard option here that simultaneously achieves `O(n)` time and `O(1)` auxiliary space.
+
+#### Worked case 1 — exact official trace
+
+For `numbers=[2,7,11,15]` and `target=9`, the initial endpoints are too large together. Each right move is justified because the current right value cannot pair with any remaining left-side value to reach a smaller target.
+
+| step | `left/right` | values | widened sum | proof-backed action |
+|---:|---|---|---:|---|
+| 1 | `0/3` | `2/15` | `17` | too large; discard index 3 |
+| 2 | `0/2` | `2/11` | `13` | too large; discard index 2 |
+| 3 | `0/1` | `2/7` | `9` | return one-based `[1,2]` |
+
+```mermaid
+flowchart LR
+    A["2 + 15 = 17"] -->|"right--"| B["2 + 11 = 13"]
+    B -->|"right--"| C["2 + 7 = 9"]
+    C --> D["return [1,2]"]
+```
+
+The output indices are one-based even though the implementation's pointers are zero-based.
+
+#### Worked case 2 — duplicates are values, not reused positions
+
+For `numbers=[1,1,3,4]` and `target=2`, the two equal ones occupy distinct indices, so `[1,2]` is legal. The algorithm first sees `1+4=5`, then `1+3=4`, then `1+1=2`. The `left < right` condition prevents an element from pairing with itself; equality of values does not imply equality of positions.
+
+```mermaid
+flowchart LR
+    I["indices 1 and 4: 1+4"] --> J["indices 1 and 3: 1+3"]
+    J --> K["indices 1 and 2: 1+1"]
+    K --> O["distinct positions; answer [1,2]"]
+```
+
+If the array were `[1,1,1]` with target `2`, three index pairs would exist. The official unique-solution promise excludes that input; the defensive wrapper rejects it rather than silently choosing one.
+
+#### Worked case 3 — negative endpoints obey the same monotonic rule
+
+For official input `numbers=[-1,0]` and `target=-1`, the first and only comparison matches, returning `[1,2]`. A longer reusable case `[-10,-3,0,4,9]`, target `1`, shows both directions: `-10+9=-1` is too small, so `left` advances; `-3+9=6` is too large, so `right` retreats; `-3+4=1` returns `[2,4]`.
+
+| candidate endpoints | sum | action |
+|---|---:|---|
+| `-10, 9` | `-1` | discard `-10` |
+| `-3, 9` | `6` | discard `9` |
+| `-3, 4` | `1` | return their indices |
+
+```mermaid
+flowchart TD
+    S["sorted signed values"] --> A{"endpoint sum < target?"}
+    A -->|yes| L["every pair using current left is too small"]
+    A -->|no| B{"endpoint sum > target?"}
+    B -->|yes| R["every pair using current right is too large"]
+    B -->|no| F["pair found"]
+```
+
+No special sign case is needed: only the nondecreasing order and mathematical sum comparisons matter.
+
+#### Worked case 4 — widen before addition, not afterward
+
+For reusable input `[1,2,Integer.MAX_VALUE-1,Integer.MAX_VALUE]` and target `3`, the correct answer is `[1,2]`. The mathematical initial sum `1 + Integer.MAX_VALUE` is `2,147,483,648`, so the correct action is to decrement `right`. If Java computes the addition in `int`, it wraps to `Integer.MIN_VALUE`, appears smaller than `3`, and incorrectly increments `left`, potentially discarding the solution. Casting one operand **before** addition performs the comparison in `long`.
+
+```mermaid
+flowchart TD
+    E["1 + 2,147,483,647"] --> W["widen first: 2,147,483,648"]
+    W --> G["> target 3; move right"]
+    E --> X["int first: wraps to -2,147,483,648"]
+    X --> B["wrong direction; solution may be discarded"]
+```
+
+**Candidate-interval invariant and proof.** At the start of every iteration, if the promised unique solution has not been returned, both of its zero-based indices lie within `[left,right]`. Initially this is the whole array. If the endpoint sum is below target, then for every `j` with `left < j <= right`, sortedness gives `numbers[left] + numbers[j] <= numbers[left] + numbers[right] < target`; `left` cannot participate in a solution, so incrementing it preserves the invariant. If the sum is above target, then for every `i` with `left <= i < right`, `numbers[i] + numbers[right] >= numbers[left] + numbers[right] > target`; `right` cannot participate, so decrementing it is safe. Equality returns a valid distinct-index pair. Each non-returning iteration removes one endpoint, so the interval must shrink to the guaranteed solution before `left == right`.
+
+**Complexity.** Each pointer moves inward at most `n-1` times, so the trusted core is `O(n)` time and `O(1)` auxiliary space. It performs no input writes and allocates only the required two-index result. The validated boundary adds at most two linear scans and still uses constant auxiliary space. The independent evidence oracle is deliberately quadratic and shares neither the pointer rule nor its elimination proof.
+
+**Common interview errors:** returning zero-based indices; returning values instead of indices; using `left <= right` and allowing one element twice; moving the wrong pointer after a small or large sum; widening only after an overflowing `int` addition; sorting and losing original index meaning even though input is already sorted; using a map while claiming constant space; treating duplicates as automatically invalid; returning an empty array even though the official contract guarantees a pair; or claiming the pointer proof for unsorted input.
+
+**Follow-ups:** return zero-based indices under an alternate API; return every unique value pair when multiple answers are allowed; count all index pairs with duplicate runs; solve unsorted Two Sum while preserving original indices; use per-index binary search and compare its proof; support a `long` target and `long[]`; find three values in sorted input by fixing one index and applying the same two-pointer invariant; or explain why the same endpoint rule does not solve an arbitrary signed contiguous-subarray problem.
+
+Executable evidence is in `TwoSumSortedContracts.java`. It covers 20 deterministic scenario groups: all three official examples, duplicate values at distinct indices, signed values, zeroes, full-width integer boundaries, preservation, exact wrapper/core parity, malformed order, absent/multiple solutions and an independent direct-definition check. It then performs 20,000 seeded sorted-array trials with exactly one solution against a quadratic all-pairs oracle while checking one-based index validity, preservation, validated-core parity and an order-preserving affine transformation.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -5420,6 +5534,7 @@ Executable evidence is in `SingleNumberContracts.java`. It covers 20 determinist
 - [LeetCode, “Candy”](https://leetcode.com/problems/candy/) — primary positive-allocation, strict adjacent-rating, minimum-total contract, official examples and current input bounds for problem 39.
 - [LeetCode, “Missing Number”](https://leetcode.com/problems/missing-number/) — primary distinct-`[0,n]` contract, canonical examples, current input bounds and linear-time/constant-space follow-up for problem 40.
 - [LeetCode, “Single Number”](https://leetcode.com/problems/single-number/) — primary non-empty, exactly-twice-except-one contract, canonical examples, current input bounds and linear-time/constant-space requirement for problem 41.
+- [LeetCode, “Two Sum II — Input Array Is Sorted”](https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/) — primary nondecreasing, one-based-index, distinct-position, unique-solution and constant-extra-space contract, official examples and current input bounds for problem 42.
 - [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — associative, commutative integer bitwise XOR behavior used by the problem 40 and 41 cancellation implementations.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
@@ -5430,7 +5545,7 @@ Executable evidence is in `SingleNumberContracts.java`. It covers 20 determinist
 - [Java SE 17 `java.util.Map`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html) — map equality semantics and the `merge`/`getOrDefault` contracts used by the toolkit.
 - [Java SE 17 `java.util.ArrayDeque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayDeque.html) — resizable deque behavior, null prohibition, and amortized constant-time end operations.
 - [Java Language Specification, Java SE 17, Chapter 5](https://docs.oracle.com/javase/specs/jls/se17/html/jls-5.html) — boxing/unboxing and numeric-promotion rules behind object equality and cast-before-arithmetic guidance.
-- [Java Language Specification, Java SE 17, §15.18.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.18.1) — integer addition and overflow semantics; the examples promote sums to `long` before addition.
+- [Java Language Specification, Java SE 17, §15.18.2](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.18.2) — numeric addition and binary-promotion rules; problem 42 promotes an operand to `long` before forming the endpoint sum.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — `max`/`min` contracts and exact-arithmetic alternatives when overflow must raise instead of being prevented by widening.
 - [Java SE 25 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html) — the range-`fill` contract corresponding to the suffix-clear phase; the guide uses an explicit loop so assignment evidence is observable.
 - [LeetCode, “Move Zeroes”](https://leetcode.com/problems/move-zeroes/) — primary problem statement for stable in-place zero movement.
@@ -5459,7 +5574,7 @@ Executable evidence is in `SingleNumberContracts.java`. It covers 20 determinist
 - [LeetCode, “Sort Colors”](https://leetcode.com/problems/sort-colors/) — primary in-place three-color contract, no-library-sort rule, examples, value bounds and one-pass/constant-space follow-up.
 - [NIST Dictionary of Algorithms and Data Structures, “Dutch national flag”](https://xlinux.nist.gov/dads/HTML/DutchNationalFlag.html) — three-region partition description and linear move/examination complexity.
 - [Java SE 17 `java.util.HashSet`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/HashSet.html) — uniqueness, expected basic-operation cost under proper hash dispersion, and iteration-cost qualification.
-- [Java Language Specification, Java SE 17, §15.18.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.18.1) — integer addition and subtraction overflow retain low-order bits without raising an exception.
+- [Java Language Specification, Java SE 17, §15.18.2](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.18.2) — integer addition and subtraction overflow retain low-order bits without raising an exception.
 - [Java SE 17 `Math.floorMod`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#floorMod(long,int)) — canonical non-negative remainder for a positive modulus and the widened overload used by the implementation.
 - [Java SE 17 `java.util.Deque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Deque.html) — double-ended queue operations used for front expiration and tail domination removal.
 - [Java Language Specification, Java SE 17, §15.17](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17) — multiplicative operators and binary numeric promotion; the implementation widens an operand before multiplication.
@@ -5469,9 +5584,9 @@ Executable evidence is in `SingleNumberContracts.java`. It covers 20 determinist
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 41 (Single Number is lines 4187–4266; problem 42 begins at line 4267). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 41 (direct pages 91–92 contain problem 41 and page 93 begins problem 42). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 42 (Two Sum II — Sorted Input is lines 4267–4356; problem 43 begins at line 4357). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 42 (direct pages 93–94 contain problem 42 and page 95 begins problem 43). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 41, “Single Number,” is promoted from Markdown lines 4187–4266 and the DOCX companion's pages 91–92; problem 42, “Two Sum II — Sorted Input,” begins at Markdown line 4267 and DOCX page 93.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 42, “Two Sum II — Sorted Input,” is promoted from Markdown lines 4267–4356 and the DOCX companion's pages 93–94; problem 43, “Maximum Average Subarray I,” begins at Markdown line 4357 and DOCX page 95.
 
 
