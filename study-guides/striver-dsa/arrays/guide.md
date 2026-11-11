@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–43 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 44–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–44 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 45–47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first forty-three solved problems](#4-core-pattern-lab--first-forty-three-solved-problems)
+- [4. Core pattern lab — first forty-four solved problems](#4-core-pattern-lab--first-forty-four-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -72,6 +72,7 @@
   - [Example 41 — Single Number: cancel exact duplicate pairs](#example-41--single-number-cancel-exact-duplicate-pairs)
   - [Example 42 — Two Sum II: discard one impossible endpoint](#example-42--two-sum-ii-discard-one-impossible-endpoint)
   - [Example 43 — Maximum Average Subarray I: reuse the overlapping window sum](#example-43--maximum-average-subarray-i-reuse-the-overlapping-window-sum)
+  - [Example 44 — Pivot Index: derive the unseen suffix from one total](#example-44--pivot-index-derive-the-unseen-suffix-from-one-total)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -697,9 +698,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first forty-three solved problems
+## 4. Core pattern lab — first forty-four solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–43. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; 40–41 use two distinct XOR cancellation contracts; 42 returns to sorted opposite-end elimination with an exact one-based-index contract; and 43 reuses the exact sum of one fixed-length window. Problems 44–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–44. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; 40–41 use two distinct XOR cancellation contracts; 42 returns to sorted opposite-end elimination with an exact one-based-index contract; 43 reuses the exact sum of one fixed-length window; and 44 derives each unseen suffix from one total and a maintained prefix. Problems 45–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
 
 ### Pattern-lab contract
 
@@ -5638,6 +5639,117 @@ flowchart TD
 
 Executable evidence is in `MaximumAverageSubarrayContracts.java`. It covers 20 deterministic scenario groups: both official examples, all-negative values, both `k` extremes, ties, zero, first/final best windows, official magnitude bounds, full-width widened accumulation, preservation, validation failures and independent direct-window checks. It then performs 20,000 seeded trials against an `O(nk)` oracle that re-sums every candidate while checking exact best-sum agreement, preservation, average conversion, reversal invariance and the fixed-window translation relation.
 
+### Example 44 — Pivot Index: derive the unseen suffix from one total
+
+**Official contract.** Given a non-empty integer array `nums`, return the leftmost index `i` for which the sum of `nums[0..i)` equals the sum of `nums[i+1..n)`. The value at `i` belongs to neither side. An empty side has sum zero; if no pivot exists, return `-1`. Current official bounds are `1 <= nums.length <= 10,000` and `-1,000 <= nums[i] <= 1,000`. The reusable implementation below rejects null, extends empty input to `-1`, preserves the array, and accumulates in `long` so full-width `int` components remain exact.
+
+The direct definition re-sums both sides for every candidate and costs `O(n^2)`. Prefix and suffix arrays reduce the scan to `O(n)` time but spend `O(n)` auxiliary space. One total makes the suffix redundant: when `left` is the sum strictly before `i`, the sum strictly after `i` is
+
+`right = total - left - nums[i]`.
+
+Compare before adding the current value to `left`; that ordering is what excludes the pivot value from both sides.
+
+```mermaid
+flowchart TD
+    Q["left sum equals right sum"] --> T["compute total in long"]
+    T --> L["start left = 0"]
+    L --> C{"left == total - left - current?"}
+    C -->|yes| R["return this index; it is leftmost"]
+    C -->|no| A["add current to left and continue"]
+```
+
+```java
+static int pivotIndex(int[] nums) {
+    if (nums == null) {
+        throw new IllegalArgumentException("nums must be non-null");
+    }
+
+    long total = 0;
+    for (int value : nums) total += value;
+
+    long left = 0;
+    for (int i = 0; i < nums.length; i++) {
+        long right = total - left - nums[i];
+        if (left == right) return i;
+        left += nums[i];
+    }
+    return -1;
+}
+```
+
+#### Worked case 1 — exact official interior trace
+
+For `nums=[1,7,3,6,5,6]`, `total=28`. The scan tests candidates from left to right, so the first equality is automatically the required leftmost answer.
+
+| `i` | `left` before test | `nums[i]` | `right = total-left-nums[i]` | equal? |
+|---:|---:|---:|---:|:---:|
+| `0` | `0` | `1` | `27` | no |
+| `1` | `1` | `7` | `20` | no |
+| `2` | `8` | `3` | `17` | no |
+| `3` | `11` | `6` | `11` | yes |
+
+The method returns index `3`; it never needs to examine later candidates.
+
+```mermaid
+flowchart LR
+    P0["i=0: 0 vs 27"] --> P1["i=1: 1 vs 20"]
+    P1 --> P2["i=2: 8 vs 17"]
+    P2 --> P3["i=3: 11 vs 11"]
+    P3 --> R["return 3"]
+```
+
+#### Worked case 2 — either array edge can be the pivot
+
+For `nums=[2,1,-1]`, index `0` is valid because its empty left side sums to zero and `1+(-1)=0` on the right. For `nums=[1,-1,0]`, index `2` is valid because `1+(-1)=0` on the left and its empty right side sums to zero. The same formula handles both edges; no special branch is needed.
+
+```mermaid
+flowchart TD
+    E["empty side has sum 0"] --> F["[2,1,-1]: pivot 0"]
+    E --> B["[1,-1,0]: pivot 2"]
+    F --> S["same total/left formula"]
+    B --> S
+```
+
+A singleton such as `[42]` also returns `0`, because both strict sides are empty. The reusable empty-array extension returns `-1`; the official problem never supplies that input.
+
+#### Worked case 3 — multiple pivots require the first one
+
+In `[0,0,0]`, every index balances, but the required result is `0`. In `[-1,0,0,-1]`, both indices `1` and `2` balance because both strict sides sum to `-1`; the method returns `1`. Recording a pivot and continuing would risk returning the rightmost one instead.
+
+```mermaid
+flowchart TD
+    A["scan indices in increasing order"] --> B{"candidate balances?"}
+    B -->|yes| C["return immediately"]
+    B -->|no| D["move current value into left"]
+    D --> B
+```
+
+Negative totals do not change the equality test. There is no monotonicity assumption and no need for non-negative inputs.
+
+#### Worked case 4 — widen before accumulating
+
+For reusable input `[Integer.MAX_VALUE,0,Integer.MAX_VALUE]`, the mathematical total is `4,294,967,294`, and index `1` balances two sides of `2,147,483,647`. An `int total` wraps to `-2`; that can manufacture or destroy equality on other inputs. Because `total` and `left` are `long`, Java promotes the subtraction in `total - left - nums[i]` before it occurs.
+
+```mermaid
+flowchart TD
+    V["2,147,483,647 + 0 + 2,147,483,647"] --> W["long total = 4,294,967,294"]
+    W --> E["i=1: left = right = 2,147,483,647"]
+    V --> X["int total wraps to -2"]
+    X --> U["unreliable balance tests"]
+```
+
+The official bounds fit comfortably in `int`, but widening costs no extra asymptotic space and makes the method reusable across all Java `int` components.
+
+**Invariant and proof.** Before testing index `i`, `total` equals the sum of the entire array and `left` equals exactly the sum of indices `[0,i)`. Therefore subtracting `left` and `nums[i]` from `total` leaves exactly the sum of indices `(i,n)`, so the equality test is true exactly when `i` is a pivot. If it is false, adding `nums[i]` makes `left` equal the sum of `[0,i+1)`, preserving the invariant for the next iteration. The loop tests indices in increasing order and returns immediately, so any returned pivot is the leftmost one. If the loop finishes, every index has failed the defining equality, so `-1` is correct.
+
+**Complexity.** The total pass and candidate pass each read the array once, for `O(n)` time and `O(1)` auxiliary space. The method performs no writes to `nums`. For a Java array of `int` components, a `long` is sufficient for every possible full-array sum because even the maximum practical array length times an `int` magnitude remains within the `long` range.
+
+**Common interview errors:** including the pivot value on one side; updating `left` before the equality test; returning any pivot instead of the leftmost; special-casing edges and introducing off-by-one bugs; rebuilding the suffix sum at every index; allocating two arrays when one total is enough; assuming values are non-negative; computing `2*left + nums[i]` in `int`; using an `int total` in a reusable API; mutating input while claiming preservation; or returning `0` instead of `-1` when no pivot exists.
+
+**Follow-ups:** return every pivot; return the rightmost pivot; expose both side sums with the index; answer pivot queries after point updates with a Fenwick tree or segment tree; find a split boundary where the sum before the boundary equals the sum after it; generalize to weighted values; or compare the leftmost result with LeetCode 1991, which has the same balance definition under a different title.
+
+Executable evidence is in `PivotIndexContracts.java`. It covers 20 deterministic scenario groups: all three official examples, both edges, singleton and reusable-empty inputs, multiple pivots, negative values, no answer, full-width accumulation, maximum official length, preservation, null rejection and independent definition checks. It then performs 20,000 seeded trials against an `O(n^2)` oracle that re-sums both sides while checking exact leftmost agreement, preservation, positive-scaling invariance, negation invariance and the reversal relation between the original rightmost pivot and the reversed leftmost pivot.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -5665,6 +5777,7 @@ Executable evidence is in `MaximumAverageSubarrayContracts.java`. It covers 20 d
 - [LeetCode, “Single Number”](https://leetcode.com/problems/single-number/) — primary non-empty, exactly-twice-except-one contract, canonical examples, current input bounds and linear-time/constant-space requirement for problem 41.
 - [LeetCode, “Two Sum II — Input Array Is Sorted”](https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/) — primary nondecreasing, one-based-index, distinct-position, unique-solution and constant-extra-space contract, official examples and current input bounds for problem 42.
 - [LeetCode, “Maximum Average Subarray I”](https://leetcode.com/problems/maximum-average-subarray-i/) — primary exact-`k` contiguous-window, maximum-average result, accepted-error tolerance, official examples and current input bounds for problem 43.
+- [LeetCode, “Find Pivot Index”](https://leetcode.com/problems/find-pivot-index/) — primary strict-left/strict-right balance definition, leftmost-result rule, empty-edge semantics, official examples and current input bounds for problem 44.
 - [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — associative, commutative integer bitwise XOR behavior used by the problem 40 and 41 cancellation implementations.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
@@ -5675,7 +5788,7 @@ Executable evidence is in `MaximumAverageSubarrayContracts.java`. It covers 20 d
 - [Java SE 17 `java.util.Map`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html) — map equality semantics and the `merge`/`getOrDefault` contracts used by the toolkit.
 - [Java SE 17 `java.util.ArrayDeque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayDeque.html) — resizable deque behavior, null prohibition, and amortized constant-time end operations.
 - [Java Language Specification, Java SE 17, Chapter 5](https://docs.oracle.com/javase/specs/jls/se17/html/jls-5.html) — boxing/unboxing and numeric-promotion rules behind object equality and cast-before-arithmetic guidance.
-- [Java Language Specification, Java SE 17, §15.18.2](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.18.2) — numeric addition and binary-promotion rules; problem 42 promotes an operand to `long` before forming the endpoint sum.
+- [Java Language Specification, Java SE 25, §15.18.2](https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.18.2) — numeric addition/subtraction and binary-promotion rules; problems 42 and 44 retain a `long` operand so endpoint and balance arithmetic is performed at 64-bit precision.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — `max`/`min` contracts and exact-arithmetic alternatives when overflow must raise instead of being prevented by widening.
 - [Java SE 25 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html) — the range-`fill` contract corresponding to the suffix-clear phase; the guide uses an explicit loop so assignment evidence is observable.
 - [LeetCode, “Move Zeroes”](https://leetcode.com/problems/move-zeroes/) — primary problem statement for stable in-place zero movement.
@@ -5714,9 +5827,9 @@ Executable evidence is in `MaximumAverageSubarrayContracts.java`. It covers 20 d
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 43 (Maximum Average Subarray I is lines 4357–4441; problem 44 begins at line 4442). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 43 (direct pages 95–96 contain problem 43 and page 97 begins problem 44). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 44 (Pivot Index is lines 4442–4529; problem 45 begins at line 4530). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 44 (direct pages 97–98 contain problem 44 and page 99 begins problem 45). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 43, “Maximum Average Subarray I,” is promoted from Markdown lines 4357–4441 and the DOCX companion's pages 95–96; problem 44, “Pivot Index,” begins at Markdown line 4442 and DOCX page 97.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 44, “Pivot Index,” is promoted from Markdown lines 4442–4529 and the DOCX companion's pages 97–98; problem 45, “Maximum Consecutive Ones III,” begins at Markdown line 4530 and DOCX page 99.
 
 
