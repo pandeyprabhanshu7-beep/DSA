@@ -59,6 +59,7 @@ java -ea study-guides/striver-dsa/arrays/PrefixXorContracts.java
 java -ea study-guides/striver-dsa/arrays/CoordinateCompressionContracts.java
 java -ea study-guides/striver-dsa/arrays/LinearScanStateTrackingContracts.java
 java -ea study-guides/striver-dsa/arrays/TwoPointerPatternContracts.java
+java -ea study-guides/striver-dsa/arrays/SlidingWindowPatternContracts.java
 ```
 
 Rebuild the reader:
@@ -67,6 +68,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Two pointers are promoted. Later source material remains queued from Section 16 Fixed / variable sliding window.
+This is an incremental guide. Source Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Fixed / variable sliding window are promoted. Later source material remains queued from Section 16 Prefix / suffix / hash.
 
 

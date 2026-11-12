@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Two pointers are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Fixed / variable sliding window are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
 
 ## Study index
 
@@ -85,6 +85,7 @@
 - [16. Question bank by pattern](#16-question-bank-by-pattern)
   - [Linear scan / state tracking — compress the processed prefix](#linear-scan--state-tracking--compress-the-processed-prefix)
   - [Two pointers — move only after proving what the move discards](#two-pointers--move-only-after-proving-what-the-move-discards)
+  - [Fixed / variable sliding window — reuse one contiguous range](#fixed--variable-sliding-window--reuse-one-contiguous-range)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -7322,11 +7323,226 @@ Two pointers and sliding windows overlap mechanically but not logically. Opposit
 
 Executable evidence is in `TwoPointerPatternContracts.java`. It supplies 20 deterministic groups across the official examples, duplicate-heavy inputs, empty/singleton extensions, full-width arithmetic, mutation/preservation boundaries, malformed sorted input and null rejection. It then runs 20,000 seeded trials against four independent references: cubic triplet enumeration with set deduplication, stable extra-array zero compaction, a separate unique-prefix builder, and square-then-sort output. The trials perform 100,000 checks, including caller-input preservation for clone/output-producing methods.
 
+### Fixed / variable sliding window — reuse one contiguous range
+
+A sliding window is a contiguous interval `[left,right]` whose state is updated when either boundary moves. The pattern is useful only when the state can be repaired incrementally: adding the new right endpoint, removing expired left endpoints, and—when necessary—shrinking until a feasibility invariant is restored. The proof is not “two pointers move.” It is that the window state exactly describes the current interval and that discarded left endpoints cannot lead to a better answer for the current or any later right endpoint.
+
+> **Window certificate:** name the interval, the state derived from exactly that interval, the condition that makes it valid, and the monotonic fact that makes shrinking safe. If removing an item can make the predicate worse in an unpredictable way, a plain expand/shrink window is not justified.
+
+The eleven source drills fall into four mechanisms. Several already have complete cards earlier in this guide; this section connects them rather than duplicating those solutions.
+
+| Source drill | Mechanism | Maintained state / key condition |
+|---|---|---|
+| Maximum Average Subarray I | fixed width | sum of exactly `k` values; compare sums before dividing |
+| Grumpy Bookstore Owner | fixed width | baseline satisfied customers plus gain in one `minutes` interval |
+| Maximum Points You Can Obtain from Cards | fixed-width complement | keep the minimum middle window of length `n-k`, or slide the split between chosen ends |
+| Minimum Size Subarray Sum | variable, monotone positive sum | positive values make removing from the left decrease the sum; shrink while `sum >= target` |
+| Subarray Product Less Than K | variable, monotone positive product | positive factors and the `k <= 1` boundary make multiply/divide repair valid |
+| Max Consecutive Ones III | variable budget | zero count must remain at most `k` |
+| Fruit Into Baskets | variable frequency budget | frequency map must contain at most two live keys |
+| Subarrays with K Different Integers | counted frequency windows | `exactly(k) = atMost(k) - atMost(k-1)`; add all starts in a valid window |
+| Frequency of the Most Frequent Element | sorted cost window | after sorting, cost to raise the window to its rightmost value must fit `k` |
+| Longest Continuous Subarray With Absolute Diff <= Limit | two monotonic deques | `windowMax - windowMin <= limit`; expire indices from both deques |
+| Sliding Window Maximum | one monotonic deque | deque front is the maximum; remove expired and dominated indices |
+
+```mermaid
+flowchart TD
+    A[Contiguous candidates] --> B{Width predetermined?}
+    B -->|yes| C[Fixed running state]
+    B -->|no| D{Feasibility monotone?}
+    D -->|sum or budget| E[Expand then repair]
+    D -->|needs min or max| F[Indexed monotonic deque]
+    D -->|no| G[Use prefix state or another pattern]
+```
+
+The representative Java methods preserve every caller array. They deliberately separate requirements: the fixed sum accepts signed values; the minimum-length method requires strictly positive values; the frequency method accepts arbitrary integer labels; and the extrema method stores indices so expiration is unambiguous. Sums widen before arithmetic.
+
+```java
+static long maximumFixedWindowSum(int[] values, int k) {
+    requireArray(values);
+    requireWindow(values.length, k);
+    long window = 0;
+    for (int i = 0; i < k; i++) window += values[i];
+    long best = window;
+    for (int right = k; right < values.length; right++) {
+        window += (long) values[right] - values[right - k];
+        best = Math.max(best, window);
+    }
+    return best;
+}
+
+static int minimumSizeAtLeast(long target, int[] positive) {
+    requireArray(positive);
+    if (target <= 0) throw new IllegalArgumentException("target must be positive");
+    for (int value : positive) {
+        if (value <= 0) throw new IllegalArgumentException("values must be positive");
+    }
+    long sum = 0;
+    int left = 0, best = Integer.MAX_VALUE;
+    for (int right = 0; right < positive.length; right++) {
+        sum += positive[right];
+        while (sum >= target) {
+            best = Math.min(best, right - left + 1);
+            sum -= positive[left++];
+        }
+    }
+    return best == Integer.MAX_VALUE ? 0 : best;
+}
+
+static int longestAtMostKDistinct(int[] values, int k) {
+    requireArray(values);
+    if (k < 0) throw new IllegalArgumentException("k must be nonnegative");
+    Map<Integer,Integer> frequencies = new HashMap<>();
+    int left = 0, best = 0;
+    for (int right = 0; right < values.length; right++) {
+        frequencies.merge(values[right], 1, Integer::sum);
+        while (frequencies.size() > k) {
+            int outgoing = values[left++];
+            int remaining = frequencies.get(outgoing) - 1;
+            if (remaining == 0) frequencies.remove(outgoing);
+            else frequencies.put(outgoing, remaining);
+        }
+        best = Math.max(best, right - left + 1);
+    }
+    return best;
+}
+
+static int[] maximumEveryWindow(int[] values, int k) {
+    requireArray(values);
+    requireWindow(values.length, k);
+    int[] answer = new int[values.length - k + 1];
+    Deque<Integer> deque = new ArrayDeque<>();
+    for (int right = 0; right < values.length; right++) {
+        while (!deque.isEmpty() && deque.peekFirst() <= right - k) deque.removeFirst();
+        while (!deque.isEmpty() && values[deque.peekLast()] <= values[right]) deque.removeLast();
+        deque.addLast(right);
+        if (right >= k - 1) answer[right - k + 1] = values[deque.peekFirst()];
+    }
+    return answer;
+}
+```
+
+#### Worked case 1 — fixed width replaces one endpoint at a time
+
+For `values=[1,12,-5,-6,50,3]` and `k=4`, every candidate has the same denominator, so maximizing the average is identical to maximizing the widened sum.
+
+| window indices | outgoing | incoming | window sum | best sum |
+|---|---:|---:|---:|---:|
+| `[0,3]` | — | — | `2` | `2` |
+| `[1,4]` | `1` | `50` | `51` | `51` |
+| `[2,5]` | `12` | `3` | `42` | `51` |
+
+The answer is `51 / 4.0 = 12.75`. Initializing `best` to zero would fail for an all-negative array such as `[-8,-3,-6]`, where the best length-two sum is `-9`. `(long) values[right] - values[right-k]` widens before subtraction, so replacing `Integer.MIN_VALUE` with `Integer.MAX_VALUE` cannot overflow before reaching the `long` accumulator.
+
+```mermaid
+flowchart LR
+    A[Initial k values] --> B[Record aggregate]
+    B --> C[Subtract expired left]
+    C --> D[Add new right]
+    D --> B
+```
+
+**Invariant and proof.** Before comparison, `window` is the exact sum of the `k` components ending at `right`. Subtracting the unique expired component and adding the unique entering component establishes that invariant for the next window. Every length-`k` subarray appears once, so the maximum recorded sum is correct. Time is `O(n)`, auxiliary space is `O(1)`, and input is preserved.
+
+#### Worked case 2 — positive values make minimum-length repair monotone
+
+For `target=7` and `[2,3,1,2,4,3]`, expand right once per element. After each expansion, shrink repeatedly while the sum still meets the target; the last valid window before failure is the shortest one ending at that right endpoint.
+
+| right / value | sum after add | successful removals from left | best length | state after repair |
+|---:|---:|---|---:|---|
+| 0 / 2 | 2 | none | — | `[0,0]`, sum 2 |
+| 1 / 3 | 5 | none | — | `[0,1]`, sum 5 |
+| 2 / 1 | 6 | none | — | `[0,2]`, sum 6 |
+| 3 / 2 | 8 | remove 2; candidate length 4 | 4 | `[1,3]`, sum 6 |
+| 4 / 4 | 10 | remove 3, then 1; lengths 4 and 3 | 3 | `[3,4]`, sum 6 |
+| 5 / 3 | 9 | remove 2, then 4; lengths 3 and 2 | 2 | `[5,5]`, sum 3 |
+
+The answer is `2`, from `[4,3]`. An empty input or an unreachable target returns `0`. The positivity requirement is essential: with signed input `[5,-10,10]` and target `10`, discarding the leading `5` after an earlier decision can interact with the later negative value, so the simple monotone repair proof no longer holds. Use prefix sums plus an ordered or monotonic structure for signed variants such as Shortest Subarray with Sum at Least K.
+
+```mermaid
+flowchart TD
+    A[Add right value] --> B{sum >= target?}
+    B -->|no| C[Advance right]
+    B -->|yes| D[Record length]
+    D --> E[Subtract left; left++]
+    E --> B
+```
+
+**Invariant and proof.** After repair for a right endpoint, `sum` equals exactly `[left,right]` and is below target; every smaller left index was already recorded as a valid candidate. Because all values are positive, moving left rightward strictly decreases the sum. Therefore, when the loop first becomes invalid, the immediately preceding window was the shortest valid window ending at `right`. Taking the minimum across all right endpoints is globally correct. Each endpoint advances at most `n` times, so time is `O(n)` and space is `O(1)`.
+
+#### Worked case 3 — frequency state must describe only live members
+
+Fruit Into Baskets is the reusable “at most two distinct values” contract. For `[1,2,3,2,2]`, zero-count keys must be removed; a key with count zero is not a live type.
+
+| right / value | map after add | repair | valid window | best |
+|---:|---|---|---|---:|
+| 0 / 1 | `{1:1}` | none | `[1]` | 1 |
+| 1 / 2 | `{1:1,2:1}` | none | `[1,2]` | 2 |
+| 2 / 3 | `{1:1,2:1,3:1}` | remove index 0 and delete key 1 | `[2,3]` | 2 |
+| 3 / 2 | `{2:2,3:1}` | none | `[2,3,2]` | 3 |
+| 4 / 2 | `{2:3,3:1}` | none | `[2,3,2,2]` | 4 |
+
+```mermaid
+flowchart LR
+    A[Add right label] --> B[Increment frequency]
+    B --> C{live keys > k?}
+    C -->|yes| D[Decrement left label]
+    D --> E{count zero?}
+    E -->|yes| F[Remove key]
+    E -->|no| C
+    F --> C
+```
+
+**Invariant and proof.** The map stores exactly the positive frequencies of values in `[left,right]`. Repair removes the oldest members until the map has at most `k` keys. At that point, any interval ending at `right` that starts before `left` is invalid, while every suffix starting at or after `left` is valid. Thus `[left,right]` is the longest valid interval ending at `right`; maximizing its length is correct. Expected time is `O(n)` with a hash map and space is `O(min(n,number of labels))`.
+
+For counting rather than maximizing, a valid at-most-`k` window ending at `right` contributes `right-left+1` valid starts. Exactly `k` distinct is not obtained by keeping exactly `k` in one window: subtract the two counts `atMost(k) - atMost(k-1)`. That difference assigns each subarray to exactly one distinct-count bucket.
+
+#### Worked case 4 — a monotonic deque retains only possible maxima
+
+For `values=[1,3,-1,-3,5,3,6,7]` and `k=3`, the deque stores indices in increasing order while their values decrease from front to back. An incoming value removes smaller or equal tails because it is newer and at least as large; an expired front is removed by index.
+
+| right / value | expiration | dominated tails removed | deque indices (values) | emitted maximum |
+|---:|---|---|---|---:|
+| 0 / 1 | none | none | `[0] (1)` | — |
+| 1 / 3 | none | 0 | `[1] (3)` | — |
+| 2 / -1 | none | none | `[1,2] (3,-1)` | 3 |
+| 3 / -3 | none | none | `[1,2,3] (3,-1,-3)` | 3 |
+| 4 / 5 | expire 1 | 3, 2 | `[4] (5)` | 5 |
+| 5 / 3 | none | none | `[4,5] (5,3)` | 5 |
+| 6 / 6 | none | 5, 4 | `[6] (6)` | 6 |
+| 7 / 7 | none | 6 | `[7] (7)` | 7 |
+
+The output is `[3,3,5,5,6,7]`. Store indices, not only values: the expiration rule is about membership, and duplicate values may leave at different times.
+
+```mermaid
+flowchart TD
+    A[New right index] --> B[Expire front outside window]
+    B --> C[Remove tails no larger than incoming]
+    C --> D[Append incoming index]
+    D --> E{full window?}
+    E -->|yes| F[Emit value at front]
+```
+
+**Invariant and proof.** Deque indices are live and increasing; their values are strictly decreasing after equal tails are replaced. Every removed tail is dominated by the incoming value for all future windows containing both: it is older and no larger. Any value absent from the deque is either expired or dominated. Therefore, the live deque front is the current maximum. Each index enters once and leaves at most once from each end, giving `O(n)` time, `O(k)` auxiliary space, and `O(n-k+1)` output.
+
+**When the window pattern does not fit:** the candidate is not contiguous; the predicate cannot be repaired monotonically; signed values invalidate a sum/product monotonicity assumption; future data can make an already-discarded left endpoint preferable; the desired state cannot support both add and remove; or sorting changes the required original order. Exact signed sums usually need prefix frequencies, shortest signed thresholds need prefix sums plus a monotonic deque, and arbitrary order statistics may need a balanced multiset or heaps with deletion bookkeeping.
+
+**Common interview errors:** recomputing every window from scratch; dividing averages before comparing and introducing avoidable floating-point work; seeding an all-negative maximum with zero; accepting `k=0` or `k>n`; shrinking a positive-sum window only once instead of repeatedly; using the same proof when zeros or negatives are allowed; forgetting to delete zero-count frequency keys; confusing “at most” with “exactly”; counting only one subarray per valid right endpoint; using values instead of indices in a deque; expiring after reading the answer; removing larger deque tails rather than smaller ones; adding `int` values before widening; mutating a caller array despite a preservation contract; or calling a two-end search over sorted candidates a sliding window when it does not maintain a contiguous feasibility state.
+
+**Further follow-ups:** derive Maximum Points from Cards as the complement of a minimum fixed window; compute Grumpy Bookstore gain over its baseline; handle product thresholds `k<=1`; implement exactly-`k` distinct by two at-most counters in one pass; track both a decreasing max deque and increasing min deque for an absolute-difference limit; explain why Frequency of the Most Frequent Element sorts before applying its cost formula; return window boundaries with deterministic ties; stream fixed windows when the input cannot be stored; and compare deque maxima with a heap that performs lazy expiration.
+
+Executable evidence is in `SlidingWindowPatternContracts.java`. It supplies 20 deterministic groups across the official examples, negative fixed sums, empty and singleton extensions, duplicate labels, full-width accumulation, invalid contracts and input preservation. It then runs 20,000 seeded trials against four independent quadratic references—fresh fixed-window summation, all positive-sum starts, all distinct-budget starts and scan-each-window maxima. The trials perform 100,000 oracle or preservation checks.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
 - [Java Language Specification, Java SE 17, Chapter 4: Types, Values, and Variables](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — primitive values versus reference values and array reference semantics.
 - [Java SE 17 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Arrays.html) — copying, filling, comparison, sorting, and searching utilities.
+- [Java SE 25 `ArrayDeque`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayDeque.html) — resizable deque semantics and amortized constant-time end operations used by monotonic-window state.
+- [LeetCode, “Maximum Average Subarray I”](https://leetcode.com/problems/maximum-average-subarray-i/) — primary exact-width, maximum-average, examples and bounds contract for the fixed-window drill.
+- [LeetCode, “Minimum Size Subarray Sum”](https://leetcode.com/problems/minimum-size-subarray-sum/) — primary positive-input, minimum-length threshold contract and linear-time follow-up.
+- [LeetCode, “Fruit Into Baskets”](https://leetcode.com/problems/fruit-into-baskets/) — primary contiguous collection and at-most-two-types contract for a frequency-budget window.
+- [LeetCode, “Sliding Window Maximum”](https://leetcode.com/problems/sliding-window-maximum/) — primary exact-width per-window maximum contract for indexed monotonic-deque state.
 - [LeetCode, “Find First and Last Position of Element in Sorted Array”](https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/) — primary sorted-input, absent-result, example and logarithmic-time contract for problem 25.
 - [LeetCode, “Koko Eating Bananas”](https://leetcode.com/problems/koko-eating-bananas/) — primary pile/hour model, minimum-speed result, examples and feasible input bounds for problem 26.
 - [LeetCode, “Split Array Largest Sum”](https://leetcode.com/problems/split-array-largest-sum/) — primary exact-`k`, non-empty contiguous-subarray, minimized-largest-sum contract, examples and non-negative input bounds for problem 27.
