@@ -50,6 +50,7 @@ java -ea study-guides/striver-dsa/arrays/TwoSumSortedContracts.java
 java -ea study-guides/striver-dsa/arrays/MaximumAverageSubarrayContracts.java
 java -ea study-guides/striver-dsa/arrays/PivotIndexContracts.java
 java -ea study-guides/striver-dsa/arrays/MaximumConsecutiveOnesIIIContracts.java
+java -ea study-guides/striver-dsa/arrays/FindMinimumRotatedContracts.java
 ```
 
 Rebuild the reader:
@@ -58,6 +59,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–45 are promoted. Section 4 problems 46–47 and later source material remain queued.
+This is an incremental guide. Source Sections 1–3 and Section 4 problems 1–46 are promoted. Section 4 problem 47 and later source material remain queued.
 
 

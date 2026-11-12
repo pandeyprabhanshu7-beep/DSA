@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–45 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problems 46–47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and Section 4 problems 1–46 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problem 47 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first forty-five solved problems](#4-core-pattern-lab--first-forty-five-solved-problems)
+- [4. Core pattern lab — first forty-six solved problems](#4-core-pattern-lab--first-forty-six-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -74,6 +74,7 @@
   - [Example 43 — Maximum Average Subarray I: reuse the overlapping window sum](#example-43--maximum-average-subarray-i-reuse-the-overlapping-window-sum)
   - [Example 44 — Pivot Index: derive the unseen suffix from one total](#example-44--pivot-index-derive-the-unseen-suffix-from-one-total)
   - [Example 45 — Maximum Consecutive Ones III: repair an at-most-K budget window](#example-45--maximum-consecutive-ones-iii-repair-an-at-most-k-budget-window)
+  - [Example 46 — Find Minimum in Rotated Sorted Array: keep the possible pivot](#example-46--find-minimum-in-rotated-sorted-array-keep-the-possible-pivot)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -699,9 +700,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first forty-five solved problems
+## 4. Core pattern lab — first forty-six solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–45. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; 40–41 use two distinct XOR cancellation contracts; 42 returns to sorted opposite-end elimination with an exact one-based-index contract; 43 reuses the exact sum of one fixed-length window; 44 derives each unseen suffix from one total and a maintained prefix; and 45 maintains a variable window whose zero count consumes an at-most-`k` budget. Problems 46–47 remain explicit backlog; this guide does not imply they were reviewed merely because they share the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–46. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; 40–41 use two distinct XOR cancellation contracts; 42 returns to sorted opposite-end elimination with an exact one-based-index contract; 43 reuses the exact sum of one fixed-length window; 44 derives each unseen suffix from one total and a maintained prefix; 45 maintains a variable window whose zero count consumes an at-most-`k` budget; and 46 binary-searches the unique rotation pivot while retaining `middle` whenever it may already be the answer. Problem 47 remains explicit backlog; this guide does not imply it was reviewed merely because it shares the source heading.
 
 ### Pattern-lab contract
 
@@ -5878,6 +5879,122 @@ The invariant is preserved because adding `nums[right]` changes the count by exa
 
 Executable evidence is in `MaximumConsecutiveOnesIIIContracts.java`. It covers 20 deterministic scenario groups: both official examples, zero and oversized budgets, all-zero/all-one/singleton/empty shapes, alternating and suffix optima, preservation, wrapper/core parity, oracle parity and invalid-input rejection. It then performs 20,000 seeded binary-array trials against an independent quadratic oracle while checking exact agreement, preservation, reversal invariance, monotonicity under a larger budget and equivalence after clamping `k` to the array's zero count.
 
+### Example 46 — Find Minimum in Rotated Sorted Array: keep the possible pivot
+
+**Official contract.** Given `nums`, a non-empty array of unique integers that was strictly increasing before a rotation, return its minimum value in `O(log n)` time. Rotating by the full length is allowed, so an already increasing array is valid. Current official bounds are `1 <= nums.length <= 5,000` and `-5,000 <= nums[i] <= 5,000`. The algorithm does not mutate `nums`.
+
+The linear baseline scans every component and retains the smallest value in `O(n)` time. To reach the required logarithmic bound, retain a closed candidate interval `[left,right]` that always contains the unique minimum. Compare `nums[middle]` with the **current right boundary**, not with a stale original endpoint:
+
+- If `nums[middle] > nums[right]`, the rotation drop must be strictly to the right of `middle`, so discard `[left,middle]` with `left=middle+1`.
+- Otherwise, `middle` is the minimum or lies in the increasing run that begins at the minimum, so retain `middle` with `right=middle`.
+
+```mermaid
+flowchart TD
+    A["candidate interval [left,right]"] --> B["middle = left + (right-left)/2"]
+    B --> C{"nums[middle] > nums[right]?"}
+    C -->|yes| D["minimum is in [middle+1,right]"]
+    C -->|no| E["minimum is in [left,middle]"]
+    D --> F{"left == right?"}
+    E --> F
+    F -->|no| B
+    F -->|yes| G["return nums[left]"]
+```
+
+```java
+static int findMinCore(int[] nums) {
+    int left = 0;
+    int right = nums.length - 1;
+    while (left < right) {
+        int middle = left + (right - left) / 2;
+        if (nums[middle] > nums[right]) left = middle + 1;
+        else right = middle;
+    }
+    return nums[left];
+}
+```
+
+The official contract supplies non-null, non-empty, unique, rotated-increasing input, so this core is `O(log n)` time and `O(1)` auxiliary space. A reusable API may validate the shape first, but that validation is necessarily a separate `O(n)` pass. `FindMinimumRotatedContracts.java` demonstrates both layers: it rejects null, empty, duplicates, multiple descents and a false wrap boundary before calling the unchanged logarithmic core.
+
+#### Worked case 1 — first official example and exact trace
+
+For `nums=[3,4,5,1,2]`, the minimum is the rotation pivot value `1`.
+
+| step | `left` | `middle` | `right` | compared values | retained interval |
+|---:|---:|---:|---:|---|---|
+| 1 | `0` | `2` | `4` | `5 > 2` | `[3,4]` |
+| 2 | `3` | `3` | `4` | `1 <= 2` | `[3,3]` |
+
+The second branch uses `right=middle`, not `middle-1`: index `3` may itself be the answer and must remain.
+
+```mermaid
+flowchart LR
+    A["[3,4,5,1,2]"] --> B["middle 5 > right 2"]
+    B --> C["keep indices 3..4"]
+    C --> D["middle 1 <= right 2"]
+    D --> E["converge at index 3: value 1"]
+```
+
+#### Worked case 2 — pivot after a longer high run
+
+For `nums=[4,5,6,7,0,1,2]`, first compare `7` with `2`; the minimum is strictly right of index `3`. In `[0,1,2]`, comparing `1` with `2` keeps the left half, and comparing `0` with `1` keeps the pivot. The result is `0`.
+
+```mermaid
+flowchart TD
+    A["[4,5,6,7,0,1,2]"] --> B["7 > 2: discard through 7"]
+    B --> C["[0,1,2]"]
+    C --> D["1 <= 2: keep [0,1]"]
+    D --> E["0 <= 1: keep 0"]
+```
+
+The comparison works because a distinct rotated array consists of at most two strictly increasing runs. If the midpoint value is greater than the rightmost candidate value, both lie on opposite runs and the pivot is between them. Otherwise the midpoint lies on the low run (or the interval is already one increasing run), so the pivot cannot be to its right.
+
+#### Worked case 3 — already increasing and singleton inputs
+
+`[11,13,15,17]` is valid because rotating by `n` positions restores the original array. Every midpoint is at most the current right value, so `right` repeatedly moves left and returns `11`. A singleton such as `[-7]` skips the loop and returns `-7`.
+
+| input | first comparison | result |
+|---|---|---:|
+| `[11,13,15,17]` | `13 <= 17`, keep `[0,1]` | `11` |
+| `[1,9]` | `1 <= 9`, keep index `0` | `1` |
+| `[9,1]` | `9 > 1`, keep index `1` | `1` |
+| `[-7]` | none | `-7` |
+
+```mermaid
+flowchart LR
+    U["unrotated increasing input"] --> L["each middle <= current right"]
+    L --> F["right moves to middle"]
+    F --> M["first value is minimum"]
+    S["singleton"] --> M2["left equals right immediately"]
+```
+
+#### Worked case 4 — negative values, full-width integers and validation boundaries
+
+The core compares values but never adds them, so full-width integers are safe: `[0,2147483647,-2147483648,-1]` returns `-2147483648`. Negative values do not alter the ordering argument; `[-4,-2,-10,-8]` returns `-10`.
+
+The reusable validator recognizes a strict rotation by allowing at most one adjacent descent. If there is one descent, the final value must be smaller than the first; this rejects `[3,5,1,4]`, whose two increasing runs cannot be joined into one strictly increasing circular order. It also rejects empty input and duplicates. Those checks document an extended API contract, but they are not part of the official `O(log n)` challenge.
+
+```mermaid
+flowchart TD
+    A["reusable boundary"] --> B{"non-null and non-empty?"}
+    B -->|no| X["reject"]
+    B -->|yes| C["scan adjacent pairs"]
+    C --> D{"unique; at most one descent; valid wrap?"}
+    D -->|no| X
+    D -->|yes| E["call O(log n) trusted core"]
+```
+
+**Candidate-interval invariant and proof.** Initially `[0,n-1]` contains the unique minimum. Assume `[left,right]` contains it and `left<right`. If `nums[middle] > nums[right]`, `middle` cannot be the minimum and the unique rotation drop lies after it, so `[middle+1,right]` still contains the minimum. Otherwise `nums[middle] <= nums[right]`; uniqueness makes equality possible only when `middle==right`, which cannot occur while `left<right`. Thus `middle` and `right` lie in one increasing low run, or the whole candidate interval is increasing, and the minimum lies in `[left,middle]`. Both updates preserve the invariant and strictly shorten the interval. Termination at one index therefore identifies the minimum.
+
+Each iteration removes at least half of the remaining candidate positions up to rounding, so the core performs at most `ceil(log2 n)` midpoint inspections, takes `O(log n)` time, uses `O(1)` auxiliary space and performs no writes. The optional validator is `O(n)` time and `O(1)` space. The independent evidence oracle is also linear and exists only to test the logarithmic core.
+
+**Common interview errors:** scanning despite the logarithmic requirement; comparing with `nums[0]` without a matching invariant; using `right=middle-1` and discarding a possible minimum; using `left=middle` and failing to shrink a two-element interval; looping on `left<=right` without a compatible return rule; calculating `(left+right)/2` in overflow-prone generic code; returning the pivot index instead of its value; assuming the array must be visibly rotated; treating duplicates as if the comparison remained decisive; claiming the validation wrapper is logarithmic; sorting or mutating the input; or forgetting that empty input has no minimum.
+
+**Duplicate follow-up.** For the separate variant that permits duplicates, `nums[middle] == nums[right]` does not reveal which side contains the pivot. Decrementing `right` preserves correctness, but an all-equal array may discard only one position per iteration, so the worst case becomes `O(n)`. That behavior is not silently mixed into this unique-values contract.
+
+**Further follow-ups:** return the pivot index; search for a target after finding the pivot; find the maximum or rotation count; explain how the same boundary rule behaves under two elements; expose midpoint-inspection telemetry; validate a streamed input with one-descent state; compare this rule with problem 24's target search; or prove why the minimum partitions the circular order into two increasing runs.
+
+Executable evidence is in `FindMinimumRotatedContracts.java`. It covers 20 deterministic scenario groups: all three official examples, singleton and two-element shapes, pivots at both edges, negative and full-width values, preservation, core/wrapper/oracle parity, the inspection bound and invalid-input rejection. It then generates 20,000 seeded strictly increasing arrays, rotates each at a random pivot and checks the result against an independent linear minimum oracle while also checking preservation, wrapper/core parity, instrumented-core parity and the `ceil(log2 n)` inspection bound.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -5907,6 +6024,8 @@ Executable evidence is in `MaximumConsecutiveOnesIIIContracts.java`. It covers 2
 - [LeetCode, “Maximum Average Subarray I”](https://leetcode.com/problems/maximum-average-subarray-i/) — primary exact-`k` contiguous-window, maximum-average result, accepted-error tolerance, official examples and current input bounds for problem 43.
 - [LeetCode, “Find Pivot Index”](https://leetcode.com/problems/find-pivot-index/) — primary strict-left/strict-right balance definition, leftmost-result rule, empty-edge semantics, official examples and current input bounds for problem 44.
 - [LeetCode, “Max Consecutive Ones III”](https://leetcode.com/problems/max-consecutive-ones-iii/) — primary binary-array, at-most-`k` flip contract, both official examples, sliding-window hints and current input bounds for problem 45.
+- [LeetCode, “Find Minimum in Rotated Sorted Array”](https://leetcode.com/problems/find-minimum-in-rotated-sorted-array/) — primary unique-value rotated-array contract, all three official examples, current input bounds and required logarithmic runtime for problem 46.
+- [LeetCode, “Find Minimum in Rotated Sorted Array II”](https://leetcode.com/problems/find-minimum-in-rotated-sorted-array-ii/) — primary duplicate-permitting follow-up and its explicit worst-case-complexity question.
 - [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — associative, commutative integer bitwise XOR behavior used by the problem 40 and 41 cancellation implementations.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
@@ -5956,9 +6075,9 @@ Executable evidence is in `MaximumConsecutiveOnesIIIContracts.java`. It covers 2
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 45 (Maximum Consecutive Ones III is lines 4530–4618; problem 46 begins at line 4619). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 45 (direct pages 99–100 contain problem 45 and page 101 begins problem 46). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 46 (Find Minimum in Rotated Sorted Array is lines 4619–4702; problem 47 begins at line 4703). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 46 (direct pages 101–102 contain problem 46 and page 103 begins problem 47). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 45, “Maximum Consecutive Ones III,” is promoted from Markdown lines 4530–4618 and the DOCX companion's pages 99–100; problem 46, “Find Minimum in Rotated Sorted Array,” begins at Markdown line 4619 and DOCX page 101.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 46, “Find Minimum in Rotated Sorted Array,” is promoted from Markdown lines 4619–4702 and the DOCX companion's pages 101–102; problem 47, “Search a 2D Matrix,” begins at Markdown line 4703 and DOCX page 103.
 
 
