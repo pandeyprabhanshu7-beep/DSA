@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and all 47 Section 4 problems are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 15 and later source material remain queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, and the first Section 15 technique (Difference Array) are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Quickselect and later source material remain queued.
 
 ## Study index
 
@@ -76,6 +76,8 @@
   - [Example 45 — Maximum Consecutive Ones III: repair an at-most-K budget window](#example-45--maximum-consecutive-ones-iii-repair-an-at-most-k-budget-window)
   - [Example 46 — Find Minimum in Rotated Sorted Array: keep the possible pivot](#example-46--find-minimum-in-rotated-sorted-array-keep-the-possible-pivot)
   - [Example 47 — Search a 2D Matrix: binary-search virtual row-major order](#example-47--search-a-2d-matrix-binary-search-virtual-row-major-order)
+- [15. Additional array techniques](#15-additional-array-techniques)
+  - [Difference Array — encode range boundaries, materialize once](#difference-array--encode-range-boundaries-materialize-once)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -6136,6 +6138,152 @@ The trusted core inspects at most `floor(log2(m*n))+1` cells, takes `O(log(m*n))
 
 Executable evidence is in `SearchMatrixContracts.java`. It covers 20 deterministic scenario groups: both official examples, singleton/one-row/one-column shapes, legal duplicates, negatives, full-width endpoints, preservation, core/wrapper/oracle parity, the logarithmic inspection bound and each invalid matrix shape. It then generates 20,000 seeded rectangular matrices with non-decreasing rows and strict row boundaries, checking every result against an independent linear oracle plus preservation, wrapper/core parity, instrumented-core parity and the exact binary-search inspection bound.
 
+## 15. Additional array techniques
+
+Section 15 is a toolbox of techniques that do not belong to the 47-problem sequence. Each technique remains independently bounded and validated. The first is the one-dimensional difference array; Quickselect and the later techniques are still backlog.
+
+### Difference Array — encode range boundaries, materialize once
+
+**Requirement contract.** Start with a zero-filled array of `length` positions. Each update is `[left,right,delta]`, uses zero-based **inclusive** endpoints, and adds `delta` to every position in that interval. Apply all updates and return the final array without mutating the update records. The reusable implementation accepts positive, zero, or negative `int` deltas, widens all accumulated values to `long`, accepts an empty array only when there are no updates, and rejects malformed or out-of-range intervals before executing the trusted core.
+
+The brute-force plan touches every element in every interval. With `u` updates and `n` positions, its worst case is `O(u*n)`. A difference array records only where an update's effect begins and where it stops:
+
+```text
+add delta to [left,right]
+
+diff[left]     += delta
+diff[right+1]  -= delta    // only when right+1 exists
+```
+
+Prefix accumulation later turns those boundary events into the active total at every position. This is the inverse viewpoint of a prefix-sum query structure: prefix sums precompute many range **reads**; a difference array batches many range **writes** before one final materialization.
+
+```mermaid
+flowchart TD
+    A["zero-filled output used as diff"] --> B["for each inclusive update"]
+    B --> C["add delta at left"]
+    C --> D{"right+1 inside array?"}
+    D -->|yes| E["subtract delta at right+1"]
+    D -->|no| F["no stop marker needed"]
+    E --> G["prefix-accumulate once"]
+    F --> G
+    G --> H["final values"]
+```
+
+```java
+static long[] applyRangeAddsCore(int length, int[][] updates) {
+    long[] result = new long[length];
+    for (int[] update : updates) {
+        int left = update[0];
+        int right = update[1];
+        long delta = update[2];
+        result[left] += delta;
+        if (right + 1 < length) result[right + 1] -= delta;
+    }
+    for (int i = 1; i < length; i++) result[i] += result[i - 1];
+    return result;
+}
+```
+
+The returned array doubles as the temporary difference array, so there is no second `O(n)` buffer. `DifferenceArrayContracts.java` places atomic validation before this core. It performs every validation before allocating or applying updates, so malformed input cannot produce a partially published result.
+
+#### Worked case 1 — flight bookings and a complete boundary trace
+
+The current Corporate Flight Bookings contract labels flights from 1 through `n`; booking `[first,last,seats]` adds seats to every flight in that inclusive range. Convert its labels to the core's zero-based endpoints by subtracting one from `first` and `last`.
+
+```text
+n = 5
+bookings = [[1,2,10], [2,3,20], [2,5,25]]
+updates  = [[0,1,10], [1,2,20], [1,4,25]]
+answer   = [10,55,45,25,25]
+```
+
+| update | start marker | stop marker | difference state |
+|---|---|---|---|
+| `[0,1,+10]` | `diff[0]+=10` | `diff[2]-=10` | `[10,0,-10,0,0]` |
+| `[1,2,+20]` | `diff[1]+=20` | `diff[3]-=20` | `[10,20,-10,-20,0]` |
+| `[1,4,+25]` | `diff[1]+=25` | none | `[10,45,-10,-20,0]` |
+
+The prefix states are `10`, `55`, `45`, `25`, and `25`, exactly the required final totals.
+
+```mermaid
+flowchart LR
+    A["diff: 10,45,-10,-20,0"] --> B["run=10"]
+    B --> C["run=55"]
+    C --> D["run=45"]
+    D --> E["run=25"]
+    E --> F["run=25"]
+```
+
+Each negative marker cancels one earlier positive event **after** that event's inclusive right endpoint. The last update reaches the final position, so it needs no in-bounds stop marker.
+
+#### Worked case 2 — overlaps, a negative update, and the exact active total
+
+For `length=5` and updates `[[0,2,5],[1,4,3],[2,2,-4]]`, the mathematical contributions are:
+
+```text
+[5,5,5,0,0]
+[0,3,3,3,3]
+[0,0,-4,0,0]
+----------------
+[5,8,4,3,3]
+```
+
+The boundary state after all three updates is `[5,3,-4,-1,0]`: `+5` begins at 0 and stops at 3; `+3` begins at 1 and reaches the end; `-4` begins at 2 and its inverse `+4` joins the stop marker at 3. Prefix accumulation reconstructs `[5,8,4,3,3]`.
+
+```mermaid
+flowchart TD
+    U1["[0,2] += 5"] --> D0["+5 at 0; -5 at 3"]
+    U2["[1,4] += 3"] --> D1["+3 at 1"]
+    U3["[2,2] -= 4"] --> D2["-4 at 2; +4 at 3"]
+    D0 --> S["sum markers by index"]
+    D1 --> S
+    D2 --> S
+    S --> P["prefix → 5,8,4,3,3"]
+```
+
+Negative deltas need no special algorithm. The start marker is negative and the stop marker is its additive inverse.
+
+#### Worked case 3 — both edges and single-position ranges
+
+With `length=4` and `[[0,3,-2],[0,0,7],[3,3,5]]`, a full-range update produces `[-2,-2,-2,-2]`; the left singleton changes only index 0; the right singleton changes only index 3. The answer is `[5,-2,-2,3]`.
+
+```mermaid
+flowchart LR
+    A["all [0,3] -= 2"] --> B["index 0 += 7"]
+    B --> C["index 3 += 5"]
+    C --> D["5,-2,-2,3"]
+```
+
+This case catches two common off-by-one bugs: rejecting `right==length-1`, or subtracting at `right` instead of `right+1` and accidentally excluding the final intended element.
+
+#### Worked case 4 — widened totals, empty work, and invalid boundaries
+
+Two updates of `Integer.MAX_VALUE` over `[0,2]` produce `[4294967294,4294967294,4294967294]`. Storing markers or the running prefix in `int` would silently wrap; the core converts `delta` to `long` before marker arithmetic. An empty update list returns a zero-filled array, and `length=0` with no updates returns an empty result.
+
+The reusable boundary rejects a negative length, null update list, null update, wrong tuple length, `left<0`, `left>right`, or `right>=length`. Validation is linear in the number of update records and does not change the trusted core's `O(1)` work per update.
+
+```mermaid
+flowchart TD
+    A["batch range updates"] --> B{"need answers between updates?"}
+    B -->|no; materialize once| C["difference array"]
+    B -->|yes; online prefix/value queries| D["Fenwick or segment tree"]
+    C --> E{"totals can exceed int?"}
+    E -->|yes or uncertain| F["long markers and prefix"]
+    E -->|proven safe| G["declared numeric policy"]
+```
+
+**Boundary-event invariant and proof.** After encoding any prefix of the updates, `diff[i]` equals the net change in active delta when a left-to-right scan enters position `i`. An update adds `delta` on entry at `left`; adding `-delta` at `right+1` removes it immediately after the inclusive interval. No other position changes that update's active contribution. Therefore the running prefix at index `i` is exactly the sum of deltas from all and only updates whose ranges contain `i`. Summing all encoded updates preserves this statement because integer addition is commutative and associative at the mathematical level. Thus the final prefix scan produces the same values as applying every update element by element.
+
+For `u` updates and length `n`, boundary encoding costs `O(u)`, materialization costs `O(n)`, and total time is `O(u+n)`. The returned `long[n]` is required output; the algorithm uses `O(1)` auxiliary state beyond that output. A separate output plus separate difference array would instead use another `O(n)` buffer. The independent brute-force test oracle is intentionally `O(u*n)` in the worst case and exists only for validation.
+
+**When the technique does not fit:** point queries must be answered between updates; updates and queries arrive online; the operation has no inverse boundary event (for example arbitrary range assignment without extra state); two-dimensional rectangles are required but only a one-dimensional encoding is implemented; or the task needs the original base array preserved without first incorporating its discrete derivative.
+
+**Common interview errors:** confusing inclusive and half-open endpoints; subtracting at `right` instead of `right+1`; writing past the array when `right` is the final index; allocating `n+1` without considering the API's size/overflow policy; prefix-summing after each update and losing the complexity benefit; using `int` for accumulated totals; mutating or aliasing the update tuples; skipping atomic validation; claiming `O(u)` total time while forgetting final materialization; using the technique when online queries are required; or calling a difference array a prefix sum without explaining their inverse relationship.
+
+**Further follow-ups:** initialize from a nonzero base array by encoding its adjacent differences; support 1-based external ranges with an explicit boundary conversion; use two-dimensional corner events for rectangle additions; convert circular ranges into at most two linear updates; count maximum overlap without storing every interval; coordinate-compress sparse endpoints; compare offline difference events with a Fenwick tree's online point/range duals; or use checked arithmetic when even `long` overflow must fail explicitly.
+
+Executable evidence is in `DifferenceArrayContracts.java`. It covers 20 deterministic scenario groups: the flight-bookings example, overlapping and negative updates, both edges, full ranges, point ranges, empty work, widened totals, preservation, update-order independence, interval splitting, inverse cancellation and malformed-input rejection. It then runs 20,000 seeded batches against an independent element-by-element oracle while also checking update preservation, permutation invariance, split-update equivalence and inverse cancellation—100,000 randomized checks in total.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -6169,6 +6317,7 @@ Executable evidence is in `SearchMatrixContracts.java`. It covers 20 determinist
 - [LeetCode, “Find Minimum in Rotated Sorted Array II”](https://leetcode.com/problems/find-minimum-in-rotated-sorted-array-ii/) — primary duplicate-permitting follow-up and its explicit worst-case-complexity question.
 - [LeetCode, “Search a 2D Matrix”](https://leetcode.com/problems/search-a-2d-matrix/) — primary rectangular, row-wise non-decreasing, strict cross-row ordering contract, both official examples, current bounds and required `O(log(m*n))` runtime for problem 47.
 - [LeetCode, “Search a 2D Matrix II”](https://leetcode.com/problems/search-a-2d-matrix-ii/) — primary independently row-and-column-sorted comparison problem, whose weaker row-major ordering requires a different elimination proof.
+- [LeetCode, “Corporate Flight Bookings”](https://leetcode.com/problems/corporate-flight-bookings/) — primary inclusive range-addition model, official examples, 1-based flight labels and current input bounds for the Difference Array technique.
 - [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — associative, commutative integer bitwise XOR behavior used by the problem 40 and 41 cancellation implementations.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
@@ -6218,9 +6367,9 @@ Executable evidence is in `SearchMatrixContracts.java`. It covers 20 determinist
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus all 47 Section 4 problems (Search a 2D Matrix is lines 4706–4790; Section 15 begins at line 4793). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus all 47 Section 4 problems (direct pages 103–104 contain problem 47 and page 105 begins Section 15). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, and Section 15 Difference Array lines 4797–4824. Quickselect begins at line 4825. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, and the Section 15 Difference Array material on direct page 105; Quickselect follows on the same page. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 is now fully promoted: problem 47, “Search a 2D Matrix,” is bounded by Markdown lines 4706–4790 and the DOCX companion's pages 103–104. The wider source remains in progress: Section 15, “Additional Array Techniques You Must Recognize,” begins at Markdown line 4793 and DOCX page 105.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 is fully promoted, and Section 15 is now promoted through its first bounded technique, Difference Array, at Markdown lines 4797–4824 / DOCX page 105. The wider source remains in progress: Quickselect begins at Markdown line 4825 and continues on DOCX page 105.
 
 
