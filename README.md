@@ -4,7 +4,7 @@ This repository contains the canonical study-guide editions promoted from the **
 
 ## Striver DSA library
 
-- [Arrays](study-guides/striver-dsa/arrays/) — incremental deep guide through all 47 Section 4 problems, all five Section 15 techniques, and Section 16 Linear scan / state tracking, with synchronized Markdown/HTML and dependency-free Java evidence
+- [Arrays](study-guides/striver-dsa/arrays/) — incremental deep guide through all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Two pointers, with synchronized Markdown/HTML and dependency-free Java evidence
 - [Stack & Queue](study-guides/striver-dsa/stack-queue/)
 - [Graph DSA](study-guides/striver-dsa/graph-dsa/)
 - [Linked List](study-guides/striver-dsa/linked-list/)

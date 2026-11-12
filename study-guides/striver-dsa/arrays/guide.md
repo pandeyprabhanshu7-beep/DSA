@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 Linear scan / state tracking are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Two pointers are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
 
 ## Study index
 
@@ -84,6 +84,7 @@
   - [Coordinate Compression — preserve order in a dense rank space](#coordinate-compression--preserve-order-in-a-dense-rank-space)
 - [16. Question bank by pattern](#16-question-bank-by-pattern)
   - [Linear scan / state tracking — compress the processed prefix](#linear-scan--state-tracking--compress-the-processed-prefix)
+  - [Two pointers — move only after proving what the move discards](#two-pointers--move-only-after-proving-what-the-move-discards)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -7106,6 +7107,221 @@ All four algorithms run in `O(n)` time and `O(1)` auxiliary space and preserve i
 
 Executable evidence is in `LinearScanStateTrackingContracts.java`. It covers 20 deterministic groups across all official examples for the four representative problems, empty/singleton/equal/descending cases, full-width arithmetic, invalid flowerbeds, noncontiguous triplets and null rejection. It then runs 20,000 seeded small arrays against independent pair, direction, triple and flower-placement oracles while checking preservation of both input arrays—100,000 randomized checks.
 
+### Two pointers — move only after proving what the move discards
+
+“Two pointers” is a motion discipline, not a complete correctness argument. Maintain two indices whose movement is monotonic, give each index a precise role, and justify why every move either finalizes an output position or removes candidates that cannot improve any future answer. If neither claim can be proved, moving a pointer is only a guess.
+
+> **Movement certificate:** before changing `left`, `right`, `read`, or `write`, identify the whole candidate set or output position resolved by that move. Each index must move in only one direction, so the number of moves—not the number of possible pairs—controls the scan cost.
+
+The fourteen source drills use several different certificates. A sorted order can make endpoint sums monotonic; stable compaction can make a prefix final; an extremal endpoint can determine the next output; and a dominated boundary can be discarded. The earlier full cards for Two Sum II, Move Zeroes, Remove Duplicates, Sorted Squares, 3Sum, Container With Most Water, and Trapping Rain Water contain problem-specific proofs. This section connects those cards without creating duplicate guides.
+
+| Drill family | Pointer roles | Certificate for a move |
+|---|---|---|
+| Two Sum II | smallest and largest remaining value | a too-small sum eliminates the current left value; a too-large sum eliminates the current right value |
+| 3Sum / 3Sum Closest / 4Sum | fixed anchors plus an opposite-end pair | sorting turns the residual target comparison into a monotonic endpoint decision |
+| Container With Most Water | two possible walls | the shorter wall caps every pair that retains it, so moving it discards only dominated pairs |
+| Trapping Rain Water | two boundaries plus side maxima | the side with the smaller certified maximum can finalize its current trapped amount |
+| Move Zeroes | read cursor and next nonzero write slot | the prefix before `write` is the exact stable nonzero prefix |
+| Remove Duplicates I / II | read cursor and retained-prefix length | sorted duplicates are adjacent; the retained prefix contains the allowed copies |
+| Squares of a Sorted Array | two magnitudes and a reverse write slot | the larger endpoint magnitude owns the largest unfilled square |
+| Boats to Save People | lightest and heaviest remaining person | if the heaviest can pair, the lightest is safest; otherwise the heaviest cannot pair at all |
+| Valid Triangle Number | fixed largest side plus two smaller sides | sorted pair sums change monotonically, allowing an entire block to be counted |
+| Backspace String Compare | two backward cursors and skip counts | each cursor lands on the next surviving character without building either reduced string |
+| Merge Sorted Array | two source tails and one output tail | the larger tail value owns the largest unfilled output position |
+
+```mermaid
+flowchart TD
+    A["Choose pointer roles"] --> B{"What proves a move safe?"}
+    B -->|"sorted comparison"| C["discard one endpoint"]
+    B -->|"stable prefix"| D["advance read; sometimes write"]
+    B -->|"largest unfilled output"| E["write from the end"]
+    B -->|"dominated boundary"| F["discard the limiting side"]
+```
+
+The representative Java below makes mutation boundaries explicit. `threeSum` sorts a clone and preserves its caller input. `moveZeroes` and `removeDuplicates` deliberately mutate the supplied array. `sortedSquares` returns a new `long[]`: the official problem bounds fit `int`, while the reusable extension squares every possible `int` without overflow. Sorted-input validation finishes before mutation or output construction.
+
+```java
+static List<List<Integer>> threeSum(int[] values) {
+    if (values == null) throw new IllegalArgumentException("values must be non-null");
+    int[] sorted = values.clone();
+    Arrays.sort(sorted);
+    List<List<Integer>> answer = new ArrayList<>();
+    for (int anchor = 0; anchor + 2 < sorted.length; anchor++) {
+        if (anchor > 0 && sorted[anchor] == sorted[anchor - 1]) continue;
+        int left = anchor + 1, right = sorted.length - 1;
+        while (left < right) {
+            long sum = (long) sorted[anchor] + sorted[left] + sorted[right];
+            if (sum < 0) left++;
+            else if (sum > 0) right--;
+            else {
+                answer.add(List.of(sorted[anchor], sorted[left], sorted[right]));
+                int leftValue = sorted[left], rightValue = sorted[right];
+                while (left < right && sorted[left] == leftValue) left++;
+                while (left < right && sorted[right] == rightValue) right--;
+            }
+        }
+    }
+    return answer;
+}
+
+static void moveZeroes(int[] values) {
+    if (values == null) throw new IllegalArgumentException("values must be non-null");
+    int write = 0;
+    for (int value : values) if (value != 0) values[write++] = value;
+    while (write < values.length) values[write++] = 0;
+}
+
+static int removeDuplicates(int[] sorted) {
+    requireSorted(sorted);
+    if (sorted.length == 0) return 0;
+    int write = 1;
+    for (int read = 1; read < sorted.length; read++) {
+        if (sorted[read] != sorted[write - 1]) sorted[write++] = sorted[read];
+    }
+    return write; // components at indices write..end are outside the result contract
+}
+
+static long[] sortedSquares(int[] sorted) {
+    requireSorted(sorted);
+    long[] answer = new long[sorted.length];
+    int left = 0, right = sorted.length - 1;
+    for (int write = answer.length - 1; write >= 0; write--) {
+        long leftSquare = (long) sorted[left] * sorted[left];
+        long rightSquare = (long) sorted[right] * sorted[right];
+        if (leftSquare > rightSquare) {
+            answer[write] = leftSquare;
+            left++;
+        } else {
+            answer[write] = rightSquare;
+            right--;
+        }
+    }
+    return answer;
+}
+
+static void requireSorted(int[] values) {
+    if (values == null) throw new IllegalArgumentException("values must be non-null");
+    for (int i = 1; i < values.length; i++) {
+        if (values[i] < values[i - 1]) {
+            throw new IllegalArgumentException("values must be sorted nondecreasing");
+        }
+    }
+}
+```
+
+#### Worked case 1 — anchor once, then eliminate pair ranges
+
+For 3Sum, `values=[-1,0,1,2,-1,-4]` is cloned and sorted to `[-4,-1,-1,0,1,2]`. Fixing anchor `-1` at index 1 leaves a sorted two-sum target of `1`.
+
+| anchor | left | right | widened sum | certificate and action |
+|---:|---:|---:|---:|---|
+| -1 | -1 | 2 | 0 | emit `[-1,-1,2]`; skip equal pair endpoints |
+| -1 | 0 | 1 | 0 | emit `[-1,0,1]`; move both endpoints |
+
+The next `-1` anchor is skipped, so the result contains no duplicate value triplets. Anchor `-4` produces only negative sums and no result. The final result is `[[-1,-1,2],[-1,0,1]]`; `[0,1,1]` produces none, and `[0,0,0]` produces exactly one `[0,0,0]`.
+
+```mermaid
+flowchart LR
+    A["anchor -1"] --> B["left -1"]
+    B --> C["right 2"]
+    C --> D["sum 0: emit"]
+    D --> E["skip duplicate endpoints"]
+```
+
+**Elimination proof.** With a fixed anchor, if the current sum is negative, pairing the same left value with any smaller right endpoint cannot reach zero, so every pair using that left value is impossible and `left++` is safe. The positive case is symmetric for `right--`. On equality, the current sorted value triplet is valid; skipping all equal endpoint values removes only duplicate value triplets. Skipping equal anchors applies the same uniqueness argument to the first component. Every index triple belongs to exactly one anchor iteration, so no distinct value triplet is missed.
+
+Sorting costs `O(n log n)` and the pair sweep costs `O(n)` for each of `O(n)` anchors, giving `O(n²)` time and `O(n)` clone/output-independent auxiliary space. The sum widens before addition; `(long) (a+b+c)` would cast only after possible `int` overflow.
+
+#### Worked case 2 — stable read/write compaction
+
+For Move Zeroes, `[0,1,0,3,12]` must become `[1,3,12,0,0]` without changing the order of nonzero values. `read` examines each original component; `write` is the first position not yet belonging to the stable nonzero prefix.
+
+| read value | action | write after | guaranteed prefix |
+|---:|---|---:|---|
+| 0 | skip | 0 | `[]` |
+| 1 | write at 0 | 1 | `[1]` |
+| 0 | skip | 1 | `[1]` |
+| 3 | write at 1 | 2 | `[1,3]` |
+| 12 | write at 2 | 3 | `[1,3,12]` |
+
+Only after the read pass is complete is the suffix cleared to zero. Writing a zero immediately for every encountered zero can overwrite an unread value; swapping every nonzero forward is correct but may perform unnecessary writes when the value is already in place.
+
+```mermaid
+flowchart LR
+    A["read every component"] --> B{"nonzero?"}
+    B -->|yes| C["write to stable prefix"]
+    B -->|no| D["leave write fixed"]
+    C --> E["clear remaining suffix"]
+    D --> E
+```
+
+**Prefix proof.** Before each read, `values[0..write)` equals the nonzero subsequence of all components already read, in original order. Skipping zero preserves it. Appending a nonzero at `write` extends it by exactly the next required value. When reading ends, the prefix is the complete nonzero subsequence and the remaining `n-write` positions must all be zero. Time is `O(n)`, auxiliary space is `O(1)`, and the mutation is intentional.
+
+#### Worked case 3 — return a prefix contract, not a fictional resized array
+
+For sorted input `[0,0,1,1,1,2,2,3,3,4]`, Remove Duplicates returns `5` and establishes prefix `[0,1,2,3,4]`. The array object still has length 10; positions from index 5 onward are unspecified by the result contract.
+
+| read value | retained last | action | retained prefix |
+|---:|---:|---|---|
+| 0 | 0 | duplicate: skip | `[0]` |
+| 1 | 0 | append | `[0,1]` |
+| 1 | 1 | duplicate: skip | `[0,1]` |
+| 2 | 1 | append | `[0,1,2]` |
+| 3 | 2 | append | `[0,1,2,3]` |
+| 4 | 3 | append | `[0,1,2,3,4]` |
+
+```mermaid
+flowchart TD
+    A["sorted unread value"] --> B{"different from last retained?"}
+    B -->|no| C["skip adjacent duplicate"]
+    B -->|yes| D["append at write"]
+    C --> E["advance read"]
+    D --> E
+```
+
+**Prefix proof.** Before reading index `r`, `sorted[0..write)` contains every distinct value from the original prefix `0..r)` exactly once and in sorted order. Sortedness makes a value equal to the last retained component precisely when it is another member of the same duplicate run. Otherwise it is strictly larger and appending it preserves the invariant. The returned `write` is therefore the exact number of distinct values. The scan is `O(n)` time and `O(1)` auxiliary space.
+
+Remove Duplicates II changes only the retention predicate: keep a value while `write<2 || value!=values[write-2]`. Generalizing to at most `k` copies uses `write<k || value!=values[write-k]`; it does not require a new motion pattern.
+
+#### Worked case 4 — fill output from the end when endpoint magnitudes dominate
+
+For sorted input `[-4,-1,0,3,10]`, the largest remaining square must come from one endpoint, even though the original values cross zero. Compare endpoint squares and fill the output from right to left.
+
+| left value | right value | larger square | write index | output suffix after |
+|---:|---:|---:|---:|---|
+| -4 | 10 | 100 | 4 | `[100]` |
+| -4 | 3 | 16 | 3 | `[16,100]` |
+| -1 | 3 | 9 | 2 | `[9,16,100]` |
+| -1 | 0 | 1 | 1 | `[1,9,16,100]` |
+| 0 | 0 | 0 | 0 | `[0,1,9,16,100]` |
+
+```mermaid
+flowchart RL
+    A["largest unfilled index"] --> B{"left² > right²?"}
+    B -->|yes| C["write left²; left++"]
+    B -->|no| D["write right²; right--"]
+```
+
+**Suffix proof.** Before each write, the unconsumed input is a contiguous sorted interval. Absolute value reaches its maximum at one of that interval's endpoints, so the larger endpoint square is the largest remaining output value. Writing it into the largest unfilled output index establishes the sorted suffix invariant. Each iteration consumes one endpoint, so the algorithm is `O(n)` time and `O(n)` output space with `O(1)` auxiliary state. For `[Integer.MIN_VALUE,0,Integer.MAX_VALUE]`, widened output is `[0,4611686014132420609,4611686018427387904]`; promotion must happen before multiplication.
+
+```mermaid
+flowchart TD
+    A{"Does pointer movement change membership?"} -->|"no; it only searches ordered candidates"| B["two-pointer elimination"]
+    A -->|"yes; it maintains a contiguous feasible range"| C["sliding window"]
+    B --> D["prove a discarded endpoint cannot help"]
+    C --> E["prove expand/shrink restores an invariant"]
+```
+
+Two pointers and sliding windows overlap mechanically but not logically. Opposite-end 3Sum searches a sorted candidate space and discards endpoints; Maximum Consecutive Ones III changes a contiguous window's membership to repair a budget. Calling every pair of indices a sliding window hides the actual proof.
+
+**When this pattern does not fit:** the input has no monotonic relation that certifies endpoint elimination; pair identities must be returned from an unsorted array and sorting would destroy required indices; a discarded candidate could become useful after a later value; the active range requires an unbounded frequency map or monotonic deque; or pointer movement can oscillate. Use hashing, binary search, a real sliding-window invariant, a monotonic structure, or dynamic programming instead.
+
+**Common interview errors:** moving both endpoints after a nonmatching sum; using opposite ends on unsorted values; sorting despite an input-preservation or original-index promise; failing to skip duplicate anchors and pair endpoints in 3Sum; skipping duplicates before recording a valid triplet; adding three `int` values before widening; confusing a returned prefix length with physical array resizing; clearing the Move Zeroes suffix before all original values are read; comparing signed endpoint values instead of magnitudes for squares; filling sorted squares from the front; squaring `Integer.MIN_VALUE` in `int`; validating sortedness after mutation; treating output allocation as auxiliary space without stating the convention; or calling any two moving indices a sliding window.
+
+**Further follow-ups:** retain original indices while sorting value/index pairs; generalize 3Sum to `k`-sum with duplicate control; return the closest sum with deterministic tie-breaking; minimize writes in Move Zeroes; permit at most `k` duplicates; merge sorted arrays backward into spare capacity; implement Backspace String Compare with backward skip counters; count all valid triangles in blocks; prove the boat-pairing exchange; derive the shorter-wall elimination proof; compare two-pointer trapping water with prefix maxima and a monotonic stack; or identify the exact monotonic fact required before using opposite ends.
+
+Executable evidence is in `TwoPointerPatternContracts.java`. It supplies 20 deterministic groups across the official examples, duplicate-heavy inputs, empty/singleton extensions, full-width arithmetic, mutation/preservation boundaries, malformed sorted input and null rejection. It then runs 20,000 seeded trials against four independent references: cubic triplet enumeration with set deduplication, stable extra-array zero compaction, a separate unique-prefix builder, and square-then-sort output. The trials perform 100,000 checks, including caller-input preservation for clone/output-producing methods.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -7203,9 +7419,9 @@ Executable evidence is in `LinearScanStateTrackingContracts.java`. It covers 20 
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 Linear scan / state tracking lines 4882–4890. Two pointers begins at line 4894. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 Linear scan / state tracking on page 107. Two pointers follows on page 107. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Two pointers lines 4882–4904. Fixed / variable sliding window begins at line 4908. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Two pointers on page 107. Fixed / variable sliding window follows on pages 107–108. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Linear scan / state tracking, ending at Markdown line 4890 / DOCX page 107. The wider source remains in progress: Two pointers begins at Markdown line 4894 / DOCX page 107.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Two pointers, ending at Markdown line 4904 / DOCX page 107. The wider source remains in progress: Fixed / variable sliding window begins at Markdown line 4908 / DOCX page 107.
 
 
