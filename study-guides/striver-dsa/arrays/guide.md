@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, and the first four Section 15 techniques (Difference Array, Quickselect, In-place sign marking, and Prefix XOR) are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Coordinate Compression and later source material remain queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, and the first five Section 15 techniques (Difference Array, Quickselect, In-place sign marking, Prefix XOR, and Coordinate Compression) are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
 
 ## Study index
 
@@ -81,6 +81,7 @@
   - [Quickselect — partition only toward the requested rank](#quickselect--partition-only-toward-the-requested-rank)
   - [In-place sign marking — reuse value-index slots as visited bits](#in-place-sign-marking--reuse-value-index-slots-as-visited-bits)
   - [Prefix XOR — cancel equal prefix boundaries](#prefix-xor--cancel-equal-prefix-boundaries)
+  - [Coordinate Compression — preserve order in a dense rank space](#coordinate-compression--preserve-order-in-a-dense-rank-space)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -6143,7 +6144,7 @@ Executable evidence is in `SearchMatrixContracts.java`. It covers 20 determinist
 
 ## 15. Additional array techniques
 
-Section 15 is a toolbox of techniques that do not belong to the 47-problem sequence. Each technique remains independently bounded and validated. Difference Array, Quickselect, In-place sign marking, and Prefix XOR are promoted; Coordinate Compression and the later techniques remain backlog.
+Section 15 is a toolbox of techniques that do not belong to the 47-problem sequence. Each technique remains independently bounded and validated. Difference Array, Quickselect, In-place sign marking, Prefix XOR, and Coordinate Compression are promoted; the later techniques remain backlog.
 
 ### Difference Array — encode range boundaries, materialize once
 
@@ -6736,6 +6737,154 @@ Building a prefix array is `O(n)` time and `O(n)` space; answering `q` queries i
 
 Executable evidence is in `PrefixXorContracts.java`. It covers 20 deterministic groups: both official range-query examples, singleton/empty/signed/full-width inputs, target-zero and no-match counts, all-zero combinatorics, preservation and malformed-query rejection. It then runs 20,000 seeded full-`int` arrays against independent direct-range and quadratic count oracles while checking nonmutation, reversal invariance and range-split cancellation—100,000 randomized checks.
 
+### Coordinate Compression — preserve order in a dense rank space
+
+Coordinate compression replaces each distinct value with its position in sorted distinct order. It does **not** shrink the Java integer itself, hash values into arbitrary buckets, or preserve numeric distance. It preserves exactly the relations that many algorithms need:
+
+```text
+x == y  iff  rank(x) == rank(y)
+x <  y  iff  rank(x) <  rank(y)
+```
+
+If the distinct sorted values are `dictionary[0..m-1]`, this guide uses one-based ranks: value `dictionary[i]` receives rank `i+1`. The dense domain `1..m` can index a Fenwick tree, segment tree, frequency array, or bucket state even when the original coordinates are negative, sparse, or near the limits of `int`.
+
+| Contract decision | Reusable guide API |
+|---|---|
+| Input | Non-null `int[]`; empty input is legal; duplicates and all full-width `int` values are legal |
+| Rank | Starts at 1; equal values share a rank; smaller values receive smaller ranks; no unused rank exists |
+| Dictionary | Strictly increasing distinct original values; `dictionary[rank-1]` reconstructs a value |
+| Output order | One rank per original position; positions are not sorted or rearranged |
+| Mutation | Input is preserved; result accessors return defensive copies |
+| Complexity | Deterministic `O(n log n)` time and `O(n)` auxiliary space; restoration is `O(n)` |
+
+```mermaid
+flowchart TD
+    A["clone original values"] --> B["sort the clone"]
+    B --> C["compact adjacent duplicates"]
+    C --> D["strictly increasing dictionary"]
+    D --> E["binary-search every original value"]
+    E --> F["emit position + 1"]
+```
+
+The clone separates two concerns: sorting discovers the global order, while scanning the untouched input emits ranks in original position order. Deduplication is essential; without it, gaps caused by repeated values would violate the smallest-possible-rank contract.
+
+```java
+record Compression(int[] ranks, int[] valuesByRank) {}
+
+static Compression compress(int[] values) {
+    if (values == null) throw new IllegalArgumentException("values must be non-null");
+
+    int[] sorted = values.clone();
+    Arrays.sort(sorted);
+    int uniqueCount = 0;
+    for (int value : sorted) {
+        if (uniqueCount == 0 || sorted[uniqueCount - 1] != value) {
+            sorted[uniqueCount++] = value;
+        }
+    }
+
+    int[] dictionary = Arrays.copyOf(sorted, uniqueCount);
+    int[] ranks = new int[values.length];
+    for (int i = 0; i < values.length; i++) {
+        int position = Arrays.binarySearch(dictionary, values[i]);
+        ranks[i] = position + 1;
+    }
+    return new Compression(ranks, dictionary);
+}
+```
+
+`Arrays.binarySearch` is sound here because the dictionary is sorted and every searched value came from the same input used to build it. A negative search result would therefore indicate an implementation defect, not an absent coordinate. A hash map from value to rank can replace the per-value binary searches for expected `O(n)` lookup after sorting, but the version above retains a deterministic worst-case `O(n log n)` bound and a compact proof.
+
+#### Worked case 1 — first official rank-transform example and complete trace
+
+For `values=[40,10,20,30]`:
+
+| phase | state |
+|---|---|
+| clone | `[40,10,20,30]` |
+| sort | `[10,20,30,40]` |
+| deduplicate | `[10,20,30,40]` |
+| rank dictionary | `10→1, 20→2, 30→3, 40→4` |
+| map original order | `[4,1,2,3]` |
+
+```mermaid
+flowchart LR
+    A["40,10,20,30"] --> B["10,20,30,40"]
+    B --> C["ranks 1,2,3,4"]
+    C --> D["restore original positions"]
+    D --> E["4,1,2,3"]
+```
+
+Sorting the output itself would be wrong: the answer must retain one transformed component for every original position.
+
+#### Worked case 2 — duplicates share one gap-free rank
+
+For `values=[100,100,100]`, the sorted clone still has three entries, but deduplication retains dictionary `[100]`. Every component maps to rank `1`, so the answer is `[1,1,1]` rather than `[1,2,3]`.
+
+For the larger official example `[37,12,28,9,100,56,80,5,12]`, the dictionary is `[5,9,12,28,37,56,80,100]`. The repeated `12` occupies rank `3` both times, producing `[5,3,4,2,8,6,7,1,3]`. There are eight distinct values and therefore exactly the ranks `1..8`—no gap is left for the duplicate.
+
+```mermaid
+flowchart TD
+    A["sorted: 5,9,12,12,28,37,56,80,100"] --> B["scan adjacent values"]
+    B --> C["keep first 12"]
+    B --> D["skip repeated 12"]
+    C --> E["dictionary size 8"]
+    D --> E
+    E --> F["both 12s map to rank 3"]
+```
+
+#### Worked case 3 — sparse signed and full-width coordinates
+
+`values=[1_000_000_000,-1_000_000_000,7,1_000_000_000]` yields dictionary `[-1_000_000_000,7,1_000_000_000]` and ranks `[3,1,2,3]`. The billion-unit gaps disappear, but comparisons do not: `-1_000_000_000 < 7 < 1_000_000_000` becomes `1 < 2 < 3`.
+
+The same code handles `[Integer.MAX_VALUE,0,Integer.MIN_VALUE]` as ranks `[3,2,1]`. It compares and sorts components; it never subtracts one original value from another, so there is no comparison overflow.
+
+```mermaid
+flowchart LR
+    A["-1,000,000,000"] --> B["rank 1"]
+    C["7"] --> D["rank 2"]
+    E["1,000,000,000"] --> F["rank 3"]
+```
+
+After compression, a frequency array of length `m+1` can count each coordinate, and a Fenwick tree can answer how many previously seen values have rank below the current rank. The rank is an index surrogate; arithmetic such as original distance, `x-y`, still requires the dictionary values.
+
+#### Worked case 4 — empty, singleton, reconstruction, and lifecycle boundaries
+
+- Empty input returns empty ranks and an empty dictionary.
+- `[-7]` returns ranks `[1]` and dictionary `[-7]`.
+- `[9,-4,9,2]` returns dictionary `[-4,2,9]` and ranks `[3,1,3,2]`; indexing `dictionary[rank-1]` reconstructs `[9,-4,9,2]` exactly.
+- Null input is rejected. A stored rank below `1` or above the dictionary length is rejected during restoration.
+
+```mermaid
+flowchart TD
+    A["rank r"] --> B{"1 <= r <= dictionary length?"}
+    B -->|no| X["reject corrupt rank"]
+    B -->|yes| C["value = dictionary[r-1]"]
+    C --> D["exact original coordinate"]
+```
+
+Compression is normally built for a known offline coordinate universe. If a later update introduces an unseen value between existing coordinates, assigning it a rank may shift later ranks and invalidate index-based state. Collect all future coordinates before building, rebuild, or choose a genuinely dynamic ordered structure.
+
+**Dictionary invariant and proof.** After scanning the first `i` components of the sorted clone, `sorted[0..uniqueCount-1]` contains every distinct value from that processed prefix exactly once and in strictly increasing order. The base prefix is empty. For the next sorted value, equality with the last retained value means it is already represented; otherwise sorted order makes it strictly larger, so appending it preserves uniqueness and order. Thus the completed prefix is exactly the sorted set of input values.
+
+**Rank correctness.** Every original value occurs once in the dictionary, so binary search returns its unique zero-based position. Equal original values search for the same dictionary component and get the same rank. If `x<y`, strict dictionary order places `x` earlier than `y`, so `rank(x)<rank(y)`. Conversely, rank order implies dictionary position order and therefore original value order. Because dictionary positions are contiguous, adding one produces the smallest possible one-based ranks `1..m` with no gaps.
+
+```mermaid
+flowchart TD
+    A{"What must be preserved?"} -->|"equality and order only"| B["coordinate compression fits"]
+    A -->|"numeric distance"| C["retain dictionary/original values"]
+    A -->|"online unseen coordinates"| D["dynamic ordered structure or rebuild"]
+    B --> E["dense array or indexed tree"]
+```
+
+Sorting costs `O(n log n)`, deduplication costs `O(n)`, and `n` binary searches over at most `n` dictionary entries cost `O(n log n)`. The total is deterministic `O(n log n)` time. The sorted clone, dictionary, and ranks use `O(n)` auxiliary/output space. Restoration is `O(n)` time and output space. If a value-to-rank map is built from the dictionary, the mapping phase is expected `O(n)` but sorting still dominates the total bound.
+
+**Common interview errors:** ranking by original index; assigning different ranks to duplicates; sorting without deduplicating and leaving rank gaps; zero-based ranks when a Fenwick tree expects positive indices; sorting the original input despite a preservation promise; using rank differences as original numeric distances; losing the dictionary when reconstruction is required; building from only query values but forgetting update coordinates; assuming compression changes the asymptotic number of input elements; subtracting full-width integers in a comparator; using binary search before sorting; accepting a negative search result silently; or claiming online insertion is free after an offline rank map is fixed.
+
+**Further follow-ups:** use zero-based ranks for a segment tree; count smaller elements to the right with a Fenwick tree; process range updates after collecting both endpoints; compress pairs lexicographically; retain stable original indices beside ranks; rebuild in batches for semi-online input; compare binary-search lookup with a hash rank map; use lower-bound positions for values not present in the original universe; reconstruct from the dictionary; or explain why order-preserving compression is different from hashing and quantization.
+
+Executable evidence is in `CoordinateCompressionContracts.java`. It covers 20 deterministic groups: all three official examples, empty/singleton, negative, sparse, duplicate-heavy, ascending/descending and full-width inputs; dictionary order, gap-free ranks, preservation, round-trip restoration, defensive result access and invalid-input rejection. It then runs 20,000 seeded arrays against an independent `TreeSet`/map oracle while checking exact ranks, exact dictionary, nonmutation, round-trip reconstruction and reversal equivariance—100,000 randomized checks.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -6776,6 +6925,9 @@ Executable evidence is in `PrefixXorContracts.java`. It covers 20 deterministic 
 - [LeetCode, “XOR Queries of a Subarray”](https://leetcode.com/problems/xor-queries-of-a-subarray/) — primary inclusive range-XOR contract, both official examples, current bounds and prefix-XOR hints.
 - [LeetCode, “Count Triplets That Can Form Two Arrays of Equal XOR”](https://leetcode.com/problems/count-triplets-that-can-form-two-arrays-of-equal-xor/) — primary equal-XOR split contract and official reduction to zero-XOR combined ranges.
 - [Java Language Specification, Java SE 26, §15.22.1](https://docs.oracle.com/en/java/javase/26/docs/specs/jls/jls-15.html#jls-15.22.1) — integer XOR, binary numeric promotion, associativity and commutativity used by the Prefix XOR boundary proofs.
+- [LeetCode, “Rank Transform of an Array”](https://leetcode.com/problems/rank-transform-of-an-array/) — primary one-based, equality-preserving, order-preserving, smallest-rank contract, all three official examples and current input bounds for Coordinate Compression.
+- [Java SE 25 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html) — `sort`, `copyOf`, and sorted-array `binarySearch` contracts used by the deterministic implementation.
+- [Java Language Specification, Java SE 26, Chapter 10](https://docs.oracle.com/javase/specs/jls/se26/html/jls-10.html) — zero-origin, bounds-checked array indexing behind the explicit `rank-1` dictionary mapping.
 - [Java SE 21 `java.util.random.RandomGenerator`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/random/RandomGenerator.html) — inclusive-origin, exclusive-bound pivot sampling contract used by the injected randomized core.
 - [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — associative, commutative integer bitwise XOR behavior used by the problem 40 and 41 cancellation implementations.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
@@ -6826,9 +6978,9 @@ Executable evidence is in `PrefixXorContracts.java`. It covers 20 deterministic 
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 Difference Array lines 4797–4824, Quickselect lines 4825–4855, In-place sign marking lines 4858–4861, and Prefix XOR lines 4864–4867. Coordinate Compression begins at line 4870. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, Difference Array, Quickselect, In-place sign marking, and Prefix XOR on direct page 105. Coordinate Compression follows on the next source page. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 Difference Array lines 4797–4824, Quickselect lines 4825–4855, In-place sign marking lines 4858–4861, Prefix XOR lines 4864–4867, and Coordinate Compression lines 4870–4873. Section 16 begins at line 4876. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, Difference Array, Quickselect, In-place sign marking, and Prefix XOR on direct page 105, plus Coordinate Compression on page 106. Section 16 begins on page 107. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 is fully promoted, and Section 15 is now promoted through Prefix XOR, ending at Markdown line 4867 / DOCX page 105. The wider source remains in progress: Coordinate Compression begins at Markdown line 4870 and follows Prefix XOR in the paired source.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 is fully promoted, and Section 15 is now promoted through Coordinate Compression, ending at Markdown line 4873 / DOCX page 106. The wider source remains in progress: Section 16 begins at Markdown line 4876 / DOCX page 107.
 
 

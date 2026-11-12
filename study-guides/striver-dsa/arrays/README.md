@@ -56,6 +56,7 @@ java -ea study-guides/striver-dsa/arrays/DifferenceArrayContracts.java
 java -ea study-guides/striver-dsa/arrays/QuickselectContracts.java
 java -ea study-guides/striver-dsa/arrays/InPlaceSignMarkingContracts.java
 java -ea study-guides/striver-dsa/arrays/PrefixXorContracts.java
+java -ea study-guides/striver-dsa/arrays/CoordinateCompressionContracts.java
 ```
 
 Rebuild the reader:
@@ -64,6 +65,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3, all 47 Section 4 problems, and Section 15 Difference Array, Quickselect, In-place sign marking, and Prefix XOR are promoted. Coordinate Compression and later source material remain queued.
+This is an incremental guide. Source Sections 1–3, all 47 Section 4 problems, and Section 15 Difference Array, Quickselect, In-place sign marking, Prefix XOR, and Coordinate Compression are promoted. Later source material remains queued from Section 16.
 
 
