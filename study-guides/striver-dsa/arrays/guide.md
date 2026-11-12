@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, and the first three Section 15 techniques (Difference Array, Quickselect, and In-place sign marking) are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Prefix XOR and later source material remain queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, and the first four Section 15 techniques (Difference Array, Quickselect, In-place sign marking, and Prefix XOR) are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Coordinate Compression and later source material remain queued.
 
 ## Study index
 
@@ -80,6 +80,7 @@
   - [Difference Array — encode range boundaries, materialize once](#difference-array--encode-range-boundaries-materialize-once)
   - [Quickselect — partition only toward the requested rank](#quickselect--partition-only-toward-the-requested-rank)
   - [In-place sign marking — reuse value-index slots as visited bits](#in-place-sign-marking--reuse-value-index-slots-as-visited-bits)
+  - [Prefix XOR — cancel equal prefix boundaries](#prefix-xor--cancel-equal-prefix-boundaries)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -6142,7 +6143,7 @@ Executable evidence is in `SearchMatrixContracts.java`. It covers 20 determinist
 
 ## 15. Additional array techniques
 
-Section 15 is a toolbox of techniques that do not belong to the 47-problem sequence. Each technique remains independently bounded and validated. Difference Array, Quickselect, and In-place sign marking are promoted; Prefix XOR and the later techniques remain backlog.
+Section 15 is a toolbox of techniques that do not belong to the 47-problem sequence. Each technique remains independently bounded and validated. Difference Array, Quickselect, In-place sign marking, and Prefix XOR are promoted; Coordinate Compression and the later techniques remain backlog.
 
 ### Difference Array — encode range boundaries, materialize once
 
@@ -6575,6 +6576,166 @@ flowchart TD
 
 Executable evidence is in `InPlaceSignMarkingContracts.java`. It covers 20 deterministic scenario groups spanning all official examples, both value boundaries, all-unique and multiple-duplicate inputs, second-occurrence order, preserving/core mutation contracts and atomic rejection of null, out-of-range and over-multiplicity inputs. It then runs 20,000 seeded valid arrays against an independent frequency oracle while checking restoration, unique output, reversal-set invariance and preservation of both original and reversed inputs—100,000 randomized checks.
 
+### Prefix XOR — cancel equal prefix boundaries
+
+Prefix XOR is the cancellation analogue of prefix sums. Define `prefix[0]=0` and `prefix[i+1]=values[0] ^ ... ^ values[i]`. Because `x ^ x = 0` and `x ^ 0 = x`, an inclusive range is:
+
+```text
+xor(left..right) = prefix[right+1] ^ prefix[left]
+```
+
+The same boundary identity counts subarrays with XOR equal to a target `k`. At the current right boundary with prefix `P`, a prior boundary `Q` starts a qualifying subarray exactly when `Q ^ P = k`, equivalently `Q = P ^ k`. A frequency map of **prior** prefix values supplies the number of valid left boundaries in expected constant time.
+
+| Contract decision | Reusable guide API |
+|---|---|
+| Values | Any Java `int`, including zero, negatives, `MIN_VALUE`, and `MAX_VALUE` |
+| Range queries | Zero-based, inclusive `[left,right]`; each row must satisfy `0 <= left <= right < n` |
+| Empty input | Legal only with zero range queries; target-count result is zero |
+| Range result | One `int` XOR per query, in query order |
+| Count result | Number of non-empty contiguous subarrays whose XOR equals any `int target`, returned as `long` |
+| Mutation | Neither API mutates values or query rows |
+| Complexity | Build/query batch `O(n+q)` time and `O(n)` prefix space; target count expected `O(n)` time and `O(n)` map space |
+
+```mermaid
+flowchart LR
+    A["prefix[left]"] --> B["values left..right"]
+    B --> C["prefix[right+1]"]
+    A --> D["XOR both boundaries"]
+    C --> D
+    D --> E["shared prefix cancels"]
+```
+
+#### Why two boundaries recover one range
+
+Let `A` be the XOR before `left` and `B` the XOR of `left..right`. Then `prefix[left]=A` and `prefix[right+1]=A ^ B`. XORing the boundaries gives `(A ^ B) ^ A = B` by associativity, commutativity, self-cancellation, and the zero identity. Unlike subtraction, XOR has no borrow, sign, or numeric-overflow concern: it combines the fixed-width bit patterns of Java integers.
+
+```mermaid
+flowchart TD
+    A["prefix[right+1] = A XOR B"] --> C["XOR prefix[left] = A"]
+    C --> D["A XOR B XOR A"]
+    D --> E["A XOR A XOR B"]
+    E --> F["0 XOR B = B"]
+```
+
+```java
+static int[] xorQueries(int[] values, int[][] queries) {
+    validateQueries(values, queries);
+    int[] prefix = new int[values.length + 1];
+    for (int i = 0; i < values.length; i++) {
+        prefix[i + 1] = prefix[i] ^ values[i];
+    }
+    int[] answers = new int[queries.length];
+    for (int q = 0; q < queries.length; q++) {
+        int left = queries[q][0], right = queries[q][1];
+        answers[q] = prefix[right + 1] ^ prefix[left];
+    }
+    return answers;
+}
+
+static long countSubarraysWithXor(int[] values, int target) {
+    if (values == null) throw new IllegalArgumentException("values must be non-null");
+    Map<Integer,Integer> frequency = new HashMap<>();
+    frequency.put(0, 1); // empty boundary before index 0
+    int prefix = 0;
+    long count = 0;
+    for (int value : values) {
+        prefix ^= value;
+        count += frequency.getOrDefault(prefix ^ target, 0);
+        frequency.merge(prefix, 1, Integer::sum);
+    }
+    return count;
+}
+```
+
+The query API validates every row before producing results. The counting API seeds prefix `0` once so a qualifying subarray beginning at index `0` is counted. It performs the lookup before inserting the current prefix, which keeps every counted subarray non-empty.
+
+#### Worked case 1 — official range-query trace
+
+For `values=[1,3,4,8]`, build `prefix=[0,1,2,6,14]`:
+
+| query | boundary expression | answer |
+|---|---|---:|
+| `[0,1]` | `prefix[2] ^ prefix[0] = 2 ^ 0` | 2 |
+| `[1,2]` | `prefix[3] ^ prefix[1] = 6 ^ 1` | 7 |
+| `[0,3]` | `prefix[4] ^ prefix[0] = 14 ^ 0` | 14 |
+| `[3,3]` | `prefix[4] ^ prefix[3] = 14 ^ 6` | 8 |
+
+```mermaid
+flowchart LR
+    A["boundary 0: 0"] --> B["boundary 1: 1"]
+    B --> C["boundary 2: 2"]
+    C --> D["boundary 3: 6"]
+    D --> E["boundary 4: 14"]
+```
+
+The answer is `[2,7,14,8]`. One `O(n)` build replaces rescanning every query range.
+
+#### Worked case 2 — count subarrays with XOR 6
+
+For `values=[4,2,2,6,4]` and `target=6`, start with frequency `{0:1}`:
+
+| right | value | current prefix `P` | needed `P ^ 6` | prior matches | running count |
+|---:|---:|---:|---:|---:|---:|
+| 0 | 4 | 4 | 2 | 0 | 0 |
+| 1 | 2 | 6 | 0 | 1 | 1 |
+| 2 | 2 | 4 | 2 | 0 | 1 |
+| 3 | 6 | 2 | 4 | 2 | 3 |
+| 4 | 4 | 6 | 0 | 1 | 4 |
+
+The four ranges are `[0,1]`, `[1,3]`, `[2,3]`, and `[0,4]`. The two matches at right boundary 3 are not duplicate work: two different earlier boundaries currently have prefix `4`.
+
+```mermaid
+flowchart TD
+    A["current prefix P"] --> B["needed = P XOR target"]
+    B --> C["add frequency[needed]"]
+    C --> D["then increment frequency[P]"]
+    D --> E["advance right boundary"]
+```
+
+#### Worked case 3 — repeated prefixes and target zero
+
+For `[5,5,5]` and target `0`, prefix boundaries are `[0,5,0,5]`. Equal boundary values enclose XOR-zero ranges. The second `0` pairs with the initial `0` to count `[0,1]`; the second `5` pairs with the earlier `5` to count `[1,2]`. Result: `2`.
+
+This explains why a set is insufficient: the algorithm needs the **number** of prior equal boundaries, not only whether one exists. For four zeros, all ten non-empty subarrays qualify, so the count API returns `long` rather than risking an `int` result limit for large arrays.
+
+```mermaid
+flowchart LR
+    A["0 at boundary 0"] --> C["0 at boundary 2"]
+    B["5 at boundary 1"] --> D["5 at boundary 3"]
+    C --> E["range 0..1 XOR 0"]
+    D --> F["range 1..2 XOR 0"]
+```
+
+#### Worked case 4 — signed values, empty input, and validation
+
+- `[-1,0,-1]` has prefix boundaries `[0,-1,-1,0]`; range queries `[0,2]` and `[1,1]` both return `0`, and target `0` has two qualifying subarrays.
+- `[Integer.MIN_VALUE,Integer.MAX_VALUE]` has full-range XOR `-1`; Java applies `^` to the promoted two's-complement bit patterns.
+- Empty input with no queries returns an empty answer, and its target count is zero.
+- Null inputs, null/malformed query rows, negative endpoints, `left>right`, or `right>=n` are rejected. Empty input therefore cannot have a valid non-empty range query.
+
+```mermaid
+flowchart TD
+    A{"task"} -->|many fixed-array range XORs| B["build prefix array"]
+    A -->|count ranges equal to target| C["stream prefix frequencies"]
+    A -->|updates between queries| D["use an XOR Fenwick/segment tree"]
+    B --> E["O(1) per query"]
+    C --> F["expected O(n)"]
+```
+
+**Range invariant.** After processing values `0..i-1`, `prefix[i]` is their XOR. The base `prefix[0]=0` is the XOR of no values. The recurrence `prefix[i+1]=prefix[i]^values[i]` extends the invariant by one element, so the boundary-cancellation proof makes every validated query exact.
+
+**Counting invariant.** Immediately before processing index `i`, the map stores the frequency of every prefix boundary from `0` through `i`, excluding the boundary after the current value. After computing current prefix `P`, every stored occurrence of `P ^ target` denotes exactly one distinct left boundary whose range ending at `i` has XOR `target`. Adding that frequency counts all and only such ranges; inserting `P` then establishes the invariant for the next index. The scan terminates after `n` steps.
+
+Building a prefix array is `O(n)` time and `O(n)` space; answering `q` queries is `O(q)` total after the build. Directly scanning every query costs up to `O(nq)`. Counting with a hash-frequency map is expected `O(n)` time and `O(n)` space, versus a simple quadratic nested-loop oracle. The answer can reach `n(n+1)/2`, hence `long`; the prefix itself remains `int` because the required result is a 32-bit bit pattern, not an arithmetic magnitude.
+
+**When the technique does not fit:** point updates occur between range queries; the query operation is not cancellative/invertible; the task asks for maximum pair XOR, which needs a bitwise trie or basis; the task needs subset rather than contiguous-range XOR; or adversarial hash behavior requires a different map guarantee. Online XOR updates and queries suggest a Fenwick tree or segment tree whose combine operation is XOR.
+
+**Common interview errors:** storing `prefix[i]` as including the wrong endpoint; using `prefix[right] ^ prefix[left]` instead of `prefix[right+1] ^ prefix[left]`; forgetting the initial zero boundary; inserting the current prefix before lookup and accidentally counting an empty subarray when target is zero; using a set instead of frequencies; looking for `prefix-target` as in prefix sums rather than `prefix ^ target`; returning an `int` count; assuming negative integers are invalid; modifying input while building; accepting malformed ranges; or claiming subtraction/overflow semantics for a bitwise operation.
+
+**Further follow-ups:** count zero-XOR ranges; enumerate ranges when output size permits; answer XOR Queries of a Subarray; derive equal-XOR triplet counts from zero-XOR combined ranges; maintain online XOR with a Fenwick tree; find maximum subarray XOR with a binary trie of prefixes; use a linear basis for subset XOR; generalize the boundary idea to any associative group; or compare prefix XOR with pair-cancellation in Single Number.
+
+Executable evidence is in `PrefixXorContracts.java`. It covers 20 deterministic groups: both official range-query examples, singleton/empty/signed/full-width inputs, target-zero and no-match counts, all-zero combinatorics, preservation and malformed-query rejection. It then runs 20,000 seeded full-`int` arrays against independent direct-range and quadratic count oracles while checking nonmutation, reversal invariance and range-split cancellation—100,000 randomized checks.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -6612,6 +6773,9 @@ Executable evidence is in `InPlaceSignMarkingContracts.java`. It covers 20 deter
 - [LeetCode, “Kth Largest Element in an Array”](https://leetcode.com/problems/kth-largest-element-in-an-array/) — primary kth-sorted-position, duplicate-counting, official examples, current bounds and without-sorting challenge for Quickselect.
 - [LeetCode, “Find All Duplicates in an Array”](https://leetcode.com/problems/find-all-duplicates-in-an-array/) — primary `[1,n]`, once-or-twice occurrence contract, official examples and linear-time/constant-auxiliary-space requirement for In-place sign marking.
 - [Java SE 21 `Math.abs(int)`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Math.html#abs(int)) — specifies the `Integer.MIN_VALUE` absolute-value exception that makes prevalidation essential for the reusable wrapper.
+- [LeetCode, “XOR Queries of a Subarray”](https://leetcode.com/problems/xor-queries-of-a-subarray/) — primary inclusive range-XOR contract, both official examples, current bounds and prefix-XOR hints.
+- [LeetCode, “Count Triplets That Can Form Two Arrays of Equal XOR”](https://leetcode.com/problems/count-triplets-that-can-form-two-arrays-of-equal-xor/) — primary equal-XOR split contract and official reduction to zero-XOR combined ranges.
+- [Java Language Specification, Java SE 26, §15.22.1](https://docs.oracle.com/en/java/javase/26/docs/specs/jls/jls-15.html#jls-15.22.1) — integer XOR, binary numeric promotion, associativity and commutativity used by the Prefix XOR boundary proofs.
 - [Java SE 21 `java.util.random.RandomGenerator`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/random/RandomGenerator.html) — inclusive-origin, exclusive-bound pivot sampling contract used by the injected randomized core.
 - [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — associative, commutative integer bitwise XOR behavior used by the problem 40 and 41 cancellation implementations.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
@@ -6662,9 +6826,9 @@ Executable evidence is in `InPlaceSignMarkingContracts.java`. It covers 20 deter
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 Difference Array lines 4797–4824, Quickselect lines 4825–4855, and In-place sign marking lines 4858–4861. Prefix XOR begins at line 4864. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, Difference Array, Quickselect, and In-place sign marking on direct page 105. Prefix XOR follows on that page. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 Difference Array lines 4797–4824, Quickselect lines 4825–4855, In-place sign marking lines 4858–4861, and Prefix XOR lines 4864–4867. Coordinate Compression begins at line 4870. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, Difference Array, Quickselect, In-place sign marking, and Prefix XOR on direct page 105. Coordinate Compression follows on the next source page. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 is fully promoted, and Section 15 is now promoted through In-place sign marking, ending at Markdown line 4861 / DOCX page 105. The wider source remains in progress: Prefix XOR begins at Markdown line 4864 and follows In-place sign marking on DOCX page 105.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 is fully promoted, and Section 15 is now promoted through Prefix XOR, ending at Markdown line 4867 / DOCX page 105. The wider source remains in progress: Coordinate Compression begins at Markdown line 4870 and follows Prefix XOR in the paired source.
 
 
