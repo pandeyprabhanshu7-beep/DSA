@@ -54,6 +54,7 @@ java -ea study-guides/striver-dsa/arrays/FindMinimumRotatedContracts.java
 java -ea study-guides/striver-dsa/arrays/SearchMatrixContracts.java
 java -ea study-guides/striver-dsa/arrays/DifferenceArrayContracts.java
 java -ea study-guides/striver-dsa/arrays/QuickselectContracts.java
+java -ea study-guides/striver-dsa/arrays/InPlaceSignMarkingContracts.java
 ```
 
 Rebuild the reader:
@@ -62,6 +63,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3, all 47 Section 4 problems, and Section 15 Difference Array and Quickselect are promoted. In-place sign marking and later source material remain queued.
+This is an incremental guide. Source Sections 1–3, all 47 Section 4 problems, and Section 15 Difference Array, Quickselect, and In-place sign marking are promoted. Prefix XOR and later source material remain queued.
 
 

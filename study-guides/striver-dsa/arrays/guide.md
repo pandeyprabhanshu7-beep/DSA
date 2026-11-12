@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, and the first two Section 15 techniques (Difference Array and Quickselect) are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. In-place sign marking and later source material remain queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, and the first three Section 15 techniques (Difference Array, Quickselect, and In-place sign marking) are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Prefix XOR and later source material remain queued.
 
 ## Study index
 
@@ -79,6 +79,7 @@
 - [15. Additional array techniques](#15-additional-array-techniques)
   - [Difference Array — encode range boundaries, materialize once](#difference-array--encode-range-boundaries-materialize-once)
   - [Quickselect — partition only toward the requested rank](#quickselect--partition-only-toward-the-requested-rank)
+  - [In-place sign marking — reuse value-index slots as visited bits](#in-place-sign-marking--reuse-value-index-slots-as-visited-bits)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -6141,7 +6142,7 @@ Executable evidence is in `SearchMatrixContracts.java`. It covers 20 determinist
 
 ## 15. Additional array techniques
 
-Section 15 is a toolbox of techniques that do not belong to the 47-problem sequence. Each technique remains independently bounded and validated. The first is the one-dimensional difference array; Quickselect and the later techniques are still backlog.
+Section 15 is a toolbox of techniques that do not belong to the 47-problem sequence. Each technique remains independently bounded and validated. Difference Array, Quickselect, and In-place sign marking are promoted; Prefix XOR and the later techniques remain backlog.
 
 ### Difference Array — encode range boundaries, materialize once
 
@@ -6435,6 +6436,145 @@ One partition of a window of size `m` costs `Theta(m)`. With uniformly randomize
 
 Executable evidence is in `QuickselectContracts.java`. It covers 20 deterministic groups: both official examples, singleton and rank extremes, ascending/descending order, all-equal and duplicate-heavy data, negative and full-width values, preserving and in-place contracts, rank validation, permutation behavior and malformed-input rejection. It then runs 20,000 seeded arrays against an independent sorted-copy oracle while checking wrapper preservation, reversal invariance, the duplicate-aware rank predicate and preservation of the in-place array's value multiset—100,000 randomized checks in total.
 
+### In-place sign marking — reuse value-index slots as visited bits
+
+The duplicate-finding contract is unusually friendly to an in-place bitmap: an input of length `n` contains only values in `[1,n]`, and each value appears once or twice. Therefore every legal value `v` owns the safe zero-based marker slot `v-1`. The sign of that slot records whether `v` has already been encountered; its magnitude continues to preserve the slot's original value for later scans.
+
+| Contract decision | Reusable guide API |
+|---|---|
+| Input domain | Non-null `int[]`; every value is in `[1,n]`; every value occurs at most twice |
+| Result | Every value that occurs twice, emitted once when its second occurrence is scanned |
+| Output order | Second-occurrence traversal order; callers must not assume sorted order |
+| Core mutation | `findDuplicatesInPlaceCore` may leave marker slots negative |
+| Preserving wrapper | Validate first, run the core, and restore every sign in `finally` |
+| Core complexity | `O(n)` time, `O(1)` auxiliary state excluding the result list |
+| Defensive validation | The reusable wrapper uses `O(n)` frequency storage; the official constant-space claim assumes the stated preconditions |
+
+```mermaid
+flowchart LR
+    A["value v in 1..n"] --> B["marker index v-1"]
+    B --> C{"slot sign"}
+    C -->|positive| D["first visit: negate slot"]
+    C -->|negative| E["second visit: emit v"]
+```
+
+This is a value-to-address encoding, not ordinary indexing by the current position. `Math.abs(values[i])` recovers the current logical value even if an earlier visit used position `i` as somebody else's marker.
+
+```java
+static List<Integer> findDuplicatesRestoring(int[] values) {
+    validate(values); // atomic rejection before mutation
+    try {
+        return findDuplicatesInPlaceCore(values);
+    } finally {
+        for (int i = 0; i < values.length; i++) {
+            values[i] = Math.abs(values[i]);
+        }
+    }
+}
+
+static List<Integer> findDuplicatesInPlaceCore(int[] values) {
+    List<Integer> duplicates = new ArrayList<>();
+    for (int i = 0; i < values.length; i++) {
+        int value = Math.abs(values[i]);
+        int markerIndex = value - 1;
+        if (values[markerIndex] < 0) duplicates.add(value);
+        else values[markerIndex] = -values[markerIndex];
+    }
+    return duplicates;
+}
+```
+
+The core deliberately omits range and multiplicity checks: inspecting `value-1` is safe only after those preconditions are known. The reusable wrapper validates before mutation, so malformed input is rejected atomically. Its frequency array is an explicit engineering tradeoff, not part of the official `O(1)`-auxiliary core.
+
+#### Worked case 1 — complete official trace
+
+For `[4,3,2,7,8,2,3,1]`, each row uses the current magnitude as the logical value and then observes the sign at its marker slot:
+
+| scan `i` | logical value | marker | sign before | action | array after action |
+|---:|---:|---:|---|---|---|
+| 0 | 4 | 3 | `+7` | mark 4 | `[4,3,2,-7,8,2,3,1]` |
+| 1 | 3 | 2 | `+2` | mark 3 | `[4,3,-2,-7,8,2,3,1]` |
+| 2 | 2 | 1 | `+3` | mark 2 | `[4,-3,-2,-7,8,2,3,1]` |
+| 3 | 7 | 6 | `+3` | mark 7 | `[4,-3,-2,-7,8,2,-3,1]` |
+| 4 | 8 | 7 | `+1` | mark 8 | `[4,-3,-2,-7,8,2,-3,-1]` |
+| 5 | 2 | 1 | `-3` | emit 2 | unchanged |
+| 6 | 3 | 2 | `-2` | emit 3 | unchanged |
+| 7 | 1 | 0 | `+4` | mark 1 | `[-4,-3,-2,-7,8,2,-3,-1]` |
+
+The result is `[2,3]`. The wrapper's `finally` pass restores `[4,3,2,7,8,2,3,1]` for the caller.
+
+```mermaid
+flowchart TD
+    A["4 maps to slot 3"] --> B["negate 7"]
+    B --> C["3 maps to slot 2"]
+    C --> D["negate 2"]
+    D --> E["later 2 sees slot 1 negative"]
+    E --> F["emit 2"]
+    F --> G["later 3 sees slot 2 negative → emit 3"]
+```
+
+#### Worked case 2 — lower boundary
+
+For `[1,1,2]`, value `1` maps to index `0`, the lowest valid marker. The first `1` changes slot 0 from `1` to `-1`; the second `1` observes that negative marker and emits `1`; value `2` maps to slot 1 and marks it. The answer is `[1]`, and restoration returns the original array.
+
+```mermaid
+flowchart LR
+    A["1 → slot 0 positive"] --> B["slot 0 becomes negative"]
+    B --> C["1 → slot 0 negative"]
+    C --> D["emit 1"]
+```
+
+#### Worked case 3 — singleton and no duplicate
+
+`[1]` maps its only value to its only marker. The marker is positive, so it becomes negative and nothing is emitted. The answer is `[]`; after restoration the input is `[1]`. More generally, an all-unique permutation such as `[3,1,4,2]` negates each marker exactly once and returns an empty list.
+
+#### Worked case 4 — output follows second occurrences
+
+For `[2,2,1,3,3]`, the second `2` is encountered before the second `3`, so the answer is `[2,3]`. Reordering to `[3,1,3,2,2]` produces `[3,2]`. Both contain the same duplicate set, but the API does not promise sorted output.
+
+```mermaid
+flowchart TD
+    A["scan from left to right"] --> B{"marker already negative?"}
+    B -->|no| C["record first visit"]
+    B -->|yes| D["append now"]
+    C --> A
+    D --> A
+```
+
+**Marker invariant.** Immediately before processing position `i`, marker slot `v-1` is negative exactly when value `v` has appeared among original positions `0..i-1`. Initially no positions have been processed and all legal inputs are positive, so the invariant holds. On the first encounter with `v`, its positive marker is negated, establishing the invariant for the next position. On the second encounter, the negative marker proves a prior occurrence, so emitting `v` is correct and leaving the marker negative preserves the invariant. Because the validated multiplicity is at most two, no value can be emitted more than once.
+
+```mermaid
+flowchart TD
+    A["validate full domain and multiplicity"] --> B["enter try"]
+    B --> C["mutating sign-marking core"]
+    C --> D["return duplicate list"]
+    C -->|exception| E["finally"]
+    D --> E
+    E --> F["restore every magnitude"]
+```
+
+**Correctness and termination.** The invariant proves both directions: a negative marker is sufficient evidence of an earlier occurrence, and a second occurrence must find the marker negative because its first occurrence established it. The loop advances `i` once per iteration and processes exactly `n` positions, so it terminates. Restoration changes signs only, so it reconstructs every validated positive input value without changing order.
+
+The core performs one scan and one constant-time marker operation per element, hence `O(n)` time. Its non-output state is a handful of integers, hence `O(1)` auxiliary space. The restoring pass is another `O(n)` scan. Defensive validation is also `O(n)` time but uses `O(n)` frequency storage; omitting it is legitimate only when the caller or problem statement already guarantees `[1,n]` values and multiplicity at most two.
+
+```mermaid
+flowchart TD
+    A{"values map bijectively to safe marker slots?"} -->|no| B["use a set or frequency map"]
+    A -->|yes| C{"may mutate temporarily?"}
+    C -->|no| D["copy first or use auxiliary storage"]
+    C -->|yes| E{"need occurrence counts above two?"}
+    E -->|yes| B
+    E -->|no| F["sign marking fits"]
+```
+
+**When the technique does not fit:** values include zero, negatives, or values above `n`; the array may contain a value three or more times but output must remain unique; mutation is forbidden and copying is too costly; the original signs carry information; counts rather than seen/unseen state are required; or values do not map densely into safe indices.
+
+**Common interview errors:** indexing by `value` instead of `value-1`; reading `values[i]` without `abs` after earlier sign changes; calling `Math.abs` before validating and overlooking `Integer.MIN_VALUE`, whose `int` absolute value remains negative; mutating before all reusable-API validation succeeds; forgetting to restore the input; claiming the defensive wrapper is constant-space despite its frequency array; emitting a value repeatedly when multiplicity exceeds two; assuming output is sorted; negating zero, which stays zero; or applying the trick when negative input values are legal data.
+
+**Further follow-ups:** find disappeared numbers by reporting positive marker slots after the scan; combine placement and sign state for First Missing Positive; compare with cyclic sort; return counts with a frequency array; preserve immutable input by cloning; generalize dense values `[L,L+n-1]` with an explicit offset; encode more than one bit per slot only when arithmetic overflow and restoration are proved safe; or use a `BitSet` when mutation is forbidden but dense indexing remains useful.
+
+Executable evidence is in `InPlaceSignMarkingContracts.java`. It covers 20 deterministic scenario groups spanning all official examples, both value boundaries, all-unique and multiple-duplicate inputs, second-occurrence order, preserving/core mutation contracts and atomic rejection of null, out-of-range and over-multiplicity inputs. It then runs 20,000 seeded valid arrays against an independent frequency oracle while checking restoration, unique output, reversal-set invariance and preservation of both original and reversed inputs—100,000 randomized checks.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -6470,6 +6610,8 @@ Executable evidence is in `QuickselectContracts.java`. It covers 20 deterministi
 - [LeetCode, “Search a 2D Matrix II”](https://leetcode.com/problems/search-a-2d-matrix-ii/) — primary independently row-and-column-sorted comparison problem, whose weaker row-major ordering requires a different elimination proof.
 - [LeetCode, “Corporate Flight Bookings”](https://leetcode.com/problems/corporate-flight-bookings/) — primary inclusive range-addition model, official examples, 1-based flight labels and current input bounds for the Difference Array technique.
 - [LeetCode, “Kth Largest Element in an Array”](https://leetcode.com/problems/kth-largest-element-in-an-array/) — primary kth-sorted-position, duplicate-counting, official examples, current bounds and without-sorting challenge for Quickselect.
+- [LeetCode, “Find All Duplicates in an Array”](https://leetcode.com/problems/find-all-duplicates-in-an-array/) — primary `[1,n]`, once-or-twice occurrence contract, official examples and linear-time/constant-auxiliary-space requirement for In-place sign marking.
+- [Java SE 21 `Math.abs(int)`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Math.html#abs(int)) — specifies the `Integer.MIN_VALUE` absolute-value exception that makes prevalidation essential for the reusable wrapper.
 - [Java SE 21 `java.util.random.RandomGenerator`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/random/RandomGenerator.html) — inclusive-origin, exclusive-bound pivot sampling contract used by the injected randomized core.
 - [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — associative, commutative integer bitwise XOR behavior used by the problem 40 and 41 cancellation implementations.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
@@ -6520,9 +6662,9 @@ Executable evidence is in `QuickselectContracts.java`. It covers 20 deterministi
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 Difference Array lines 4797–4824, and Quickselect lines 4825–4855. In-place sign marking begins at line 4858. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, Difference Array and Quickselect on direct page 105. In-place sign marking follows on that page. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 Difference Array lines 4797–4824, Quickselect lines 4825–4855, and In-place sign marking lines 4858–4861. Prefix XOR begins at line 4864. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, Difference Array, Quickselect, and In-place sign marking on direct page 105. Prefix XOR follows on that page. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 is fully promoted, and Section 15 is now promoted through Difference Array and Quickselect, ending at Markdown line 4855 / DOCX page 105. The wider source remains in progress: In-place sign marking begins at Markdown line 4858 and follows Quickselect on DOCX page 105.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 is fully promoted, and Section 15 is now promoted through In-place sign marking, ending at Markdown line 4861 / DOCX page 105. The wider source remains in progress: Prefix XOR begins at Markdown line 4864 and follows In-place sign marking on DOCX page 105.
 
 
