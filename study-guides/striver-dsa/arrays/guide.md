@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, and the first Section 15 technique (Difference Array) are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Quickselect and later source material remain queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, and the first two Section 15 techniques (Difference Array and Quickselect) are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. In-place sign marking and later source material remain queued.
 
 ## Study index
 
@@ -78,6 +78,7 @@
   - [Example 47 — Search a 2D Matrix: binary-search virtual row-major order](#example-47--search-a-2d-matrix-binary-search-virtual-row-major-order)
 - [15. Additional array techniques](#15-additional-array-techniques)
   - [Difference Array — encode range boundaries, materialize once](#difference-array--encode-range-boundaries-materialize-once)
+  - [Quickselect — partition only toward the requested rank](#quickselect--partition-only-toward-the-requested-rank)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -6284,6 +6285,156 @@ For `u` updates and length `n`, boundary encoding costs `O(u)`, materialization 
 
 Executable evidence is in `DifferenceArrayContracts.java`. It covers 20 deterministic scenario groups: the flight-bookings example, overlapping and negative updates, both edges, full ranges, point ranges, empty work, widened totals, preservation, update-order independence, interval splitting, inverse cancellation and malformed-input rejection. It then runs 20,000 seeded batches against an independent element-by-element oracle while also checking update preservation, permutation invariance, split-update equivalence and inverse cancellation—100,000 randomized checks in total.
 
+### Quickselect — partition only toward the requested rank
+
+The current Kth Largest Element contract asks for the value at sorted descending rank `k`, counting duplicate occurrences rather than distinct values, with `1 <= k <= n`. Full sorting solves the problem in `O(n log n)` time; Quickselect instead establishes one pivot's final rank band and continues only in the side that can still contain `k`.
+
+| Contract decision | Reusable guide API |
+|---|---|
+| Rank meaning | `k=1` is the maximum; equal occurrences occupy separate sorted positions |
+| Result | Return the value, not an index and not the top-`k` collection |
+| Input domain | Non-null, non-empty `int[]`; every `int` value is legal |
+| Mutation | `kthLargest` clones and preserves the caller's array; `kthLargestInPlace` may permute it |
+| Randomness | Inject a non-null `RandomGenerator`; a seed makes tests reproducible |
+| Duplicate policy | Three-way partition into `> pivot`, `== pivot`, and `< pivot` regions |
+| Space | `O(1)` auxiliary state for the in-place core; the preserving wrapper uses an `O(n)` clone |
+
+```mermaid
+flowchart TD
+    A["need one unsorted rank"] --> B{"must preserve input?"}
+    B -->|yes| C["clone, then Quickselect"]
+    B -->|no| D["in-place Quickselect"]
+    A --> E{"need all values ordered?"}
+    E -->|yes| F["sort"]
+    A --> G{"streaming or repeated top-k?"}
+    G -->|yes| H["size-k heap"]
+```
+
+The implementation targets descending zero-based index `k-1`. During a partition, the active window is rearranged into three contiguous regions:
+
+```mermaid
+flowchart LR
+    A["left … greaterEnd-1<br/>values > pivot"] --> B["greaterEnd … lessStart<br/>values = pivot"]
+    B --> C["lessStart+1 … right<br/>values < pivot"]
+```
+
+If the target lies in the equal band, the pivot value is the answer. If it lies before the band, only the greater side remains possible; if it lies after the band, only the smaller side remains possible. Elements outside the chosen side can never regain the target rank, so no recursive work is needed there.
+
+```java
+static int kthLargest(int[] values, int k, long seed) {
+    if (values == null) throw new IllegalArgumentException("values must be non-null");
+    if (k < 1 || k > values.length) throw new IllegalArgumentException("k must be in [1,n]");
+    return kthLargestInPlace(values.clone(), k, new java.util.Random(seed));
+}
+
+static int kthLargestInPlace(
+        int[] values, int k, java.util.random.RandomGenerator random) {
+    if (values == null) throw new IllegalArgumentException("values must be non-null");
+    if (k < 1 || k > values.length) throw new IllegalArgumentException("k must be in [1,n]");
+    if (random == null) throw new IllegalArgumentException("random must be non-null");
+
+    int target = k - 1;
+    int left = 0, right = values.length - 1;
+    while (left <= right) {
+        int pivot = values[random.nextInt(left, right + 1)];
+        int greaterEnd = left, scan = left, lessStart = right;
+        while (scan <= lessStart) {
+            if (values[scan] > pivot) swap(values, greaterEnd++, scan++);
+            else if (values[scan] < pivot) swap(values, scan, lessStart--);
+            else scan++;
+        }
+        if (target < greaterEnd) right = greaterEnd - 1;
+        else if (target > lessStart) left = lessStart + 1;
+        else return pivot;
+    }
+    throw new AssertionError("validated target must be selected");
+}
+```
+
+The random API's upper bound is exclusive, so `nextInt(left, right + 1)` samples every active index from `left` through `right`. The algorithm compares values directly rather than subtracting them, avoiding comparator-style overflow at `Integer.MIN_VALUE` and `Integer.MAX_VALUE`.
+
+#### Worked case 1 — official example with a complete narrowing trace
+
+For `values=[3,2,1,5,6,4]` and `k=2`, descending target index is `1`. One valid randomized execution first chooses pivot `3`, then pivot `5`:
+
+| partition | active window | result after partition | equal band | target decision |
+|---:|---|---|---|---|
+| 1 | indices `0..5`, pivot `3` | `[4,6,5,3,1,2]` | `3..3` | `1 < 3`, retain `0..2` |
+| 2 | indices `0..2`, pivot `5` | `[6,5,4,3,1,2]` | `1..1` | target is in the band; return `5` |
+
+```mermaid
+flowchart LR
+    A["target=1<br/>3,2,1,5,6,4"] --> B["pivot 3<br/>greater band 0..2"]
+    B --> C["retain 4,6,5"]
+    C --> D["pivot 5<br/>equal band 1..1"]
+    D --> E["answer 5"]
+```
+
+The array order after a partition is deliberately unspecified inside each region. Only the region predicates and boundaries are part of the proof.
+
+#### Worked case 2 — duplicates count as sorted positions
+
+For `values=[3,2,3,1,2,4,5,5,6]` and `k=4`, descending order would be `[6,5,5,4,3,3,2,2,1]`; the answer is `4`. It is not the fourth distinct value. If a partition chooses pivot `5`, its equal band covers ranks 1 and 2, so target rank 3 lies strictly to the smaller side. A later pivot `4` places target rank 3 in the equal band.
+
+```mermaid
+flowchart TD
+    A["pivot 5"] --> B[">5: rank 0"]
+    A --> C["=5: ranks 1..2"]
+    A --> D["<5: ranks 3..8"]
+    D --> E["target rank 3"]
+    E --> F["pivot 4 → answer"]
+```
+
+Three-way partitioning is more than a cosmetic duplicate optimization: if thousands of values equal the pivot, the complete equal band is finalized in one pass rather than repeatedly shrinking by one equal occurrence.
+
+#### Worked case 3 — negative duplicates and the rank predicate
+
+For `values=[-7,-7,-3,-10]` and `k=3`, descending order is `[-3,-7,-7,-10]`, so the answer is `-7`. A returned value `x` has the correct kth-largest rank exactly when:
+
+```text
+count(value > x) < k <= count(value >= x)
+```
+
+Here one value is greater than `-7` and three values are greater than or equal to it: `1 < 3 <= 3`. This predicate validates duplicates without depending on the array's post-partition order.
+
+```mermaid
+flowchart LR
+    A["-3 > -7"] --> B["one strictly greater"]
+    C["-3,-7,-7 ≥ -7"] --> D["three greater-or-equal"]
+    B --> E["1 < k=3 ≤ 3"]
+    D --> E
+```
+
+#### Worked case 4 — rank extremes, singleton, and full-width values
+
+- `[9,1,4]`, `k=1` returns `9`; `k=3` returns `1`.
+- `[7]`, `k=1` returns `7` after one equal-band partition.
+- `[Integer.MIN_VALUE,0,Integer.MAX_VALUE]`, `k=2` returns `0`; direct relational comparisons remain correct across the full `int` domain.
+- Null or empty input, `k<1`, `k>n`, or a null random generator is rejected before partitioning.
+
+```mermaid
+flowchart TD
+    A["validated values and k"] --> B["preserving wrapper clones"]
+    B --> C["in-place randomized core"]
+    C --> D["three-way partition"]
+    D --> E{"target relative to equal band"}
+    E -->|before| F["keep greater side"]
+    E -->|inside| G["return pivot"]
+    E -->|after| H["keep smaller side"]
+```
+
+**Partition invariant.** At every inner-loop boundary, `[left,greaterEnd)` contains only values greater than the pivot; `[greaterEnd,scan)` contains only values equal to it; `[scan,lessStart]` is unclassified; and `(lessStart,right]` contains only values smaller than it. Moving a greater value to `greaterEnd` grows the first region, moving a smaller value to `lessStart` grows the last region without advancing `scan`, and accepting an equal value grows the middle region. Each action shrinks the unclassified region, so the partition terminates with three complete regions.
+
+**Selection proof.** On partition completion, every value before the equal band is greater than the pivot and every value after it is smaller. Therefore every descending sorted position occupied by the pivot is exactly within that band. If the target is before the band, neither the pivot nor any smaller-side value can occupy it; symmetrically, if the target is after the band, neither the pivot nor any greater-side value can occupy it. Retaining only the indicated side preserves the target. Landing inside the band proves the pivot is the kth largest. Since each outer iteration either returns or removes at least the nonempty equal band from consideration, the validated search terminates.
+
+One partition of a window of size `m` costs `Theta(m)`. With uniformly randomized pivots, the expected total over the one retained branch is `O(n)`; unlucky pivot sequences can still retain sizes `n-1,n-2,…`, giving worst-case `O(n²)`. Randomization makes the pivot sequence independent of the original input order but does **not** provide a deterministic worst-case bound. The in-place core uses `O(1)` auxiliary state and an iterative outer loop; the preserving wrapper's clone costs `O(n)` space. Sorting is deterministic `O(n log n)` and useful when later queries need order; a size-`k` heap gives `O(n log k)` without rearranging all input; median-of-medians is the specialist option when deterministic linear worst-case selection is required.
+
+**Common interview errors:** returning the kth distinct value; using target `n-k` while partitioning in descending order; failing to define whether the method mutates input; recursing into both sides and recreating Quicksort; not re-examining the item swapped in from the right; mishandling equal values with a two-way partition; choosing `nextInt(left,right)` and never sampling the right endpoint; claiming worst-case linear time; subtracting full-width values to compare them; using a fixed first/last pivot on adversarial order; allocating recursive slices and losing constant auxiliary space; or testing only the official examples without an independent rank oracle.
+
+**Further follow-ups:** kth smallest by changing target/rank direction; return the unsorted top-`k` prefix after selection; sort only that prefix when ordered top-`k` output is required; compare Lomuto, Hoare and Dutch-national-flag partitions; make pivot generation cryptographically unpredictable only when security, rather than algorithmic balance, requires it; handle immutable inputs with a clone; select by a record key while preserving object payloads; support multiple ranks by reusing partition boundaries; or replace randomized selection with median-of-medians for deterministic `O(n)` worst-case behavior.
+
+Executable evidence is in `QuickselectContracts.java`. It covers 20 deterministic groups: both official examples, singleton and rank extremes, ascending/descending order, all-equal and duplicate-heavy data, negative and full-width values, preserving and in-place contracts, rank validation, permutation behavior and malformed-input rejection. It then runs 20,000 seeded arrays against an independent sorted-copy oracle while checking wrapper preservation, reversal invariance, the duplicate-aware rank predicate and preservation of the in-place array's value multiset—100,000 randomized checks in total.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -6318,6 +6469,8 @@ Executable evidence is in `DifferenceArrayContracts.java`. It covers 20 determin
 - [LeetCode, “Search a 2D Matrix”](https://leetcode.com/problems/search-a-2d-matrix/) — primary rectangular, row-wise non-decreasing, strict cross-row ordering contract, both official examples, current bounds and required `O(log(m*n))` runtime for problem 47.
 - [LeetCode, “Search a 2D Matrix II”](https://leetcode.com/problems/search-a-2d-matrix-ii/) — primary independently row-and-column-sorted comparison problem, whose weaker row-major ordering requires a different elimination proof.
 - [LeetCode, “Corporate Flight Bookings”](https://leetcode.com/problems/corporate-flight-bookings/) — primary inclusive range-addition model, official examples, 1-based flight labels and current input bounds for the Difference Array technique.
+- [LeetCode, “Kth Largest Element in an Array”](https://leetcode.com/problems/kth-largest-element-in-an-array/) — primary kth-sorted-position, duplicate-counting, official examples, current bounds and without-sorting challenge for Quickselect.
+- [Java SE 21 `java.util.random.RandomGenerator`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/random/RandomGenerator.html) — inclusive-origin, exclusive-bound pivot sampling contract used by the injected randomized core.
 - [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — associative, commutative integer bitwise XOR behavior used by the problem 40 and 41 cancellation implementations.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
@@ -6367,9 +6520,9 @@ Executable evidence is in `DifferenceArrayContracts.java`. It covers 20 determin
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, and Section 15 Difference Array lines 4797–4824. Quickselect begins at line 4825. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, and the Section 15 Difference Array material on direct page 105; Quickselect follows on the same page. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 Difference Array lines 4797–4824, and Quickselect lines 4825–4855. In-place sign marking begins at line 4858. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, Difference Array and Quickselect on direct page 105. In-place sign marking follows on that page. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 is fully promoted, and Section 15 is now promoted through its first bounded technique, Difference Array, at Markdown lines 4797–4824 / DOCX page 105. The wider source remains in progress: Quickselect begins at Markdown line 4825 and continues on DOCX page 105.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 is fully promoted, and Section 15 is now promoted through Difference Array and Quickselect, ending at Markdown line 4855 / DOCX page 105. The wider source remains in progress: In-place sign marking begins at Markdown line 4858 and follows Quickselect on DOCX page 105.
 
 
