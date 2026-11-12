@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, and the first five Section 15 techniques (Difference Array, Quickselect, In-place sign marking, Prefix XOR, and Coordinate Compression) are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 Linear scan / state tracking are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
 
 ## Study index
 
@@ -82,6 +82,8 @@
   - [In-place sign marking — reuse value-index slots as visited bits](#in-place-sign-marking--reuse-value-index-slots-as-visited-bits)
   - [Prefix XOR — cancel equal prefix boundaries](#prefix-xor--cancel-equal-prefix-boundaries)
   - [Coordinate Compression — preserve order in a dense rank space](#coordinate-compression--preserve-order-in-a-dense-rank-space)
+- [16. Question bank by pattern](#16-question-bank-by-pattern)
+  - [Linear scan / state tracking — compress the processed prefix](#linear-scan--state-tracking--compress-the-processed-prefix)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -6885,6 +6887,225 @@ Sorting costs `O(n log n)`, deduplication costs `O(n)`, and `n` binary searches 
 
 Executable evidence is in `CoordinateCompressionContracts.java`. It covers 20 deterministic groups: all three official examples, empty/singleton, negative, sparse, duplicate-heavy, ascending/descending and full-width inputs; dictionary order, gap-free ranks, preservation, round-trip restoration, defensive result access and invalid-input rejection. It then runs 20,000 seeded arrays against an independent `TreeSet`/map oracle while checking exact ranks, exact dictionary, nonmutation, round-trip reconstruction and reversal equivariance—100,000 randomized checks.
 
+## 16. Question bank by pattern
+
+### Linear scan / state tracking — compress the processed prefix
+
+Linear scan is not merely “use a `for` loop.” The pattern works when a fixed-size state is a sufficient summary of every processed index for the decisions still ahead. Instead of retaining the entire prefix, define what future elements need to know: the smallest earlier value, whether either comparison direction has appeared, whether the previous slot is occupied, or the best tails of increasing subsequences.
+
+> **State-sufficiency test:** if two processed prefixes produce the same state, every possible unread suffix must lead to the same future decisions and result. If that is false, the state has discarded necessary information.
+
+The source drill map lists ten problems in this family. They do not all use the same variables, and “linear scan” does not promise exactly one pass: Pivot Index needs a total before its decision scan, while Candy needs evidence from both directions. The shared idea is that each pass retains only the information the unread suffix needs.
+
+| Drill problem | Minimal useful state | Boundary that state summarizes |
+|---|---|---|
+| Best Time to Buy and Sell Stock / Maximum Difference | minimum earlier value and best legal gain | all legal left endpoints before the current index |
+| Can Place Flowers | previous simulated occupancy plus next original occupancy | adjacency at the current plot |
+| Monotonic Array | whether an increase and a decrease have appeared | all adjacent pairs already inspected |
+| Find Pivot Index | total sum and strict-left sum | unseen suffix derived as `total-left-current` |
+| Maximum Product Difference | two largest and two smallest values | the four extremes of the processed prefix |
+| Third Maximum Number | three distinct maxima | all smaller or duplicate values are dominated |
+| Increasing Triplet Subsequence | smallest length-1 and length-2 tails | every increasing subsequence of length at most two |
+| Gas Station | total balance, current balance, candidate start | impossible starts discarded after a deficit |
+| Candy | left requirement and right requirement | strict rating constraints from both directions |
+
+```mermaid
+flowchart TD
+    A["process value at index i"] --> B["read prefix summary"]
+    B --> C["decide result contribution"]
+    C --> D["update fixed-size state"]
+    D --> E{"unread input remains?"}
+    E -->|yes| A
+    E -->|no| F["return result"]
+```
+
+The reusable evidence below rejects null arrays and preserves every caller array. It extends the official problems only at explicitly documented boundaries: empty input produces no increasing pair, is monotonic, and can place only zero flowers; maximum difference is widened to `long` so full-width reusable inputs cannot overflow.
+
+```java
+static long maximumIncreasingDifference(int[] values) {
+    if (values == null) throw new IllegalArgumentException("values must be non-null");
+    if (values.length < 2) return -1;
+    int minimum = values[0];
+    long best = -1;
+    for (int i = 1; i < values.length; i++) {
+        int value = values[i];
+        if (value > minimum) best = Math.max(best, (long) value - minimum);
+        else if (value < minimum) minimum = value;
+    }
+    return best;
+}
+
+static boolean canPlaceFlowers(int[] flowerbed, int requested) {
+    validateFlowerbed(flowerbed, requested);
+    int planted = 0;
+    boolean previousOccupied = false;
+    for (int i = 0; i < flowerbed.length; i++) {
+        boolean currentOccupied = flowerbed[i] == 1;
+        boolean nextOccupied = i + 1 < flowerbed.length && flowerbed[i + 1] == 1;
+        if (!currentOccupied && !previousOccupied && !nextOccupied) {
+            planted++;
+            previousOccupied = true; // simulated flower; input remains unchanged
+        } else {
+            previousOccupied = currentOccupied;
+        }
+    }
+    return planted >= requested;
+}
+
+static boolean isMonotonic(int[] values) {
+    if (values == null) throw new IllegalArgumentException("values must be non-null");
+    boolean sawIncrease = false, sawDecrease = false;
+    for (int i = 1; i < values.length; i++) {
+        if (values[i] > values[i - 1]) sawIncrease = true;
+        if (values[i] < values[i - 1]) sawDecrease = true;
+        if (sawIncrease && sawDecrease) return false;
+    }
+    return true;
+}
+
+static boolean hasIncreasingTriplet(int[] values) {
+    if (values == null) throw new IllegalArgumentException("values must be non-null");
+    int first = Integer.MAX_VALUE, second = Integer.MAX_VALUE;
+    for (int value : values) {
+        if (value <= first) first = value;
+        else if (value <= second) second = value;
+        else return true;
+    }
+    return false;
+}
+
+static void validateFlowerbed(int[] flowerbed, int requested) {
+    if (flowerbed == null) throw new IllegalArgumentException("flowerbed must be non-null");
+    if (requested < 0) throw new IllegalArgumentException("requested must be non-negative");
+    for (int i = 0; i < flowerbed.length; i++) {
+        if (flowerbed[i] != 0 && flowerbed[i] != 1) {
+            throw new IllegalArgumentException("flowerbed must contain only 0 and 1");
+        }
+        if (i > 0 && flowerbed[i - 1] == 1 && flowerbed[i] == 1) {
+            throw new IllegalArgumentException("existing flowers must not be adjacent");
+        }
+    }
+}
+```
+
+Flowerbed validation is strict: the requested count must be non-negative, every component must be `0` or `1`, and the original bed must not already contain adjacent flowers. Validation finishes before the capacity answer is returned, so `requested=0` does not silently accept malformed reusable input.
+
+#### Worked case 1 — retain the cheapest legal left endpoint
+
+For Maximum Difference Between Increasing Elements, `values=[7,1,5,4]` returns `4`. At index `j`, only the smallest value from indices `<j` can maximize `values[j]-values[i]`; every larger earlier value is dominated for all future right endpoints.
+
+| `j` | value | minimum before | legal candidate | best after | minimum after |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 1 | 7 | none | -1 | 1 |
+| 2 | 5 | 1 | `5-1=4` | 4 | 1 |
+| 3 | 4 | 1 | `4-1=3` | 4 | 1 |
+
+`[9,4,3,2]` returns `-1` because no later component exceeds its prefix minimum. `[1,5,2,10]` returns `9`, not merely the largest adjacent rise. For `[Integer.MIN_VALUE,Integer.MAX_VALUE]`, the reusable method returns `4_294_967_295L`; casting after subtraction would already be too late because the `int` subtraction would overflow.
+
+```mermaid
+flowchart LR
+    A["7: minimum 7"] --> B["1: minimum 1"]
+    B --> C["5: candidate 4"]
+    C --> D["4: candidate 3"]
+    D --> E["best 4"]
+```
+
+**Invariant.** Before processing `j`, `minimum` is the smallest component in `values[0..j)`, and `best` is the maximum legal increasing difference whose right endpoint is before `j`. Comparing the current value with `minimum` evaluates the best pair ending at `j`; updating the minimum then establishes the invariant for the next index. Thus every legal right endpoint is evaluated against its optimal legal left endpoint exactly once.
+
+#### Worked case 2 — simulate the earliest legal flower without mutation
+
+For `flowerbed=[1,0,0,0,1]` and `requested=1`, the answer is `true`. The current plot is plantable only when the previous **simulated** state and the next **original** plot are both empty.
+
+| index | original current | previous simulated occupied? | next original occupied? | action | planted |
+|---:|---:|---:|---:|---|---:|
+| 0 | 1 | no | no | retain existing flower | 0 |
+| 1 | 0 | yes | no | skip | 0 |
+| 2 | 0 | no | no | simulate planting | 1 |
+| 3 | 0 | yes | yes | skip | 1 |
+| 4 | 1 | no | no | retain existing flower | 1 |
+
+The same bed with `requested=2` returns `false`. `[0]` can accept one flower. Empty input can accept zero but not one. The implementation does not modify the caller's bed; `previousOccupied=true` records the simulated choice that the next iteration must respect.
+
+```mermaid
+flowchart LR
+    A["1 existing"] --> B["0 blocked left"]
+    B --> C["0 plant here"]
+    C --> D["0 blocked both"]
+    D --> E["1 existing"]
+```
+
+**Greedy proof.** Existing flowers split the bed into independent zero runs. Within a run, any legal placement needs one empty slot between consecutive flowers. Choosing the earliest currently legal slot consumes the shortest possible prefix of that run. If another maximum placement uses a later first slot, shift that first choice left to the greedy slot; it remains legal against the left boundary and does not reduce the space available after the original later choice. Repeating this exchange yields the greedy placement count, so comparing that maximum count with `requested` is exact.
+
+#### Worked case 3 — two direction bits decide monotonicity
+
+`[1,2,2,3]` is nondecreasing, so it is monotonic. Equality supplies no direction evidence. `[1,3,2]` is not monotonic because it contains both an increasing adjacent pair and a decreasing adjacent pair.
+
+| pair | relation | `sawIncrease` | `sawDecrease` | decision |
+|---|---|---:|---:|---|
+| `1,3` | increase | true | false | continue |
+| `3,2` | decrease | true | true | return false |
+
+`[6,5,4,4]` is nonincreasing and returns `true`; `[7,7,7]` satisfies both nondecreasing and nonincreasing definitions. Empty and singleton arrays are monotonic under the reusable extension because they contain no counterexample pair.
+
+```mermaid
+stateDiagram-v2
+    [*] --> NoDirection
+    NoDirection --> IncreaseOnly: rise
+    NoDirection --> DecreaseOnly: fall
+    IncreaseOnly --> IncreaseOnly: rise or equal
+    DecreaseOnly --> DecreaseOnly: fall or equal
+    IncreaseOnly --> Mixed: fall
+    DecreaseOnly --> Mixed: rise
+    Mixed --> [*]
+```
+
+**Proof.** `sawIncrease` is true exactly when the processed adjacent pairs contain a strict rise; `sawDecrease` has the symmetric meaning. A nondecreasing array cannot contain a strict fall, and a nonincreasing array cannot contain a strict rise. Therefore both bits true are a complete counterexample to both possible monotonic directions. If the scan ends without both bits, at least one direction definition holds for every adjacent pair and, by transitivity, for every ordered index pair.
+
+#### Worked case 4 — retain the best tails for an increasing triplet
+
+For `values=[2,1,5,0,4,6]`, keep `first` as the smallest length-one tail and `second` as the smallest tail of any increasing pair seen so far:
+
+| value | action | `first` after | `second` after | result |
+|---:|---|---:|---:|---|
+| 2 | replace first | 2 | +∞ | continue |
+| 1 | replace first | 1 | +∞ | continue |
+| 5 | replace second | 1 | 5 | continue |
+| 0 | replace first | 0 | 5 | continue |
+| 4 | improve second | 0 | 4 | continue |
+| 6 | `6>second` | 0 | 4 | true: `0<4<6` |
+
+`[5,4,3,2,1]` returns `false`. `[20,100,10,12,5,13]` returns `true` through `10<12<13`, demonstrating that the triplet is a subsequence, not a contiguous run. Using `<=` for threshold replacement is essential: equal values cannot form a strict step.
+
+```mermaid
+flowchart TD
+    A["next value x"] --> B{"x <= first?"}
+    B -->|yes| C["first = x"]
+    B -->|no| D{"x <= second?"}
+    D -->|yes| E["second = x"]
+    D -->|no| F["first < second < x: found"]
+```
+
+**Threshold proof.** After each processed prefix, `first` is the smallest value seen. If `second` is finite, some earlier index pair has a strictly increasing tail value equal to or above the retained `second`; replacing it with a smaller legal second tail cannot make future extension harder. When a value exceeds `second`, the pair that established `second` occurs earlier, so appending the current index forms a legal triplet. Conversely, if no value ever exceeds a legal second tail, no processed value can complete a length-three increasing subsequence. The two thresholds decide existence but do not reconstruct indices; retain predecessor indices if a witness must be returned.
+
+```mermaid
+flowchart TD
+    A{"What must the suffix know?"} -->|"best earlier endpoint"| B["prefix minimum / maximum"]
+    A -->|"local legality"| C["small neighborhood state"]
+    A -->|"which directions appeared"| D["finite-state flags"]
+    A -->|"whether length k can extend"| E["best subsequence tails"]
+    A -->|"unbounded distinct history"| F["map, set, stack, or DP"]
+```
+
+All four algorithms run in `O(n)` time and `O(1)` auxiliary space and preserve input. Their independent evidence oracles intentionally use different reasoning: all index pairs for maximum difference, an exploring placement recurrence for flowers, two whole-direction scans for monotonicity, and all index triples for triplet existence. Those oracles are slower but make suitable bounded test references.
+
+**When this pattern does not fit:** future decisions need an unbounded number of distinct prefix values; output must enumerate earlier witnesses; updates invalidate the retained summary; the rule depends on arbitrary-range queries; a monotonic stack/deque is needed to retain multiple undominated candidates; or the task needs the full longest-increasing-subsequence length rather than the existence of length three. “One pass” is not a goal by itself—use a second pass when the contract needs information from both directions.
+
+**Common interview errors:** using the global minimum even when it occurs after the right endpoint; computing a difference in `int` before widening; mutating a flowerbed despite a preservation promise; ignoring a newly simulated flower when checking the next plot; returning early before reusable validation finishes; treating equality as increase/decrease; checking only the first comparison to select a monotonic direction; confusing subsequence with contiguous run; using `<` instead of `<=` when replacing triplet thresholds; claiming the thresholds themselves always reconstruct a witness; forcing Gas Station or Candy into the wrong one-pass state; or retaining state without stating why it is sufficient.
+
+**Further follow-ups:** return the maximizing pair of indices; count maximum flower capacity rather than answer a threshold query; stream monotonicity over chunks by merging boundary evidence; return one increasing-triplet witness; generalize thresholds to increasing subsequence length `k`; retain two largest/two smallest distinct values; derive Gas Station's candidate-reset proof; compare fixed state with a monotonic deque; make the state mergeable for parallel chunks; or prove that a proposed summary fails the state-sufficiency test.
+
+Executable evidence is in `LinearScanStateTrackingContracts.java`. It covers 20 deterministic groups across all official examples for the four representative problems, empty/singleton/equal/descending cases, full-width arithmetic, invalid flowerbeds, noncontiguous triplets and null rejection. It then runs 20,000 seeded small arrays against independent pair, direction, triple and flower-placement oracles while checking preservation of both input arrays—100,000 randomized checks.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -6928,6 +7149,10 @@ Executable evidence is in `CoordinateCompressionContracts.java`. It covers 20 de
 - [LeetCode, “Rank Transform of an Array”](https://leetcode.com/problems/rank-transform-of-an-array/) — primary one-based, equality-preserving, order-preserving, smallest-rank contract, all three official examples and current input bounds for Coordinate Compression.
 - [Java SE 25 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html) — `sort`, `copyOf`, and sorted-array `binarySearch` contracts used by the deterministic implementation.
 - [Java Language Specification, Java SE 26, Chapter 10](https://docs.oracle.com/javase/specs/jls/se26/html/jls-10.html) — zero-origin, bounds-checked array indexing behind the explicit `rank-1` dictionary mapping.
+- [LeetCode, “Maximum Difference Between Increasing Elements”](https://leetcode.com/problems/maximum-difference-between-increasing-elements/) — primary ordered-index, strict-increase, maximum-difference and absent-result contract for the prefix-minimum scan.
+- [LeetCode, “Can Place Flowers”](https://leetcode.com/problems/can-place-flowers/) — primary binary-bed, no-adjacent-flowers, threshold-result and valid-existing-bed contract for local simulated occupancy.
+- [LeetCode, “Monotonic Array”](https://leetcode.com/problems/monotonic-array/) — primary nondecreasing-or-nonincreasing definition, equality behavior, examples and current input bounds for direction-state tracking.
+- [LeetCode, “Increasing Triplet Subsequence”](https://leetcode.com/problems/increasing-triplet-subsequence/) — primary strict index/value triplet contract, full-width values, examples and `O(n)` time / `O(1)` space follow-up for threshold tails.
 - [Java SE 21 `java.util.random.RandomGenerator`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/random/RandomGenerator.html) — inclusive-origin, exclusive-bound pivot sampling contract used by the injected randomized core.
 - [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — associative, commutative integer bitwise XOR behavior used by the problem 40 and 41 cancellation implementations.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
@@ -6978,9 +7203,9 @@ Executable evidence is in `CoordinateCompressionContracts.java`. It covers 20 de
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 Difference Array lines 4797–4824, Quickselect lines 4825–4855, In-place sign marking lines 4858–4861, Prefix XOR lines 4864–4867, and Coordinate Compression lines 4870–4873. Section 16 begins at line 4876. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, Difference Array, Quickselect, In-place sign marking, and Prefix XOR on direct page 105, plus Coordinate Compression on page 106. Section 16 begins on page 107. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 Linear scan / state tracking lines 4882–4890. Two pointers begins at line 4894. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 Linear scan / state tracking on page 107. Two pointers follows on page 107. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 is fully promoted, and Section 15 is now promoted through Coordinate Compression, ending at Markdown line 4873 / DOCX page 106. The wider source remains in progress: Section 16 begins at Markdown line 4876 / DOCX page 107.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Linear scan / state tracking, ending at Markdown line 4890 / DOCX page 107. The wider source remains in progress: Two pointers begins at Markdown line 4894 / DOCX page 107.
 
 
