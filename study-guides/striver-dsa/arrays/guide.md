@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3 and Section 4 problems 1–46 are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 4 problem 47 and later source material remain queued.
+> **Incremental status:** Sections 1–3 and all 47 Section 4 problems are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 15 and later source material remain queued.
 
 ## Study index
 
@@ -26,7 +26,7 @@
   - [Toolkit example 3 — store deque indices, not values](#toolkit-example-3--store-deque-indices-not-values)
   - [Toolkit example 4 — safe midpoint, arithmetic, and swap](#toolkit-example-4--safe-midpoint-arithmetic-and-swap)
   - [Toolkit checklist](#toolkit-checklist)
-- [4. Core pattern lab — first forty-six solved problems](#4-core-pattern-lab--first-forty-six-solved-problems)
+- [4. Core pattern lab — all forty-seven solved problems](#4-core-pattern-lab--all-forty-seven-solved-problems)
   - [Pattern-lab contract](#pattern-lab-contract)
   - [Example 1 — Two Sum: index the legal prefix](#example-1--two-sum-index-the-legal-prefix)
   - [Example 2 — one stock trade: retain the cheapest legal buy](#example-2--one-stock-trade-retain-the-cheapest-legal-buy)
@@ -75,6 +75,7 @@
   - [Example 44 — Pivot Index: derive the unseen suffix from one total](#example-44--pivot-index-derive-the-unseen-suffix-from-one-total)
   - [Example 45 — Maximum Consecutive Ones III: repair an at-most-K budget window](#example-45--maximum-consecutive-ones-iii-repair-an-at-most-k-budget-window)
   - [Example 46 — Find Minimum in Rotated Sorted Array: keep the possible pivot](#example-46--find-minimum-in-rotated-sorted-array-keep-the-possible-pivot)
+  - [Example 47 — Search a 2D Matrix: binary-search virtual row-major order](#example-47--search-a-2d-matrix-binary-search-virtual-row-major-order)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -700,9 +701,9 @@ Binary search is `O(log n)` time and `O(1)` space. Arithmetic helpers and swap a
 
 Executable evidence is in `ArrayToolkitContracts.java`. Its deterministic suite checks all four contracts plus 10,000 randomized arrays against brute-force window-maximum and lower-bound oracles.
 
-## 4. Core pattern lab — first forty-six solved problems
+## 4. Core pattern lab — all forty-seven solved problems
 
-The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This incremental lab promotes problems 1–46. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; 40–41 use two distinct XOR cancellation contracts; 42 returns to sorted opposite-end elimination with an exact one-based-index contract; 43 reuses the exact sum of one fixed-length window; 44 derives each unseen suffix from one total and a maintained prefix; 45 maintains a variable window whose zero count consumes an at-most-`k` budget; and 46 binary-searches the unique rotation pivot while retaining `middle` whenever it may already be the answer. Problem 47 remains explicit backlog; this guide does not imply it was reviewed merely because it shares the source heading.
+The source collection groups 47 solved problems under one large “Core Array Patterns” boundary. This lab now promotes all 47. Problems 1–4 compress decision state; 5–7 finalize or fill an output region; 8–10 discard dominated endpoints; 11–19 use window, prefix, deque, frequency, and partition invariants; 20–23 use reversible mappings, lexicographic structure, functional graphs, and home indices; 24–27 shrink ordered answer spaces; 28–29 normalize or preserve interval components; 30 reuses matrix borders as discovery metadata; 31 peels a matrix through four shrinking boundaries; 32 binary-searches a partition of two sorted arrays; 33 counts whole cross-inversion blocks while merge-sorting; 34–37 use extremal dynamic state, circular complements, monotonic stacks and prefix deques; 38–39 apply layer and directional greedy invariants; 40–41 use two distinct XOR cancellation contracts; 42 returns to sorted opposite-end elimination with an exact one-based-index contract; 43 reuses the exact sum of one fixed-length window; 44 derives each unseen suffix from one total and a maintained prefix; 45 maintains a variable window whose zero count consumes an at-most-`k` budget; 46 binary-searches the unique rotation pivot while retaining `middle` whenever it may already be the answer; and 47 maps one globally ordered matrix into virtual row-major indices. Later source sections remain explicit backlog; completing this problem group does not imply the wider Arrays source or collection is exhausted.
 
 ### Pattern-lab contract
 
@@ -5995,6 +5996,146 @@ Each iteration removes at least half of the remaining candidate positions up to 
 
 Executable evidence is in `FindMinimumRotatedContracts.java`. It covers 20 deterministic scenario groups: all three official examples, singleton and two-element shapes, pivots at both edges, negative and full-width values, preservation, core/wrapper/oracle parity, the inspection bound and invalid-input rejection. It then generates 20,000 seeded strictly increasing arrays, rotates each at a random pivot and checks the result against an independent linear minimum oracle while also checking preservation, wrapper/core parity, instrumented-core parity and the `ceil(log2 n)` inspection bound.
 
+### Example 47 — Search a 2D Matrix: binary-search virtual row-major order
+
+**Official contract.** Given a non-empty rectangular `m x n` integer matrix, return whether `target` occurs. Every row is sorted in non-decreasing order, and the first value of each row is **strictly greater** than the last value of the preceding row. The current official bounds are `1 <= m,n <= 100` and `-10^4 <= matrix[i][j],target <= 10^4`; the required runtime is `O(log(m*n))`. The method must not need to mutate the matrix.
+
+The cross-row condition is stronger than “each row is sorted.” Concatenating the rows produces one globally non-decreasing sequence. There is no need to allocate that flattened array: virtual index `index` maps to
+
+```text
+row    = index / columns
+column = index % columns
+```
+
+Ordinary binary search can therefore inspect `matrix[row][column]` directly. A linear scan costs `O(m*n)`. Selecting a row and then searching it can reach `O(log m + log n)`, which is asymptotically equivalent to `O(log(m*n))`, but the virtual-index formulation uses one invariant and one loop.
+
+```mermaid
+flowchart TD
+    A["rectangular globally ordered matrix"] --> B["virtual indices 0 .. rows*columns-1"]
+    B --> C["middle = left + (right-left)/2"]
+    C --> D["cell = matrix[middle/columns][middle%columns]"]
+    D --> E{"cell compared with target"}
+    E -->|equal| F["return true"]
+    E -->|smaller| G["left = middle+1"]
+    E -->|larger| H["right = middle-1"]
+    G --> C
+    H --> C
+```
+
+```java
+static boolean searchMatrixCore(int[][] matrix, int target) {
+    int columns = matrix[0].length;
+    long left = 0;
+    long right = (long) matrix.length * columns - 1;
+    while (left <= right) {
+        long middle = left + (right - left) / 2;
+        int value = matrix[(int) (middle / columns)][(int) (middle % columns)];
+        if (value == target) return true;
+        if (value < target) left = middle + 1;
+        else right = middle - 1;
+    }
+    return false;
+}
+```
+
+The official dimensions make `m*n` small, but the reusable core multiplies in `long` before subtracting one. That prevents the generic `int` overflow hidden in `rows*columns-1`. The mapped row and column are still valid Java `int` indices. Under the official shape/order promises, the core is logarithmic. `SearchMatrixContracts.java` keeps optional rectangularity and ordering validation in a separate `O(m*n)` wrapper so the required core complexity is not mislabeled.
+
+#### Worked case 1 — first official example and exact hit trace
+
+For
+
+```text
+matrix = [[1,3,5,7],
+          [10,11,16,20],
+          [23,30,34,60]]
+target = 3
+```
+
+there are 12 virtual positions. Binary search inspects values `11`, `5`, and `1` before reaching `3`.
+
+| step | virtual interval | `middle` | mapped cell | value | decision |
+|---:|---|---:|---|---:|---|
+| 1 | `[0,11]` | `5` | `[1][1]` | `11` | target is left; `right=4` |
+| 2 | `[0,4]` | `2` | `[0][2]` | `5` | target is left; `right=1` |
+| 3 | `[0,1]` | `0` | `[0][0]` | `1` | target is right; `left=1` |
+| 4 | `[1,1]` | `1` | `[0][1]` | `3` | found |
+
+```mermaid
+flowchart LR
+    A["virtual 5 → [1][1] = 11"] --> B["virtual 2 → [0][2] = 5"]
+    B --> C["virtual 0 → [0][0] = 1"]
+    C --> D["virtual 1 → [0][1] = 3"]
+    D --> E["true"]
+```
+
+The division/remainder mapping is purely a view. No row is copied, joined or rewritten.
+
+#### Worked case 2 — second official example and exact miss trace
+
+Using the same matrix with `target=13`, the source trace begins at virtual index `5`, cell `[1][1]=11`. Because `11<13`, retain `[6,11]`. Index `8` maps to `[2][0]=23`, so retain `[6,7]`. Index `6` maps to `[1][2]=16`, so retain `[6,5]`; the interval is empty and the answer is `false`.
+
+| step | `left,middle,right` | cell | value | next interval |
+|---:|---|---|---:|---|
+| 1 | `0,5,11` | `[1][1]` | `11` | `[6,11]` |
+| 2 | `6,8,11` | `[2][0]` | `23` | `[6,7]` |
+| 3 | `6,6,7` | `[1][2]` | `16` | `[6,5]` |
+
+```mermaid
+flowchart TD
+    A["11 < 13"] --> B["discard virtual 0..5"]
+    B --> C["23 > 13"]
+    C --> D["discard virtual 8..11"]
+    D --> E["16 > 13"]
+    E --> F["candidate interval empty: false"]
+```
+
+An absent target can fall between adjacent matrix values; binary search still terminates because every comparison strictly shortens the virtual interval.
+
+#### Worked case 3 — duplicates within a row and strict row boundaries
+
+The official wording permits a row to be **non-decreasing**, so duplicates inside one row are legal. `[[1,2,2,4],[7,7,9,12]]` is valid: the second row starts at `7`, strictly above the preceding row's last value `4`. Searching for `2` returns true; searching for `6` returns false.
+
+By contrast, `[[1,5],[5,8]]` violates the cross-row promise because the next first value equals, rather than exceeds, the previous last value. Binary search over its row-major values would still happen to be non-decreasing, but the reusable validator rejects it because its public contract intentionally mirrors the official guarantee exactly.
+
+```mermaid
+flowchart LR
+    A["row 0: 1,2,2,4"] --> B["4 < 7"]
+    B --> C["row 1: 7,7,9,12"]
+    D["duplicates inside a row"] --> E["allowed by non-decreasing order"]
+    F["next first <= previous last"] --> G["reject official shape"]
+```
+
+Duplicates do not harm ordinary binary search: equality still returns immediately, and strict less/greater comparisons still discard only impossible values.
+
+#### Worked case 4 — one-dimensional shapes, full-width values and invalid matrices
+
+One row is already an ordinary sorted array; one column is the same virtual view with `columns=1`. `[[7]]` returns true for `7` and false for `-7`. `[[-8],[-1],[5],[12]]` returns true for `5`. Full-width values require no arithmetic on components: `[[Integer.MIN_VALUE,-1],[0,Integer.MAX_VALUE]]` safely finds either endpoint.
+
+The optional reusable boundary rejects null, zero rows, zero columns, null rows, ragged rows, a descending pair inside one row, or a next row whose first value is not strictly greater than the previous row's last value. It validates everything before searching and never mutates the input.
+
+```mermaid
+flowchart TD
+    A["reusable matrix boundary"] --> B{"non-null with rows and columns?"}
+    B -->|no| X["reject"]
+    B -->|yes| C{"every row non-null and same width?"}
+    C -->|no| X
+    C -->|yes| D{"rows non-decreasing and boundaries strict?"}
+    D -->|no| X
+    D -->|yes| E["call O(log(m*n)) trusted core"]
+```
+
+**Virtual-interval invariant and proof.** At the start of every iteration, if the target exists, at least one matching virtual index lies within `[left,right]`. Row-major mapping is order preserving: increasing a virtual index advances within a non-decreasing row or crosses a boundary whose next value is strictly larger. If the midpoint value is below the target, every earlier virtual value is also below it, so `[left,middle]` can be discarded. If the midpoint value is above the target, every later value is also above it, so `[middle,right]` can be discarded. Equality returns true. If the interval becomes empty, every virtual position has been excluded by a sound comparison, so the target is absent.
+
+The trusted core inspects at most `floor(log2(m*n))+1` cells, takes `O(log(m*n))` time and `O(1)` auxiliary space, and performs no writes. The optional reusable validator and independent test oracle each take `O(m*n)` time; validation uses `O(1)` space beyond loop variables. These linear helpers do not change the core's official complexity, but the wrapper itself must be reported honestly as linear.
+
+**Common interview errors:** scanning every cell; binary-searching each row without explaining the bound; physically flattening into `O(m*n)` extra space; confusing this problem with a matrix that is only row-and-column sorted; mapping with `/rows` instead of `/columns`; swapping quotient and remainder; reading `matrix[0]` before checking shape at a reusable boundary; assuming rows are strictly increasing and rejecting legal in-row duplicates; ignoring the strict cross-row condition; multiplying `rows*columns` in `int`; using `(left+right)/2` in a generic overflow-prone implementation; returning coordinates instead of the required boolean; mutating the matrix; or claiming a validating wrapper remains logarithmic.
+
+**Different problem warning.** In “Search a 2D Matrix II,” rows and columns are independently increasing, but row-major concatenation is not globally sorted: the first value of a later row can be smaller than the last value of an earlier row. That variant uses staircase elimination or per-row searches, not this virtual-array proof.
+
+**Further follow-ups:** return the first matching coordinate when duplicates occur; count all matches; search a disk-backed row-major table; binary-search a monotonic accessor without materializing values; use a two-stage row-then-column search and prove its equivalent asymptotic bound; support descending global order; process a jagged matrix with prefix row offsets; compare cache locality of one virtual search with two-stage search; or state when a staircase search is the only available monotonic elimination.
+
+Executable evidence is in `SearchMatrixContracts.java`. It covers 20 deterministic scenario groups: both official examples, singleton/one-row/one-column shapes, legal duplicates, negatives, full-width endpoints, preservation, core/wrapper/oracle parity, the logarithmic inspection bound and each invalid matrix shape. It then generates 20,000 seeded rectangular matrices with non-decreasing rows and strict row boundaries, checking every result against an independent linear oracle plus preservation, wrapper/core parity, instrumented-core parity and the exact binary-search inspection bound.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -6026,6 +6167,8 @@ Executable evidence is in `FindMinimumRotatedContracts.java`. It covers 20 deter
 - [LeetCode, “Max Consecutive Ones III”](https://leetcode.com/problems/max-consecutive-ones-iii/) — primary binary-array, at-most-`k` flip contract, both official examples, sliding-window hints and current input bounds for problem 45.
 - [LeetCode, “Find Minimum in Rotated Sorted Array”](https://leetcode.com/problems/find-minimum-in-rotated-sorted-array/) — primary unique-value rotated-array contract, all three official examples, current input bounds and required logarithmic runtime for problem 46.
 - [LeetCode, “Find Minimum in Rotated Sorted Array II”](https://leetcode.com/problems/find-minimum-in-rotated-sorted-array-ii/) — primary duplicate-permitting follow-up and its explicit worst-case-complexity question.
+- [LeetCode, “Search a 2D Matrix”](https://leetcode.com/problems/search-a-2d-matrix/) — primary rectangular, row-wise non-decreasing, strict cross-row ordering contract, both official examples, current bounds and required `O(log(m*n))` runtime for problem 47.
+- [LeetCode, “Search a 2D Matrix II”](https://leetcode.com/problems/search-a-2d-matrix-ii/) — primary independently row-and-column-sorted comparison problem, whose weaker row-major ordering requires a different elimination proof.
 - [Java Language Specification, Java SE 17, §15.22.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.22.1) — associative, commutative integer bitwise XOR behavior used by the problem 40 and 41 cancellation implementations.
 - [Java SE 17 `System.arraycopy`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)) — range-copy contract used to publish each merged half-open range back into the working clone.
 - [Java SE 17 `java.util.ArrayList`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayList.html) — ordered resizable-list and append behavior used for independent output storage.
@@ -6075,9 +6218,9 @@ Executable evidence is in `FindMinimumRotatedContracts.java`. It covers 20 deter
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus Section 4 through problem 46 (Find Minimum in Rotated Sorted Array is lines 4619–4702; problem 47 begins at line 4703). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus Section 4 through problem 46 (direct pages 101–102 contain problem 46 and page 103 begins problem 47). Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251 plus all 47 Section 4 problems (Search a 2D Matrix is lines 4706–4790; Section 15 begins at line 4793). Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3 plus all 47 Section 4 problems (direct pages 103–104 contain problem 47 and page 105 begins Section 15). Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 remains in progress: problem 46, “Find Minimum in Rotated Sorted Array,” is promoted from Markdown lines 4619–4702 and the DOCX companion's pages 101–102; problem 47, “Search a 2D Matrix,” begins at Markdown line 4703 and DOCX page 103.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 is now fully promoted: problem 47, “Search a 2D Matrix,” is bounded by Markdown lines 4706–4790 and the DOCX companion's pages 103–104. The wider source remains in progress: Section 15, “Additional Array Techniques You Must Recognize,” begins at Markdown line 4793 and DOCX page 105.
 
 
