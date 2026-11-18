@@ -1,5 +1,4 @@
-µ¨¥zºè¯
-â¶)à²Ö§uªÝ¢ëiºÐk¢G§¦*^{
+{
   "schema_version": 1,
   "repository": "pandeyprabhanshu7-beep/DSA",
   "branch": "main",
@@ -512,8 +511,7 @@
         "Section 4 problem 5: Move Zeroes â€” stable compaction, four cases, exact trace, proof, write accounting and executable oracle â€” Markdown lines 635-724 / DOCX extracted lines 419-479",
         "Section 4 problem 6: Remove Duplicates from Sorted Array â€” stable unique-prefix compaction, four cases, exact trace, proof, validation and assignment-bound oracle â€” Markdown lines 725-800 / DOCX extracted lines 480-522",
         "Section 4 problem 7: Squares of a Sorted Array â€” opposite-endpoint selection, four cases, exact trace, proof, full-width arithmetic and randomized square-sort oracle â€” Markdown lines 807-891 / corroborating DOCX section",
-        "Section 4 problem 8: 3Sum â€” duplicate-safe anchor/two-pointer elimination, fourµ¨¥zºè¯
-â¶)à²Ö§uªÝ¢ëiºÐk¢G§¦*^ worked behaviors, exact trace, proof, overflow-safe sums and randomized cubic oracle â€” Markdown lines 895-999 / DOCX parsed-text lines 594-670",
+        "Section 4 problem 8: 3Sum â€” duplicate-safe anchor/two-pointer elimination, four worked behaviors, exact trace, proof, overflow-safe sums and randomized cubic oracle â€” Markdown lines 895-999 / DOCX parsed-text lines 594-670",
         "Section 4 problem 9: Container With Most Water â€” dominated-endpoint elimination, four worked cases, exact trace, proof, overflow-safe area and randomized all-pairs oracle â€” Markdown lines 1000-1092 / DOCX parsed-text lines 671-729",
         "Section 4 problem 10: Trapping Rain Water â€” smaller-running-boundary finalization, four worked cases, full trace, proof, widened accumulation and randomized per-index oracle â€” Markdown lines 1093-1204 / DOCX parsed-text lines 730-815",
         "Section 4 problem 11: Minimum Size Subarray Sum â€” positive-input variable window, four worked cases, full trace, proof, widened sum and randomized quadratic oracle â€” Markdown lines 1207-1290 / direct Library DOCX parsed-text from line 819",
@@ -658,8 +656,7 @@
         "Chapter 16: four cache layers â€” behavior-complete embedding/retrieval/answer/prefix identities, tenant/ACL/generation scope, semantic-risk admission, stale-publication fencing and exact prefix compatibility",
       "Chapter 17: conversation memory as data design â€” append-only ordering, short-transaction finalization, bounded authorized context, summary lineage/authority denial and deletion-graph reconciliation",
         "Chapter 18: recoverable ingestion publication â€” full transformation identity, bounded parsing, resumable stages, generation-CAS publication, tombstone/ACL rechecks and versioned embedding spaces",
-        "Chapter 19: private model-route proof â€” workload identity, DNS/TLS, private nµ¨¥zºè¯
-â¶)à²Ö§uªÝ¢ëiºÐk¢G§¦*^etwork and endpoint policy, data-plane authorization, runtime/deployment role separation, explicit failover and accepted-outcome cost",
+        "Chapter 19: private model-route proof â€” workload identity, DNS/TLS, private network and endpoint policy, data-plane authorization, runtime/deployment role separation, explicit failover and accepted-outcome cost",
         "Chapter 20: fleet capacity and release gates â€” token-aware expiring leases, tenant/deadline admission, atomic compatibility tuples, stage/slice SLOs, error-budget policy and abortable canaries",
         "Chapter 21: three complete platform exercises â€” scoped support answers, approval-bound and reconcilable refunds, fair resumable ingestion, generation-CAS publication and complete rollback identity"
       ],
@@ -1058,8 +1055,7 @@
       "priority": 20
     },
     {
-      "id"µ¨¥zºè¯
-â¶)à²Ö§uªÝ¢ëiºÐk¢G§¦*^: "ai-project-docs",
+      "id": "ai-project-docs",
       "domain": "AI",
       "canonical_target": "study-guides/ai/projects/",
       "target_exists": false,
@@ -1334,10 +1330,10 @@
     "DSA Arrays Section 16 pattern 11: Monotonic stack / deque candidate-domination contract, eleven-drill classification, exact traces, equality ownership and independent right-scan/circular/distance/subarray/span/triple/subsequence oracles"
     ],
   "processed_section": "DSA Arrays Section 16 pattern 11, Monotonic stack / deque, canonical Markdown heading line 5004 through drill table line 5015 / DOCX page 110",
-  "validation": "The refreshed paired Arrays workbooks agree on the bounded Section 16 Monotonic stack / deque eleven-drill family at the canonical Markdown heading line 5004 through table line 5015 and DOCX page 110; both source hashes are unchanged, the editable Markdown remains structural and no duplicate guide was created. Four worked cases, six diagrams, exact traces, strictness/equality ownership proofs and MonotonicStackDequePatternContracts cover independent right-scan, circular-scan, distance-scan, subarray-enumeration, backward-span, cubic-triple and retained-subsequence oracles. Java 21 source-file launch passed all sixty-three unique Arrays executables: 1,220 scenario groups and 1,240,000 seeded/randomized oracle trials or comparisons; the new contract passed 20 groups and 20,000 seeded trials with 140,000 oracle comparisons. Deterministic reader validation passed exact 625240-byte Markdown recovery, SHA-256 3c551ad1cdd2e97062961b1d40cfeb1f19c56db6f91441879a4a277aa63ee7b2, 2376 unique HTML IDs, 93 search entries, 2031 resolved fragments, zero relative links, 766 balanced fence markers, 290 Mermaid sources, four script blocks, two parseable executable JavaScript modules and deterministic HTML SHA-256 e442a18baace196891db9d48fb1b8d8420cee46717f2127a69b4ebeecc1f0eb5. The validated content tree is commit 90a3b0b880bc6758ff349994940346df7dfd4177. Standalone javac was unavailable; local Chromium rendering was attempted but exited 134 because process-singleton sockets were not permitted, and assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
+  "validation": "The refreshed paired Arrays workbooks agree on the bounded Section 16 Monotonic stack / deque eleven-drill family at the canonical Markdown heading line 5004 through table line 5015 and DOCX page 110; both source hashes are unchanged, the editable Markdown remains structural and no duplicate guide was created. Four worked cases, six diagrams, exact traces, strictness/equality ownership proofs and MonotonicStackDequePatternContracts cover independent right-scan, circular-scan, distance-scan, subarray-enumeration, backward-span, cubic-triple and retained-subsequence oracles. Java 21 source-file launch passed all sixty-three unique Arrays executables: 1,220 scenario groups and 1,240,000 seeded/randomized oracle trials or comparisons; the new contract passed 20 groups and 20,000 seeded trials with 140,000 oracle comparisons. Deterministic reader validation passed exact 625240-byte Markdown recovery, SHA-256 3c551ad1cdd2e97062961b1d40cfeb1f19c56db6f91441879a4a277aa63ee7b2, 2376 unique HTML IDs, 93 search entries, 2031 resolved fragments, zero relative links, 766 balanced fence markers, 290 Mermaid sources, four script blocks, two parseable executable JavaScript modules and deterministic HTML SHA-256 e442a18baace196891db9d48fb1b8d8420cee46717f2127a69b4ebeecc1f0eb5. The validated content tree is commit 6a08fdfa95a9ea3d403b82dcfcd71853a1e3cfd4. Standalone javac was unavailable; local Chromium rendering was attempted but exited 134 because process-singleton sockets were not permitted, and assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
   "estimated_next_tokens": 9500,
   "estimate_method": "Heuristic only for one bounded Arrays Section 16 Sorting / selection / divide-conquer pass with paired-source comparison, examples, contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
-  "last_successful_commit": "90a3b0b880bc6758ff349994940346df7dfd4177",
+  "last_successful_commit": "6a08fdfa95a9ea3d403b82dcfcd71853a1e3cfd4",
   "last_processed_at": "2026-11-18T17:02:43-05:00",
   "next_batch_decision": "Section 16 Monotonic stack / deque is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair domain rotation, then continue with Section 16 Sorting / selection / divide-conquer on DOCX page 110."
   }
