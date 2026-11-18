@@ -1,4 +1,4 @@
-{
+µ¨¥Â¸­yêë¢°k¢G§¦*^{
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
@@ -972,20 +972,20 @@
     "estimate_method": "Heuristic only for one bounded Arrays problem 25 pass after Spring AI/Python source exhaustion; no reliable quota percentages were exposed"
   },
   "dsa_arrays_intake_checkpoint": {
-    "last_processed_at": "2026-11-18T15:44:05-05:00",
+    "last_processed_at": "2026-11-18T17:02:43-05:00",
     "selected_markdown_library_file_id": "libfile_ec0215b953208191b254acfc4fc39f1a",
     "selected_markdown_file_id": "file_00000000a05881fdb093fccba59318e6",
     "selected_markdown_sha256": "735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda",
     "corroborating_docx_library_file_id": "libfile_7956d8107f2081919f2bf02bb4e620ec",
     "corroborating_docx_file_id": "file_00000000672882118a9ca69f00c30be7",
     "corroborating_docx_sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-    "canonical_markdown_sha256": "2640db19fa8d1c705d34abb9350b624eac1329b3adfdb70be41af202ff9df0e8",
-    "processed": "Sections 1-3, all 47 Section 4 problems, all five Section 15 techniques and Section 16 through Matrix / 2D array at Markdown lines 4882-5000 / DOCX pages 107-110; Monotonic stack / deque begins at Markdown heading line 5004 / DOCX page 110. Refreshed Library metadata and source hashes are unchanged.",
+    "canonical_markdown_sha256": "3c551ad1cdd2e97062961b1d40cfeb1f19c56db6f91441879a4a277aa63ee7b2",
+    "processed": "Sections 1-3, all 47 Section 4 problems, all five Section 15 techniques and Section 16 through Monotonic stack / deque at the canonical Markdown heading line 5004 through drill table line 5015 / DOCX pages 107-110; Sorting / selection / divide-conquer follows on DOCX page 110. Refreshed Library metadata and source hashes are unchanged.",
     "status": "IN_PROGRESS",
-    "validation": "The refreshed paired Arrays workbooks agree on bounded Section 16 Matrix / 2D array at Markdown lines 4991-5000 and DOCX page 110; both source hashes remain unchanged, the editable Markdown remains structural and no duplicate guide was created. Four worked cases, six diagrams, exact traces, shape/ownership contracts, coordinate and reachability proofs and Matrix2DPatternContracts cover independent destination-mapping, diagonal-bucketing, copied-generation, linear-membership, boundary-diagonal and disjoint-set oracles. Java 21 source-file launch passed all sixty-two unique Arrays executables: 1,200 scenario groups and 1,220,000 seeded/randomized oracle trials or comparisons; the new contract passed 20 groups and 20,000 seeded trials with 120,000 oracle or preservation checks. Reader validation passed exact 607900-byte Markdown recovery, SHA-256 2640db19fa8d1c705d34abb9350b624eac1329b3adfdb70be41af202ff9df0e8, 2325 unique HTML IDs, 92 search entries, 1990 resolved fragments, zero relative links, 748 balanced fence markers, 284 Mermaid sources, four script blocks, two parseable executable JavaScript modules and deterministic HTML SHA-256 3449740a5dfe94c96c5399480d83183ad1ff752a02eef4cbc534f7cf5aabb6e0. The validated content tree is commit 815335101eb8ca176c3b8b8824ea51074384e4ff. Standalone javac was unavailable; local Chromium rendering was attempted but exited 134 because process-singleton sockets were not permitted, and assistive-technology and rendered Mermaid QA were unavailable. The live canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
-    "content_commit": "815335101eb8ca176c3b8b8824ea51074384e4ff",
-    "next_section": "Re-evaluate fair domain rotation, then process Section 16 Monotonic stack / deque at Markdown heading line 5004 / DOCX page 110",
+    "validation": "The refreshed paired Arrays workbooks agree on the bounded Section 16 Monotonic stack / deque eleven-drill family at the canonical Markdown heading line 5004 through table line 5015 and DOCX page 110; both source hashes remain unchanged, the editable Markdown remains structural and no duplicate guide was created. Four worked cases, six diagrams, exact traces, strictness/equality ownership proofs and MonotonicStackDequePatternContracts cover independent right-scan, circular-scan, distance-scan, subarray-enumeration, backward-span, cubic-triple and retained-subsequence oracles. Java 21 source-file launch passed all sixty-three unique Arrays executables: 1,220 scenario groups and 1,240,000 seeded/randomized oracle trials or comparisons; the new contract passed 20 groups and 20,000 seeded trials with 140,000 oracle comparisons. Reader validation passed exact 625240-byte Markdown recovery, SHA-256 3c551ad1cdd2e97062961b1d40cfeb1f19c56db6f91441879a4a277aa63ee7b2, 2376 unique HTML IDs, 93 search entries, 2031 resolved fragments, zero relative links, 766 balanced fence markers, 290 Mermaid sources, four script blocks, two parseable executable JavaScript modules and deterministic HTML SHA-256 e442a18baace196891db9d48fb1b8d8420cee46717f2127a69b4ebeecc1f0eb5. The validated content tree is commit 90a3b0b880bc6758ff349994940346df7dfd4177. Standalone javac was unavailable; local Chromium rendering was attempted but exited 134 because process-singleton sockets were not permitted, and assistive-technology and rendered Mermaid QA were unavailable. The live canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
+    "content_commit": "90a3b0b880bc6758ff349994940346df7dfd4177",
+    "next_section": "Re-evaluate fair domain rotation, then process Section 16 Sorting / selection / divide-conquer on DOCX page 110",
     "estimated_next_tokens": 9500,
-    "estimate_method": "Heuristic only for one bounded Arrays Section 16 Monotonic stack / deque pass after Matrix / 2D array; no reliable quota percentages were exposed"
+    "estimate_method": "Heuristic only for one bounded Arrays Section 16 Sorting / selection / divide-conquer pass after Monotonic stack / deque; no reliable quota percentages were exposed"
   }
 }
