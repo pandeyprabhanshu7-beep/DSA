@@ -63,6 +63,7 @@ java -ea study-guides/striver-dsa/arrays/SlidingWindowPatternContracts.java
 java -ea study-guides/striver-dsa/arrays/PrefixSuffixHashPatternContracts.java
 java -ea study-guides/striver-dsa/arrays/KadaneContiguousDpPatternContracts.java
 java -ea study-guides/striver-dsa/arrays/IndexPlacementMarkingPatternContracts.java
+java -ea study-guides/striver-dsa/arrays/BinarySearchRotatedPatternContracts.java
 ```
 
 Rebuild the reader:
@@ -71,6 +72,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Index placement / marking are promoted. Later source material remains queued from Section 16 Binary search / rotated.
+This is an incremental guide. Source Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Binary search / rotated are promoted. Later source material remains queued from Section 16 Binary search on answer.
 
 

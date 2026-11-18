@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Index placement / marking are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Binary search / rotated are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
 
 ## Study index
 
@@ -89,6 +89,7 @@
   - [Prefix / suffix / hash — transform boundary relationships](#prefix--suffix--hash--transform-boundary-relationships)
   - [Kadane / contiguous DP — retain only the sufficient ending state](#kadane--contiguous-dp--retain-only-the-sufficient-ending-state)
   - [Index placement / marking — let each value name its evidence slot](#index-placement--marking--let-each-value-name-its-evidence-slot)
+  - [Binary search / rotated — discard only a proven impossible half](#binary-search--rotated--discard-only-a-proven-impossible-half)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -8113,6 +8114,162 @@ flowchart LR
 
 Executable evidence is in `IndexPlacementMarkingPatternContracts.java`. It supplies 20 deterministic groups across official examples, absent/duplicate-free cases, endpoint mismatches, invalid domains, invalid multiplicities and input preservation. It then runs 20,000 seeded trials against independent boolean/counting references for missing, disappeared, duplicate and set-mismatch results. The trials perform exactly 100,000 oracle or preservation checks. Existing `FirstMissingPositiveContracts.java` and `FindDuplicateContracts.java` retain the two specialized contracts that mark the family boundary.
 
+### Binary search / rotated — discard only a proven impossible half
+
+Binary search is not “look at the middle and guess.” It maintains a candidate interval containing every still-possible answer, then removes a region only after a predicate proves that region impossible. Ordinary sorted search gets that proof from value order. Rotated arrays, peaks and paired arrays require a different certificate, but the obligation is unchanged.
+
+#### Contract first: identify the monotone fact
+
+| Source drill | Search object and discard certificate | Required contract | Result |
+|---|---|---|---|
+| Binary Search | exact target; `nums[mid]` orders both halves | strictly increasing array | index or `-1` |
+| Search Insert Position | first index with `nums[i] >= target` | distinct sorted array | insertion index in `[0,n]` |
+| First and Last Position | lower bound of `target`, then of values `> target` | nondecreasing array | inclusive range or `[-1,-1]` |
+| Find Minimum in Rotated Array | compare `nums[mid]` with right endpoint | rotated sorted, unique values | minimum value |
+| Search in Rotated Array | at least one half is ordered | rotated sorted, distinct values | index or `-1` |
+| Search in Rotated Array II | ordered-half proof may be hidden by equal endpoints | rotated nondecreasing array | membership boolean |
+| Find Peak Element | rising edge proves a peak exists right; falling edge proves one left | adjacent values differ; virtual boundaries are `-infinity` | any peak index |
+| Peak Index in Mountain Array | slope changes once from rising to falling | strict mountain | unique peak index |
+| Single Element in Sorted Array | pair-start parity flips after the singleton | sorted; one singleton, all others paired | singleton value |
+| Search a 2D Matrix | row-major virtual index is globally sorted | rectangular; rows sorted; strict cross-row order | membership boolean |
+
+```mermaid
+flowchart TD
+  A[State exact input contract] --> B[Define candidate interval]
+  B --> C[Choose midpoint safely]
+  C --> D[Prove one region impossible]
+  D --> E[Shrink with progress]
+  E --> F[Interpret terminal state]
+```
+
+Use `mid = left + (right-left)/2`, not `(left+right)/2`, when indexes may be large. Pick one interval convention and preserve it. The reusable lower bound below uses `[left,right)`: `left` is a possible answer, `right` may equal `n`, and every index before `left` is already known to contain a value smaller than the target.
+
+```java
+public static int lowerBound(int[] nums, int target) {
+    requireNondecreasing(nums, true);
+    int left = 0;
+    int right = nums.length;
+    while (left < right) {
+        int middle = left + (right - left) / 2;
+        if (nums[middle] >= target) right = middle;
+        else left = middle + 1;
+    }
+    return left;
+}
+```
+
+```mermaid
+flowchart LR
+  A[values less than target] --> B[left: first unknown]
+  B --> C[candidate interval]
+  C --> D[right: excluded bound]
+```
+
+#### Worked example 1 — Search Insert Position as a boundary search
+
+For `nums=[1,3,5,6]` and `target=2`, search for the first value at least `2`, not for equality.
+
+| Step | Candidate `[left,right)` | `mid` | Value | Proof and update |
+|---:|---|---:|---:|---|
+| 1 | `[0,4)` | 2 | 5 | index 2 may qualify; first qualifying index is not right of it, so `right=2` |
+| 2 | `[0,2)` | 1 | 3 | index 1 may qualify; set `right=1` |
+| 3 | `[0,1)` | 0 | 1 | value is too small; index 0 cannot qualify, so `left=1` |
+| stop | `[1,1)` | — | — | return insertion index `1` |
+
+The same primitive gives the first occurrence. An upper bound—first value strictly greater than the target—minus one gives the last. Equality is checked only after the boundary is found, so absent targets need no special loop.
+
+#### Worked example 2 — unique rotated search
+
+For `[4,5,6,7,0,1,2]`, target `0`, and `mid=3`, the left half `[4,5,6,7]` is ordered. Since `0` is not in its closed value range, discard it and continue in indexes `4..6`; the next midpoint finds `0` at index `4`.
+
+```mermaid
+flowchart TD
+  A[Inspect left, mid, right] --> B{left half ordered?}
+  B -->|Yes| C{target in its value range?}
+  C -->|Yes| D[Keep left half]
+  C -->|No| E[Keep right half]
+  B -->|No| F[Right half is ordered]
+  F --> G{target in its value range?}
+  G -->|Yes| E
+  G -->|No| D
+```
+
+Distinctness matters: it makes `nums[left] <= nums[mid]` decisive. The candidate interval remains closed here because an exact answer must be an existing index. Each update removes `mid` after checking it, so progress is strict.
+
+#### Worked example 3 — duplicates weaken the proof
+
+For `[2,2,2,0,1,2]`, a minimum search begins with `left=0`, `right=5`, `mid=2`. Both `nums[mid]` and `nums[right]` are `2`. Neither half can be certified to contain or exclude the rotation boundary. Dropping only the redundant right endpoint is safe; dropping half is not.
+
+| Step | `[left,right]` | `mid` | Compare with right | Update |
+|---:|---|---:|---|---|
+| 1 | `[0,5]` | 2 | `2 == 2` | `right=4` |
+| 2 | `[0,4]` | 2 | `2 > 1` | minimum is right of `mid`; `left=3` |
+| 3 | `[3,4]` | 3 | `0 < 1` | keep `mid`; `right=3` |
+| stop | `[3,3]` | — | — | minimum is `0` |
+
+```java
+if (nums[middle] < nums[right]) right = middle;
+else if (nums[middle] > nums[right]) left = middle + 1;
+else right--; // equality proves only that this endpoint is redundant
+```
+
+```mermaid
+flowchart TD
+  A[mid less than right] --> B[Keep left through mid]
+  C[mid greater than right] --> D[Keep right after mid]
+  E[mid equals right] --> F[Drop one duplicate endpoint]
+```
+
+That equality branch explains the complexity boundary: unique rotated search is `O(log n)`, while duplicates can force `O(n)` work, as with an all-equal array. The algorithm does not pretend to have evidence it lacks.
+
+#### Worked example 4 — the paired-prefix parity flip
+
+In `[1,1,2,3,3,4,4,8,8]`, pairs begin at even indexes before singleton `2` and at odd indexes after it. Normalize `mid` to even and compare it with `mid+1`.
+
+| Step | `[left,right]` | Even `mid` | Pair comparison | Update |
+|---:|---|---:|---|---|
+| 1 | `[0,8]` | 4 | `nums[4]=3 != nums[5]=4` | parity already broke; `right=4` |
+| 2 | `[0,4]` | 2 | `nums[2]=2 != nums[3]=3` | break is at or before 2; `right=2` |
+| 3 | `[0,2]` | 0 | `nums[0]=1 == nums[1]=1` | pair intact; `left=2` |
+| stop | `[2,2]` | — | — | return `2` |
+
+```mermaid
+flowchart TD
+  A[Normalize mid to even] --> B{nums[mid] equals nums[mid+1]?}
+  B -->|Yes| C[Pairs intact through mid+1]
+  C --> D[left = mid+2]
+  B -->|No| E[Parity break at or before mid]
+  E --> F[right = mid]
+```
+
+The key is structural, not numeric: values need only be sorted so equal copies are adjacent. Jumping by two preserves an even `left`, which makes every later normalized midpoint a valid candidate pair start.
+
+#### Peaks and virtual matrices
+
+Peak search uses slope rather than global order. If `nums[mid] < nums[mid+1]`, following that rising edge must eventually reach a strict peak on the right under the adjacent-unequal contract; otherwise a peak exists at or left of `mid`. For a guaranteed mountain this returns its unique summit; for a general array it may return any strict local peak.
+
+Search a 2D Matrix is ordinary lower-bound search over a virtual array of length `rows*columns`: logical index `p` maps to `matrix[p / columns][p % columns]`. That proof requires the first element of every row to exceed the previous row's last element. Merely sorting each row and column is a different contract and does not make row-major order monotone.
+
+```mermaid
+flowchart LR
+  A[virtual index p] --> B[row = p / columns]
+  A --> C[column = p % columns]
+  B --> D[matrix row column]
+  C --> D
+```
+
+#### Proof, cost, and failure modes
+
+**Candidate invariant.** Before every iteration, at least one valid answer remains in the maintained interval, or the boundary represented by an empty terminal interval is the correct absent/insertion result. Each branch cites a contract-specific fact—sorted value range, rotated ordered half, endpoint comparison, slope, pair parity, or virtual index order—before excluding indexes. Every update strictly reduces interval length, so termination follows.
+
+**Complexity.** Lower/upper bounds, distinct rotated search/minimum, peaks, mountain peaks, singleton parity, and virtual matrix search take `O(log n)` comparisons and `O(1)` auxiliary space (`O(log(rows*columns))` for the matrix). Duplicate rotated search/minimum retains `O(1)` space but can degrade to `O(n)`. Contract validation in a reusable public wrapper is `O(n)` and can dominate the trusted core; state that distinction instead of claiming end-to-end logarithmic time.
+
+**Common interview errors:** mixing closed and half-open updates; retaining `mid` on the wrong side and stalling; computing an overflow-prone midpoint; checking equality after discarding `mid`; using ordinary binary search directly on a rotated array; assuming the left half is ordered when equal endpoints make the test ambiguous; claiming logarithmic worst case with duplicates; treating a plateau as a strict peak; normalizing paired `mid` to odd; breaking pair parity with one-step updates; flattening a matrix whose rows lack strict cross-row order; or validating in `O(n)` while advertising the whole API as `O(log n)`.
+
+**Further follow-ups:** return lower/upper bounds for full-width targets without `target+1` overflow; search descending arrays with an injected comparator; find a rotation count; adapt peak search to plateaus with an explicit tie policy; compare one-pass rotated search with pivot-then-binary-search; explain why duplicate ambiguity has a linear lower-bound family; and lift virtual indexing to immutable paged storage while accounting for access cost.
+
+Executable evidence is in `BinarySearchRotatedPatternContracts.java`. It supplies 20 deterministic groups across official examples, empty/singleton boundaries, duplicate rotations, boundary peaks, signed singleton data and invalid contracts. It then runs 20,000 seeded trials against four independent linear oracles or predicates for lower bounds, rotated minima, strict peaks and singletons, plus input-preservation checks—exactly 100,000 checks. Existing `SearchRotatedContracts.java`, `SearchRangeContracts.java`, `FindMinimumRotatedContracts.java` and `SearchMatrixContracts.java` retain the specialized source-drill implementations.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -8201,7 +8358,13 @@ Executable evidence is in `IndexPlacementMarkingPatternContracts.java`. It suppl
 - [LeetCode, “Next Permutation”](https://leetcode.com/problems/next-permutation/) — primary lexicographic-successor, in-place mutation, wraparound and constant-extra-memory contract, including duplicate-value examples.
 - [LeetCode, “Find the Duplicate Number”](https://leetcode.com/problems/find-the-duplicate-number/) — primary `n+1`/`[1,n]`, one-distinct-duplicate, no-mutation and constant-extra-space contract, including duplicates occurring more than twice.
 - [LeetCode, “First Missing Positive”](https://leetcode.com/problems/first-missing-positive/) — primary unsorted-input, full-width component bounds, linear-time and constant-auxiliary-space contract and canonical examples.
+- [LeetCode, “Binary Search”](https://leetcode.com/problems/binary-search/) — primary sorted-distinct exact-search contract, absent result, official examples and required logarithmic runtime for the basic drill.
+- [LeetCode, “Search Insert Position”](https://leetcode.com/problems/search-insert-position/) — primary sorted-distinct insertion-boundary contract, all three official examples and required logarithmic runtime.
 - [LeetCode, “Search in Rotated Sorted Array”](https://leetcode.com/problems/search-in-rotated-sorted-array/) — primary distinct-value, possible-rotation, zero-based-index result and `O(log n)` runtime contract.
+- [LeetCode, “Search in Rotated Sorted Array II”](https://leetcode.com/problems/search-in-rotated-sorted-array-ii/) — primary nondecreasing duplicate-permitting rotation contract and explicit complexity-impact follow-up.
+- [LeetCode, “Find Peak Element”](https://leetcode.com/problems/find-peak-element/) — primary strict local-peak definition, virtual negative-infinity boundaries, adjacent-unequal promise and logarithmic requirement.
+- [LeetCode, “Peak Index in a Mountain Array”](https://leetcode.com/problems/peak-index-in-a-mountain-array/) — primary strict mountain contract, official examples and logarithmic requirement.
+- [LeetCode, “Single Element in a Sorted Array”](https://leetcode.com/problems/single-element-in-a-sorted-array/) — primary one-singleton/all-pairs sorted contract and `O(log n)` time / `O(1)` space requirement.
 - [Java SE 17 `java.util.Arrays.binarySearch`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Arrays.html#binarySearch(int%5B%5D,int)) — requires its input array to be sorted before searching, explaining why it cannot be applied directly to a rotated array.
 - [Java Language Specification, Java SE 27, Chapter 10](https://docs.oracle.com/en/java/javase/27/docs/specs/jls/jls-10.html) — current array-object, fixed-length and zero-based component-index model used by the in-place home mapping.
 - [Java Language Specification, Java SE 25, §15.17.3](https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.17.3) — integer remainder semantics and the zero-divisor exception relevant to `k % n`.
@@ -8221,9 +8384,9 @@ Executable evidence is in `IndexPlacementMarkingPatternContracts.java`. It suppl
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Index placement / marking lines 4882–4952. Binary search / rotated begins at line 4956. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Index placement / marking on pages 107–109. Binary search / rotated follows on page 109. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Binary search / rotated lines 4882–4964. Binary search on answer begins at line 4968. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Binary search / rotated on pages 107–109. Binary search on answer follows on page 109. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Index placement / marking, ending at Markdown line 4952 / DOCX page 109. The wider source remains in progress: Binary search / rotated begins at Markdown line 4956 / DOCX page 109.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Binary search / rotated, ending at Markdown line 4964 / DOCX page 109. The wider source remains in progress: Binary search on answer begins at Markdown line 4968 / DOCX page 109.
 
 
