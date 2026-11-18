@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Binary search / rotated are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Binary search on answer are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
 
 ## Study index
 
@@ -90,6 +90,7 @@
   - [Kadane / contiguous DP — retain only the sufficient ending state](#kadane--contiguous-dp--retain-only-the-sufficient-ending-state)
   - [Index placement / marking — let each value name its evidence slot](#index-placement--marking--let-each-value-name-its-evidence-slot)
   - [Binary search / rotated — discard only a proven impossible half](#binary-search--rotated--discard-only-a-proven-impossible-half)
+  - [Binary search on answer — search the smallest or largest feasible value](#binary-search-on-answer--search-the-smallest-or-largest-feasible-value)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -8270,6 +8271,178 @@ flowchart LR
 
 Executable evidence is in `BinarySearchRotatedPatternContracts.java`. It supplies 20 deterministic groups across official examples, empty/singleton boundaries, duplicate rotations, boundary peaks, signed singleton data and invalid contracts. It then runs 20,000 seeded trials against four independent linear oracles or predicates for lower bounds, rotated minima, strict peaks and singletons, plus input-preservation checks—exactly 100,000 checks. Existing `SearchRotatedContracts.java`, `SearchRangeContracts.java`, `FindMinimumRotatedContracts.java` and `SearchMatrixContracts.java` retain the specialized source-drill implementations.
 
+### Binary search on answer — search the smallest or largest feasible value
+
+Sometimes the input is not the thing to search. The unknown answer is an integer—capacity, day, rate, distance, allocation or maximum load—and a linear checker can decide whether one proposed value works. Binary search applies only after proving that this Boolean checker is monotone across a bounded answer domain.
+
+#### Contract first: direction, predicate, and exact bounds
+
+| Source drill | Objective and feasibility predicate | Safe inclusive domain | Contract detail that changes the checker |
+|---|---|---|---|
+| Koko Eating Bananas | minimum rate `r` with `sum(ceil(pile/r)) <= h` | `[1,maxPile]` | each pile is eaten alone; promote the hour sum |
+| Capacity To Ship Packages Within D Days | minimum capacity `c` whose greedy ordered packing uses at most `days` | `[maxWeight,sumWeights]` | order is fixed; a package is indivisible |
+| Split Array Largest Sum | minimum largest group sum whose greedy scan uses at most `k` groups | `[maxValue,sumValues]` | exactly `k` nonempty contiguous groups; nonnegative values let an at-most-`k` packing be split to exactly `k` |
+| Minimum Days to Make `m` Bouquets | minimum day `d` producing at least `m` disjoint runs of `k` bloomed adjacent flowers | `[minBloom,maxBloom]` | adjacency and one-use-only are essential; reject as impossible when `m*k > n` |
+| Magnetic Force Between Two Balls | maximum minimum gap `g` for greedily placing at least `m` balls | `[0,maxPosition-minPosition]` | positions are distinct; sort a clone if input must be preserved |
+| Minimize Maximum of Array | minimum limit `x` satisfying every prefix `prefixSum <= (i+1)*x` | `[0,maxValue]` | operations move units only left; widened prefix arithmetic is necessary |
+| Maximum Candies Allocated to K Children | maximum equal amount `x` with `sum(pile/x) >= k` | `[1,maxPile]`, or answer `0` when total is too small | piles may be split but not combined; each child receives one subpile |
+| Painter Partition / Book Allocation | minimum maximum contiguous load with greedy groups at most the worker count | `[maxItem,sumItems]` | Book Allocation requires every student to receive a nonempty block and returns `-1` when students exceed books; Painter Partition commonly permits idle painters |
+
+For a minimization problem, feasibility looks like `false false ... true true`: find the **first true** with a lower midpoint. For a maximization problem, it looks like `true true ... false false`: find the **last true** with an upper midpoint. Never switch templates halfway through.
+
+```mermaid
+flowchart TD
+  A[Choose candidate answer x] --> B[Run linear checker]
+  B --> C{Monotone direction?}
+  C -->|false then true| D[Keep first feasible x]
+  C -->|true then false| E[Keep last feasible x]
+```
+
+```mermaid
+flowchart LR
+  A[Infeasible prefix] --> B[first true]
+  B --> C[Feasible suffix]
+```
+
+```mermaid
+flowchart LR
+  A[Feasible prefix] --> B[last true]
+  B --> C[Infeasible suffix]
+```
+
+Bounds are part of correctness, not a tuning detail. A minimum ship capacity cannot be smaller than the heaviest package and never needs to exceed the total weight. A maximum magnetic distance cannot exceed `maxPosition-minPosition`. Accumulate totals, prefix sums, coordinate differences, ceiling-division totals and products such as `m*k` in `long`; widening after an overflowing `int` expression is too late. The reusable Java evidence rejects malformed positive-input contracts and returns the problem-defined impossibility sentinel only where the primary contract has one.
+
+#### Worked example 1 — least shipping capacity
+
+For weights `[1,2,3,4,5,6,7,8,9,10]` and `days=5`, the answer domain is `[10,55]`. Greedy packing starts a new day only when the next package would exceed the proposed capacity.
+
+| Candidate | Greedy day loads | Days | Feasible? | Boundary update |
+|---:|---|---:|:---:|---|
+| 32 | `[1..7]=28`, `[8,9,10]=27` | 2 | yes | first true is at or left of 32 |
+| 21 | `[1..6]=21`, `[7,8]=15`, `[9,10]=19` | 3 | yes | move high left |
+| 15 | `[1..5]=15`, `[6,7]=13`, `[8]=8`, `[9]=9`, `[10]=10` | 5 | yes | retain 15 |
+| 12 | `[1..4]=10`, `[5,6]=11`, `[7]=7`, `[8]=8`, `[9]=9`, `[10]=10` | 6 | no | first true is right of 12 |
+| 14 | six days | 6 | no | move low to 15 |
+
+The interval closes at `15`. Greedy is a valid checker because, for a fixed capacity, delaying a cut until the next item no longer fits never uses more groups than an earlier cut.
+
+```mermaid
+flowchart TD
+  A[Read next package] --> B{Fits current day?}
+  B -->|Yes| C[Add to current load]
+  B -->|No| D[Open next day]
+  C --> A
+  D --> A
+```
+
+#### Worked example 2 — bouquet adjacency changes feasibility
+
+For `bloomDay=[7,7,7,7,12,7,7]`, `m=2`, `k=3`, day `7` exposes runs of lengths four and two. They make only `floor(4/3)+floor(2/3)=1` bouquet; six bloomed flowers are not enough when the fifth position separates them. On day `12`, the run length is seven and two disjoint bouquets exist, so the minimum day is `12`.
+
+| Day | Ready mask | Consecutive-run accounting | Result |
+|---:|---|---|---|
+| 7 | `1111011` | one bouquet from the first run; the unbloomed flower resets the counter | infeasible |
+| 11 | `1111011` | unchanged | infeasible |
+| 12 | `1111111` | consume positions `0..2`, then `3..5` | feasible |
+
+```mermaid
+flowchart LR
+  A[Ready flower] --> B[Extend run]
+  B --> C{run length equals k?}
+  C -->|Yes| D[Make bouquet; reset run]
+  C -->|No| A
+  E[Not ready] --> F[Reset run]
+```
+
+#### Worked example 3 — greatest feasible magnetic distance
+
+Sort positions `[1,2,3,4,7]`. For a proposed gap, place the first ball at `1`, then always take the leftmost later basket far enough away. This greedy choice leaves every later basket available to subsequent balls.
+
+| Gap | Greedy placements for three balls | Feasible? |
+|---:|---|:---:|
+| 2 | `1,3,7` | yes |
+| 3 | `1,4,7` | yes |
+| 4 | only `1,7` | no |
+
+Feasible gaps form the prefix `[0,3]`; the last true is `3`. The upper-midpoint formula `low+(high-low+1)/2` guarantees progress when only two candidates remain.
+
+```mermaid
+flowchart TD
+  A[Place first ball leftmost] --> B[Scan next basket]
+  B --> C{distance at least gap?}
+  C -->|Yes| D[Place ball here]
+  C -->|No| B
+  D --> E{placed m balls?}
+  E -->|No| B
+  E -->|Yes| F[Gap is feasible]
+```
+
+#### Worked example 4 — maximum candies per child
+
+For piles `[5,8,6]` and three children, pile pieces cannot be combined. A candidate `x` serves `floor(5/x)+floor(8/x)+floor(6/x)` children.
+
+| Per child `x` | Children served | Feasible? |
+|---:|---:|:---:|
+| 4 | `1+2+1=4` | yes |
+| 5 | `1+1+1=3` | yes |
+| 6 | `0+1+1=2` | no |
+
+The greatest feasible amount is `5`. If the total candy count is smaller than the child count, even one per child is impossible and the primary contract returns `0` before searching.
+
+#### Reusable Java templates
+
+The first-true shipping implementation keeps both endpoints as possible answers:
+
+```java
+public static long minimumShipCapacity(int[] weights, int days) {
+    requirePositive(weights, "weights");
+    if (days < 1 || days > weights.length) {
+        throw new IllegalArgumentException("days must be in [1,weights.length]");
+    }
+    long low = 0;
+    long high = 0;
+    for (int weight : weights) {
+        low = Math.max(low, weight);
+        high += weight;
+    }
+    while (low < high) {
+        long middle = low + (high - low) / 2;
+        if (shippingDays(weights, middle, days) <= days) high = middle;
+        else low = middle + 1;
+    }
+    return low;
+}
+```
+
+The last-true magnetic-distance implementation differs in both midpoint bias and updates:
+
+```java
+while (low < high) {
+    long middle = low + (high - low + 1) / 2;
+    if (canPlaceBalls(sorted, balls, middle)) low = middle;
+    else high = middle - 1;
+}
+return low;
+```
+
+For Koko, use `(pile + rate - 1L) / rate` or `1L + (pile - 1L) / rate` for positive ceiling division; stop a checker early once its running total already violates the budget. For Minimize Maximum of Array, the operation direction yields the exact feasibility condition `prefixSum <= (index+1)*limit` for every prefix. Consequently its closed-form answer is the maximum ceiling prefix average, although a monotone checker remains useful for recognizing the family.
+
+#### Baseline, proof, cost, and failure modes
+
+**Baseline.** Trying every integer in the answer domain and invoking the same checker costs `O(R*n)`, where `R=high-low+1`. Binary search removes the repeated candidate work and costs `O(n log R)`. Small exhaustive baselines are still valuable as independent test oracles; the executable contract uses dynamic programming for ordered shipping, non-overlapping bouquet DP, combination enumeration for magnetic placement and a linear candidate scan for candies.
+
+**Boundary proof.** Assume a first-true search and that the true minimum feasible answer lies in `[low,high]`. If `middle` is feasible, monotonicity proves every larger candidate feasible, but `middle` may be the first, so set `high=middle`. If it is infeasible, every smaller candidate is infeasible, so set `low=middle+1`. The interval shrinks and retains the first true until `low==high`. The last-true proof is symmetric: a feasible midpoint remains a candidate and excludes only smaller redundant answers; an infeasible midpoint excludes itself and every larger value.
+
+**Checker proof.** Ordered partition checkers greedily keep adding until the next item would cross the limit; any earlier cut cannot reduce the number of groups still required. Magnetic placement greedily uses the earliest legal basket; moving a selected ball right cannot create more room for the remaining balls. Bouquet scanning counts maximal ready runs and extracts exactly `floor(runLength/k)` disjoint adjacent groups. Candy allocation sums the independent number of equal pieces each pile can produce.
+
+**Complexity.** Shipping, Split Array, Painter/Book, bouquets, Koko, Minimize Maximum and candies use `O(n log R)` time and `O(1)` auxiliary search state. Magnetic Force additionally sorts in `O(n log n)` time and uses `O(n)` space when cloning for preservation; its answer search is `O(n log coordinateRange)`. Public validation or cloning must be counted separately from a trusted core.
+
+**Common interview errors:** binary-searching an objective whose checker is not monotone; searching indexes rather than the answer domain; guessing `0` or an arbitrary constant as a bound; returning the first feasible midpoint encountered; mixing first-true and last-true updates; using a lower midpoint in a `low=mid` loop and stalling; summing into `int`; writing `(a+b-1)/b` before widening; ignoring ordered contiguity in partition problems; treating `at most k` greedy groups as a contradiction of exact `k` when nonnegative groups may be split; merging candy piles when the contract forbids it; ignoring bouquet adjacency; reusing a flower twice; sorting basket positions in place despite a preservation promise; or applying the Book Allocation `-1` rule to a Painter contract that permits idle workers.
+
+**Further follow-ups:** reconstruct the actual ship days or split boundaries; prove when exact-`k` conversion fails with negative values; return bouquet intervals, not only the day; handle real-valued answer spaces with an error tolerance and fixed iteration count; derive the maximum-prefix-average closed form; replace numeric-range search with search over sorted distinct event days; parallelize an expensive monotone checker; or state how overflow-safe bounds change when inputs themselves are `long`.
+
+Executable evidence is in `BinarySearchOnAnswerPatternContracts.java`. It supplies 20 deterministic groups across official examples, adjacency, impossibility, singleton and invalid-contract boundaries. It then runs 20,000 seeded trials against independent dynamic-programming, combination-enumeration or exhaustive candidate oracles for shipping, bouquets, magnetic placement and candy allocation, while verifying input preservation—exactly 100,000 checks. Existing `KokoEatingContracts.java` and `SplitArrayLargestSumContracts.java` retain the two specialized Section 4 implementations.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -8283,6 +8456,13 @@ Executable evidence is in `BinarySearchRotatedPatternContracts.java`. It supplie
 - [LeetCode, “Find First and Last Position of Element in Sorted Array”](https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/) — primary sorted-input, absent-result, example and logarithmic-time contract for problem 25.
 - [LeetCode, “Koko Eating Bananas”](https://leetcode.com/problems/koko-eating-bananas/) — primary pile/hour model, minimum-speed result, examples and feasible input bounds for problem 26.
 - [LeetCode, “Split Array Largest Sum”](https://leetcode.com/problems/split-array-largest-sum/) — primary exact-`k`, non-empty contiguous-subarray, minimized-largest-sum contract, examples and non-negative input bounds for problem 27.
+- [LeetCode, “Capacity To Ship Packages Within D Days”](https://leetcode.com/problems/capacity-to-ship-packages-within-d-days/) — primary in-order, indivisible-package, minimum-capacity contract, official examples and binary-search hint for the answer-space shipping drill.
+- [LeetCode, “Minimum Number of Days to Make m Bouquets”](https://leetcode.com/problems/minimum-number-of-days-to-make-m-bouquets/) — primary adjacency, disjoint-use, impossible-result and minimum-day contract for the event-threshold drill.
+- [LeetCode, “Magnetic Force Between Two Balls”](https://leetcode.com/problems/magnetic-force-between-two-balls/) — primary distinct-position, maximum-minimum-distance contract and official examples for the last-true placement drill.
+- [LeetCode, “Minimize Maximum of Array”](https://leetcode.com/problems/minimize-maximum-of-array/) — primary leftward unit-transfer operation and minimized-maximum contract underlying the prefix-capacity condition.
+- [LeetCode, “Maximum Candies Allocated to K Children”](https://leetcode.com/problems/maximum-candies-allocated-to-k-children/) — primary split-without-combining, equal-one-subpile-per-child and zero-if-impossible contract for the last-true allocation drill.
+- [GeeksforGeeks, “Allocate Minimum Pages”](https://www.geeksforgeeks.org/allocate-minimum-number-pages/) — contiguous nonempty student allocations, `-1` impossibility rule and minimized-maximum-page contract for Book Allocation.
+- [GeeksforGeeks, “The Painter's Partition Problem”](https://www.geeksforgeeks.org/the-painters-partition-problem-using-binary-search/) — contiguous board assignment, idle-painter allowance and minimized-maximum-work contract for Painter Partition.
 - [LeetCode, “Merge Intervals”](https://leetcode.com/problems/merge-intervals/) — primary closed-interval overlap, union-coverage, canonical examples and input bounds for problem 28.
 - [LeetCode, “Insert Interval”](https://leetcode.com/problems/insert-interval/) — primary sorted, non-overlapping closed-interval input contract, canonical examples, allowed new output and endpoint bounds for problem 29.
 - [LeetCode, “Set Matrix Zeroes”](https://leetcode.com/problems/set-matrix-zeroes/) — primary in-place original-zero propagation contract, canonical examples, rectangular/full-width input bounds and constant-space follow-up for problem 30.
@@ -8384,9 +8564,9 @@ Executable evidence is in `BinarySearchRotatedPatternContracts.java`. It supplie
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Binary search / rotated lines 4882–4964. Binary search on answer begins at line 4968. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Binary search / rotated on pages 107–109. Binary search on answer follows on page 109. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Binary search on answer lines 4882–4975. Intervals begins at line 4979. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Binary search on answer on pages 107–109. Intervals follows on page 109. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Binary search / rotated, ending at Markdown line 4964 / DOCX page 109. The wider source remains in progress: Binary search on answer begins at Markdown line 4968 / DOCX page 109.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Binary search on answer, ending at Markdown line 4975 / DOCX page 109. The wider source remains in progress: Intervals begins at Markdown line 4979 / DOCX page 109.
 
 
