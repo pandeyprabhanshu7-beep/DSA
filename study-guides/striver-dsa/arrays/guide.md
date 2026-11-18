@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Kadane / contiguous DP are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Index placement / marking are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
 
 ## Study index
 
@@ -88,6 +88,7 @@
   - [Fixed / variable sliding window — reuse one contiguous range](#fixed--variable-sliding-window--reuse-one-contiguous-range)
   - [Prefix / suffix / hash — transform boundary relationships](#prefix--suffix--hash--transform-boundary-relationships)
   - [Kadane / contiguous DP — retain only the sufficient ending state](#kadane--contiguous-dp--retain-only-the-sufficient-ending-state)
+  - [Index placement / marking — let each value name its evidence slot](#index-placement--marking--let-each-value-name-its-evidence-slot)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -7928,6 +7929,190 @@ flowchart TD
 
 Executable evidence is in `KadaneContiguousDpPatternContracts.java`. It supplies 20 deterministic groups across official examples, all-negative and zero-heavy inputs, singleton/full-width sums, checked product overflow, optional deletion, signed two-window extensions, invalid contracts and input preservation. It then runs 20,000 seeded trials against four independent exhaustive references—quadratic maximum sums, quadratic products, cubic deletion enumeration and all-pairs non-overlapping windows. The trials perform 100,000 oracle or preservation checks.
 
+### Index placement / marking — let each value name its evidence slot
+
+This family applies when the value domain is dense enough that a value can identify an array index. A value `v` in `[1,n]` names slot `v-1`; a value `v` in `[0,n-1]` names slot `v`. The array can then serve as a permutation workspace or a compact visited-bit set. The optimization is not “cyclic sort” by reflex. It is a representation decision with three gates: the domain-to-index mapping is total, mutation is permitted (or a defensive copy is acceptable), and the chosen encoding cannot destroy information still needed.
+
+#### Requirement contract and technique selection
+
+| Question | Required answer before using this family | Consequence |
+|---|---|---|
+| What is the exact domain? | `[1,n]`, `[0,n]`, or unrestricted integers | Determines `v-1`, `v`, an ignored sentinel, or rejection |
+| May input components change? | Yes, no, or “work on a clone” | Selects true in-place marking, a preserving wrapper, or another algorithm |
+| Are values unique, once-or-twice, or arbitrary multiplicity? | State it explicitly | Prevents a third occurrence from masquerading as another duplicate event |
+| What evidence is required? | Presence, absence, duplicate identity, or final home placement | Selects sign bits, placement, counts, XOR, or a functional graph |
+| Can a component be zero or `Integer.MIN_VALUE`? | Establish before `abs` or sign encoding | Zero has no negative sign; `abs(Integer.MIN_VALUE)` remains negative |
+| Does output storage count? | Usually returned values do not count, but a defensive clone does | Keeps auxiliary-space claims honest |
+| Must failure be atomic? | Validate before the first swap or sign change | A rejected request leaves caller state unchanged |
+
+The simple baseline allocates `boolean[n+1]` or `int[n+1]`, records every value, and scans the domain. It is often the clearest first answer: `O(n)` time and `O(n)` auxiliary space. Placement/marking compresses that evidence into the input's existing slots. A preserving reusable API may clone first; that intentionally spends `O(n)` space while retaining the same core invariant.
+
+| Source drill | Value-to-index representation | Best-fit method | Important boundary |
+|---|---|---|---|
+| Missing Number | `v -> v`, with `n` having no home | Place all values `< n`; first mismatch is missing | XOR is simpler if mutation is forbidden |
+| Find All Numbers Disappeared | `v -> v-1` | Negate the named slot on first observation | Values must start positive in `[1,n]` |
+| Find All Duplicates | `v -> v-1` | A previously negative slot proves a second observation | Official contract limits each value to at most twice |
+| Set Mismatch | `v -> v-1` | Place values; mismatched slot holds duplicate and names missing value | Exactly one missing and one duplicated value |
+| First Missing Positive | Only `1..n` can affect the answer | Place legal values; first mismatch names the answer | Ignore nonpositive and greater-than-`n` values |
+| Find the Duplicate Number | Indices and values form a functional graph | Floyd cycle entrance | No mutation plus constant auxiliary space excludes marking |
+
+```mermaid
+flowchart TD
+  A["Dense value domain?"] -->|No| B["Use set, sort, or arithmetic"]
+  A -->|Yes| C["May reuse array slots?"]
+  C -->|Yes| D["Need homes or presence bits?"]
+  D -->|Homes| E["Cyclic placement"]
+  D -->|Presence| F["Sign marking"]
+  C -->|No| G["XOR or Floyd graph"]
+```
+
+The implementation below uses a validated public boundary and a mutable core. The clone makes the public methods nonmutating. Remove that clone only when the caller explicitly grants ownership and constant auxiliary space is part of the problem contract.
+
+```java
+public static int missingNumberByPlacement(int[] nums) {
+    requireMissingNumberDomain(nums);       // distinct values in [0,n]
+    int[] work = nums.clone();              // preserving wrapper
+    int i = 0;
+    while (i < work.length) {
+        int value = work[i];
+        if (value < work.length && work[value] != value) {
+            swap(work, i, value);           // installs value in its home
+        } else {
+            i++;                            // sentinel n or already installed
+        }
+    }
+    for (i = 0; i < work.length; i++) {
+        if (work[i] != i) return i;
+    }
+    return work.length;
+}
+```
+
+The `work[value] != value` guard is the progress certificate. Every swap permanently installs at least the current value in its home. When the value already occupies that home, another swap would loop on a duplicate; advancing is the only correct move.
+
+```mermaid
+flowchart LR
+  A["Inspect work[i] = v"] --> B{"v has a legal home?"}
+  B -->|No| C["Advance i"]
+  B -->|Yes| D{"home already stores v?"}
+  D -->|Yes| C
+  D -->|No| E["Swap v into home"]
+  E --> A
+```
+
+#### Worked example 1 — Missing Number by home placement
+
+Input `[3,0,1]` has `n=3`, so values `0,1,2` have array homes and `3` is the legal no-home sentinel.
+
+| Step | `i` | Value | Action | Working array |
+|---:|---:|---:|---|---|
+| 0 | 0 | 3 | no home; advance | `[3,0,1]` |
+| 1 | 1 | 0 | swap with home `0` | `[0,3,1]` |
+| 2 | 1 | 3 | no home; advance | `[0,3,1]` |
+| 3 | 2 | 1 | swap with home `1` | `[0,1,3]` |
+| 4 | 2 | 3 | no home; advance | `[0,1,3]` |
+| scan | 2 | 3 | expected `2`; return `2` | unchanged |
+
+If every index `0..n-1` matches, then the only absent value is the no-home sentinel `n`. The baseline seen-array and XOR alternatives are both valid; placement is useful here mainly because it exposes the shared family invariant.
+
+#### Worked example 2 — Disappeared values by sign marking
+
+For `[4,3,2,7,8,2,3,1]`, each observed value `v` negates slot `v-1`. Always decode with `abs` because later traversal may encounter a value whose sign was changed as evidence.
+
+| Read value | Named slot | Evidence after the step |
+|---:|---:|---|
+| 4 | 3 | `[4,3,2,-7,8,2,3,1]` |
+| 3 | 2 | `[4,3,-2,-7,8,2,3,1]` |
+| 2 | 1 | `[4,-3,-2,-7,8,2,3,1]` |
+| 7 | 6 | `[4,-3,-2,-7,8,2,-3,1]` |
+| 8 | 7 | `[4,-3,-2,-7,8,2,-3,-1]` |
+| 2, 3 | 1, 2 | both slots were already negative |
+| 1 | 0 | `[-4,-3,-2,-7,8,2,-3,-1]` |
+
+Slots `4` and `5` remain positive, so values `5` and `6` were never observed. The same second-hit event reports duplicates `2` and `3` when the contract says each value occurs at most twice.
+
+```java
+for (int encoded : work) {
+    int value = Math.abs(encoded);           // recover the original magnitude
+    int slot = value - 1;
+    if (work[slot] < 0) duplicates.add(value);
+    else work[slot] = -work[slot];
+}
+```
+
+```mermaid
+flowchart LR
+  A["Read magnitude v"] --> B["Map to slot v-1"]
+  B --> C{"slot negative?"}
+  C -->|No| D["Negate: first sighting"]
+  C -->|Yes| E["Report: second sighting"]
+```
+
+#### Worked example 3 — Set Mismatch from the final misplaced slot
+
+Start with `[2,2,4,1]`. A duplicate blocks one home, but the duplicate guard still guarantees termination.
+
+| Step | `i` | Value / target | Action | Working array |
+|---:|---:|---|---|---|
+| 0 | 0 | `2 -> 1` | home already contains `2`; advance | `[2,2,4,1]` |
+| 1 | 1 | `2 -> 1` | already home; advance | `[2,2,4,1]` |
+| 2 | 2 | `4 -> 3` | swap | `[2,2,1,4]` |
+| 3 | 2 | `1 -> 0` | swap | `[1,2,2,4]` |
+| 4 | 2 | `2 -> 1` | home already contains `2`; advance | `[1,2,2,4]` |
+| scan | 2 | actual `2`, expected `3` | return `[duplicate=2, missing=3]` | unchanged |
+
+Every correctly placed value certifies its own presence. At the single mismatch, the resident value is the duplicate and the slot label plus one is the missing value.
+
+#### Worked example 4 — First Missing Positive ignores irrelevant values
+
+For `[3,4,-1,1]`, only values in `[1,n]` can be the first missing positive. Map `v` to `v-1`; ignore `-1`, zero, and values greater than `n`.
+
+| Step | `i` | Action | Working array |
+|---:|---:|---|---|
+| 0 | 0 | place `3` at slot `2` | `[-1,4,3,1]` |
+| 1 | 0 | `-1` is irrelevant; advance | `[-1,4,3,1]` |
+| 2 | 1 | place `4` at slot `3` | `[-1,1,3,4]` |
+| 3 | 1 | place `1` at slot `0` | `[1,-1,3,4]` |
+| 4 | 1 | `-1` is irrelevant; advance | `[1,-1,3,4]` |
+| scan | 1 | expected `2`; return `2` | unchanged |
+
+The answer is at most `n+1`: if every value `1..n` is present, return `n+1`. This bound is why all other integers may be ignored without losing the answer.
+
+```mermaid
+flowchart TD
+  A["Candidate answer domain 1..n+1"] --> B["Place only values 1..n"]
+  B --> C["Scan from slot 0"]
+  C --> D{"slot i stores i+1?"}
+  D -->|No| E["Return i+1"]
+  D -->|All yes| F["Return n+1"]
+```
+
+#### Correctness and cost
+
+**Placement invariant.** Before `i` advances, either slot `i` contains its home value, contains an irrelevant/no-home value, or contains a duplicate whose home already holds the same value. A swap installs the inspected value at its unique home. Thus there are at most `n` successful installations and at most `n` advances: `O(n)` time despite the nested-looking loop. After termination, every present placeable value occupies its home, so a mismatch exactly identifies missing evidence.
+
+**Marking invariant.** After processing a traversal prefix, slot `v-1` is negative exactly when value `v` has occurred in that prefix. Because decoding uses absolute magnitude and the initial domain excludes zero and `Integer.MIN_VALUE`, changing a sign does not change which future slot an element names. A positive slot after the pass therefore proves absence; an already-negative slot at the second observation proves duplication.
+
+**Complexities.** Each core is `O(n)` time and `O(1)` auxiliary space, excluding returned output. The demonstrated reusable methods clone first and therefore use `O(n)` auxiliary space to preserve caller input. Prevalidation also uses `O(n)` evidence so rejection is atomic. In a platform solution whose constraints are trusted and mutation is permitted, call the mutable core directly to meet the constant-space follow-up.
+
+```mermaid
+flowchart LR
+  A["Public input"] --> B["Validate full contract"]
+  B --> C["Clone for preservation"]
+  C --> D["O(1)-auxiliary mutable core"]
+  D --> E["Independent result"]
+```
+
+#### Boundaries, errors, and follow-ups
+
+**Find the Duplicate Number is the decisive exception.** Its values and indices do form a functional graph, but the official contract forbids mutation and requires constant auxiliary space. Sign marking and placement violate the first constraint; a defensive clone violates the second. Floyd's cycle-entrance algorithm satisfies both. Missing Number likewise usually favors XOR when input preservation and constant space are required.
+
+**Common interview errors:** using `nums[v]` for a `[1,n]` domain instead of `nums[v-1]`; failing to reserve the sentinel `n` in a `[0,n]` problem; swapping when a duplicate already occupies its home and looping forever; advancing immediately after a swap without inspecting the displaced value; forgetting `abs` after sign marking; applying sign marking when zero is legal; reporting the same value twice when multiplicity can exceed two; mutating before full validation; claiming constant space after cloning; restoring signs when the caller never granted mutation; or using placement for a no-mutation problem merely because the values look dense.
+
+**Further follow-ups:** restore marked signs when the in-place contract requires a reversible observation pass; encode two bounded counters per slot using modular addition; compare XOR with arithmetic-sum Missing Number under overflow; derive Floyd's cycle mapping for the duplicate drill; prove why the First Missing Positive answer is bounded by `n+1`; and explain why arbitrary full-width integers require a map, sort, or partition before any index encoding is safe.
+
+Executable evidence is in `IndexPlacementMarkingPatternContracts.java`. It supplies 20 deterministic groups across official examples, absent/duplicate-free cases, endpoint mismatches, invalid domains, invalid multiplicities and input preservation. It then runs 20,000 seeded trials against independent boolean/counting references for missing, disappeared, duplicate and set-mismatch results. The trials perform exactly 100,000 oracle or preservation checks. Existing `FirstMissingPositiveContracts.java` and `FindDuplicateContracts.java` retain the two specialized contracts that mark the family boundary.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -7973,6 +8158,8 @@ Executable evidence is in `KadaneContiguousDpPatternContracts.java`. It supplies
 - [LeetCode, “Corporate Flight Bookings”](https://leetcode.com/problems/corporate-flight-bookings/) — primary inclusive range-addition model, official examples, 1-based flight labels and current input bounds for the Difference Array technique.
 - [LeetCode, “Kth Largest Element in an Array”](https://leetcode.com/problems/kth-largest-element-in-an-array/) — primary kth-sorted-position, duplicate-counting, official examples, current bounds and without-sorting challenge for Quickselect.
 - [LeetCode, “Find All Duplicates in an Array”](https://leetcode.com/problems/find-all-duplicates-in-an-array/) — primary `[1,n]`, once-or-twice occurrence contract, official examples and linear-time/constant-auxiliary-space requirement for In-place sign marking.
+- [LeetCode, “Find All Numbers Disappeared in an Array”](https://leetcode.com/problems/find-all-numbers-disappeared-in-an-array/) — primary `[1,n]` presence domain, official examples and linear-time/no-extra-space follow-up for reusable sign evidence.
+- [LeetCode, “Set Mismatch”](https://leetcode.com/problems/set-mismatch/) — primary one-duplicate/one-missing permutation contract, official examples and current input bounds for final-slot diagnosis.
 - [Java SE 21 `Math.abs(int)`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Math.html#abs(int)) — specifies the `Integer.MIN_VALUE` absolute-value exception that makes prevalidation essential for the reusable wrapper.
 - [LeetCode, “XOR Queries of a Subarray”](https://leetcode.com/problems/xor-queries-of-a-subarray/) — primary inclusive range-XOR contract, both official examples, current bounds and prefix-XOR hints.
 - [LeetCode, “Count Triplets That Can Form Two Arrays of Equal XOR”](https://leetcode.com/problems/count-triplets-that-can-form-two-arrays-of-equal-xor/) — primary equal-XOR split contract and official reduction to zero-XOR combined ranges.
@@ -8034,9 +8221,9 @@ Executable evidence is in `KadaneContiguousDpPatternContracts.java`. It supplies
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Kadane / contiguous DP lines 4882–4942. Index placement / marking begins at line 4946. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Kadane / contiguous DP on pages 107–108. Index placement / marking follows on page 109. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Index placement / marking lines 4882–4952. Binary search / rotated begins at line 4956. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Index placement / marking on pages 107–109. Binary search / rotated follows on page 109. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Kadane / contiguous DP, ending at Markdown line 4942 / DOCX page 108. The wider source remains in progress: Index placement / marking begins at Markdown line 4946 / DOCX page 109.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Index placement / marking, ending at Markdown line 4952 / DOCX page 109. The wider source remains in progress: Binary search / rotated begins at Markdown line 4956 / DOCX page 109.
 
 
