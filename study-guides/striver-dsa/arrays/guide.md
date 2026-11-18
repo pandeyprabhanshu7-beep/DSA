@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Binary search on answer are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Intervals are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
 
 ## Study index
 
@@ -91,6 +91,7 @@
   - [Index placement / marking — let each value name its evidence slot](#index-placement--marking--let-each-value-name-its-evidence-slot)
   - [Binary search / rotated — discard only a proven impossible half](#binary-search--rotated--discard-only-a-proven-impossible-half)
   - [Binary search on answer — search the smallest or largest feasible value](#binary-search-on-answer--search-the-smallest-or-largest-feasible-value)
+  - [Intervals — decide endpoint semantics before sorting](#intervals--decide-endpoint-semantics-before-sorting)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -8443,6 +8444,213 @@ For Koko, use `(pile + rate - 1L) / rate` or `1L + (pile - 1L) / rate` for posit
 
 Executable evidence is in `BinarySearchOnAnswerPatternContracts.java`. It supplies 20 deterministic groups across official examples, adjacency, impossibility, singleton and invalid-contract boundaries. It then runs 20,000 seeded trials against independent dynamic-programming, combination-enumeration or exhaustive candidate oracles for shipping, bouquets, magnetic placement and candy allocation, while verifying input preservation—exactly 100,000 checks. Existing `KokoEatingContracts.java` and `SplitArrayLargestSumContracts.java` retain the two specialized Section 4 implementations.
 
+### Intervals — decide endpoint semantics before sorting
+
+An interval problem is not defined by two numbers alone. Before choosing a sort key or an equality test, state whether endpoints are **closed** (`[start,end]`) or **half-open** (`[start,end)`), whether zero-length rows are legal, whether input is already normalized, what output is required, and whether sorting may mutate the caller. The equality case changes by contract: closed `[1,2]` and `[2,3]` overlap at point 2, while half-open `[1,2)` and `[2,3)` are disjoint and can reuse one resource.
+
+#### Requirement contract and nine-drill map
+
+| Source drill | Model and objective | Equality rule | Primary technique |
+|---|---|---|---|
+| Merge Intervals | closed intervals; return their union | `next.start <= active.end` merges | sort by start, then sweep |
+| Insert Interval | sorted, disjoint closed input; add one interval | touching belongs to the overlap region | copy-before, absorb-overlap, copy-after |
+| Non-overlapping Intervals | scheduling intervals; remove the fewest | `next.start >= lastEnd` is compatible | maximize kept intervals by earliest end |
+| Minimum Number of Arrows to Burst Balloons | closed horizontal spans; hit every span | a shot at a shared endpoint hits both | shoot at the earliest remaining end |
+| Meeting Rooms | half-open meeting times; decide if one room suffices | an end at time `t` frees the room for a start at `t` | sort by start and compare neighbors/end state |
+| Meeting Rooms II | half-open meeting times; minimize rooms | process ends before equal starts | sweep starts and ends; retain peak concurrency |
+| Interval List Intersections | two sorted, internally disjoint closed lists | `max(starts) <= min(ends)` emits even a point | two pointers; advance the smaller end |
+| Remove Covered Intervals | official half-open intervals; count intervals not contained | `[a,b)` covers `[c,d)` iff `a<=c && d<=b` | start ascending, end descending, retain farthest end |
+| Employee Free Time | union of employee busy half-open intervals; return common finite gaps | touching busy intervals have no positive gap | flatten/merge busy union, emit gaps between components |
+
+```mermaid
+flowchart TD
+  A[Read interval contract] --> B{Closed geometry?}
+  B -->|Yes| C[Touching overlaps or is hit]
+  B -->|No; half-open schedule| D[End before equal start]
+  C --> E[Choose union, hit, or intersection objective]
+  D --> F[Choose compatibility, rooms, or free-time objective]
+```
+
+Sorting is only the preprocessing step. The objective determines the key: union uses start order; maximum compatible scheduling and minimum point stabbing use end order; containment needs start ascending **and end descending** so a possible cover precedes an equal-start covered interval. Use key extractors instead of subtraction comparators, clone before sorting when preservation is promised, and never add one to an endpoint near `Integer.MAX_VALUE`.
+
+#### Union and insertion: close one connected component
+
+For closed intervals sorted by `(start,end)`, retain one active union component. If the next start is at most the active end, widen the end; otherwise publish the active component and start another. Sorting a cloned matrix makes the reusable operation non-mutating, and every output row is fresh.
+
+```java
+static int[][] mergeClosed(int[][] intervals) {
+    int[][] sorted = validatedCopy(intervals, true, true);
+    if (sorted.length == 0) return sorted;
+    Arrays.sort(sorted, Comparator.comparingInt((int[] x) -> x[0])
+            .thenComparingInt(x -> x[1]));
+    List<int[]> answer = new ArrayList<>();
+    int start = sorted[0][0], end = sorted[0][1];
+    for (int i = 1; i < sorted.length; i++) {
+        if (sorted[i][0] <= end) end = Math.max(end, sorted[i][1]);
+        else {
+            answer.add(new int[] {start, end});
+            start = sorted[i][0];
+            end = sorted[i][1];
+        }
+    }
+    answer.add(new int[] {start, end});
+    return answer.toArray(int[][]::new);
+}
+```
+
+Insert Interval has a stronger input guarantee and therefore needs no sort: copy rows whose end is strictly before the new start, absorb rows whose start is at most the growing end, append the union once, then copy the untouched suffix. The specialized Section 4 evidence retains that linear three-region implementation.
+
+```mermaid
+flowchart LR
+  A[Strictly before] --> B[Absorb overlap]
+  B --> C[Publish growing union]
+  C --> D[Copy after suffix]
+```
+
+**Worked example 1 — merge a closed union.** Sort `[[1,3],[2,6],[8,10],[15,18]]` (already sorted). Start with `[1,3]`; `[2,6]` begins before 3, so widen to `[1,6]`. The next start 8 is beyond 6, so publish `[1,6]`; the later gaps similarly produce `[8,10]` and `[15,18]`. Result: `[[1,6],[8,10],[15,18]]`. For `[1,4]` and `[4,5]`, equality means overlap and the result is `[1,5]`.
+
+#### Greedy scheduling and point stabbing
+
+Minimum removals is the complement of a maximum compatible subset. Sort half-open intervals by end, keep the first finishing compatible interval, and thereafter keep `[start,end)` exactly when `start >= lastEnd`. An exchange argument proves safety: among all candidates that could be kept next, the earliest ending one leaves at least as much room for every future interval as any later-ending choice.
+
+Minimum Arrows uses the same order but a different equality rule. A balloon is a closed span, so place a shot at the earliest remaining end and reuse it while `next.start <= shot`. Open a new shot only when `next.start > shot`. This is the one-dimensional minimum hitting-set greedy for intervals: any solution must hit the earliest-ending span, and moving its responsible shot to that end cannot lose a later overlapping balloon.
+
+```mermaid
+flowchart TD
+  A[Sort by increasing end] --> B{Objective?}
+  B -->|Keep compatible schedules| C[Accept when start >= lastEnd]
+  B -->|Hit closed balloons| D[New arrow when start > shot]
+  C --> E[Earliest finish preserves future room]
+  D --> F[Earliest end hits the widest possible suffix]
+```
+
+**Worked example 2 — minimum removals.** For `[[1,2],[2,3],[3,4],[1,3]]`, end order is `[1,2]`, `[1,3]`, `[2,3]`, `[3,4]` (tie order is irrelevant to the optimum). Keep `[1,2]`; reject `[1,3]` because `1 < 2`; keep `[2,3]` because touching is compatible; keep `[3,4]`. Three of four remain, so one removal is minimum.
+
+| Candidate | Last kept end before | Decision | Kept count |
+|---|---:|---|---:|
+| `[1,2)` | none | keep | 1 |
+| `[1,3)` | 2 | reject (`1 < 2`) | 1 |
+| `[2,3)` | 2 | keep (touching is legal) | 2 |
+| `[3,4)` | 3 | keep | 3 |
+
+#### Resource counts: concurrency, not pairwise overlap
+
+Meeting Rooms asks whether concurrency ever exceeds one. Meeting Rooms II asks for the peak number of active half-open meetings, which equals the minimum number of rooms: every active meeting needs a different room, and reusing a room immediately after its end realizes that lower bound.
+
+With independently sorted starts and ends, compare the next events. If `start < end`, open a room and update the maximum. Otherwise process the end first and free a room; the non-strict `else` is what makes `[0,10)` and `[10,20)` compatible. An event-list implementation must use the same tie policy.
+
+```java
+static int minimumMeetingRooms(int[][] meetings) {
+    int[][] copy = validatedCopy(meetings, false, true);
+    int n = copy.length;
+    int[] starts = new int[n], ends = new int[n];
+    for (int i = 0; i < n; i++) {
+        starts[i] = copy[i][0];
+        ends[i] = copy[i][1];
+    }
+    Arrays.sort(starts);
+    Arrays.sort(ends);
+    int s = 0, e = 0, active = 0, maximum = 0;
+    while (s < n) {
+        if (starts[s] < ends[e]) {
+            maximum = Math.max(maximum, ++active);
+            s++;
+        } else {
+            active--;
+            e++;
+        }
+    }
+    return maximum;
+}
+```
+
+```mermaid
+sequenceDiagram
+  participant S as Next start
+  participant E as Next end
+  participant R as Active rooms
+  S->>E: compare times
+  alt start < end
+    S->>R: increment; record maximum
+  else end <= start
+    E->>R: decrement before reuse
+  end
+```
+
+**Worked example 3 — two rooms.** For `[[0,30],[5,10],[15,20]]`, starts are `0,5,15` and ends are `10,20,30`. Start 0 opens room 1; start 5 opens room 2; end 10 frees one before start 15, so start 15 reuses it. Peak active count is 2. If the third meeting began at 10 instead, end 10 would still be processed first and the answer would remain 2, not 3.
+
+#### Two-list intersection and common free time
+
+For one interval from each sorted, internally disjoint **closed** list, their intersection is `[max(starts), min(ends)]` when the left endpoint is no greater than the right. Then advance whichever interval ends first: it cannot intersect any later interval from the opposite list beyond its own end. Advance both on equal ends.
+
+```java
+static int[][] intersectClosed(int[][] first, int[][] second) {
+    validateSortedDisjointClosed(first);
+    validateSortedDisjointClosed(second);
+    List<int[]> answer = new ArrayList<>();
+    int i = 0, j = 0;
+    while (i < first.length && j < second.length) {
+        int left = Math.max(first[i][0], second[j][0]);
+        int right = Math.min(first[i][1], second[j][1]);
+        if (left <= right) answer.add(new int[] {left, right});
+        if (first[i][1] < second[j][1]) i++;
+        else if (second[j][1] < first[i][1]) j++;
+        else { i++; j++; }
+    }
+    return answer.toArray(int[][]::new);
+}
+```
+
+```mermaid
+flowchart TD
+  A[Compare one interval from each list] --> B[Compute max starts and min ends]
+  B --> C{left <= right?}
+  C -->|Yes| D[Emit closed intersection]
+  C -->|No| E[Emit nothing]
+  D --> F[Advance interval with smaller end]
+  E --> F
+```
+
+**Worked example 4 — intersections including points.** For
+`A=[[0,2],[5,10],[13,23],[24,25]]` and
+`B=[[1,5],[8,12],[15,24],[25,26]]`, the scan emits
+`[[1,2],[5,5],[8,10],[15,23],[24,24],[25,25]]`.
+After `[0,2]` meets `[1,5]`, advance A because 2 ends first. `[5,10]` and `[1,5]` share the single point 5, which is valid for closed intervals; advance B, then emit `[8,10]`. Every later step follows the same smaller-end proof.
+
+Employee Free Time uses the complementary half-open scheduling view. Flatten every employee's busy intervals, sort by start, and merge their global busy union. Whenever the next busy start is **greater** than the active busy end, `[activeEnd,nextStart)` is a finite common free interval. Equality creates no positive-duration gap. Do not invent unbounded free time before the first busy interval or after the last unless the API supplies a finite observation window.
+
+```mermaid
+flowchart LR
+  A[Flatten busy schedules] --> B[Merge global busy union]
+  B --> C{Next start > active end?}
+  C -->|Yes| D[Emit finite common-free gap]
+  C -->|No| E[Extend or retain active busy end]
+  D --> E
+```
+
+#### Containment, baselines, and proof obligations
+
+For Remove Covered Intervals, sort by `(start ascending, end descending)`. The descending tie is essential: `[1,5)` must precede `[1,4)`. Sweep a farthest end; a row with `end <= farthestEnd` is covered, while a larger end survives and advances the frontier. With arbitrary equal duplicates, clarify whether identical intervals cover each other under the problem's distinct-input promise before generalizing the count.
+
+Useful independent baselines are deliberately slower:
+
+- union: build an overlap graph and merge each connected component;
+- removals: enumerate every subset and retain the largest compatible one;
+- arrows: enumerate subsets of all input endpoints as candidate shot positions;
+- rooms: count meetings active at each start event under the half-open rule;
+- intersections: test every cross-list pair;
+- free time: enumerate finite event cells and retain cells with zero active employees.
+
+These oracles test the greedy proof without repeating its implementation. For production bounds, sort-based algorithms are `O(n log n)` time. Merge, removals, arrows, rooms, covered-interval removal, and flattened free time use `O(n)` cloned/output storage when preservation is required; their post-sort scans use `O(1)` state apart from output. Intersection is `O(a+b)` time and output space after validating already normalized lists. Insert is `O(n)` time because its input is already sorted and disjoint.
+
+**Sweep invariants.** In a union scan, published components equal the union of the consumed prefix and end strictly before the active component; the active component equals the remaining connected suffix. In end-greedy scheduling, the kept prefix is compatible and its last end is no later than the last end of some equally large optimal prefix. In the room sweep, `active` equals starts processed minus ends processed, and `maximum` is the largest such value seen. In two-list intersection, every pair involving an interval already advanced has been completely decided.
+
+**Common interview errors:** applying one equality rule to every interval problem; using `start <= end` for half-open room overlap; using `start >= shot` to open a new arrow and wasting a shared-endpoint shot; sorting by start for interval scheduling and choosing a long early interval; sorting equal starts by shorter end in containment; mutating caller rows through a shallow outer clone; subtracting comparator keys and overflowing; returning aliases in a supposedly fresh result; counting pairwise overlaps instead of maximum concurrency; advancing the larger end in an intersection scan; emitting zero-length half-open free intervals; reporting infinite outer free time without a bounded domain; treating unsorted input as normalized; or claiming linear total time after sorting.
+
+**Follow-ups:** preserve provenance IDs through merges; return the actual compatible schedule or removed rows; assign room numbers with a heap of `(end,roomId)`; support online insert/delete with an ordered interval map; compute covered length using widened arithmetic and explicit discrete-versus-continuous semantics; intersect `k` calendars; cap free-time output to a query window; or adapt every equality test to open, closed, and mixed endpoints.
+
+Executable evidence is in `IntervalPatternContracts.java`. It supplies 20 deterministic groups across touching endpoints, containment, official-style examples, singleton/empty boundaries, full-width endpoints, validation, preservation, and fresh ownership. It then runs 20,000 seeded trials against independent graph-component, subset, endpoint-set, event-count, cross-product and event-cell oracles for six operations—exactly 120,000 oracle/preservation checks. `MergeIntervalsContracts.java` and `InsertIntervalContracts.java` retain the specialized Section 4 implementations.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -8465,6 +8673,13 @@ Executable evidence is in `BinarySearchOnAnswerPatternContracts.java`. It suppli
 - [GeeksforGeeks, “The Painter's Partition Problem”](https://www.geeksforgeeks.org/the-painters-partition-problem-using-binary-search/) — contiguous board assignment, idle-painter allowance and minimized-maximum-work contract for Painter Partition.
 - [LeetCode, “Merge Intervals”](https://leetcode.com/problems/merge-intervals/) — primary closed-interval overlap, union-coverage, canonical examples and input bounds for problem 28.
 - [LeetCode, “Insert Interval”](https://leetcode.com/problems/insert-interval/) — primary sorted, non-overlapping closed-interval input contract, canonical examples, allowed new output and endpoint bounds for problem 29.
+- [LeetCode, “Non-overlapping Intervals”](https://leetcode.com/problems/non-overlapping-intervals/) — primary minimum-removal objective and explicit rule that endpoint-touching intervals are non-overlapping.
+- [LeetCode, “Minimum Number of Arrows to Burst Balloons”](https://leetcode.com/problems/minimum-number-of-arrows-to-burst-balloons/) — primary closed balloon-span model, shared-endpoint hit semantics, minimum-arrow objective and official examples.
+- [LeetCode, “Meeting Rooms”](https://leetcode.com/problems/meeting-rooms/) — primary meeting-attendance feasibility drill for detecting whether any scheduled intervals conflict.
+- [LeetCode, “Meeting Rooms II”](https://leetcode.com/problems/meeting-rooms-ii/) — primary minimum-concurrent-room objective for scheduled intervals.
+- [LeetCode, “Interval List Intersections”](https://leetcode.com/problems/interval-list-intersections/) — primary sorted, internally disjoint closed-list contract, point intersections and official examples.
+- [LeetCode, “Remove Covered Intervals”](https://leetcode.com/problems/remove-covered-intervals/) — primary half-open interval and containment definition for retaining only uncovered rows.
+- [LeetCode, “Employee Free Time”](https://leetcode.com/problems/employee-free-time/) — primary common finite free-time objective over employee schedules.
 - [LeetCode, “Set Matrix Zeroes”](https://leetcode.com/problems/set-matrix-zeroes/) — primary in-place original-zero propagation contract, canonical examples, rectangular/full-width input bounds and constant-space follow-up for problem 30.
 - [LeetCode, “Spiral Matrix”](https://leetcode.com/problems/spiral-matrix/) — primary non-empty rectangular input, clockwise-order result, canonical examples and value/dimension bounds for problem 31.
 - [LeetCode, “Median of Two Sorted Arrays”](https://leetcode.com/problems/median-of-two-sorted-arrays/) — primary sorted-input, non-empty-total, canonical examples, input bounds and logarithmic-time requirement for problem 32.
@@ -8564,9 +8779,9 @@ Executable evidence is in `BinarySearchOnAnswerPatternContracts.java`. It suppli
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Binary search on answer lines 4882–4975. Intervals begins at line 4979. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Binary search on answer on pages 107–109. Intervals follows on page 109. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Intervals lines 4882–4987. Matrix / 2D array begins at line 4991. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Intervals on pages 107–110. Matrix / 2D array follows on page 110. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Binary search on answer, ending at Markdown line 4975 / DOCX page 109. The wider source remains in progress: Intervals begins at Markdown line 4979 / DOCX page 109.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Intervals, ending at Markdown line 4987 / DOCX page 110. The wider source remains in progress: Matrix / 2D array begins at Markdown line 4991 / DOCX page 110.
 
 
