@@ -54,8 +54,7 @@
   - [Example 23 ‚Äî First Missing Positive: place only useful values into home indices](#example-23--first-missing-positive-place-only-useful-values-into-home-indices)
   - [Example 24 ‚Äî Search in Rotated Sorted Array: prove one half is ordered, then discard the other](#example-24--search-in-rotated-sorted-array-prove-one-half-is-ordered-then-discard-the-other)
   - [Example 25 ‚Äî Find First and Last Position: search for two monotonic boundaries](#example-25--find-first-and-last-position-search-for-two-monotonic-boundaries)
-  - [Example 26 ‚Äî Koko Eating Bananas: binary-search the first feasible rate](#example-26--koko-eating-bananas-binarµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^y-search-the-first-feasible-rate)
+  - [Example 26 ‚Äî Koko Eating Bananas: binary-search the first feasible rate](#example-26--koko-eating-bananas-binary-search-the-first-feasible-rate)
   - [Example 27 ‚Äî Split Array Largest Sum: minimize a contiguous capacity](#example-27--split-array-largest-sum-minimize-a-contiguous-capacity)
   - [Example 28 ‚Äî Merge Intervals: sort once, close one component at a time](#example-28--merge-intervals-sort-once-close-one-component-at-a-time)
   - [Example 29 ‚Äî Insert Interval: preserve the three ordered regions](#example-29--insert-interval-preserve-the-three-ordered-regions)
@@ -493,8 +492,7 @@ static int firstMissingPositive(int[] a) {
 | values in `1..n` | cyclic placement | legal values map to unique home indices | omitting the duplicate guard |
 | sorted or monotone predicate | binary search | rejected/accepted region remains ordered | binary-searching a nonmonotone objective |
 | overlap or scheduled ranges | sort then merge | only the last accepted interval can overlap next | merging before sorting |
-| every-window maximum/minimum | monotonic deque | dµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^iscarded candidates can never win later | storing values when indices expire |
+| every-window maximum/minimum | monotonic deque | discarded candidates can never win later | storing values when indices expire |
 | next greater/smaller | monotonic stack | stack order describes unresolved candidates | popping without resolving ownership |
 | `k`th/top-`k` | heap or Quickselect | rank‚Äînot total order‚Äîis the requirement | fully sorting by habit |
 
@@ -792,8 +790,7 @@ static int[] twoSumIndices(int[] input, long target) {
 
 **Why the order matters:** checking before insertion prevents reusing the current index. `putIfAbsent` retains the earliest duplicate, which makes behavior deterministic without changing correctness. `long need` handles pairs such as two `Integer.MAX_VALUE` values with target `4_294_967_294L`.
 
-Expected time is `O(n)` under the map's usual hash-distribution assumption, withµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^ `O(n)` auxiliary space. A nested-loop baseline is `O(n¬≤)` time and `O(1)` space; a sorted two-pointer solution is appropriate only when sorting is allowed and original-index identity is preserved separately.
+Expected time is `O(n)` under the map's usual hash-distribution assumption, with `O(n)` auxiliary space. A nested-loop baseline is `O(n¬≤)` time and `O(1)` space; a sorted two-pointer solution is appropriate only when sorting is allowed and original-index identity is preserved separately.
 
 ### Example 2 ‚Äî one stock trade: retain the cheapest legal buy
 
@@ -1238,8 +1235,7 @@ flowchart TD
     E --> C
 ```
 
-The reusable implementation uses a record so sortedness and uniqueness are part of the result type rather than conventions hidden insµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^ide nested lists:
+The reusable implementation uses a record so sortedness and uniqueness are part of the result type rather than conventions hidden inside nested lists:
 
 ```java
 record Triplet(int first, int second, int third) {}
@@ -1666,8 +1662,7 @@ flowchart TD
     P -->|negative values possible| N["do not use this proof; choose a prefix-sum method"]
 ```
 
-**Why each recorded window is the shortest one ending at `right`.** Fix a right endpoint after it is added. While the sum is at least the target, every left move makes the window shorter, so the algorithm records every still-valid suffix of that window. The first removal that makes the sum too small proves no even shorter window ending at this `right` can qualify: all remaµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^ining elements are positive, so removing more only lowers the sum. Thus the last length recorded for each `right` is its shortest valid window.
+**Why each recorded window is the shortest one ending at `right`.** Fix a right endpoint after it is added. While the sum is at least the target, every left move makes the window shorter, so the algorithm records every still-valid suffix of that window. The first removal that makes the sum too small proves no even shorter window ending at this `right` can qualify: all remaining elements are positive, so removing more only lowers the sum. Thus the last length recorded for each `right` is its shortest valid window.
 
 **Global correctness.** Every valid subarray has some right endpoint. The previous argument shows that the algorithm records a candidate no longer than any valid subarray with that endpoint. Taking the minimum across all right endpoints therefore returns the global minimum. If no window ever reaches the target, there is no valid subarray and the untouched sentinel maps to `0`.
 
@@ -2052,8 +2047,7 @@ The empty product is the identity value `1`: before index 0 there are no factors
 
 ```mermaid
 flowchart TD
-    Q{"Need every product excepµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^t i?"}
+    Q{"Need every product except i?"}
     Q --> D{"Division allowed and zeros handled?"}
     D -->|"no"| P["exclusive prefix products"]
     P --> S["multiply exclusive suffix in reverse"]
@@ -2412,8 +2406,7 @@ Executable evidence is in `SubarraysDivisibleByKContracts.java`. It checks 18 sc
 
 ### Example 18 ‚Äî Longest Consecutive Sequence: expand once from each unique start
 
-**Requirement:** given a non-null, unsorted `int[] nums`, return the lengtµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^h of the longest set of distinct values that form a numeric run `v, v+1, ...`. Original positions do not need to be adjacent, duplicates do not extend a run, the input must remain unchanged, and an empty array returns 0. The original interview problem asks for `O(n)` time; this reusable contract also handles the full Java `int` domain safely.
+**Requirement:** given a non-null, unsorted `int[] nums`, return the length of the longest set of distinct values that form a numeric run `v, v+1, ...`. Original positions do not need to be adjacent, duplicates do not extend a run, the input must remain unchanged, and an empty array returns 0. The original interview problem asks for `O(n)` time; this reusable contract also handles the full Java `int` domain safely.
 
 | Approach | Time | Space | Why accept or reject it |
 |---|---:|---:|---|
@@ -2807,8 +2800,7 @@ Lexicographic order compares the first position at which two equal-length arrays
 | Approach | Time | Extra space | Judgment |
 |---|---:|---:|---|
 | Generate every permutation, sort, find the current one | `O(n! * n)` or worse | `O(n! * n)` | Useful only as a tiny-input oracle |
-| Copy, sµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^ort, and repeatedly advance permutations | potentially factorial | at least `O(n)` | Violates the in-place/constant-space target |
+| Copy, sort, and repeatedly advance permutations | potentially factorial | at least `O(n)` | Violates the in-place/constant-space target |
 | Rightmost pivot, rightmost greater successor, reverse suffix | `O(n)` | `O(1)` | Meets the contract |
 
 #### The three structural facts
@@ -3203,8 +3195,7 @@ Executable evidence is in `FirstMissingPositiveContracts.java`. It covers 20 det
 
 **Official contract.** `nums` is a non-empty array of distinct integers that was strictly increasing before a possible rotation. Return the zero-based index of `target`, or `-1` when it is absent, in `O(log n)` time. The method must not mutate the input. The reusable wrapper below additionally returns `-1` for an empty array and rejects `null`; it deliberately does not spend `O(n)` time validating the distinct/rotated-sorted precondition because that would violate the requested logarithmic bound.
 
-An ordinary binary search cannot call `Arrays.binarySearch(nums, target)` directly: that API requires the searched range to be globally sorted. A rotated array instead µ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^contains two increasing runs separated by one drop. At any midpoint of a distinct-value instance, **at least one closed half is sorted**. Identify that half first; its endpoint values then prove whether the target can lie inside it.
+An ordinary binary search cannot call `Arrays.binarySearch(nums, target)` directly: that API requires the searched range to be globally sorted. A rotated array instead contains two increasing runs separated by one drop. At any midpoint of a distinct-value instance, **at least one closed half is sorted**. Identify that half first; its endpoint values then prove whether the target can lie inside it.
 
 ```mermaid
 flowchart LR
@@ -3575,8 +3566,7 @@ For a candidate limit `L`, greedily append each value to the current group until
 
 `feasible(L) = greedyGroups(nums, L) <= k`
 
-is monotonic: raising the limit can never require more groups. Binary-search the first feasible limit in `[max(nums), sum(nums)]`. Although the scan tests ‚Äúat most `k`,‚Äù the result satisfies ‚Äúexactly `k`‚Äù: any solution with fewer groups can be split at internal boundaries until it has `k` non-empty µ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^groups, and non-negative values ensure splitting cannot increase a group sum.
+is monotonic: raising the limit can never require more groups. Binary-search the first feasible limit in `[max(nums), sum(nums)]`. Although the scan tests ‚Äúat most `k`,‚Äù the result satisfies ‚Äúexactly `k`‚Äù: any solution with fewer groups can be split at internal boundaries until it has `k` non-empty groups, and non-negative values ensure splitting cannot increase a group sum.
 
 ```mermaid
 flowchart LR
@@ -3925,8 +3915,7 @@ flowchart TD
     V["validate non-empty rectangle"] --> B["snapshot first-row and first-column zero facts"]
     B --> M["mark interior zeros in row 0 / column 0"]
     M --> I["materialize interior from markers"]
-    I --> R["zµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^ero first row if originally required"]
+    I --> R["zero first row if originally required"]
     R --> C["zero first column if originally required"]
 ```
 
@@ -4681,9 +4670,7 @@ flowchart TD
     W -->|"extended overflow"| X["ArithmeticException"]
 ```
 
-**Dual-Kadane invariant.** After index `i`, `maxEnding` and `minEnding` are the maximum and minimum sums of non-empty ordinary subarrays ending exactly at `i`; `maxSubarray` and `minSubarray` are the corresponding extrema anywhere in `0..i`; `total` is the sum of `0..i`. Eaµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^µ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^ch ending subarray either starts at `i` or extends an ending subarray from `i-1`, so the max/min recurrences preserve these claims by induction.
+**Dual-Kadane invariant.** After index `i`, `maxEnding` and `minEnding` are the maximum and minimum sums of non-empty ordinary subarrays ending exactly at `i`; `maxSubarray` and `minSubarray` are the corresponding extrema anywhere in `0..i`; `total` is the sum of `0..i`. Each ending subarray either starts at `i` or extends an ending subarray from `i-1`, so the max/min recurrences preserve these claims by induction.
 
 Every legal circular subarray either avoids the boundary or crosses it. Kadane covers the first class. For a crossing choice, the omitted indices lie strictly between its prefix and suffix and form one ordinary contiguous segment; conversely, the complement of any non-empty ordinary middle segment is one crossing selection with no repeated index. Thus the best crossing sum is `total - minSubarray`, except when the minimum is the entire array and its complement is empty. The negative guard handles exactly that case; taking the larger legal class proves the result.
 
@@ -4997,8 +4984,7 @@ This is not ‚Äúchoose the locally best landing index.‚Äù The scan keeps the unio
 ```java
 static int minimumJumps(int[] nums) {
     if (nums == null || nums.length == 0) {
-        throw new IllegalArgumentExceptµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^ion("nums must be non-null and non-empty");
+        throw new IllegalArgumentException("nums must be non-null and non-empty");
     }
     for (int value : nums) {
         if (value < 0) throw new IllegalArgumentException("jump lengths must be non-negative");
@@ -5358,8 +5344,7 @@ static int singleNumberValidated(int[] nums) {
 }
 ```
 
-A frequency map is the clearest baseline: count each value, then find count one in `O(n)` expected time and `O(n)` space. Sorting a copy uses `O(n log n)` time and `O(n)` copy space, after which adjacent pµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^airs expose the single value; sorting the input directly violates the stated nonmutation contract. A mathematical set toggled on duplicate encounters can be linear expected time but still uses linear space. XOR is the only one of these approaches that simultaneously meets the official linear-time and constant-extra-space requirements.
+A frequency map is the clearest baseline: count each value, then find count one in `O(n)` expected time and `O(n)` space. Sorting a copy uses `O(n log n)` time and `O(n)` copy space, after which adjacent pairs expose the single value; sorting the input directly violates the stated nonmutation contract. A mathematical set toggled on duplicate encounters can be linear expected time but still uses linear space. XOR is the only one of these approaches that simultaneously meets the official linear-time and constant-extra-space requirements.
 
 #### Worked case 1 ‚Äî official three-value trace
 
@@ -5788,8 +5773,7 @@ Executable evidence is in `PivotIndexContracts.java`. It covers 20 deterministic
 
 ### Example 45 ‚Äî Maximum Consecutive Ones III: repair an at-most-K budget window
 
-**Official contract.** Given a binary array `nums` µ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^and an integer `k`, return the maximum number of consecutive ones obtainable by flipping **at most** `k` zeros. Flips affect the chosen contiguous interval conceptually; the method need not and should not mutate `nums`. The current official bounds are `1 <= nums.length <= 100,000`, `nums[i]` is `0` or `1`, and `0 <= k <= nums.length`. The reusable boundary below also accepts an empty array and returns `0`, accepts a budget larger than the array, and rejects null, negative `k`, or a non-binary component.
+**Official contract.** Given a binary array `nums` and an integer `k`, return the maximum number of consecutive ones obtainable by flipping **at most** `k` zeros. Flips affect the chosen contiguous interval conceptually; the method need not and should not mutate `nums`. The current official bounds are `1 <= nums.length <= 100,000`, `nums[i]` is `0` or `1`, and `0 <= k <= nums.length`. The reusable boundary below also accepts an empty array and returns `0`, accepts a budget larger than the array, and rejects null, negative `k`, or a non-binary component.
 
 Flipping a zero inside a candidate interval makes it a one, so the problem is exactly:
 
@@ -6032,8 +6016,7 @@ Executable evidence is in `FindMinimumRotatedContracts.java`. It covers 20 deter
 
 ### Example 47 ‚Äî Search a 2D Matrix: binary-search virtual row-major order
 
-**Official contract.** Given a non-empty rectangular `m x n` integer matrix, return whether `target` occurs. Every row is sorted in non-decreasing order, and the first value of each row is **strictly greater** than the last value of the preceding row. The current officiaµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^l bounds are `1 <= m,n <= 100` and `-10^4 <= matrix[i][j],target <= 10^4`; the required runtime is `O(log(m*n))`. The method must not need to mutate the matrix.
+**Official contract.** Given a non-empty rectangular `m x n` integer matrix, return whether `target` occurs. Every row is sorted in non-decreasing order, and the first value of each row is **strictly greater** than the last value of the preceding row. The current official bounds are `1 <= m,n <= 100` and `-10^4 <= matrix[i][j],target <= 10^4`; the required runtime is `O(log(m*n))`. The method must not need to mutate the matrix.
 
 The cross-row condition is stronger than ‚Äúeach row is sorted.‚Äù Concatenating the rows produces one globally non-decreasing sequence. There is no need to allocate that flattened array: virtual index `index` maps to
 
@@ -6410,8 +6393,7 @@ For `values=[3,2,3,1,2,4,5,5,6]` and `k=4`, descending order would be `[6,5,5,4,
 
 ```mermaid
 flowchart TD
-    A["pivot 5"] -->µ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^ B[">5: rank 0"]
+    A["pivot 5"] --> B[">5: rank 0"]
     A --> C["=5: ranks 1..2"]
     A --> D["<5: ranks 3..8"]
     D --> E["target rank 3"]
@@ -6765,8 +6747,7 @@ Building a prefix array is `O(n)` time and `O(n)` space; answering `q` queries i
 
 **Further follow-ups:** count zero-XOR ranges; enumerate ranges when output size permits; answer XOR Queries of a Subarray; derive equal-XOR triplet counts from zero-XOR combined ranges; maintain online XOR with a Fenwick tree; find maximum subarray XOR with a binary trie of prefixes; use a linear basis for subset XOR; generalize the boundary idea to any associative group; or compare prefix XOR with pair-cancellation in Single Number.
 
-Executable evidence is in `PrefixXorCµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^ontracts.java`. It covers 20 deterministic groups: both official range-query examples, singleton/empty/signed/full-width inputs, target-zero and no-match counts, all-zero combinatorics, preservation and malformed-query rejection. It then runs 20,000 seeded full-`int` arrays against independent direct-range and quadratic count oracles while checking nonmutation, reversal invariance and range-split cancellation‚Äî100,000 randomized checks.
+Executable evidence is in `PrefixXorContracts.java`. It covers 20 deterministic groups: both official range-query examples, singleton/empty/signed/full-width inputs, target-zero and no-match counts, all-zero combinatorics, preservation and malformed-query rejection. It then runs 20,000 seeded full-`int` arrays against independent direct-range and quadratic count oracles while checking nonmutation, reversal invariance and range-split cancellation‚Äî100,000 randomized checks.
 
 ### Coordinate Compression ‚Äî preserve order in a dense rank space
 
@@ -7129,8 +7110,7 @@ All four algorithms run in `O(n)` time and `O(1)` auxiliary space and preserve i
 
 **When this pattern does not fit:** future decisions need an unbounded number of distinct prefix values; output must enumerate earlier witnesses; updates invalidate the retained summary; the rule depends on arbitrary-range queries; a monotonic stack/deque is needed to retain multiple undominated candidates; or the task needs the full longest-increasing-subsequence length rather than the existence of length three. ‚ÄúOne pass‚Äù is not a goal by itself‚Äîuse a second pass when the contract needs information from both directions.
 
-**Common interview errors:** using the global minimum even when it occurs after the right endpoint; computing a difference in `int` before widening; mutating a flowerbed despite a preservation promise; ignoring a newly simulated flower when checking µ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^the next plot; returning early before reusable validation finishes; treating equality as increase/decrease; checking only the first comparison to select a monotonic direction; confusing subsequence with contiguous run; using `<` instead of `<=` when replacing triplet thresholds; claiming the thresholds themselves always reconstruct a witness; forcing Gas Station or Candy into the wrong one-pass state; or retaining state without stating why it is sufficient.
+**Common interview errors:** using the global minimum even when it occurs after the right endpoint; computing a difference in `int` before widening; mutating a flowerbed despite a preservation promise; ignoring a newly simulated flower when checking the next plot; returning early before reusable validation finishes; treating equality as increase/decrease; checking only the first comparison to select a monotonic direction; confusing subsequence with contiguous run; using `<` instead of `<=` when replacing triplet thresholds; claiming the thresholds themselves always reconstruct a witness; forcing Gas Station or Candy into the wrong one-pass state; or retaining state without stating why it is sufficient.
 
 **Further follow-ups:** return the maximizing pair of indices; count maximum flower capacity rather than answer a threshold query; stream monotonicity over chunks by merging boundary evidence; return one increasing-triplet witness; generalize thresholds to increasing subsequence length `k`; retain two largest/two smallest distinct values; derive Gas Station's candidate-reset proof; compare fixed state with a monotonic deque; make the state mergeable for parallel chunks; or prove that a proposed summary fails the state-sufficiency test.
 
@@ -7474,8 +7454,7 @@ flowchart LR
 
 #### Worked case 2 ‚Äî positive values make minimum-length repair monotone
 
-For `target=7` and `[2,3,1,2,4,3]`, expand right once per element. After each expansion, shrink repeatedly while the sum still meets the target; the last valid window before faµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^ilure is the shortest one ending at that right endpoint.
+For `target=7` and `[2,3,1,2,4,3]`, expand right once per element. After each expansion, shrink repeatedly while the sum still meets the target; the last valid window before failure is the shortest one ending at that right endpoint.
 
 | right / value | sum after add | successful removals from left | best length | state after repair |
 |---:|---:|---|---:|---|
@@ -7803,8 +7782,7 @@ static long maximumProductSubarrayExact(int[] values) {
         long value = values[i];
         long fromMaximum = Math.multiplyExact(maximumEnding, value);
         long fromMinimum = Math.multiplyExact(minimumEnding, value);
-        maximumEnding = Math.max(valueµ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^, Math.max(fromMaximum, fromMinimum));
+        maximumEnding = Math.max(value, Math.max(fromMaximum, fromMinimum));
         minimumEnding = Math.min(value, Math.min(fromMaximum, fromMinimum));
         best = Math.max(best, maximumEnding);
     }
@@ -8281,8 +8259,7 @@ flowchart LR
   A[virtual index p] --> B[row = p / columns]
   A --> C[column = p % columns]
   B --> D[matrix row column]
-µ®•z∫ËØ
-‚∂)‡≤÷ßu™›¢Îi∫–k¢Gß¶*^  C --> D
+  C --> D
 ```
 
 #### Proof, cost, and failure modes
