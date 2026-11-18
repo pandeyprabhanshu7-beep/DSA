@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Prefix / suffix / hash are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Kadane / contiguous DP are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
 
 ## Study index
 
@@ -87,6 +87,7 @@
   - [Two pointers — move only after proving what the move discards](#two-pointers--move-only-after-proving-what-the-move-discards)
   - [Fixed / variable sliding window — reuse one contiguous range](#fixed--variable-sliding-window--reuse-one-contiguous-range)
   - [Prefix / suffix / hash — transform boundary relationships](#prefix--suffix--hash--transform-boundary-relationships)
+  - [Kadane / contiguous DP — retain only the sufficient ending state](#kadane--contiguous-dp--retain-only-the-sufficient-ending-state)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -7728,6 +7729,205 @@ flowchart LR
 
 Executable evidence is in `PrefixSuffixHashPatternContracts.java`. It supplies 20 deterministic groups across official examples, negative and zero-heavy inputs, empty/singleton extensions, widened range sums, invalid boundaries, checked product overflow, input preservation and inclusive update contracts. It then runs 20,000 seeded trials against four independent references—direct range summation, quadratic exclusive products, quadratic subarray enumeration and per-index range updates—plus an additive partition identity. The trials perform 100,000 oracle, identity, or preservation checks.
 
+### Kadane / contiguous DP — retain only the sufficient ending state
+
+Kadane-style dynamic programming compresses all contiguous candidates ending at the current index into the smallest state that can affect a future extension. For maximum sum, that state is one number: the best non-empty sum ending here. At the next value, either start fresh or extend it. Multiplication needs both the maximum and minimum ending products because a negative value swaps their roles. Optional deletion adds a second state recording whether the deletion budget has already been spent.
+
+> **Ending-state certificate:** define what each state means for a subarray that must end at the current index, list every legal transition into that state, and prove that two histories with the same state are interchangeable for every future suffix. If position, length, or a second extreme changes future legality, it belongs in the state.
+
+The seven source drills are related by contiguous state, but not all are ordinary Kadane recurrences.
+
+| Source drill | Smallest useful mechanism | State / decision |
+|---|---|---|
+| Maximum Subarray | one ending state | restart at `value` or extend `ending+value` |
+| Maximum Product Subarray | maximum and minimum ending states | negative multiplication can swap the extremes |
+| Maximum Sum Circular Subarray | maximum and minimum Kadane plus total | best non-wrapping, or total minus a minimum middle; guard all-negative input |
+| Maximum Absolute Sum of Any Subarray | maximum and minimum sum states | answer is the larger magnitude of the two extremes |
+| Largest Sum After K Negations | greedy exception | flip most negative values first, then resolve odd parity with minimum absolute value |
+| Maximum Subarray Sum with One Deletion | keep/drop ending states | extend normally, extend after a prior deletion, or delete current value |
+| Maximum Sum of Two Non-Overlapping Subarrays | fixed windows plus directional prefix best | evaluate both length orders; combine only across a legal split |
+
+```mermaid
+flowchart TD
+    A[Contiguous objective] --> B{Future extension depends on?}
+    B -->|one additive best| C[One Kadane state]
+    B -->|sign can reverse order| D[Track max and min]
+    B -->|one optional action| E[Track unused and used states]
+    B -->|two fixed ranges| F[Prefix sums plus directional best]
+```
+
+The representative methods require non-empty input, preserve caller arrays, and use `long` state. Product multiplication uses `Math.multiplyExact`, making the reusable overflow policy explicit. The two-window extension supports signed values, so every best value starts from a real window rather than zero.
+
+```java
+static long maximumSubarraySum(int[] values) {
+    requireNonEmpty(values);
+    long ending = values[0], best = ending;
+    for (int i = 1; i < values.length; i++) {
+        ending = Math.max(values[i], Math.addExact(ending, values[i]));
+        best = Math.max(best, ending);
+    }
+    return best;
+}
+
+static long maximumProductSubarrayExact(int[] values) {
+    requireNonEmpty(values);
+    long maximumEnding = values[0], minimumEnding = values[0], best = values[0];
+    for (int i = 1; i < values.length; i++) {
+        long value = values[i];
+        long fromMaximum = Math.multiplyExact(maximumEnding, value);
+        long fromMinimum = Math.multiplyExact(minimumEnding, value);
+        maximumEnding = Math.max(value, Math.max(fromMaximum, fromMinimum));
+        minimumEnding = Math.min(value, Math.min(fromMaximum, fromMinimum));
+        best = Math.max(best, maximumEnding);
+    }
+    return best;
+}
+
+static long maximumSubarrayWithAtMostOneDeletion(int[] values) {
+    requireNonEmpty(values);
+    long keep = values[0], drop = Long.MIN_VALUE, best = keep;
+    for (int i = 1; i < values.length; i++) {
+        long value = values[i];
+        long nextDrop = Math.max(keep,
+                drop == Long.MIN_VALUE ? Long.MIN_VALUE : Math.addExact(drop, value));
+        long nextKeep = Math.max(value, Math.addExact(keep, value));
+        keep = nextKeep;
+        drop = nextDrop;
+        best = Math.max(best, Math.max(keep, drop));
+    }
+    return best;
+}
+
+static long maximumTwoFixedNonOverlapping(int[] values, int firstLength, int secondLength) {
+    requireNonEmpty(values);
+    requirePositiveFittingLengths(values.length, firstLength, secondLength);
+    long[] prefix = prefixSums(values);
+    return Math.max(bestOrdered(prefix, firstLength, secondLength),
+                    bestOrdered(prefix, secondLength, firstLength));
+}
+
+static long bestOrdered(long[] prefix, int leftLength, int rightLength) {
+    int n = prefix.length - 1;
+    long bestLeft = range(prefix, 0, leftLength);
+    long best = Long.MIN_VALUE;
+    for (int rightStart = leftLength; rightStart + rightLength <= n; rightStart++) {
+        bestLeft = Math.max(bestLeft, range(prefix, rightStart - leftLength, rightStart));
+        best = Math.max(best, Math.addExact(bestLeft,
+                range(prefix, rightStart, rightStart + rightLength)));
+    }
+    return best;
+}
+```
+
+#### Worked case 1 — restart or extend one maximum-sum state
+
+For `[-2,1,-3,4,-1,2,1,-5,4]`, `ending` means the best non-empty subarray sum whose right endpoint is the current index. `best` is the greatest ending state seen so far.
+
+| index / value | extend previous | restart | ending | best |
+|---:|---:|---:|---:|---:|
+| 0 / -2 | — | -2 | -2 | -2 |
+| 1 / 1 | -1 | 1 | 1 | 1 |
+| 2 / -3 | -2 | -3 | -2 | 1 |
+| 3 / 4 | 2 | 4 | 4 | 4 |
+| 4 / -1 | 3 | -1 | 3 | 4 |
+| 5 / 2 | 5 | 2 | 5 | 5 |
+| 6 / 1 | 6 | 1 | 6 | 6 |
+| 7 / -5 | 1 | -5 | 1 | 6 |
+| 8 / 4 | 5 | 4 | 5 | 6 |
+
+The answer is `6`, produced by `[4,-1,2,1]`. Initializing to zero would incorrectly allow an empty subarray on all-negative input; `[-8,-3,-6]` must return `-3`.
+
+```mermaid
+flowchart LR
+    A[Best ending before i] --> B[Extend with value i]
+    C[Start at value i] --> D{Larger sum?}
+    B --> D
+    D --> E[Best ending at i]
+    E --> F[Update global best]
+```
+
+**Invariant and proof.** Every non-empty subarray ending at `i` either begins at `i` or extends a subarray ending at `i-1`. Among extensions, retaining only the largest prior sum is safe because adding the same future value preserves order. The recurrence chooses the best of those exhaustive cases, and the global maximum checks every possible right endpoint. Time is `O(n)` and auxiliary space is `O(1)`.
+
+For a circular array, every legal answer is either non-wrapping or consists of a suffix plus a prefix. The latter equals `total - minimumMiddle`. If the ordinary maximum is negative, every value is negative and removing the minimum subarray would select an empty complement; return the ordinary maximum instead. Maximum absolute sum similarly needs both maximum and minimum subarray sums, with answer `max(maximum, -minimum)`; the official variant also permits the empty subarray, which contributes zero.
+
+#### Worked case 2 — multiplication requires both ending extremes
+
+For `[-2,3,-4]`, the most negative ending product at index 1 becomes the most positive after multiplying by `-4`.
+
+| index / value | candidates: value, max×value, min×value | maximum ending | minimum ending | best |
+|---:|---|---:|---:|---:|
+| 0 / -2 | `-2` | -2 | -2 | -2 |
+| 1 / 3 | `3,-6,-6` | 3 | -6 | 3 |
+| 2 / -4 | `-4,-12,24` | 24 | -12 | 24 |
+
+```mermaid
+flowchart TD
+    A[Previous max ending] --> C[Multiply by current]
+    B[Previous min ending] --> C
+    D[Current alone] --> E[New max and min]
+    C --> E
+    E --> F[Update global maximum]
+```
+
+**Invariant and proof.** The product of any subarray ending at `i` is the current value alone or the current value times a product ending at `i-1`. Multiplication by a nonnegative value preserves order; multiplication by a negative value reverses it. Therefore only both prior extremes can become a new extreme, and no interior product is needed. Time is `O(n)` and space is `O(1)`. Zero naturally restarts both states. The official constraints guarantee a 32-bit answer; this reusable extension reports any intermediate `long` overflow.
+
+#### Worked case 3 — one deletion adds one state, not one outer loop
+
+For `[1,-2,0,3]`, `keep` is the best non-empty sum ending here with no deletion; `drop` is the best non-empty sum ending here after at most one deletion has been used.
+
+| index / value | next keep | extend prior drop | delete current from prior keep | next drop | best |
+|---:|---:|---:|---:|---:|---:|
+| 0 / 1 | 1 | — | — | unreachable | 1 |
+| 1 / -2 | -1 | — | 1 | 1 | 1 |
+| 2 / 0 | 0 | 1 | -1 | 1 | 1 |
+| 3 / 3 | 3 | 4 | 0 | 4 | 4 |
+
+```mermaid
+flowchart LR
+    A[keep at i-1] --> B[extend current into keep]
+    A --> C[delete current into drop]
+    D[drop at i-1] --> E[extend current into drop]
+    C --> F[best drop at i]
+    E --> F
+```
+
+**Invariant and proof.** A kept-current state either starts at the current value or extends the prior no-deletion state. A used-deletion state either deleted the current value—so it inherits prior `keep`—or already deleted an earlier value and extends prior `drop`. These cases are exhaustive and disjoint by the position of the optional deletion. The sentinel prevents an empty result, so a singleton returns itself and all-negative input returns its largest element. Time is `O(n)` and space is `O(1)`.
+
+#### Worked case 4 — two fixed windows need both legal orders
+
+For `[0,6,5,2,2,5,1,9,4]`, lengths `1` and `2`, scan a right window while retaining the best fixed-length left window that ends before it. Then repeat with the lengths swapped.
+
+| order | right start | best legal left window sum | right window sum | combined best |
+|---|---:|---:|---:|---:|
+| 1 before 2 | 1 | 0 | 11 (`[6,5]`) | 11 |
+| 1 before 2 | 2 | 6 | 7 (`[5,2]`) | 13 |
+| 1 before 2 | 7 | 6 | 13 (`[9,4]`) | 19 |
+| 2 before 1 | 2 | 6 (`[0,6]`) | 5 | 11 |
+| 2 before 1 | 7 | 11 (`[6,5]`) | 9 | 20 |
+
+The optimum is `[6,5]` plus `[9]`, totaling `20`. Evaluating only the caller's length order misses cases where the `secondLength` window appears first.
+
+```mermaid
+flowchart TD
+    A[Build additive prefix] --> B[Scan legal split]
+    B --> C[Update best fixed left window]
+    C --> D[Combine with right window]
+    D --> E[Repeat with lengths swapped]
+    E --> F[Take larger order]
+```
+
+**Invariant and proof.** At each split, `bestLeft` is the maximum sum of a left-length window wholly before the right window. Combining it with the exact right window cannot overlap. Every pair has one window before the other and is examined in one of the two order scans. Thus the best combination is found in `O(n)` time after `O(n)` prefix construction, with `O(n)` prefix space. A rolling-window variant can reduce auxiliary space, but the prefix version makes signed-value correctness and boundaries explicit.
+
+**Greedy exception — K negations.** Largest Sum After K Negations does not choose a contiguous range and should not be forced into Kadane state. Negating a negative value gives a larger immediate gain than negating any nonnegative value. After all negative values are exhausted, only the parity of remaining operations matters because two flips of one index cancel; an odd remainder flips the smallest absolute value. State the mutation contract or sort a copy.
+
+**When this family does not fit:** the candidate is not contiguous; a fixed-width aggregate is better represented by a window; exact-sum counting needs prefix frequencies; a future transition depends on more history than the retained state; arbitrary updates invalidate a one-pass snapshot; the objective needs reconstruction but no predecessor/tie policy is stored; or multiplication overflow has no agreed behavior. Use a sliding window, prefix hash, interval DP, richer state table, tree, or explicit path reconstruction as required.
+
+**Common interview errors:** allowing an empty maximum by initializing to zero; returning only the final ending state instead of the global best; updating maximum product before preserving the old minimum; ignoring zero as a restart; applying `total-minimum` to all-negative circular input; using `Math.abs(int)` on `Integer.MIN_VALUE`; treating “one deletion” as exactly one even when the contract says at most one; allowing deletion to leave an empty result; overwriting `keep` before deriving `drop`; combining overlapping fixed windows; checking only one window order; initializing a signed-window best to zero; mutating caller input silently; or performing `int` addition/multiplication before widening.
+
+**Further follow-ups:** return boundaries with deterministic shortest/leftmost ties; reconstruct which element was deleted; generalize to at most `k` deletions; compute maximum absolute sum from prefix extrema; derive the circular result from complement geometry; compare one-pass product DP with zero-delimited sign counting; support `m` non-overlapping windows; reduce two-window prefix storage to rolling sums; and explain when divide-and-conquer maximum-subarray summaries are useful for parallel composition or segment trees.
+
+Executable evidence is in `KadaneContiguousDpPatternContracts.java`. It supplies 20 deterministic groups across official examples, all-negative and zero-heavy inputs, singleton/full-width sums, checked product overflow, optional deletion, signed two-window extensions, invalid contracts and input preservation. It then runs 20,000 seeded trials against four independent exhaustive references—quadratic maximum sums, quadratic products, cubic deletion enumeration and all-pairs non-overlapping windows. The trials perform 100,000 oracle or preservation checks.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -7751,6 +7951,10 @@ Executable evidence is in `PrefixSuffixHashPatternContracts.java`. It supplies 2
 - [Java Language Specification, Java SE 17, §15.17.1](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.17.1) — integer multiplication promotion and low-order-bit overflow behavior behind the arithmetic precondition.
 - [Java SE 17 `Math.multiplyExact`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#multiplyExact(int,int)) — explicit exception-throwing multiplication option for a wider production boundary whose overflow policy differs from the primary problem.
 - [LeetCode, “Maximum Sum Circular Subarray”](https://leetcode.com/problems/maximum-sum-circular-subarray/) — primary non-empty circular-subarray, fixed-buffer non-reuse, official examples and input bounds for problem 35.
+- [LeetCode, “Maximum Subarray Sum with One Deletion”](https://leetcode.com/problems/maximum-subarray-sum-with-one-deletion/) — primary non-empty contiguous-subarray and at-most-one-deletion contract, official examples and current input bounds for the deletion-state drill.
+- [LeetCode, “Maximum Absolute Sum of Any Subarray”](https://leetcode.com/problems/maximum-absolute-sum-of-any-subarray/) — primary absolute-sum objective, empty-subarray allowance, official examples and current input bounds for paired maximum/minimum ending sums.
+- [LeetCode, “Maximize Sum of Array After K Negations”](https://leetcode.com/problems/maximize-sum-of-array-after-k-negations/) — primary exactly-`k` mutation contract, official examples and current bounds for the parity-aware greedy exception.
+- [LeetCode, “Maximum Sum of Two Non-Overlapping Subarrays”](https://leetcode.com/problems/maximum-sum-of-two-non-overlapping-subarrays/) — primary fixed-length, non-overlapping window contract, official examples and current bounds for prefix-best composition.
 - [Java SE 17 `Math.toIntExact`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#toIntExact(long)) — explicit checked narrowing used by the official-compatible wrapper after widened reusable accumulation.
 - [LeetCode, “Largest Rectangle in Histogram”](https://leetcode.com/problems/largest-rectangle-in-histogram/) — primary unit-width histogram model, maximum-area result, official examples and input bounds for problem 36.
 - [LeetCode, “Shortest Subarray with Sum at Least K”](https://leetcode.com/problems/shortest-subarray-with-sum-at-least-k/) — primary non-empty contiguous-range, signed-input, positive-target, absent-result, examples and input bounds for problem 37.
@@ -7830,9 +8034,9 @@ Executable evidence is in `PrefixSuffixHashPatternContracts.java`. It supplies 2
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Prefix / suffix / hash lines 4882–4939. Kadane / contiguous DP begins at line 4943. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Prefix / suffix / hash on pages 107–108. Kadane / contiguous DP follows on page 108. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Kadane / contiguous DP lines 4882–4942. Index placement / marking begins at line 4946. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Kadane / contiguous DP on pages 107–108. Index placement / marking follows on page 109. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Prefix / suffix / hash, ending at Markdown line 4939 / DOCX page 108. The wider source remains in progress: Kadane / contiguous DP begins at Markdown line 4943 / DOCX page 108.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Kadane / contiguous DP, ending at Markdown line 4942 / DOCX page 108. The wider source remains in progress: Index placement / marking begins at Markdown line 4946 / DOCX page 109.
 
 
