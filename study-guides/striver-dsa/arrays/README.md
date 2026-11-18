@@ -68,6 +68,7 @@ java -ea study-guides/striver-dsa/arrays/BinarySearchOnAnswerPatternContracts.ja
 java -ea study-guides/striver-dsa/arrays/IntervalPatternContracts.java
 java -ea study-guides/striver-dsa/arrays/Matrix2DPatternContracts.java
 java -ea study-guides/striver-dsa/arrays/MonotonicStackDequePatternContracts.java
+java -ea study-guides/striver-dsa/arrays/SortingSelectionDivideConquerContracts.java
 ```
 
 Rebuild the reader:
@@ -76,6 +77,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Monotonic stack / deque are promoted. Later source material remains queued from Section 16 Sorting / selection / divide-conquer.
+This is an incremental guide. Source Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Sorting / selection / divide-conquer are promoted. Later source material remains queued from Section 16 Greedy on arrays.
 
 

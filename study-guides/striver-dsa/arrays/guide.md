@@ -94,6 +94,7 @@
   - [Intervals — decide endpoint semantics before sorting](#intervals--decide-endpoint-semantics-before-sorting)
   - [Matrix / 2D array — make coordinate meaning explicit](#matrix--2d-array--make-coordinate-meaning-explicit)
   - [Monotonic stack / deque — discard only dominated candidates](#monotonic-stack--deque--discard-only-dominated-candidates)
+  - [Sorting / selection / divide-conquer — order only the evidence the answer needs](#sorting--selection--divide-conquer--order-only-the-evidence-the-answer-needs)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -9053,6 +9054,197 @@ Independent baselines should deliberately avoid the same frontier logic: scan ri
 
 Executable evidence is in `MonotonicStackDequePatternContracts.java`. It supplies 20 deterministic groups across strict equality, circular wraparound, official examples, duplicate ownership, leading-zero normalization, empty/singleton boundaries, invalid contracts, full-width 132 values, and input preservation. It then runs 20,000 seeded trials against independent right-scan, circular-scan, distance-scan, subarray-enumeration, backward-span, cubic-triple, and retained-subsequence oracles—exactly 140,000 oracle comparisons. Existing `SlidingWindowMaximumContracts.java`, `LargestRectangleHistogramContracts.java`, and `ShortestSubarrayAtLeastKContracts.java` retain their specialized Section 4 implementations.
 
+### Sorting / selection / divide-conquer — order only the evidence the answer needs
+
+Sorting is a transformation, not a default first step. Before paying `O(n log n)` time or mutating caller data, ask what ordered evidence the answer actually needs: a fully ordered sequence, one rank, the largest frequency classes, a guaranteed empty bucket, or cross-half pair counts. Selection and bucket arguments often produce the same evidence with less work; divide-and-conquer can count relationships while performing the merge it already needs.
+
+#### Requirement contract and ten-drill map
+
+| Source drill | Ordered evidence actually needed | Mutation / output contract | Technique |
+|---|---|---|---|
+| Sort Colors | three value regions | mutate same array | Dutch National Flag partition |
+| Merge Sorted Array | next largest unconsumed suffix value | mutate capacity-bearing first array | merge backward from the buffer end |
+| Largest Number | best order for every adjacent string pair | return one normalized string; preserve input | sort by `b+a` versus `a+b` |
+| Maximum Gap | minimum and maximum per value bucket | return widest sorted-adjacent gap; preserve input | pigeonhole buckets |
+| Kth Largest Element | one final rank | preservation policy must be explicit | quickselect or bounded heap |
+| Top K Frequent Elements | `k` largest frequency classes | any order; answer guaranteed unique | frequency buckets / heap / quickselect |
+| Count Inversions | cross-half `left > right` counts | return widened count; preserve input | merge-sort block counting |
+| Reverse Pairs | cross-half `left > 2*right` counts | return count; widen before doubling | count pass, then ordinary merge |
+| Count of Smaller Numbers After Self | original index plus smaller-right count | one count per input position | merge original-index records |
+| Wiggle Sort II | three classes around the median | mutate to strict `< > < >`; valid answer promised | median selection and virtual-index 3-way partition |
+
+```mermaid
+flowchart TD
+  A[State the required evidence] --> B{Need every element ordered?}
+  B -->|Yes| C[Sort or merge]
+  B -->|No| D{Need one rank or top classes?}
+  D -->|Rank/classes| E[Select, heap, or frequency buckets]
+  D -->|Cross-half relations| F[Count during divide-and-conquer]
+  D -->|Largest adjacent gap| G[Use pigeonhole buckets]
+```
+
+The already-complete Sort Colors, Quickselect, and Count Inversions sections retain their specialized examples, proofs, and executable contracts. This section connects them to the seven remaining drills without copying those cards.
+
+#### Backward merge: protect unread capacity
+
+Merge Sorted Array gives `first.length == m+n`; only `first[0..m)` contains real values, and all `second[0..n)` values are real. A forward in-place merge would overwrite unread values from `first`. Starting at the last buffer slot makes every write safe: the chosen maximum comes from one of the two unread suffixes, and the destination lies outside both.
+
+```java
+static void mergeSortedIntoFirst(int[] first, int m, int[] second, int n) {
+    int left = m - 1, right = n - 1, write = m + n - 1;
+    while (right >= 0) {
+        if (left >= 0 && first[left] > second[right]) {
+            first[write--] = first[left--];
+        } else {
+            first[write--] = second[right--];
+        }
+    }
+}
+```
+
+```mermaid
+flowchart LR
+  A[Compare unread suffix maxima] --> B[Write larger value at buffer end]
+  B --> C[Move its source pointer left]
+  C --> D{Second array exhausted?}
+  D -->|No| A
+  D -->|Yes| E[Done; first leftovers already sit correctly]
+```
+
+**Worked example 1 — merge without clobbering.** Merge
+`first=[1,2,3,0,0,0], m=3` with `second=[2,5,6], n=3`.
+
+| `left` value | `right` value | write index | action / first afterward |
+|---:|---:|---:|---|
+| 3 | 6 | 5 | write 6 → `[1,2,3,0,0,6]` |
+| 3 | 5 | 4 | write 5 → `[1,2,3,0,5,6]` |
+| 3 | 2 | 3 | write 3 → `[1,2,3,3,5,6]` |
+| 2 | 2 | 2 | take second's 2 → `[1,2,2,3,5,6]` |
+
+`second` is exhausted; the remaining `first` prefix `[1,2]` is already in place. If `m==0`, every second-array value is copied. If `n==0`, the loop performs no writes. Validate both sorted prefixes before a reusable API relies on this proof.
+
+#### Comparator design: compare the concatenations, not the integers
+
+Largest Number is not descending numeric sort: `9` must precede `34`, while `3` must precede `30`. For strings `a` and `b`, put `a` first exactly when `a+b` is lexicographically larger than `b+a`. No integer parsing is needed, so the final result may exceed every primitive type.
+
+```java
+static String largestNumber(int[] values) {
+    String[] parts = Arrays.stream(values).mapToObj(Integer::toString).toArray(String[]::new);
+    Arrays.sort(parts, (a, b) -> (b + a).compareTo(a + b));
+    if (parts[0].equals("0")) return "0";
+    return String.join("", parts);
+}
+```
+
+```mermaid
+flowchart TD
+  A[Take strings a and b] --> B[Compare b+a with a+b]
+  B -->|b+a larger| C[Place b before a]
+  B -->|a+b larger| D[Place a before b]
+  B -->|equal| E[Either adjacent order is equivalent]
+```
+
+**Worked example 2 — pairwise concatenation order.** For `[3,30,34,5,9]`, useful comparisons include:
+
+| pair | competing concatenations | required order |
+|---|---|---|
+| `3`, `30` | `330` vs `303` | `3` before `30` |
+| `34`, `3` | `343` vs `334` | `34` before `3` |
+| `5`, `34` | `534` vs `345` | `5` before `34` |
+| `9`, `5` | `95` vs `59` | `9` before `5` |
+
+The sorted order is `9,5,34,3,30`, producing `"9534330"`. The adjacent-exchange proof is direct: if adjacent `a,b` violate the comparator, swapping them replaces substring `a+b` with the larger `b+a` while the common prefix and suffix remain unchanged. Repeated exchanges reach an optimal order. If the leading part is `"0"`, every part is zero and the normalized result must be `"0"`, not `"000"`.
+
+#### Pigeonhole buckets: the maximum gap crosses a bucket boundary
+
+For `n>=2`, let `range=max-min`. Any sorted sequence has some adjacent gap at least `ceil(range/(n-1))`; call that lower bound `width`. Place each value in a bucket of width `width`, retaining only each bucket's minimum and maximum. Two values in one bucket differ by less than `width`, so a maximum gap cannot require an internal bucket comparison. It is the minimum of the next nonempty bucket minus the maximum of the previous nonempty bucket.
+
+```java
+long range = (long) maximum - minimum;
+long width = Math.max(1L, (range + n - 2L) / (n - 1L));
+int bucketCount = (int) (range / width) + 1;
+// Record min/max per used bucket, then scan consecutive nonempty buckets.
+```
+
+```mermaid
+flowchart LR
+  A[Find min, max, and width] --> B[Place each value in one bucket]
+  B --> C[Keep only bucket min and max]
+  C --> D[Skip empty buckets]
+  D --> E[Compare next min minus previous max]
+```
+
+**Worked example 3 — maximum gap.** For `[3,6,9,1]`, `min=1`, `max=9`, `n=4`, so `width=ceil(8/3)=3`.
+
+| bucket index / range | contents | retained min/max |
+|---|---|---|
+| 0 / `[1,4)` | `1,3` | `1 / 3` |
+| 1 / `[4,7)` | `6` | `6 / 6` |
+| 2 / `[7,10)` | `9` | `9 / 9` |
+
+Cross-bucket gaps are `6-3=3` and `9-6=3`; answer `3`. Widen before `max-min`, because a reusable method accepting full-width `int` values can have range `4_294_967_295`. The official nonnegative bounds fit an `int` result, but the evidence implementation returns `long` so its extended contract remains correct.
+
+Top K Frequent Elements uses a different bucket axis: after a frequency map, bucket index `f` stores values occurring `f` times. Since `f<=n`, scanning buckets from `n` downward returns the first `k` values in `O(n)` expected time and space. The primary problem guarantees the answer set is unique and allows any order; do not impose an order unless the API explicitly documents one.
+
+#### Count first, merge second
+
+Inversion-like problems exploit sorted halves, but the comparison predicate determines the counting pass. Standard inversions can count a whole remaining left block when `leftValue > rightValue`. Reverse Pairs cannot reuse that exact merge condition: it needs `leftValue > 2*rightValue`. For each sorted left value, advance one monotonic right pointer while the strict inequality holds; add the number of qualifying right values. Only after counting should the ordinary value merge run.
+
+```java
+int right = middle;
+for (int left = from; left < middle; left++) {
+    while (right < to && (long) values[left] > 2L * values[right]) right++;
+    count += right - middle;
+}
+mergeSortedHalves(values, buffer, from, middle, to);
+```
+
+```mermaid
+flowchart TD
+  A[Recursively sort and count both halves] --> B[Advance one right pointer for each left]
+  B --> C[Add qualifying cross-half prefix length]
+  C --> D[Merge halves by ordinary value order]
+  D --> E[Return left + right + cross count]
+```
+
+**Worked example 4 — reverse pairs.** For `[1,3,2,3,1]`, the top split eventually compares sorted halves `[1,2,3]` and `[1,3]`.
+
+| left value | right pointer movement under `left > 2*right` | new cross pairs |
+|---:|---|---:|
+| 1 | `1 > 2*1` is false | 0 |
+| 2 | `2 > 2*1` is false because strict | 0 |
+| 3 | `3 > 2*1` true; next `3 > 2*3` false | 1 |
+
+One reverse pair was already found inside the original right half `(3,1)`, so the total is `2`. Cast before multiplying: `(long)left > 2L*right`; `2*right` in `int` can overflow before comparison. The right pointer never retreats because left values are processed in nondecreasing order, making the cross-count pass linear per merge level.
+
+Count of Smaller Numbers After Self attaches every value's original index before merge sorting. When a right record moves before a larger left record, increment `movedRight`. When a left record is emitted, add `movedRight` to that original index. Equality takes the left record first because the query asks for strictly smaller values. The resulting total is `O(n log n)` time and `O(n)` auxiliary storage.
+
+```mermaid
+flowchart LR
+  A[Merge indexed records] --> B{Take from right because it is smaller?}
+  B -->|Yes| C[Increment movedRight]
+  B -->|No| D[Credit movedRight to left original index]
+  C --> A
+  D --> A
+```
+
+Wiggle Sort II selects the median, then performs a three-way partition through virtual index
+`mapped(i)=(1+2*i) mod (n|1)`. Virtual order visits odd physical positions first, then even positions. Values greater than the median are therefore placed in peaks, values smaller than the median in valleys, and equal values are separated across the remaining positions. The official input promises a strict wiggle answer exists. Sorting a clone to obtain the median is a clear `O(n log n)` evidence implementation; replace it with quickselect for expected `O(n)` time while keeping the same partition proof.
+
+#### Proofs, complexity, and validation
+
+**Backward-merge invariant.** `first[write+1..end]` is the correct sorted suffix, and both unread prefixes remain intact. **Comparator invariant.** Every adjacent pair is ordered by the larger two-string concatenation; an adjacent exchange cannot improve the result. **Gap invariant.** All possible within-bucket gaps are below the derived lower bound, so the maximum is between consecutive nonempty buckets. **Reverse-pair invariant.** At each merge level, recursively counted pairs cover both halves and the monotonic pointer counts every cross pair exactly once. **Indexed-merge invariant.** `movedRight` equals right-half records already emitted before the current left record. **Wiggle invariant.** the virtual partition places `>median`, `==median`, and `<median` classes into peak-first virtual regions while preserving the multiset.
+
+Complexities: backward merge is `O(m+n)` time and `O(1)` auxiliary space. Largest Number is `O(n log n)` comparisons and `O(n)` string/reference storage; comparison cost depends on digit length. Maximum Gap and frequency buckets use `O(n)` time and space. Quickselect is expected `O(n)` with an `O(n²)` adversarial worst case unless pivot policy is controlled; a size-`k` heap is `O(n log k)`. Merge-based inversion, reverse-pair, and smaller-after-self counts are `O(n log n)` time and `O(n)` space. Wiggle Sort is `O(n log n)` with a sorted-clone median or expected `O(n)` with quickselect, plus an `O(n)` partition; the specialized in-place target uses `O(1)` auxiliary partition state after selection.
+
+Independent baselines are intentionally slower: combine then library-sort for backward merge; enumerate all string permutations; sort then scan adjacent gaps; sort frequency entries; enumerate all index pairs for inversions/reverse pairs; scan every suffix for smaller counts; and backtrack over distinct multiset permutations to confirm a strict wiggle arrangement. They test results without repeating the optimized mechanism.
+
+**Common interview errors:** sorting when mutation is forbidden; treating the zero-capacity suffix in Merge Sorted Array as real data; merging forward into unread values; using descending integers for Largest Number; parsing concatenations into numeric types; returning `"000"`; computing `max-min` or `2*right` in `int`; choosing floor rather than ceiling bucket width without re-proving bucket count; inspecting internal bucket gaps; returning frequency ties despite the unique-answer promise; calling a size-`k` heap linear; using ordinary inversion merge conditions for Reverse Pairs; sorting values without original indices for per-position counts; counting equals as smaller; applying physical rather than virtual order in Wiggle Sort; or claiming worst-case linear quickselect without a pivot guarantee.
+
+**Follow-ups:** merge two arrays while preserving both; make Largest Number comparator allocation-aware; use radix sort for bounded-width nonnegative Maximum Gap; return stable top-frequency ordering; select multiple ranks; count important reverse pairs under a configurable multiplier; replace indexed merge with coordinate compression plus Fenwick tree; produce a Wiggle Sort impossibility certificate; or compare stable, unstable, comparison, counting, radix, and external sorting under memory and data-shape constraints.
+
+Executable evidence is in `SortingSelectionDivideConquerContracts.java`. It supplies 20 deterministic groups across official examples, empty merge sides, normalization, singleton/full-width gaps, frequency results, strict comparisons, duplicate counts, wiggle feasibility, and preservation. It then runs 20,000 seeded trials against independent combine-sort, permutation, sorted-gap, quadratic reverse-pair, quadratic suffix-count, and multiset-backtracking wiggle oracles—exactly 120,000 oracle/preservation checks. Existing `SortColorsContracts.java`, `QuickselectContracts.java`, and `CountInversionsContracts.java` retain the specialized implementations.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -9100,6 +9292,14 @@ Executable evidence is in `MonotonicStackDequePatternContracts.java`. It supplie
 - [LeetCode, “Online Stock Span”](https://leetcode.com/problems/online-stock-span/) — primary online consecutive backward-span contract with less-than-or-equal equality semantics.
 - [LeetCode, “132 Pattern”](https://leetcode.com/problems/132-pattern/) — primary strict indexed-subsequence inequalities, signed full-width values and Boolean result.
 - [LeetCode, “Remove K Digits”](https://leetcode.com/problems/remove-k-digits/) — primary exact-deletion, smallest-number and leading-zero normalization contract.
+- [Java SE 21 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Arrays.html) — primary copy, stable object-sort, primitive-sort and comparison utility contracts used by the preservation baselines and comparator implementation.
+- [LeetCode, “Merge Sorted Array”](https://leetcode.com/problems/merge-sorted-array/) — primary capacity-bearing first-array, sorted-prefix, in-place mutation and linear-time follow-up contract.
+- [LeetCode, “Largest Number”](https://leetcode.com/problems/largest-number/) — primary nonnegative arrangement, string-result, canonical examples and current bounds for concatenation ordering.
+- [LeetCode, “Maximum Gap”](https://leetcode.com/problems/maximum-gap/) — primary sorted-adjacent-gap objective and required linear-time/linear-space bound for the pigeonhole bucket drill.
+- [LeetCode, “Top K Frequent Elements”](https://leetcode.com/problems/top-k-frequent-elements/) — primary unique-answer, any-order, valid-`k` and better-than-`O(n log n)` contract.
+- [LeetCode, “Reverse Pairs”](https://leetcode.com/problems/reverse-pairs/) — primary strict `i<j` and `nums[i] > 2*nums[j]` definition, full-width input and merge-sort hint.
+- [LeetCode, “Count of Smaller Numbers After Self”](https://leetcode.com/problems/count-of-smaller-numbers-after-self/) — primary per-original-index strictly-smaller-right count and duplicate behavior.
+- [LeetCode, “Wiggle Sort II”](https://leetcode.com/problems/wiggle-sort-ii/) — primary strict alternating in-place reorder, valid-answer promise and linear-time/constant-space follow-up.
 - [LeetCode, “Median of Two Sorted Arrays”](https://leetcode.com/problems/median-of-two-sorted-arrays/) — primary sorted-input, non-empty-total, canonical examples, input bounds and logarithmic-time requirement for problem 32.
 - [HackerRank, “Merge Sort: Counting Inversions”](https://www.hackerrank.com/challenges/ctci-merge-sort/problem) — primary strict index-pair definition, long-result contract, sample cases and adjacent-swap interpretation for problem 33.
 - [LeetCode, “Maximum Product Subarray”](https://leetcode.com/problems/maximum-product-subarray/) — primary non-empty contiguous-subarray result, official examples, input bounds and every-subarray-product 32-bit guarantee for problem 34.
@@ -9197,9 +9397,9 @@ Executable evidence is in `MonotonicStackDequePatternContracts.java`. It supplie
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Monotonic stack / deque lines 4882–5015 (heading line 5004 in the canonical checkpoint). Sorting / selection / divide-conquer follows. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Monotonic stack / deque on pages 107–110. Sorting / selection / divide-conquer follows on page 110. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Sorting / selection / divide-conquer lines 4882–5024 (heading line 5017 in the canonical checkpoint). Greedy on arrays follows. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Sorting / selection / divide-conquer on pages 107–111. Greedy on arrays follows on page 111. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Monotonic stack / deque, ending at Markdown line 5015 / DOCX page 110. The wider source remains in progress: Sorting / selection / divide-conquer follows on page 110.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Sorting / selection / divide-conquer, ending at Markdown line 5024 / DOCX page 111. The wider source remains in progress: Greedy on arrays follows on page 111.
 
 
