@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Intervals are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Matrix / 2D array are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
 
 ## Study index
 
@@ -92,6 +92,7 @@
   - [Binary search / rotated — discard only a proven impossible half](#binary-search--rotated--discard-only-a-proven-impossible-half)
   - [Binary search on answer — search the smallest or largest feasible value](#binary-search-on-answer--search-the-smallest-or-largest-feasible-value)
   - [Intervals — decide endpoint semantics before sorting](#intervals--decide-endpoint-semantics-before-sorting)
+  - [Matrix / 2D array — make coordinate meaning explicit](#matrix--2d-array--make-coordinate-meaning-explicit)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -8651,6 +8652,199 @@ These oracles test the greedy proof without repeating its implementation. For pr
 
 Executable evidence is in `IntervalPatternContracts.java`. It supplies 20 deterministic groups across touching endpoints, containment, official-style examples, singleton/empty boundaries, full-width endpoints, validation, preservation, and fresh ownership. It then runs 20,000 seeded trials against independent graph-component, subset, endpoint-set, event-count, cross-product and event-cell oracles for six operations—exactly 120,000 oracle/preservation checks. `MergeIntervalsContracts.java` and `InsertIntervalContracts.java` retain the specialized Section 4 implementations.
 
+### Matrix / 2D array — make coordinate meaning explicit
+
+A Java `int[][]` is an array of row references, not a guaranteed rectangle. A reusable matrix operation must decide whether empty, null, or ragged rows are legal before reading `matrix[0].length`. After shape validation, name the coordinate mapping, neighborhood, mutation policy, and ordering guarantee. Those choices—not the presence of nested loops—select the algorithm.
+
+#### Requirement contract and ten-drill map
+
+| Source drill | Governing structure | Required output / mutation | Technique |
+|---|---|---|---|
+| Set Matrix Zeroes | an original zero marks its whole row and column | mutate the same rectangle | reuse first row/column as marker bits |
+| Spiral Matrix | four shrinking inclusive boundaries | return clockwise order; preserve input | traverse top, right, bottom, left with post-shrink guards |
+| Rotate Image | square-coordinate bijection | rotate the same matrix 90° clockwise | transpose, then reverse every row |
+| Diagonal Traverse | cells share constant `row+column` | return alternating diagonal order | enumerate diagonal sums and reverse even diagonals |
+| Game of Life | eight-neighbor simultaneous transition | mutate the finite binary board | encode old and new state in separate bits |
+| Search a 2D Matrix II | each row and each column is non-decreasing | membership without mutation | staircase elimination from top-right |
+| Toeplitz Matrix | cells share constant `row-column` | Boolean | compare each cell with its north-west predecessor |
+| Valid Sudoku | three independent uniqueness scopes | validate filled cells, not solvability | row, column, and box bit sets |
+| Number of Islands | four-neighbor binary grid graph | connected-component count | BFS/DFS/DSU with explicit mutation policy |
+| Pacific Atlantic Water Flow | reverse reachability from two border sets | coordinates reaching both oceans | multi-source reverse BFS/DFS uphill from each ocean |
+
+```mermaid
+flowchart TD
+  A[Read matrix contract] --> B{What structure drives the answer?}
+  B -->|Coordinates| C[Transform or traverse indexes]
+  B -->|Local neighbors| D[Snapshot states or flood-fill]
+  B -->|Sorted rows and columns| E[Eliminate one row or column]
+  B -->|Uniqueness scopes| F[Track row, column, and region evidence]
+```
+
+Set Matrix Zeroes and Spiral Matrix already have complete Section 4 cards with four examples, Java, invariants, and executable evidence. Search a 2D Matrix I also already has a virtual row-major binary-search card. Do not transfer its proof to Matrix II: independently sorted rows and columns do **not** make row-major concatenation sorted.
+
+#### Coordinate transformations: write the destination equation first
+
+For an `n x n` clockwise rotation, original `(row,column)` moves to `(column,n-1-row)`. An auxiliary matrix implements that equation directly in `O(n²)` space. The in-place factorization is equivalent: transposition maps `(r,c)` to `(c,r)`, then row reversal maps `(c,r)` to `(c,n-1-r)`. Both passes use only swaps and preserve row-array identities.
+
+```java
+static void rotateClockwise(int[][] matrix) {
+    int n = validateRectangular(matrix);
+    if (matrix.length != n) throw new IllegalArgumentException("matrix must be square");
+    for (int row = 0; row < n; row++) {
+        for (int column = row + 1; column < n; column++) {
+            int temporary = matrix[row][column];
+            matrix[row][column] = matrix[column][row];
+            matrix[column][row] = temporary;
+        }
+    }
+    for (int[] row : matrix) {
+        for (int left = 0, right = n - 1; left < right; left++, right--) {
+            int temporary = row[left];
+            row[left] = row[right];
+            row[right] = temporary;
+        }
+    }
+}
+```
+
+```mermaid
+flowchart LR
+  A[Original cell r,c] --> B[Transpose: c,r]
+  B --> C[Reverse row c]
+  C --> D[Final cell c,n-1-r]
+```
+
+**Worked example 1 — rotate in place.** For
+`[[1,2,3],[4,5,6],[7,8,9]]`, transposition produces
+`[[1,4,7],[2,5,8],[3,6,9]]`; reversing each row produces
+`[[7,4,1],[8,5,2],[9,6,3]]`. Cell `7` moves from `(2,0)` to `(0,0)`, while center `(1,1)` remains fixed. A rectangular `2 x 3` input is rejected before mutation because a 90° in-place rotation would require changing the outer and row lengths.
+
+Diagonal Traverse groups cells by `diagonal=row+column`. There are `rows+columns-1` diagonals. For even sums, begin at the lowest valid row and walk up-right; for odd sums, begin at the rightmost valid column and walk down-left. Each step stays within the rectangle and emits one previously unseen coordinate.
+
+```mermaid
+flowchart TD
+  A[Choose sum d] --> B{d even?}
+  B -->|Yes| C[Start low; walk up-right]
+  B -->|No| D[Start right; walk down-left]
+  C --> E[Increment d]
+  D --> E
+```
+
+**Worked example 2 — diagonal sums.** For `[[1,2,3],[4,5,6],[7,8,9]]`:
+
+| sum | coordinates in output direction | values |
+|---:|---|---|
+| 0 | `(0,0)` | `1` |
+| 1 | `(0,1),(1,0)` | `2,4` |
+| 2 | `(2,0),(1,1),(0,2)` | `7,5,3` |
+| 3 | `(1,2),(2,1)` | `6,8` |
+| 4 | `(2,2)` | `9` |
+
+The result is `[1,2,4,7,5,3,6,8,9]`. A one-row or one-column matrix naturally degenerates to its only possible order; no special algorithm is required.
+
+#### Simultaneous local updates: preserve the old generation
+
+Game of Life forbids letting an already-updated cell influence a later neighbor count. A full copied next board is the clear `O(rows*columns)`-space baseline. The in-place version uses bit 0 for the old state and bit 1 for the next state. While discovering, every neighbor read uses `cell & 1`; after every next bit is fixed, one unsigned right shift materializes the new generation.
+
+```java
+for (int row = 0; row < rows; row++) {
+    for (int column = 0; column < columns; column++) {
+        int live = countEightNeighborsFromOldBit(board, row, column);
+        int old = board[row][column] & 1;
+        if (live == 3 || (old == 1 && live == 2)) board[row][column] |= 2;
+    }
+}
+for (int[] row : board) {
+    for (int column = 0; column < columns; column++) row[column] >>>= 1;
+}
+```
+
+```mermaid
+flowchart LR
+  A[bit 0: old state] --> B[Count eight old neighbor bits]
+  B --> C[Write next state into bit 1]
+  C --> D[Shift every cell right once]
+```
+
+**Worked example 3 — simultaneous birth and death.** Start with
+`[[0,1,0],[0,0,1],[1,1,1],[0,0,0]]`. The dead cell `(1,0)` has exactly three live neighbors and is born; live `(0,1)` has only one and dies; live `(2,1)` has three and survives. All decisions inspect the original low bits even after some high bits are written. The next board is `[[0,0,0],[1,0,1],[0,1,1],[0,1,0]]`.
+
+The finite-board contract treats out-of-bounds neighbors as dead. The official follow-up's infinite board is a different storage problem: retain only live coordinates in a set, count candidate neighbors sparsely, and define how the observation window is returned.
+
+#### Sorted-matrix elimination: discard a whole direction
+
+At the top-right cell of a row-and-column sorted matrix, everything left is no greater and everything below is no smaller. If the current value exceeds the target, the entire current column at and below that row is too large, so move left. If it is smaller, the entire current row at and left of that column is too small, so move down. Each comparison removes one row or column from the remaining staircase.
+
+```java
+static boolean searchSortedMatrix(int[][] matrix, int target) {
+    int columns = validateRectangular(matrix);
+    validateRowColumnSorted(matrix, columns);
+    int row = 0, column = columns - 1;
+    while (row < matrix.length && column >= 0) {
+        int value = matrix[row][column];
+        if (value == target) return true;
+        if (value > target) column--;
+        else row++;
+    }
+    return false;
+}
+```
+
+```mermaid
+flowchart TD
+  A[Inspect top-right candidate] --> B{Compare with target}
+  B -->|equal| C[Found]
+  B -->|too large| D[Discard current column; move left]
+  B -->|too small| E[Discard current row; move down]
+  D --> A
+  E --> A
+```
+
+**Worked example 4 — exact staircase trace.** Search target `5` in
+`[[1,4,7,11,15],[2,5,8,12,19],[3,6,9,16,22],[10,13,14,17,24],[18,21,23,26,30]]`.
+
+| coordinate | value | proof and move |
+|---|---:|---|
+| `(0,4)` | 15 | too large; column 4 cannot contain 5 below, move left |
+| `(0,3)` | 11 | discard column 3 |
+| `(0,2)` | 7 | discard column 2 |
+| `(0,1)` | 4 | too small; row 0 cannot contain 5 to the left, move down |
+| `(1,1)` | 5 | found |
+
+The scan takes at most `rows+columns-1` inspections. Binary-searching every row is valid but costs `O(rows log columns)`; virtual-array binary search is invalid because `15` precedes `2` in row-major order.
+
+#### Diagonal evidence, scoped uniqueness, and grid graphs
+
+Toeplitz structure is local: every cell outside the first row and first column must equal its north-west predecessor. This single comparison is equivalent to saying all cells with the same `row-column` share a value, uses `O(1)` auxiliary state, and works for rectangular matrices.
+
+Valid Sudoku is not a solver. For each filled digit, check and then set three evidence bits: row `r`, column `c`, and box `(r/3)*3+c/3`. A board may pass every duplicate check and still have no completion; do not promise solvability. Validate the exact `9 x 9` shape and alphabet before indexing digit or box state.
+
+Number of Islands makes the neighborhood part of the contract: land connects only north, east, south, and west, never diagonally. A BFS/DFS marks every land cell in one component. Mutating visited land to water saves a separate matrix but changes ownership semantics; the reusable evidence keeps a `boolean[][]` and preserves its caller.
+
+Pacific Atlantic reverses the edges. Forward simulation from every cell repeats work. Instead, start one traversal from all Pacific-border cells and one from all Atlantic-border cells, moving from a cell to neighbors of **greater or equal** height—the reverse of downhill water flow. The intersection of the two reached sets is exactly the answer.
+
+```mermaid
+flowchart LR
+  P[Pacific border sources] --> PR[Reverse uphill reachability]
+  A[Atlantic border sources] --> AR[Reverse uphill reachability]
+  PR --> I[Intersect reached coordinates]
+  AR --> I
+```
+
+#### Baselines, proofs, costs, and failure modes
+
+Useful independent oracles deliberately use a different construction: allocate a destination for rotation; collect each diagonal then reverse selected lists; copy the old Life board; linearly scan for a sorted-matrix target; walk each Toeplitz diagonal from its boundary; and use disjoint-set union for island components. They are simple enough to expose an error in the optimized mapping or traversal.
+
+**Coverage proofs.** Rotation is a bijection because `(r,c) -> (c,n-1-r)` has the inverse `(r,c) -> (n-1-c,r)`. Diagonal traversal visits each coordinate on exactly its unique sum. Game of Life reads only old bits, so its high-bit writes cannot change any later transition. Staircase search discards only values proved all too large or all too small. Flood fill marks exactly the four-directional transitive closure of one unseen land seed. Reverse ocean traversal reaches a cell exactly when a non-increasing forward path exists from it to that ocean.
+
+**Complexity.** Rotation, diagonal traversal, Life, Toeplitz, Sudoku, and islands inspect `O(rows*columns)` cells. Rotation and Life use `O(1)` auxiliary state after validation; diagonal traversal uses its required `O(rows*columns)` output; preserving an island grid requires `O(rows*columns)` visited/queue space. Matrix II search is `O(rows+columns)` time and `O(1)` space. Pacific Atlantic is `O(rows*columns)` time and space because each ocean traversal marks a cell once. Existing Set Zeroes and Spiral cards establish their `O(rows*columns)` bounds.
+
+**Common interview errors:** assuming Java rows have equal lengths; accepting a rectangle for in-place 90° rotation; transposing and reversing columns instead of rows; using `row-column` when traversal needs `row+column`; allocating an answer of `rows+columns`; reading new Life states while the generation is incomplete; counting only four Life neighbors; applying Matrix I's row-major binary search to Matrix II; moving down when the top-right value is too large; comparing Toeplitz cells with north-east; treating Sudoku validation as solving; connecting diagonal island cells; mutating input while claiming preservation; starting Pacific Atlantic from every cell; following downhill edges during the reverse ocean traversal; or recursively flooding a large grid without discussing stack depth.
+
+**Follow-ups:** rotate counter-clockwise or by 180°; traverse ragged diagonals with buckets; process sparse infinite Life generations; return the Matrix II staircase path; stream-check Toeplitz rows with one previous row; solve rather than validate Sudoku; return island areas/perimeters; support eight-neighbor islands; or reconstruct one water path to each ocean.
+
+Executable evidence is in `Matrix2DPatternContracts.java`. It supplies 20 deterministic groups across official examples, rectangular and singleton boundaries, full-width values, invalid shapes/contracts, mutation, preservation, and coordinate direction. It then runs 20,000 seeded trials against independent destination-mapping, diagonal-bucketing, copied-generation, linear-membership, boundary-diagonal, and disjoint-set oracles—exactly 120,000 oracle/preservation checks. Existing `SetMatrixZeroesContracts.java`, `SpiralMatrixContracts.java`, and `SearchMatrixContracts.java` retain the specialized Section 4 implementations.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -8682,6 +8876,13 @@ Executable evidence is in `IntervalPatternContracts.java`. It supplies 20 determ
 - [LeetCode, “Employee Free Time”](https://leetcode.com/problems/employee-free-time/) — primary common finite free-time objective over employee schedules.
 - [LeetCode, “Set Matrix Zeroes”](https://leetcode.com/problems/set-matrix-zeroes/) — primary in-place original-zero propagation contract, canonical examples, rectangular/full-width input bounds and constant-space follow-up for problem 30.
 - [LeetCode, “Spiral Matrix”](https://leetcode.com/problems/spiral-matrix/) — primary non-empty rectangular input, clockwise-order result, canonical examples and value/dimension bounds for problem 31.
+- [LeetCode, “Rotate Image”](https://leetcode.com/problems/rotate-image/) — primary square-matrix, 90-degree-clockwise, same-matrix mutation contract and official examples for coordinate transformation.
+- [LeetCode, “Diagonal Traverse”](https://leetcode.com/problems/diagonal-traverse/) — primary rectangular alternating-diagonal output contract, official examples and total-cell bounds.
+- [LeetCode, “Game of Life”](https://leetcode.com/problems/game-of-life/) — primary eight-neighbor simultaneous-transition rules, in-place follow-up, finite-board boundary and official examples.
+- [LeetCode, “Toeplitz Matrix”](https://leetcode.com/problems/toeplitz-matrix/) — primary constant top-left-to-bottom-right diagonal contract for rectangular matrices.
+- [LeetCode, “Valid Sudoku”](https://leetcode.com/problems/valid-sudoku/) — primary `9 x 9` row, column and `3 x 3` box uniqueness scopes, filled-cell-only validation and non-solvability caveat.
+- [LeetCode, “Number of Islands”](https://leetcode.com/problems/number-of-islands/) — primary four-directional binary-grid connectivity, surrounded-edge model and component-count result.
+- [LeetCode, “Pacific Atlantic Water Flow”](https://leetcode.com/problems/pacific-atlantic-water-flow/) — primary four-directional non-increasing flow, ocean-border definitions, coordinate output and official examples.
 - [LeetCode, “Median of Two Sorted Arrays”](https://leetcode.com/problems/median-of-two-sorted-arrays/) — primary sorted-input, non-empty-total, canonical examples, input bounds and logarithmic-time requirement for problem 32.
 - [HackerRank, “Merge Sort: Counting Inversions”](https://www.hackerrank.com/challenges/ctci-merge-sort/problem) — primary strict index-pair definition, long-result contract, sample cases and adjacent-swap interpretation for problem 33.
 - [LeetCode, “Maximum Product Subarray”](https://leetcode.com/problems/maximum-product-subarray/) — primary non-empty contiguous-subarray result, official examples, input bounds and every-subarray-product 32-bit guarantee for problem 34.
@@ -8779,9 +8980,9 @@ Executable evidence is in `IntervalPatternContracts.java`. It supplies 20 determ
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Intervals lines 4882–4987. Matrix / 2D array begins at line 4991. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Intervals on pages 107–110. Matrix / 2D array follows on page 110. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Matrix / 2D array lines 4882–5000. Monotonic stack / deque begins at line 5004. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Matrix / 2D array on pages 107–110. Monotonic stack / deque follows on page 110. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Intervals, ending at Markdown line 4987 / DOCX page 110. The wider source remains in progress: Matrix / 2D array begins at Markdown line 4991 / DOCX page 110.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Matrix / 2D array, ending at Markdown line 5000 / DOCX page 110. The wider source remains in progress: Monotonic stack / deque begins at Markdown line 5004 / DOCX page 110.
 
 
