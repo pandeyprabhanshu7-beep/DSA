@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Fixed / variable sliding window are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Prefix / suffix / hash are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
 
 ## Study index
 
@@ -86,6 +86,7 @@
   - [Linear scan / state tracking — compress the processed prefix](#linear-scan--state-tracking--compress-the-processed-prefix)
   - [Two pointers — move only after proving what the move discards](#two-pointers--move-only-after-proving-what-the-move-discards)
   - [Fixed / variable sliding window — reuse one contiguous range](#fixed--variable-sliding-window--reuse-one-contiguous-range)
+  - [Prefix / suffix / hash — transform boundary relationships](#prefix--suffix--hash--transform-boundary-relationships)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -7533,6 +7534,200 @@ flowchart TD
 
 Executable evidence is in `SlidingWindowPatternContracts.java`. It supplies 20 deterministic groups across the official examples, negative fixed sums, empty and singleton extensions, duplicate labels, full-width accumulation, invalid contracts and input preservation. It then runs 20,000 seeded trials against four independent quadratic references—fresh fixed-window summation, all positive-sum starts, all distinct-budget starts and scan-each-window maxima. The trials perform 100,000 oracle or preservation checks.
 
+### Prefix / suffix / hash — transform boundary relationships
+
+Prefix and suffix methods replace repeated work with a boundary summary. A prefix array `P` uses half-open meaning—`P[i]` summarizes original indices `[0,i)`—so an inclusive range is `P[right+1]-P[left]`. A suffix pass carries the symmetric summary from the right. A prefix hash does not merely store values: it indexes earlier boundary states that would make the current boundary form a valid subarray. A difference array runs the transformation in reverse by recording where a batch update starts and where its effect stops.
+
+> **Boundary certificate:** state what `state[i]` summarizes, whether index `i` is included, which earlier boundary is queried, and whether the map stores a frequency, earliest index, or latest index. Most errors in this family are meaning errors, not loop errors.
+
+The thirteen source drills reduce to four boundary mechanisms. The complete problem cards for Range Sum Query, Product Except Self, Subarray Sum Equals K, and Subarrays Divisible by K already appear earlier; this synthesis connects them without duplicating those cards.
+
+| Source drill | Boundary mechanism | Stored fact |
+|---|---|---|
+| Range Sum Query Immutable | additive prefix | `P[i] = sum(values[0..i))` |
+| Product Except Self | exclusive prefix and suffix | product strictly left, then strictly right |
+| Subarray Sum Equals K | prefix-frequency hash | count of earlier `prefix-target` boundaries |
+| Subarrays Divisible by K | normalized remainder frequency | count of earlier equal remainders |
+| Continuous Subarray Sum | normalized remainder earliest index | earliest matching boundary far enough away |
+| Contiguous Array | balance prefix earliest index | earliest equal zero/one balance |
+| Find the Highest Altitude | running prefix extremum | greatest prefix altitude, including boundary zero |
+| Corporate Flight Bookings | difference events | add at `left`, subtract after `right` |
+| Car Pooling | ordered difference events | passenger delta at pickup/drop-off position |
+| Maximum Size Subarray Sum Equals k | prefix earliest index | earliest `prefix-k` boundary maximizes length |
+| Count Number of Nice Subarrays | odd-count prefix frequency | earlier `oddCount-k` boundaries |
+| Binary Subarrays With Sum | binary prefix frequency | earlier `prefix-goal` boundaries |
+| Make Sum Divisible by P | normalized remainder latest index | latest needed remainder minimizes removed length |
+
+```mermaid
+flowchart TD
+    A[Repeated range relationship] --> B{What is requested?}
+    B -->|range value| C[Subtract prefix boundaries]
+    B -->|all except self| D[Combine exclusive sides]
+    B -->|subarray count or length| E[Hash prior prefix states]
+    B -->|many range updates| F[Record difference events]
+```
+
+The representative implementation preserves all caller arrays, widens additive state to `long`, and makes product overflow an explicit failure rather than silent wraparound. The range-addition method validates every update before building output. Its update contract is zero-based and inclusive; the source's flight labels can be converted by subtracting one at the API boundary.
+
+```java
+static final class PrefixRangeSums {
+    private final long[] prefix;
+
+    PrefixRangeSums(int[] values) {
+        requireArray(values);
+        prefix = new long[values.length + 1];
+        for (int i = 0; i < values.length; i++) {
+            prefix[i + 1] = Math.addExact(prefix[i], values[i]);
+        }
+    }
+
+    long rangeSum(int left, int right) {
+        if (left < 0 || left > right || right >= prefix.length - 1) {
+            throw new IllegalArgumentException("require 0 <= left <= right < length");
+        }
+        return prefix[right + 1] - prefix[left];
+    }
+}
+
+static long[] exclusiveProductsExact(int[] values) {
+    requireArray(values);
+    long[] answer = new long[values.length];
+    long leftProduct = 1;
+    for (int i = 0; i < values.length; i++) {
+        answer[i] = leftProduct;
+        leftProduct = Math.multiplyExact(leftProduct, values[i]);
+    }
+    long rightProduct = 1;
+    for (int i = values.length - 1; i >= 0; i--) {
+        answer[i] = Math.multiplyExact(answer[i], rightProduct);
+        rightProduct = Math.multiplyExact(rightProduct, values[i]);
+    }
+    return answer;
+}
+
+static long countSubarraysEqualTo(int[] values, long target) {
+    requireArray(values);
+    Map<Long,Long> frequencies = new HashMap<>();
+    frequencies.put(0L, 1L);
+    long prefix = 0, count = 0;
+    for (int value : values) {
+        prefix = Math.addExact(prefix, value);
+        count = Math.addExact(count, frequencies.getOrDefault(prefix - target, 0L));
+        frequencies.merge(prefix, 1L, Math::addExact);
+    }
+    return count;
+}
+
+static long[] applyInclusiveRangeAdds(int length, int[][] updates) {
+    requireValidUpdates(length, updates); // validates every [left,right,delta] first
+    long[] difference = new long[length + 1];
+    for (int[] update : updates) {
+        difference[update[0]] = Math.addExact(difference[update[0]], update[2]);
+        difference[update[1] + 1] = Math.subtractExact(
+                difference[update[1] + 1], update[2]);
+    }
+    long[] answer = new long[length];
+    long running = 0;
+    for (int i = 0; i < length; i++) {
+        running = Math.addExact(running, difference[i]);
+        answer[i] = running;
+    }
+    return answer;
+}
+```
+
+#### Worked case 1 — subtract two additive boundaries
+
+For `values=[-2,0,3,-5,2,-1]`, the half-open prefix array is `[0,-2,-2,1,-4,-2,-3]`. The query `[2,5]` is represented by boundaries immediately before index 2 and immediately after index 5.
+
+| query | right boundary | left boundary | result |
+|---|---:|---:|---:|
+| `[0,2]` | `P[3]=1` | `P[0]=0` | `1` |
+| `[2,5]` | `P[6]=-3` | `P[2]=-2` | `-1` |
+| `[0,5]` | `P[6]=-3` | `P[0]=0` | `-3` |
+
+```mermaid
+flowchart LR
+    A[Build P with P(0)=0] --> B[Take P(right+1)]
+    B --> C[Subtract P(left)]
+    C --> D[Inclusive range sum]
+```
+
+**Invariant and proof.** `P[i]` is the sum of exactly `[0,i)`. The right boundary contains the desired range plus `[0,left)`; subtraction cancels that common prefix. Construction is `O(n)` time and `O(n)` space, each query is `O(1)`, and the original array is not retained or mutated. An immutable snapshot is deliberate: if caller-side later changes must be visible, use a Fenwick or segment tree with an update contract.
+
+#### Worked case 2 — preserve both exclusive product sides
+
+For `[1,2,3,4]`, the first pass writes the product strictly to each index's left. The reverse pass multiplies the product strictly to its right.
+
+| index | value | stored after left pass | incoming right product | final |
+|---:|---:|---:|---:|---:|
+| 3 | 4 | 6 | 1 | 6 |
+| 2 | 3 | 2 | 4 | 8 |
+| 1 | 2 | 1 | 12 | 12 |
+| 0 | 1 | 1 | 24 | 24 |
+
+```mermaid
+flowchart LR
+    A[Identity 1] --> B[Write exclusive left]
+    B --> C[Multiply by current value]
+    D[Identity 1 from right] --> E[Multiply answer by exclusive right]
+    E --> F[Extend right product]
+```
+
+**Invariant and proof.** Before the forward write at `i`, `leftProduct` is the product of `[0,i)`; before the reverse write, `rightProduct` is the product of `(i,n)`. Their product therefore excludes exactly `i`. Each element is read twice, so time is `O(n)` and auxiliary state outside the output is `O(1)`. Zeros need no branch: one zero produces a nonzero result only at its own index; two zeros produce all zeros. The reusable method accepts empty and singleton arrays and uses `Math.multiplyExact`; the official problem's narrower contract instead guarantees products fit its result type.
+
+#### Worked case 3 — query earlier prefix states before publishing the current one
+
+For `values=[1,-1,0]` and `target=0`, seed frequency `{0:1}` for the boundary before index 0. At each current boundary `prefix`, every earlier `prefix-target` occurrence starts one valid non-empty subarray.
+
+| index / value | current prefix | needed | prior matches added | frequencies after insert | total |
+|---:|---:|---:|---:|---|---:|
+| 0 / 1 | 1 | 1 | 0 | `{0:1,1:1}` | 0 |
+| 1 / -1 | 0 | 0 | 1 | `{0:2,1:1}` | 1 |
+| 2 / 0 | 0 | 0 | 2 | `{0:3,1:1}` | 3 |
+
+```mermaid
+flowchart TD
+    A[Advance current prefix] --> B[Compute needed state]
+    B --> C[Read prior frequency]
+    C --> D[Add to answer]
+    D --> E[Publish current prefix]
+```
+
+**Invariant and proof.** Before insertion, the map contains every prefix boundary strictly earlier than the current one, with exact multiplicity. `prefix[right+1]-prefix[left]=target` precisely when the earlier boundary equals `prefix-target`; summing its frequency counts each valid non-empty subarray once. Querying after insertion would incorrectly allow an empty range when `target=0`. Expected time is `O(n)`, space is `O(n)`, and signed values are fully supported—unlike a positive-only sliding-window proof.
+
+For length rather than count, the stored value changes. Maximum Size Subarray Sum Equals `k`, Continuous Subarray Sum, and Contiguous Array retain the earliest qualifying boundary because the earliest start maximizes length. Make Sum Divisible by `P` retains the latest qualifying remainder because the latest start minimizes the removed length. Remainders must be normalized, for example with `Math.floorMod(prefix, modulus)`, before they become hash keys.
+
+#### Worked case 4 — record range-update boundaries, materialize once
+
+Convert the one-based flight bookings `[[1,2,10],[2,3,20],[2,5,25]]` to zero-based inclusive updates `[[0,1,10],[1,2,20],[1,4,25]]`. Add at `left` and subtract at `right+1` in a sentinel-backed difference array.
+
+| update | nonzero events contributed |
+|---|---|
+| `[0,1] += 10` | `D[0]+=10`, `D[2]-=10` |
+| `[1,2] += 20` | `D[1]+=20`, `D[3]-=20` |
+| `[1,4] += 25` | `D[1]+=25`, `D[5]-=25` |
+
+The combined difference array is `[10,45,-10,-20,0,-25]`; its running prefix over the five real positions is `[10,55,45,25,25]`.
+
+```mermaid
+flowchart LR
+    A[Inclusive update left..right] --> B[Add delta at left]
+    B --> C[Subtract delta at right+1]
+    C --> D[After all updates, prefix once]
+    D --> E[Materialized values]
+```
+
+**Invariant and proof.** The running sum changes by `delta` exactly at the update's left boundary and changes back immediately after its right boundary, so the update contributes to exactly its inclusive range. Event creation is `O(q)`, materialization is `O(n)`, and space is `O(n)`. This wins when updates are known before reads. Interleaved updates and queries need a Fenwick tree, segment tree, or an ordered event sweep appropriate to the API.
+
+**When this family does not fit:** online point/range updates must be visible immediately; the aggregate has no inverse and cannot be combined from complementary sides; the query is not reducible to equality of boundary state; a changing modulus invalidates stored remainder classes; order statistics are needed rather than sums/counts; multiplication can overflow without an agreed policy; or the hash table's expected-time model is unacceptable. Choose an update-aware tree, deque, balanced map, sort-and-scan, or dynamic program according to the missing property.
+
+**Common interview errors:** mixing inclusive prefixes with half-open prefixes; forgetting the leading identity boundary; subtracting `P[right]` instead of reading `P[right+1]`; multiplying before widening; using division for Product Except Self and mishandling zero; inserting the current prefix before querying; storing a set when multiplicity is required; storing an arbitrary index when earliest/latest controls optimality; failing to normalize negative remainders; treating a zero-length subarray as legal; subtracting a difference event at `right` instead of `right+1`; omitting the sentinel slot; applying one-based bookings directly to zero-based storage; mutating caller input; or silently allowing arithmetic wraparound.
+
+**Further follow-ups:** extend prefix sums to matrices; combine sum and count summaries for averages; return deterministic subarray boundaries, not only counts; derive `exactly(k)=atMost(k)-atMost(k-1)` for nonnegative frequency windows; handle circular range updates with two events; use coordinate-compressed ordered events for Car Pooling; compare earliest-index and frequency maps on the same prefix stream; generalize products to a monoid with left/right scans; and state when `O(1)` output-excluded auxiliary space applies.
+
+Executable evidence is in `PrefixSuffixHashPatternContracts.java`. It supplies 20 deterministic groups across official examples, negative and zero-heavy inputs, empty/singleton extensions, widened range sums, invalid boundaries, checked product overflow, input preservation and inclusive update contracts. It then runs 20,000 seeded trials against four independent references—direct range summation, quadratic exclusive products, quadratic subarray enumeration and per-index range updates—plus an additive partition identity. The trials perform 100,000 oracle, identity, or preservation checks.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -7635,9 +7830,9 @@ Executable evidence is in `SlidingWindowPatternContracts.java`. It supplies 20 d
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Two pointers lines 4882–4904. Fixed / variable sliding window begins at line 4908. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Two pointers on page 107. Fixed / variable sliding window follows on pages 107–108. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Prefix / suffix / hash lines 4882–4939. Kadane / contiguous DP begins at line 4943. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Prefix / suffix / hash on pages 107–108. Kadane / contiguous DP follows on page 108. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Two pointers, ending at Markdown line 4904 / DOCX page 107. The wider source remains in progress: Fixed / variable sliding window begins at Markdown line 4908 / DOCX page 107.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Prefix / suffix / hash, ending at Markdown line 4939 / DOCX page 108. The wider source remains in progress: Kadane / contiguous DP begins at Markdown line 4943 / DOCX page 108.
 
 
