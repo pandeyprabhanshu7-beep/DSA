@@ -64,16 +64,16 @@ Validation for Chapter 21: Java 17 source-file launch passed all twenty-one AI-p
 
 ## AI employment impact evidence taxonomy — November 19, 2026 ET
 
-State: **IN PROGRESS; source Section 1 promoted**.
+State: **IN PROGRESS; source Sections 1–2 promoted**.
 
 Canonical pair:
 
 - [Markdown](employment-impact/guide.md)
 - [mobile-friendly searchable HTML](employment-impact/guide.html)
 
-The confirmed `ai_jobs_elimination_deep_research_2026.md` source was refreshed from Library at SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`. This bounded pass promotes only Section 1, “Why the headline numbers conflict,” at source lines 16–56. It adds a seven-field evidence requirement, an explicit evidence tuple, five diagrams, four worked examples with traces, a cross-study comparison gate, current primary references and an executable Java 21 source-file contract. Sections 2–10 remain queued; the exact next source section is Section 2, “What is actually happening so far,” at lines 58–83, after fair-domain rotation is re-evaluated.
+The confirmed `ai_jobs_elimination_deep_research_2026.md` source was refreshed from Library at SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`. Sections 1–2 are now promoted through source line 83. The bounded Section 2 pass separates aggregate, subgroup and firm-survey evidence; distinguishes employment stocks, hiring flows, layoffs, expectations, relative percentages and firm-share denominators; adds four worked examples with traces, five diagrams, 2026 official updates and an executable Java 21 source-file contract. Sections 3–10 remain queued; the exact next source section is Section 3, “Why I use 30–80 million as a central 2030 gross-elimination range,” at lines 85–98, after fair-domain rotation is re-evaluated.
 
-Validation: `EmploymentEvidenceContracts.java` passed 20 deterministic groups, 20,000 seeded trials and 80,000 evidence checks. Two Pandoc builds produced the same reader. The HTML recovered the exact 12,865-byte Markdown payload at SHA-256 `fcd6dee2abcd80cc6d1e71ba64831833851e3b27c091ca67f39cbbd0b60f1eec`; all 29 IDs were unique, all 20 fragment links resolved, four search entries parsed, 16 fence markers were balanced, five Mermaid sources were retained, classic and module JavaScript syntax passed, and `git diff --check` passed. Standalone `javac`, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live literal-marker audit remains 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this section added none.
+Validation: both `EmploymentEvidenceContracts.java` and `ObservedLaborEvidenceContracts.java` passed 20 deterministic groups, 20,000 seeded trials and 80,000 evidence checks under Java 21 source-file launch. Two Pandoc builds produced the same reader. The HTML recovered the exact 26,064-byte Markdown payload at SHA-256 `0d2e7f273a0fcd5ab2ca7c2c9d01903bceb710ad03eccb0882ee220e43ddf014`; all 48 IDs were unique, all 37 fragment links resolved, five search entries parsed, 32 fence markers were balanced, ten Mermaid sources were retained, classic and module JavaScript syntax passed, and `git diff --check` passed. Standalone `javac`, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live literal-marker audit remains 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this section added none.
 
 ## AI foundations, RAG and CAG
 
