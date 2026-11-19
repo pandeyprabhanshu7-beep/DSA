@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, Section 16, Section 17 Pattern Drill, and Section 18 Common Array Interview Mistakes are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 19 remains queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, Section 16, Section 17 Pattern Drill, Section 18 Common Array Interview Mistakes, and Section 19 Revision Sheet are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 20 remains queued.
 
 ## Study index
 
@@ -106,6 +106,16 @@
   - [Worked example 4 — identity controls expiration and output uniqueness](#worked-example-4--identity-controls-expiration-and-output-uniqueness)
   - [Executable guardrail toolkit](#executable-guardrail-toolkit)
   - [Proof and review checklist](#proof-and-review-checklist)
+- [19. Revision Sheet — 10 Minutes Before the Interview](#19-revision-sheet--10-minutes-before-the-interview)
+  - [The ten-minute review order](#the-ten-minute-review-order)
+  - [Twenty invariant lines with proof hooks](#twenty-invariant-lines-with-proof-hooks)
+  - [Worked example 1 — derive exact signed sums from boundaries](#worked-example-1--derive-exact-signed-sums-from-boundaries)
+  - [Worked example 2 — search the first feasible capacity](#worked-example-2--search-the-first-feasible-capacity)
+  - [Worked example 3 — retain only live undominated maxima](#worked-example-3--retain-only-live-undominated-maxima)
+  - [Worked example 4 — finalize a histogram height at its right boundary](#worked-example-4--finalize-a-histogram-height-at-its-right-boundary)
+  - [Thirty-second speaking answer](#thirty-second-speaking-answer)
+  - [Difficulty ladder for deliberate practice](#difficulty-ladder-for-deliberate-practice)
+  - [Executable revision relay](#executable-revision-relay)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -9966,6 +9976,203 @@ Before submitting, answer these aloud:
 
 If any answer is vague, the implementation is not ready. The invariant is the durable knowledge; memorized pointer movements are only its consequence.
 
+## 19. Revision Sheet — 10 Minutes Before the Interview
+
+A useful revision sheet is not a list of incantations. Every line must expand into four things: **precondition, invariant, discard/update proof, and adversarial probe**. Use the final ten minutes to rehearse that expansion, not to memorize another implementation.
+
+### The ten-minute review order
+
+| Time | Task | Required output |
+|---:|---|---|
+| 0–2 min | Restate the contract | output shape, contiguity, order, mutation, value domain, arithmetic range |
+| 2–4 min | Select the pattern | the one property that makes the pattern legal |
+| 4–7 min | State the proof | invariant plus why one pointer/candidate/half can be discarded |
+| 7–9 min | Trace one hostile case | negatives, duplicates, all equal, empty/singleton extended contract, or overflow |
+| 9–10 min | Derive cost | charge each operation to an index, level, state, or halving step |
+
+```mermaid
+flowchart TD
+  A[Contract] --> B[Pattern precondition]
+  B --> C[Invariant]
+  C --> D[Discard or update proof]
+  D --> E[Adversarial trace]
+  E --> F[Derived complexity]
+```
+
+If the precondition cannot be said in one sentence, pattern selection is not finished. If the complexity cannot be charged to concrete events, the optimization is not yet explained.
+
+### Twenty invariant lines with proof hooks
+
+| # | Trigger and mechanism | Loop/state invariant | Proof hook and probe |
+|---:|---|---|---|
+| 1 | Two Sum, unsorted, original indices | map contains exactly the legal earlier prefix indices | lookup complement before insertion; probe duplicate values |
+| 2 | Sorted pair/triplet, two pointers | every candidate outside `[left,right]` is already impossible | endpoint order proves one move safe; probe full-width sum |
+| 3 | Fixed-width aggregate | state equals the current exact-width window | add incoming, remove outgoing; probe `k=1` and `k=n` |
+| 4 | At-most budget window | after repair the window is valid and left-minimal for this right | every invalid prefix must be removed; probe zero budget |
+| 5 | Static range sum | `prefix[i]` is the sum before element `i` | `[l,r]=p[r+1]-p[l]`; probe single element |
+| 6 | Exact signed subarray count | map stores frequencies of earlier prefix boundaries | pair current `p` with every earlier `p-k`; probe target zero |
+| 7 | Divisibility count | equal normalized remainders delimit a divisible difference | normalize negatives; probe negative values |
+| 8 | Maximum subarray | `current` is the best nonempty sum ending here | any ending range either starts here or extends; probe all negative |
+| 9 | Maximum product | max/min are both ending products | a negative value swaps the useful extreme; probe zero and negatives |
+| 10 | Product except self | output holds exclusive prefix; scalar holds exclusive suffix | every answer receives each side exactly once; probe two zeros |
+| 11 | Three categories in place | `0-zone | 1-zone | unknown | 2-zone` | unknown shrinks; recheck value imported from high |
+| 12 | Values in dense `1..n` domain | legal value `v` names slot `v-1` | every swap fixes a slot or exposes invalid/duplicate evidence |
+| 13 | Rotated distinct search | target, if present, remains in the candidate interval | one half is ordered and range membership chooses the safe discard |
+| 14 | Boundary binary search | answer is in half-open `[left,right)` | false prefix / true suffix; probe empty and insertion at `n` |
+| 15 | Binary search on answer | feasibility is monotone over the answer domain | retain first/last feasible boundary; probe impossible contract |
+| 16 | Closed interval union | output plus active component equals union of processed intervals | only the last component can overlap next; probe touching endpoints |
+| 17 | Fixed-window maximum | deque indices increase; referenced values decrease | expired or dominated indices can never win; probe duplicate maxima |
+| 18 | Histogram rectangle | stack heights increase and carry earliest legal starts | pop at first smaller right boundary; probe equal plateaus |
+| 19 | One duplicate, immutable `n+1/[1,n]` | `nums[index]` is a total next-pointer function | Floyd meeting and entrance follow cycle geometry; validate domain first |
+| 20 | Shortest signed sum at least `K` | deque contains useful prefixes in increasing value order | pop feasible fronts and dominated backs; probe negative middle value |
+
+The table is a compressed index into the complete cards. It does not replace their requirements. For example, the ordinary at-most window in line 4 and the prefix deque in line 20 solve different problems because signed sums remove one-direction endpoint repair.
+
+### Worked example 1 — derive exact signed sums from boundaries
+
+**Prompt.** Count nonempty contiguous subarrays of `[1,-1,1]` whose sum is `1`. Negatives are allowed and the answer is a count.
+
+**Diagnosis.** Contiguous + exact + signed + count selects prefix frequencies, not an ordinary sliding window. Let `p` be the prefix after the current element. Every earlier boundary with value `p-1` begins one valid range.
+
+| value consumed | prefix `p` | needed boundary `p-1` | earlier frequency | added |
+|---:|---:|---:|---:|---:|
+| — | 0 | — | seed `freq[0]=1` | 0 |
+| 1 | 1 | 0 | 1 | 1 |
+| -1 | 0 | -1 | 0 | 0 |
+| 1 | 1 | 0 | 2 | 2 |
+
+```mermaid
+flowchart LR
+  A[Earlier boundary q] --> B[Current boundary p]
+  B --> C[Range sum equals p minus q]
+  C --> D[q must equal p minus target]
+```
+
+The result is `3`. Query before inserting the current prefix so a boundary never pairs with itself. Expected time is `O(n)`, space is `O(n)`, and reusable prefix/count arithmetic is widened to `long`.
+
+### Worked example 2 — search the first feasible capacity
+
+**Prompt.** Split `[7,2,5,10,8]` into exactly two nonempty contiguous groups while minimizing the largest group sum.
+
+**Diagnosis.** Values are nonnegative, so a capacity that works implies every larger capacity works. Greedy left-to-right packing computes the fewest groups needed for a proposed capacity. The predicate is `false...false,true...true`; search its first true value.
+
+| capacity | greedy groups | feasible with at most 2? | retained range |
+|---:|---:|---|---|
+| 21 | 2 | yes | `[10,21]` |
+| 15 | 3 | no | `[16,21]` |
+| 18 | 2 | yes | `[16,18]` |
+| 17 | 3 | no | answer `18` |
+
+```mermaid
+stateDiagram-v2
+  [*] --> TooSmall
+  TooSmall --> TooSmall: capacity needs more than k groups
+  TooSmall --> Feasible: first capacity using at most k groups
+  Feasible --> Feasible: every larger capacity
+```
+
+The bounds are `max(nums)` and `sum(nums)`, both `long`. Greedy may use fewer than `k` groups at a feasible capacity, but a nonnegative group can be split until exactly `k` nonempty groups exist without increasing the maximum. Time is `O(n log(sum-max+1))`; auxiliary space is `O(1)`.
+
+```java
+while (low < high) {
+    long capacity = low + (high - low) / 2;
+    if (groupsNeeded(nums, capacity) <= groups) high = capacity;
+    else low = capacity + 1;
+}
+```
+
+### Worked example 3 — retain only live undominated maxima
+
+**Prompt.** For `[1,3,-1,-3,5]`, return the maximum of every width-`3` window: `[3,3,5]`.
+
+**Diagnosis.** A maximum is not invertible when it leaves. Store candidate **indices** in a deque: indices increase from front to back, while their values strictly decrease after newer-equal replacement.
+
+| right | expire | dominated from back | deque after append | output |
+|---:|---|---|---|---:|
+| 0 | — | — | `[0]` | — |
+| 1 | — | `0` | `[1]` | — |
+| 2 | — | — | `[1,2]` | 3 |
+| 3 | — | — | `[1,2,3]` | 3 |
+| 4 | `1` | `3,2` | `[4]` | 5 |
+
+```mermaid
+flowchart TD
+  A[Advance right] --> B[Expire front indices]
+  B --> C[Remove dominated back indices]
+  C --> D[Append current index]
+  D --> E[Front owns current maximum]
+```
+
+An expired index is outside every future window. A dominated index is older and no larger than the new value, so it can never beat the new index before expiring. Each index enters once and leaves at most once from each end: `O(n)` time and `O(k)` space.
+
+### Worked example 4 — finalize a histogram height at its right boundary
+
+**Prompt.** Find the largest rectangle in `[2,1,5,6,2,3]`. The answer is `10`, using height `5` across indices `2..3`.
+
+Carry pairs `(earliestStart,height)` in increasing height order. When a smaller height arrives, it is the first forbidden right boundary for every taller popped bar. The popped bar's width is `right-earliestStart`; the current height inherits the earliest popped start.
+
+| right/index | current height | popped `(start,height)` | candidate area | stack after repair |
+|---:|---:|---|---:|---|
+| 0 | 2 | — | — | `[(0,2)]` |
+| 1 | 1 | `(0,2)` | `2*(1-0)=2` | `[(0,1)]` |
+| 2 | 5 | — | — | `[(0,1),(2,5)]` |
+| 3 | 6 | — | — | `[(0,1),(2,5),(3,6)]` |
+| 4 | 2 | `(3,6),(2,5)` | `6,10` | `[(0,1),(2,2)]` |
+| 6 sentinel | 0 | remaining entries | at most 8 | empty |
+
+```mermaid
+flowchart LR
+  A[Increasing height stack] --> B[First smaller height arrives]
+  B --> C[Pop finalized height]
+  C --> D[Area is height times right minus earliest start]
+  D --> E[Pass earliest start to current height]
+```
+
+Every bar is pushed once and popped once, so the scan is `O(n)` time and `O(n)` space. Area multiplication widens before multiplying. Equal heights share the earliest start rather than creating duplicate ownership.
+
+### Thirty-second speaking answer
+
+> “I first fix the contract: output shape, contiguity, order, mutation, value domain, and arithmetic range. I name the direct bottleneck, then choose a pattern only after stating its enabling property—sorted order, endpoint monotonicity, a prefix-boundary equation, a monotone feasibility predicate, or candidate domination. Before coding I state the invariant and why each discarded state cannot improve the answer. I trace a duplicate, negative, boundary, or overflow case, then derive complexity by charging each operation to an index, level, state, or halving step.”
+
+```mermaid
+flowchart TD
+  A{What repeats?} -->|Range aggregate| B[Prefix or difference state]
+  A -->|Endpoint search| C[Two pointers or binary search]
+  A -->|Candidate extrema| D[Monotonic stack or deque]
+  A -->|Feasibility test| E[Binary search on answer]
+  A -->|Best ending state| F[Kadane or contiguous DP]
+```
+
+When two branches remain possible, ask for the missing requirement. “Subarray” alone does not authorize a sliding window, and “minimum” alone does not prove a monotone answer space.
+
+### Difficulty ladder for deliberate practice
+
+| Stage | Goal | Representative drills | Exit test |
+|---|---|---|---|
+| 1 — Foundations | bug-free pointer/prefix code | Two Sum, Stock I, Move Zeroes, Pivot Index, Missing Number | trace boundaries without correction |
+| 2 — Core patterns | recognize without hints | 3Sum, Min Size Subarray, Product Except Self, Subarray Sum K, Rotated Search | name precondition before pattern |
+| 3 — Invariants | prove while coding | Sort Colors, Next Permutation, Merge Intervals, Koko, Maximum Product | preservation and termination stated |
+| 4 — Candidate sets | maintain non-obvious frontiers | Window Maximum, Histogram, First Missing Positive, Count Inversions | explain every discard |
+| 5 — Hard composition | derive structure under pressure | Median of Two Sorted Arrays, Shortest Subarray ≥ K, Split Array, Trapping Rain Water | combine two invariants without handwaving |
+
+Advance only after the exit test is repeatable. Problem count is not mastery if the proof still depends on remembered code.
+
+### Executable revision relay
+
+`ArrayRevisionSheetContracts.java` turns four high-yield revision lines into runnable contracts: signed exact-sum prefix counting, first-feasible split capacity, indexed monotonic-window maxima, and earliest-start histogram rectangles. It validates inputs before mutation-sensitive work, widens arithmetic, and preserves caller-owned arrays.
+
+Twenty deterministic groups cover official examples, signed values, duplicates, plateaus, one/all groups, invalid inputs, empty extended contracts and full-width overflow probes. Then 20,000 seeded trials compare the four optimized mechanisms with independent quadratic enumeration, exact dynamic programming, direct window scans and rectangle enumeration—**80,000 oracle/preservation checks**.
+
+```bash
+java -ea study-guides/striver-dsa/arrays/ArrayRevisionSheetContracts.java
+```
+
+Expected result:
+
+```text
+PASS groups=20 trials=20000 oracle/preservation checks=80000
+```
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -10131,9 +10338,9 @@ If any answer is vague, the implementation is not ready. The invariant is the du
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, Section 16, Section 17 Pattern Drill, and Section 18 Common Array Interview Mistakes through line 5097 (heading line 5077). Section 19 follows at heading line 5101. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, Section 16 and Section 17 Pattern Drill on pages 107-112, and Section 18 on page 113. Section 19 follows on page 114. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, Sections 16–18, and Section 19 Revision Sheet through line 5170 (heading line 5101). Section 20 follows at heading line 5174. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, Sections 16–18 on pages 107–113, and Section 19 on pages 114–115. Section 20 follows on page 116. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4, Section 15, Section 16, Section 17 Pattern Drill, and Section 18 Common Array Interview Mistakes are promoted through Markdown line 5097 / DOCX page 113. The wider source remains in progress: Section 19 Revision Sheet follows at Markdown heading line 5101 / DOCX page 114.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4, Section 15, Sections 16–18, and Section 19 Revision Sheet are promoted through Markdown line 5170 / DOCX page 115. The wider source remains in progress: Section 20 Further Reading and Practice follows at Markdown heading line 5174 / DOCX page 116.
 
 

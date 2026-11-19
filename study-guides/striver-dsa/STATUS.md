@@ -87,6 +87,7 @@
 | Arrays §16 Hard mixed | ✅ | ✅ | Fifteen-drill hidden-state map, four traced examples, seven optimized mechanisms and seven independent oracles |
 | Arrays §17 Pattern Drill | ✅ | ✅ | Fifteen contrastive recognition certificates, four traced diagnoses, ambiguity gate and independent rule-table oracle |
 | Arrays §18 Common Interview Mistakes | ✅ | ✅ | Ten pre-code guardrails, four traced failure clusters, executable boundaries and seven independent oracles |
+| Arrays §19 Revision Sheet | ✅ | ✅ | Twenty invariant/proof hooks, four traced pattern rehearsals, six diagrams, speaking script and four independent oracles |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -643,5 +644,13 @@ Arrays Section 18 now promotes all ten source guardrails from Markdown heading l
 Java 21 source-file launch passed all 68 unique Arrays executables: 1,320 scenario groups and 1,340,000 seeded/randomized trials or comparisons. Standalone `javac` remains unavailable. The deterministic responsive reader embeds the exact 694,519 canonical Markdown bytes at SHA-256 `9a50d5b2b63bcced9442099274802e5d82524f4272fc5bdc6b8a9f14de1eace6`; validation found 2,501 unique HTML IDs, 105 search entries, 2,114 resolved fragment links, zero relative links, 856 balanced fence markers, 322 Mermaid sources and four script blocks. Both executable JavaScript modules parse successfully. Rebuilding produced byte-identical HTML at SHA-256 `eac8a3b8a341993e86dc7cd4914775a0b8b1588014478ef2dedb5e3a1d201c99`. Browser, assistive-technology and rendered Mermaid integration were not executed in this pass.
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; after fair-domain rotation, the next exact Arrays continuation is Section 19 Revision Sheet at Markdown heading line 5101 / DOCX page 114.
+
+## Arrays Revision Sheet enrichment — 2026-11-19 ET
+
+Arrays Section 19 now promotes the complete Revision Sheet from the canonical Markdown heading at line 5101 through its difficulty ladder ending at line 5170 and DOCX pages 114–115. The expanded section turns twenty memorization lines into precondition, invariant, proof hook and adversarial-probe contracts; four worked traces rehearse signed exact-sum counting, first-feasible split capacity, indexed window maxima and earliest-start histogram rectangles. Six diagrams, a ten-minute review order, a thirty-second speaking answer and a five-stage deliberate-practice ladder deepen the source without duplicating the complete algorithm cards. `ArrayRevisionSheetContracts` passed 20 deterministic groups plus 20,000 seeded trials against independent quadratic, exact-DP, direct-window and rectangle-enumeration oracles—80,000 oracle or preservation checks.
+
+Java 21 source-file launch passed all 69 documented Arrays executables: 1,340 scenario groups and 1,360,000 seeded/randomized trials or comparisons. Standalone `javac` remains unavailable. The deterministic responsive reader embeds the exact 707,951 canonical Markdown bytes at SHA-256 `7b88581f93ffed9bb043c76fb157d13481eeac0d35e519390b86267ebb9ca99c`; validation found 2,519 unique HTML IDs, 115 search entries, 2,130 resolved fragment links, zero relative links, 874 balanced fence markers, 328 Mermaid sources and four script blocks. Both executable JavaScript blocks pass syntax checks. Rebuilding produced byte-identical HTML at SHA-256 `6e01ed5dc28c16867a50420c1496034a5d730dde9ac1b042ec92fb84f67224df`. Browser, assistive-technology and rendered Mermaid integration were not executed in this pass.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; after fair-domain rotation, the next exact Arrays continuation is Section 20 Further Reading and Practice at Markdown heading line 5174 / DOCX page 116.
 
 
