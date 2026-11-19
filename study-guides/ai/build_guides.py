@@ -29,6 +29,13 @@ GUIDES = (
         "AI Platform Engineering",
         "Try: authority, fine-tuning, idempotency",
     ),
+    (
+        ROOT / "employment-impact" / "guide.md",
+        ROOT / "employment-impact" / "guide.html",
+        "AI Employment Impact — Evidence Guide",
+        "AI Employment Impact",
+        "Try: exposure, displacement, work hours",
+    ),
 )
 
 

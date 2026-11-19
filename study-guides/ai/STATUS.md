@@ -62,6 +62,19 @@ The selected AI-platform master is exhausted through Chapter 21. The immediate c
 
 Validation for Chapter 21: Java 17 source-file launch passed all twenty-one AI-platform contracts; `PlatformDesignExercisesContracts` passed 28 scenario groups and 10,000 seeded trials. Two deterministic Pandoc builds produced identical readers. The platform reader recovered the exact 289,924-byte Markdown payload at SHA-256 `0404941b3dffa9eeac3ef9dff1f0ecc8a0e385a5d02e5d634071fd56344550b6`; 701 unique HTML IDs, 76 search entries, 487 resolved fragment links, 292 balanced fence markers, 96 Mermaid sources, search JSON, inline/module JavaScript, responsive controls and `git diff --check` passed. Standalone `javac`, live identity/order/payment/queue/index integration, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live literal-marker audit remains 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this section added none.
 
+## AI employment impact evidence taxonomy — November 19, 2026 ET
+
+State: **IN PROGRESS; source Section 1 promoted**.
+
+Canonical pair:
+
+- [Markdown](employment-impact/guide.md)
+- [mobile-friendly searchable HTML](employment-impact/guide.html)
+
+The confirmed `ai_jobs_elimination_deep_research_2026.md` source was refreshed from Library at SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`. This bounded pass promotes only Section 1, “Why the headline numbers conflict,” at source lines 16–56. It adds a seven-field evidence requirement, an explicit evidence tuple, five diagrams, four worked examples with traces, a cross-study comparison gate, current primary references and an executable Java 21 source-file contract. Sections 2–10 remain queued; the exact next source section is Section 2, “What is actually happening so far,” at lines 58–83, after fair-domain rotation is re-evaluated.
+
+Validation: `EmploymentEvidenceContracts.java` passed 20 deterministic groups, 20,000 seeded trials and 80,000 evidence checks. Two Pandoc builds produced the same reader. The HTML recovered the exact 12,865-byte Markdown payload at SHA-256 `fcd6dee2abcd80cc6d1e71ba64831833851e3b27c091ca67f39cbbd0b60f1eec`; all 29 IDs were unique, all 20 fragment links resolved, four search entries parsed, 16 fence markers were balanced, five Mermaid sources were retained, classic and module JavaScript syntax passed, and `git diff --check` passed. Standalone `javac`, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live literal-marker audit remains 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this section added none.
+
 ## AI foundations, RAG and CAG
 
 State: **PROMOTED; deep enrichment remains in progress**.
