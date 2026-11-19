@@ -270,9 +270,9 @@
       "modified_at": "2026-09-08T00:10:00.740223Z",
       "size_bytes": 229697,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-11-18T09:25:31-05:00",
+      "last_read_at": "2026-11-19T01:47:39-05:00",
       "sha256": "735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda",
-      "selection": "Selected as the editable structural source; Sections 1-3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Binary search on answer lines 4882-4975 were compared and promoted. Intervals begins at line 4979. Refreshed Library metadata, source bytes and hash are unchanged."
+      "selection": "Selected as the editable structural source; Sections 1-3, all 47 Section 4 problems, all five Section 15 techniques, Sections 16-17 and Section 18 Common Array Interview Mistakes through line 5097 were compared and promoted. Section 19 begins at heading line 5101. Refreshed Library metadata, source bytes and hash are unchanged."
     },
     {
       "name": "Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
@@ -345,9 +345,9 @@
       "modified_at": "2026-09-03T01:55:56.718502Z",
       "size_bytes": 125274,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-11-18T09:25:31-05:00",
+      "last_read_at": "2026-11-19T01:47:39-05:00",
       "sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-      "selection": "Compared as the corroborating companion; Sections 1-3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Binary search on answer agree with the Markdown source through page 109. Intervals follows on page 109. All 116 rendered pages were previously visually inspected; no duplicate guide was created."
+      "selection": "Compared as the corroborating companion; Sections 1-3, all 47 Section 4 problems, all five Section 15 techniques, Sections 16-17 and Section 18 Common Array Interview Mistakes agree with the Markdown source through page 113. Section 19 follows on page 114. All 116 rendered pages were previously visually inspected; no duplicate guide was created."
     },
     {
       "name": "AI_RAG_CAG_Deep_Learning_Developer_Guide.docx",
@@ -502,7 +502,7 @@
         "DSA_Arrays_FAANG_Mermaid_Question_Workbook.md",
         "DSA_Arrays_FAANG_Question_Workbook_Expanded.docx"
       ],
-      "last_processed_at": "2026-11-18T09:25:31-05:00",
+      "last_processed_at": "2026-11-19T01:47:39-05:00",
       "processed_sections": [
         "Section 1: Array Mental Model and Invariants — Markdown lines 141-182 / DOCX extracted lines 65-108",
         "Section 2: Pattern-Recognition Decision Tree — Markdown lines 183-229 / DOCX extracted lines 93-135",
@@ -563,11 +563,19 @@
         "Section 16 pattern 5: Kadane / contiguous DP — ending-state certificate, seven-drill classification, four worked cases, exact traces, checked arithmetic and independent sum/product/deletion/non-overlap oracles — Markdown lines 4935-4942 / DOCX page 108",
         "Section 16 pattern 6: Index placement / marking — dense-domain slot certificate, six-drill classification, four worked cases, exact traces, mutation gates and independent missing/disappeared/duplicate/mismatch oracles — Markdown lines 4946-4952 / DOCX page 109",
         "Section 16 pattern 7: Binary search / rotated — candidate-interval discard certificate, ten-drill classification, four worked cases, exact traces, duplicate-complexity boundary and independent lower-bound/minimum/peak/singleton oracles — Markdown lines 4956-4964 / DOCX page 109",
-        "Section 16 pattern 8: Binary search on answer — first/last-true monotone predicate, eight-drill classification, four worked cases, exact traces, widened bounds and independent shipping/bouquet/placement/allocation oracles — Markdown lines 4968-4975 / DOCX page 109"
+        "Section 16 pattern 8: Binary search on answer — first/last-true monotone predicate, eight-drill classification, four worked cases, exact traces, widened bounds and independent shipping/bouquet/placement/allocation oracles — Markdown lines 4968-4975 / DOCX page 109",
+        "Section 16 pattern 9: Intervals — endpoint-semantics decision, nine-drill classification, exact traces, ownership boundaries and independent union/subset/endpoint/event/intersection/free-time oracles — Markdown lines 4979-4989 / DOCX pages 109-110",
+        "Section 16 pattern 10: Matrix / 2D array — shape-and-coordinate contract, ten-drill classification, exact traces, mutation boundaries and independent mapping/traversal/state/search/diagonal/component oracles — Markdown lines 4993-5002 / DOCX page 110",
+        "Section 16 pattern 11: Monotonic stack / deque — candidate-domination contract, eleven-drill classification, exact traces, equality ownership and seven independent oracles — Markdown lines 5006-5017 / DOCX page 110",
+        "Section 16 pattern 12: Sorting / selection / divide-conquer — ordered-evidence contract, ten-drill classification, exact traces, mutation boundaries and six independent oracles — Markdown lines 5021-5028 / DOCX pages 110-111",
+        "Section 16 pattern 13: Greedy on arrays — proof-certificate contract, ten-drill classification, exact traces, exchange/cut proofs and six independent oracles — Markdown lines 5032-5036 / DOCX page 111",
+        "Section 16 pattern 14: Hard mixed — hidden-state diagnosis, fifteen-drill classification, exact traces and seven independent oracles — Markdown lines 5040-5051 / DOCX page 111",
+        "Section 17 Pattern Drill — fifteen proof-certificate triggers, four contrastive traces, explicit ambiguity gate and independent rule-table oracle — Markdown lines 5055-5073 / DOCX page 112",
+        "Section 18 Common Array Interview Mistakes — ten pre-code guardrails, four traced failure clusters and seven independent executable oracles — Markdown lines 5077-5097 / DOCX page 113"
       ],
-      "last_successful_commit": "63501c7a2384fa69e4b9ad58261248a5c3da2010",
-      "validation": "The refreshed paired Arrays workbooks agree on bounded Section 16 Binary search on answer at Markdown lines 4968-4975 and DOCX page 109; both source hashes are unchanged, the editable Markdown remains structural and no duplicate guide was created. Four worked cases, six diagrams, exact traces, first/last-true boundary proofs, widened answer-space bounds and BinarySearchOnAnswerPatternContracts cover independent shipping, bouquet, magnetic-placement and candy-allocation oracles. Java 21 source-file launch passed all sixty unique Arrays executables: 1,160 scenario groups and 1,180,000 seeded/randomized oracle trials or comparisons; the new contract passed 20 groups and 20,000 seeded trials with 100,000 oracle or preservation checks. Deterministic reader validation passed exact 576593-byte Markdown recovery, SHA-256 85ccdf06e3edac7e1e3592f8ac3e8ed59ab47aa663661269c0584e25940619b2, 2210 unique HTML IDs, 90 search entries, 1893 resolved fragments, zero relative links, 712 balanced fence markers, 272 Mermaid sources, four script blocks, two parseable executable JavaScript blocks and deterministic HTML SHA-256 8e053a1f5a0dc5900ae20821bc1f0b2f52685108fca05f84f5de0347dd0e88f1. The validated content tree is commit 63501c7a2384fa69e4b9ad58261248a5c3da2010. Standalone javac was unavailable; local Chromium rendering was attempted but exited 134 because process-singleton sockets were not permitted, and assistive-technology and rendered Mermaid QA were unavailable. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
-      "next_action": "Section 16 Binary search on answer is complete. Re-evaluate fair domain rotation, then process Section 16 Intervals at Markdown heading line 4979 / DOCX page 109; later Arrays source material remains queued.",
+      "last_successful_commit": "a13b3abb97ed355d43df611b15cfaba592dbd2d7",
+      "validation": "The refreshed paired Arrays workbooks agree on bounded Section 18 Common Array Interview Mistakes at Markdown heading line 5077 through line 5097 and DOCX page 113; both source hashes remain unchanged, the editable Markdown remains structural and no duplicate guide was created. Ten pre-code guardrails, four worked failure clusters, five diagrams, full-width arithmetic, ownership rules and ArrayMistakeGuardContracts cover signed exact sums, prefix and binary-search boundaries, partition reinspect semantics, deque expiration and duplicate-free 3Sum without duplicating the complete algorithm cards. Java 21 source-file launch passed all sixty-eight unique Arrays executables: 1,320 scenario groups and 1,340,000 seeded/randomized trials or comparisons; the new contract passed 20 groups and 20,000 seeded trials with 140,000 oracle/preservation checks. Reader validation passed exact 694519-byte Markdown recovery, SHA-256 9a50d5b2b63bcced9442099274802e5d82524f4272fc5bdc6b8a9f14de1eace6, 2501 unique HTML IDs, 105 search entries, 2114 resolved fragments, zero relative links, 856 balanced fence markers, 322 Mermaid sources, four script blocks, two parseable executable JavaScript modules and deterministic HTML SHA-256 eac8a3b8a341993e86dc7cd4914775a0b8b1588014478ef2dedb5e3a1d201c99. The validated content tree is commit a13b3abb97ed355d43df611b15cfaba592dbd2d7. Standalone javac was unavailable; browser, assistive-technology and rendered Mermaid QA were not executed. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
+      "next_action": "Section 18 Common Array Interview Mistakes is complete. Re-evaluate fair domain rotation, then process Section 19 Revision Sheet at Markdown heading line 5101 / DOCX page 114; later Arrays source material remains queued.",
       "priority": 6,
       "source_revision": {
         "baseline_commit": "a9f582b5dbe8b6fcda6e275054f217350a810d52",
@@ -578,7 +586,7 @@
         "compared_file_id": "file_00000000672882118a9ca69f00c30be7",
         "compared_version_id": "1",
         "compared_sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-        "canonical_sha256_after": "64a116bd7b85ef4f7a4a330e2548f2177c059096e73bdf26a0bd0bd54cd52f0d"
+        "canonical_sha256_after": "9a50d5b2b63bcced9442099274802e5d82524f4272fc5bdc6b8a9f14de1eace6"
       }
     },
     {
@@ -1116,7 +1124,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25, all 47 Arrays Section 4 problems, all five Section 15 techniques and Section 16 through Binary search on answer are promoted. The selected AI-platform and Spring AI/Python sources are exhausted. Re-evaluate fair rotation, then process Arrays Section 16 Intervals at Markdown heading line 4979 / DOCX page 109; retain wider confirmed intake and placeholders.",
+    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25, all 47 Arrays Section 4 problems, all five Section 15 techniques and Arrays Sections 16-18 are promoted. The selected AI-platform and Spring AI/Python sources are exhausted. Re-evaluate fair rotation, then process Arrays Section 19 Revision Sheet at Markdown heading line 5101 / DOCX page 114; retain wider confirmed intake and placeholders.",
     "batch_policy": {
       "max_sections_per_run": 1,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1331,14 +1339,15 @@
     "DSA Arrays Section 16 pattern 12: Sorting / selection / divide-conquer ordered-evidence contract, ten-drill classification, exact traces, mutation boundaries, widened arithmetic and independent combine-sort/permutation/sorted-gap/quadratic/backtracking oracles",
     "DSA Arrays Section 16 pattern 13: Greedy on arrays proof-certificate contract, ten-drill classification, exact traces, dominance/exchange/cut proofs and independent DP/every-start/partition/pairing/cooldown/decrement oracles",
     "DSA Arrays Section 16 pattern 14: Hard mixed hidden-state diagnosis, fifteen-drill classification, exact traces, mutation boundaries and independent range/triple/distinct/window/rectangle/burst-order/dominance-DAG oracles",
-    "DSA Arrays Section 17 Pattern Drill: fifteen proof-certificate triggers, four contrastive traces, explicit ambiguity gate and independent imperative/declarative rule matching"
+    "DSA Arrays Section 17 Pattern Drill: fifteen proof-certificate triggers, four contrastive traces, explicit ambiguity gate and independent imperative/declarative rule matching",
+    "DSA Arrays Section 18 Common Array Interview Mistakes: ten pre-code guardrails, four traced failure clusters, full-width and ownership checks and seven independent executable oracles"
     ],
-  "processed_section": "DSA Arrays Section 17 Pattern Drill, canonical Markdown heading line 5055 through trigger table line 5073 / DOCX page 112",
-  "validation": "The refreshed paired Arrays workbooks agree on the bounded Section 17 Pattern Drill fifteen-clue table at the canonical Markdown heading line 5055 through table line 5073 and DOCX page 112; both source hashes are unchanged, the editable Markdown remains structural and no duplicate guide was created. Fifteen proof certificates and near-miss gates, four worked contrastive traces, six diagrams, a speaking template and PatternRecognitionDrillContracts cover signed exact sums, fixed-window maxima, monotone answer search and two-array median partition without duplicating the complete algorithm cards. Java 21 source-file launch passed all sixty-seven unique Arrays executables: 1,300 scenario groups and 1,320,000 seeded/randomized oracle trials or comparisons; the new contract passed 20 groups and 20,000 seeded signal trials with 320,000 rule/preservation checks. Deterministic reader validation passed exact 683109-byte Markdown recovery, SHA-256 51295fe95ce90fd5574a1db311eb1e62ae3d287cc20fc98fe8086f4d02bdd922, 2482 unique HTML IDs, 97 search entries, 2097 resolved fragments, zero relative links, 840 balanced fence markers, 317 Mermaid sources, four script blocks, two parseable executable JavaScript modules and deterministic HTML SHA-256 7e3a4f0b490a37ab82978a537c73bfa46bdf897541fba09e3947c92cc3843057. The validated content tree is commit d24526eae45ec3310c6c5f8a7efee7ebb96eefec. Standalone javac was unavailable; browser, assistive-technology and rendered Mermaid QA were not executed. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
-  "estimated_next_tokens": 8200,
-  "estimate_method": "Heuristic only for one bounded Arrays Section 18 Common Array Interview Mistakes pass with paired-source comparison, examples, contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
-  "last_successful_commit": "d24526eae45ec3310c6c5f8a7efee7ebb96eefec",
-  "last_processed_at": "2026-11-18T23:16:18-05:00",
-  "next_batch_decision": "Section 17 Pattern Drill is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair domain rotation, then continue with Section 18 Common Array Interview Mistakes at Markdown heading line 5077 / DOCX page 113."
+  "processed_section": "DSA Arrays Section 18 Common Array Interview Mistakes, canonical Markdown heading line 5077 through final guardrail line 5097 / DOCX page 113",
+  "validation": "The refreshed paired Arrays workbooks agree on bounded Section 18 Common Array Interview Mistakes at Markdown heading line 5077 through line 5097 and DOCX page 113; both source hashes remain unchanged, the editable Markdown remains structural and no duplicate guide was created. Ten pre-code guardrails, four worked failure clusters, five diagrams, full-width arithmetic, ownership rules and ArrayMistakeGuardContracts cover signed exact sums, prefix and binary-search boundaries, partition reinspect semantics, deque expiration and duplicate-free 3Sum without duplicating the complete algorithm cards. Java 21 source-file launch passed all sixty-eight unique Arrays executables: 1,320 scenario groups and 1,340,000 seeded/randomized trials or comparisons; the new contract passed 20 groups and 20,000 seeded trials with 140,000 oracle/preservation checks. Reader validation passed exact 694519-byte Markdown recovery, SHA-256 9a50d5b2b63bcced9442099274802e5d82524f4272fc5bdc6b8a9f14de1eace6, 2501 unique HTML IDs, 105 search entries, 2114 resolved fragments, zero relative links, 856 balanced fence markers, 322 Mermaid sources, four script blocks, two parseable executable JavaScript modules and deterministic HTML SHA-256 eac8a3b8a341993e86dc7cd4914775a0b8b1588014478ef2dedb5e3a1d201c99. The validated content tree is commit a13b3abb97ed355d43df611b15cfaba592dbd2d7. Standalone javac was unavailable; browser, assistive-technology and rendered Mermaid QA were not executed. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
+  "estimated_next_tokens": 7600,
+  "estimate_method": "Heuristic only for one bounded Arrays Section 19 Revision Sheet pass with paired-source comparison, examples, contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
+  "last_successful_commit": "a13b3abb97ed355d43df611b15cfaba592dbd2d7",
+  "last_processed_at": "2026-11-19T01:47:39-05:00",
+  "next_batch_decision": "Section 18 Common Array Interview Mistakes is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair domain rotation, then continue with Section 19 Revision Sheet at Markdown heading line 5101 / DOCX page 114."
   }
 }
