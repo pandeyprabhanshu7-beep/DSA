@@ -231,7 +231,10 @@
       "version_id": null,
       "modified_at": "2026-09-08T00:10:00.813395Z",
       "size_bytes": 68775,
-      "status": "DISCOVERED"
+      "status": "IN_PROGRESS",
+      "last_read_at": "2026-11-19T10:18:00-05:00",
+      "sha256": "86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1",
+      "selection": "Selected as the editable advanced-trees source. Sections 1-11 are promoted or merged; latest bounded range is Section 11 lines 1167-1187. Section 12 begins at line 1188."
     },
     {
       "name": "Angular_Interview_Mermaid_Workbook.md",
@@ -412,7 +415,10 @@
       "version_id": null,
       "modified_at": "2026-08-30T05:23:39.553805Z",
       "size_bytes": 227748,
-      "status": "DISCOVERED"
+      "status": "READY",
+      "last_read_at": "2026-11-19T10:18:00-05:00",
+      "sha256": "fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f",
+      "selection": "Compared as corroborating source. Pandoc GFM lines 1559-1586 match selected Section 11; no duplicate edition was created. Section 12 spans Pandoc lines 1587-1791."
     },
     {
       "name": "advanced_trees_interview_guide.md",
@@ -421,7 +427,9 @@
       "version_id": null,
       "modified_at": "2026-08-19T04:44:00.028771Z",
       "size_bytes": 30094,
-      "status": "DISCOVERED"
+      "status": "READY",
+      "last_read_at": "2026-11-19T10:18:00-05:00",
+      "selection": "Compared for the Section 11 decision topic. This older guide uses different section numbering and broader implementation coverage; no inferior duplicate material was copied."
     }
   ],
   "topics": [
@@ -598,17 +606,33 @@
     {
       "id": "advanced-trees",
       "domain": "DSA",
-      "canonical_target": "study-guides/advanced-trees/",
-      "target_exists": false,
-      "status": "DISCOVERED",
+      "canonical_target": "study-guides/local-project-notes/advanced-trees/",
+      "target_exists": true,
+      "status": "IN_PROGRESS",
       "source_names": [
         "Advanced_Trees_FAANG_Mermaid_Study_Guide.md",
         "Tree_Advanced_FAANG_Study_Guide.docx",
         "advanced_trees_interview_guide.md"
       ],
-      "last_processed_at": null,
-      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
-      "priority": 7
+      "last_processed_at": "2026-11-19T10:18:00-05:00",
+      "processed_sections": [
+        "Sections 1-2 merged into canonical Trees/BST cards",
+        "Sections 3-10 promoted as focused AVL, red-black, B-tree, B+ tree, heap, trie, segment-tree and Fenwick modules",
+        "Section 11 Decision Matrix — selected Markdown lines 1167-1187 / corroborating DOCX Pandoc lines 1559-1586; requirement contract, four worked traces, six diagrams and executable selector/top-K contracts"
+      ],
+      "last_successful_commit": "98346cf4a199405d0beed35cf8acf45f6153fd80",
+      "validation": "The 68,775-byte selected Markdown source was refreshed at SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1. The corroborating DOCX passed ZIP integrity at SHA-256 fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f and carries the same Section 11 matrix at Pandoc lines 1559-1586. Current Java SE 25, PostgreSQL 18 and original Fenwick references were verified. TreeDecisionContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch. Reader validation passed exact 12,368-byte Markdown recovery at SHA-256 ab744b4913199cdb47bca058e450122122719ac34538eb3491e0fec29dac1e1f, 20 unique IDs, 10 search entries, 10 resolved fragments, one resolved relative link, 16 fence markers, six Mermaid sources, JavaScript syntax and deterministic HTML SHA-256 30e1fe8ca6545d67392bbd25dce925c467b79244f39b5c39caed26839ebee3e6. Content commit 98346cf4a199405d0beed35cf8acf45f6153fd80. The shared reader builder lacked Python markdown; focused Pandoc build succeeded. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+      "next_action": "Re-evaluate fair-domain rotation; when advanced trees returns, process Section 12 FAANG Problem Ladder at selected source lines 1188-1316 / corroborating DOCX Pandoc lines 1587-1791 only.",
+      "priority": 7,
+      "source_revision": {
+        "selected_library_file_id": "libfile_7346abf23a3c81918843c9a9f5b5d80f",
+        "selected_file_id": "file_000000004d3081fd9e4ce3b364d10d49",
+        "selected_sha256": "86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1",
+        "compared_library_file_id": "libfile_b71f27c80d4c81918c672303add6bfb5",
+        "compared_file_id": "file_00000000b2ec820894a863ce6d23cb44",
+        "compared_sha256": "fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f",
+        "canonical_markdown_sha256_after": "ab744b4913199cdb47bca058e450122122719ac34538eb3491e0fec29dac1e1f"
+      }
     },
     {
       "id": "ai-foundations-rag-cag",
@@ -1361,14 +1385,15 @@
     "DSA Arrays Section 19 Revision Sheet: twenty invariant/proof hooks, four traced pattern rehearsals, six diagrams, speaking script, deliberate-practice ladder and four independent executable oracles",
     "DSA Arrays Section 20 Further Reading and Practice: ten evidence/failure gates, four timed pattern traces, five diagrams, current primary contracts and four independent executable oracles",
     "DSA Arrays externally cross-checked additions: five verification obligations, four worked traces, six diagrams and four independent executable oracles; selected Markdown and DOCX sources exhausted",
-    "AI employment impact Section 1: evidence taxonomy, seven-field claim requirement, four worked traces, five diagrams and executable evidence contracts"
+    "AI employment impact Section 1: evidence taxonomy, seven-field claim requirement, four worked traces, five diagrams and executable evidence contracts",
+    "Advanced trees Section 11 Decision Matrix: requirement-first gate, four worked traces, six diagrams and executable selector/top-K contracts"
     ],
-  "processed_section": "AI employment impact Section 1, source lines 16-56; Sections 2-10 remain queued",
-  "validation": "The confirmed AI employment source was refreshed at SHA-256 32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8. Java 21 source launch passed 20 groups, 20,000 seeded trials and 80,000 evidence checks. Reader validation passed exact 12,865-byte recovery, SHA-256 fcd6dee2abcd80cc6d1e71ba64831833851e3b27c091ca67f39cbbd0b60f1eec, 29 unique IDs, four search entries, 20 resolved fragments, zero relative links, 16 fences, five Mermaid sources, JavaScript syntax and deterministic HTML SHA-256 e826edbe1380b698b705b5ca52e8ac892168035affd237ef3cd83c0542685cc1. Content commit fdd2b729e0cbf50fe2aa6578436f05810ddb1a19. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+  "processed_section": "Advanced trees Section 11 Decision Matrix, selected source lines 1167-1187 / corroborating DOCX Pandoc lines 1559-1586; Sections 12-15 remain queued",
+  "validation": "The selected advanced-trees source was refreshed at SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1 and the corroborating DOCX at SHA-256 fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f. Java 21 source launch passed 20 groups, 20,000 seeded trials and 80,000 checks. Reader validation passed exact 12,368-byte recovery, SHA-256 ab744b4913199cdb47bca058e450122122719ac34538eb3491e0fec29dac1e1f, 20 unique IDs, 10 search entries, 10 resolved fragments, one relative link, 16 fences, six Mermaid sources, JavaScript syntax and deterministic HTML SHA-256 30e1fe8ca6545d67392bbd25dce925c467b79244f39b5c39caed26839ebee3e6. Content commit 98346cf4a199405d0beed35cf8acf45f6153fd80. The shared reader builder lacked Python markdown; focused Pandoc build succeeded. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
   "estimated_next_tokens": 6000,
   "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section; no reliable account-quota telemetry was exposed.",
-  "last_successful_commit": "fdd2b729e0cbf50fe2aa6578436f05810ddb1a19",
-  "last_processed_at": "2026-11-19T09:17:12-05:00",
-  "next_batch_decision": "AI employment-impact Section 1 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair-domain rotation; when this AI source returns, Section 2 at lines 58-83 is the exact continuation."
+  "last_successful_commit": "98346cf4a199405d0beed35cf8acf45f6153fd80",
+  "last_processed_at": "2026-11-19T10:18:00-05:00",
+  "next_batch_decision": "Advanced-trees Section 11 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair-domain rotation; when this DSA source returns, Section 12 at selected lines 1188-1316 is the exact continuation."
   }
 }
