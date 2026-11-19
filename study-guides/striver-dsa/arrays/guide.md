@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, Section 16, Section 17 Pattern Drill, Section 18 Common Array Interview Mistakes, and Section 19 Revision Sheet are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 20 remains queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, Sections 16–19, and Section 20 Further Reading and Practice are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The final Markdown-only externally cross-checked supplement remains queued.
 
 ## Study index
 
@@ -116,6 +116,14 @@
   - [Thirty-second speaking answer](#thirty-second-speaking-answer)
   - [Difficulty ladder for deliberate practice](#difficulty-ladder-for-deliberate-practice)
   - [Executable revision relay](#executable-revision-relay)
+- [20. Further Reading and Practice](#20-further-reading-and-practice)
+  - [The practice contract — evidence, not recognition](#the-practice-contract--evidence-not-recognition)
+  - [Timed lab 1 — lower bound is a boundary, not an arbitrary hit](#timed-lab-1--lower-bound-is-a-boundary-not-an-arbitrary-hit)
+  - [Timed lab 2 — exact signed sums pair prefix boundaries](#timed-lab-2--exact-signed-sums-pair-prefix-boundaries)
+  - [Timed lab 3 — window maxima retain live undominated indices](#timed-lab-3--window-maxima-retain-live-undominated-indices)
+  - [Timed lab 4 — minimize the maximum by finding first feasible capacity](#timed-lab-4--minimize-the-maximum-by-finding-first-feasible-capacity)
+  - [Final self-check as observable evidence](#final-self-check-as-observable-evidence)
+  - [Executable practice gate](#executable-practice-gate)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -10173,12 +10181,214 @@ Expected result:
 PASS groups=20 trials=20000 oracle/preservation checks=80000
 ```
 
+## 20. Further Reading and Practice
+
+A reading list is useful only when it changes what you can **produce without a hint**. This final practice section turns the source checklist into an observable gate: for each pattern, state the requirement that authorizes it, trace the invariant, write the boundary-sensitive core, and compare it with an independent oracle. The curated links remain supporting material; passing the gate requires evidence.
+
+The refreshed primary contracts sharpen two details that generic roadmaps often blur. Java's `Arrays.binarySearch` requires sorted input and returns an encoded insertion point when absent, but does not promise which duplicate occurrence is returned; a first-position requirement therefore needs an explicit lower-bound implementation. Java's `ArrayDeque` provides amortized constant-time end operations and rejects `null`, making it a suitable indexed frontier when the algorithm needs both front expiration and back domination.
+
+### The practice contract — evidence, not recognition
+
+| Source self-check | Observable passing evidence | Failure signal |
+|---|---|---|
+| distinguish subarray / subsequence / subset | classify contiguity and order before naming a pattern | using “subarray” and “subsequence” interchangeably |
+| justify a pointer move | name the sorted/monotone fact that eliminates an endpoint | “move left because the template says so” |
+| reject an invalid window | produce a signed counterexample where shrinking can lower or raise the sum | applying a positive-sum window to negatives |
+| derive prefix + hash | write `range = currentPrefix - earlierPrefix` before code | memorizing `prefix-k` without boundary meaning |
+| code lower / upper bound | use a half-open candidate interval and return an insertion boundary | stopping on any equal value when duplicates matter |
+| search an answer space | state a monotone predicate and whether the answer is first or last true | binary-searching a predicate with no monotonicity proof |
+| trace DNF / cyclic placement / deque / histogram | label zones or candidate ownership after every mutation | showing values without explaining what the structure means |
+| explain hard problems invariant-first | separate state definition, transition, terminal answer and proof | beginning with code or a memorized recurrence |
+| control Java arithmetic and mutation | widen before arithmetic and declare ownership before sorting/swapping | casting after overflow or silently reordering caller input |
+| name the brute-force bottleneck | identify the repeated scan/search/state before optimizing | giving a complexity label without a counted operation |
+
+```mermaid
+flowchart TD
+  A[Read one primary contract] --> B[Restate requirements]
+  B --> C[Trace one hostile example]
+  C --> D[Write invariant and core code]
+  D --> E[Compare with independent oracle]
+  E --> F{Can you explain every discard?}
+  F -->|No| B
+  F -->|Yes| G[Advance the ladder]
+```
+
+The four labs below deliberately span different state shapes: a candidate interval, a frequency map over boundaries, a two-ended candidate frontier, and a monotone answer predicate. Completing one does not imply the others.
+
+### Timed lab 1 — lower bound is a boundary, not an arbitrary hit
+
+**Contract.** Given a nondecreasing array that may contain duplicates, return the first index whose value is at least `target`; return `n` if no such index exists. Do not mutate the input. Target runtime is `O(log n)`.
+
+For `[1,3,3,7]`, target `3` must return `1`, while target `5` must return insertion boundary `3`. A generic equality search may return either duplicate and therefore does not satisfy this stronger contract.
+
+| step | half-open candidates `[left,right)` | `mid` / value | decision |
+|---:|---|---|---|
+| 0 | `[0,4)` | `2 / 3` | value is at least 3 → keep `[0,2)` |
+| 1 | `[0,2)` | `1 / 3` | value is at least 3 → keep `[0,1)` |
+| 2 | `[0,1)` | `0 / 1` | value is below 3 → keep `[1,1)` |
+| done | `[1,1)` | — | return boundary `1` |
+
+```mermaid
+stateDiagram-v2
+  [*] --> Candidates
+  Candidates --> Candidates: value at mid is below target / left = mid + 1
+  Candidates --> Candidates: value at mid is at least target / right = mid
+  Candidates --> Boundary: left equals right
+  Boundary --> [*]
+```
+
+```java
+static int lowerBound(int[] sorted, int target) {
+    int left = 0, right = sorted.length;
+    while (left < right) {
+        int mid = left + (right - left) / 2;
+        if (sorted[mid] >= target) right = mid;
+        else left = mid + 1;
+    }
+    return left;
+}
+```
+
+**Invariant.** Every index below `left` is known to hold a value `< target`; the first qualifying index, if one exists, remains in `[left,right)`, with `right == n` allowed as the insertion boundary. Each iteration strictly shrinks the interval, so time is `O(log n)` and auxiliary space is `O(1)`.
+
+### Timed lab 2 — exact signed sums pair prefix boundaries
+
+**Contract.** Count all nonempty contiguous subarrays of `[2,-2,2]` whose sum is `2`. Negatives and duplicates are legal; preserve the input and widen reusable sums and the result.
+
+Let current boundary value be `p`. A range ending here has sum `2` exactly when an earlier boundary equals `p-2`.
+
+| consumed value | current prefix `p` | need `p-2` | earlier frequency | count after query |
+|---:|---:|---:|---:|---:|
+| seed | 0 | — | `freq[0]=1` | 0 |
+| 2 | 2 | 0 | 1 | 1 |
+| -2 | 0 | -2 | 0 | 1 |
+| 2 | 2 | 0 | 2 | 3 |
+
+The three ranges are the first singleton, the whole array, and the last singleton. Query before inserting the current prefix; otherwise a target of zero could pair a boundary with itself and count an empty range.
+
+```mermaid
+flowchart LR
+  A[Earlier boundary q] --> B[Current boundary p]
+  B --> C[Range sum p minus q]
+  C --> D[Exact target when q equals p minus target]
+```
+
+```java
+long prefix = 0, count = 0;
+Map<Long, Long> frequency = new HashMap<>();
+frequency.put(0L, 1L);
+for (int value : values) {
+    prefix += value;
+    count += frequency.getOrDefault(prefix - target, 0L);
+    frequency.merge(prefix, 1L, Long::sum);
+}
+```
+
+Expected time is `O(n)` with expected constant-time hash operations; space is `O(n)`. The independent oracle must enumerate every `(left,right)` range rather than reuse prefix frequencies.
+
+### Timed lab 3 — window maxima retain live undominated indices
+
+**Contract.** Return every width-`2` maximum for `[4,4,2,5]`: `[4,4,5]`. Store indices, not values, because age and duplicate identity determine expiration.
+
+| right | expire from front | remove from back | deque after append | emitted max |
+|---:|---|---|---|---:|
+| 0 | — | — | `[0]` | — |
+| 1 | — | `0` (newer equal owns future) | `[1]` | 4 |
+| 2 | — | — | `[1,2]` | 4 |
+| 3 | `1` | `2` | `[3]` | 5 |
+
+```mermaid
+flowchart TD
+  A[Advance right] --> B[Expire indices outside window]
+  B --> C[Remove back indices no larger than current]
+  C --> D[Append current index]
+  D --> E[Front is current maximum]
+```
+
+An expired candidate cannot appear in any future window. A removed back candidate is older and no larger than the new value, so it can neither outlive nor beat the new candidate. Each index is appended once and removed at most once from each end: `O(n)` time and `O(k)` space.
+
+```java
+while (!deque.isEmpty() && deque.peekFirst() <= right - width) deque.removeFirst();
+while (!deque.isEmpty() && values[deque.peekLast()] <= values[right]) deque.removeLast();
+deque.addLast(right);
+```
+
+### Timed lab 4 — minimize the maximum by finding first feasible capacity
+
+**Contract.** Split `[1,2,3,4,5]` into exactly two nonempty contiguous groups while minimizing the largest group sum. Values are nonnegative; the answer is `9` from `[1,2,3] | [4,5]`.
+
+Greedy packing computes the fewest groups required for a proposed capacity. Because all values are nonnegative, any capacity that works remains feasible when increased.
+
+| capacity | greedy groups | feasible with at most 2? | next candidates |
+|---:|---:|---|---|
+| 10 | 2 | yes | `[5,10]` |
+| 7 | 3 | no | `[8,10]` |
+| 9 | 2 | yes | `[8,9]` |
+| 8 | 3 | no | answer `9` |
+
+```mermaid
+stateDiagram-v2
+  [*] --> TooSmall
+  TooSmall --> TooSmall: capacity needs more than k groups
+  TooSmall --> Feasible: first capacity needing at most k groups
+  Feasible --> Feasible: every larger capacity
+```
+
+```java
+long low = maxElement, high = totalSum;
+while (low < high) {
+    long capacity = low + (high - low) / 2;
+    if (groupsNeeded(values, capacity) <= groups) high = capacity;
+    else low = capacity + 1;
+}
+```
+
+The feasibility scan is `O(n)` and the answer search takes `O(log(sum-max+1))` iterations. The practice oracle uses exact dynamic programming over all final cut positions, not the same greedy predicate.
+
+### Final self-check as observable evidence
+
+Use a 25-minute closed-book gate rather than checking boxes from memory:
+
+1. Spend two minutes restating each lab's output, ordering, contiguity, mutation, value-domain and arithmetic contract.
+2. Spend three minutes drawing the interval, boundary map, deque or feasibility state before coding.
+3. Spend twelve minutes implementing the four cores without copying a template.
+4. Spend four minutes tracing the exact tables above, including duplicate, negative and insertion-at-`n` behavior.
+5. Spend four minutes explaining correctness and deriving cost from state changes.
+
+```mermaid
+flowchart LR
+  A[2 min contract] --> B[3 min state]
+  B --> C[12 min code]
+  C --> D[4 min hostile traces]
+  D --> E[4 min proof and cost]
+```
+
+Pass only when all four outputs match, caller arrays remain unchanged, every discard has a sentence-level proof, and the complexity follows from counted events. A failed gate identifies the next study target more precisely than another random problem list.
+
+### Executable practice gate
+
+`ArrayPracticeGateContracts.java` implements the four optimized contracts plus structurally different reference oracles: linear lower-bound scan, quadratic subarray enumeration, direct window scans, and exact split dynamic programming. Twenty deterministic groups cover duplicates, insertion boundaries, signed and zero sums, singleton/full windows, invalid contracts, one/all groups, nonnegative requirements and widened arithmetic.
+
+Then 20,000 seeded trials exercise all four mechanisms—**80,000 combined oracle/preservation checks**—while verifying that caller-owned arrays are unchanged.
+
+```bash
+java -ea study-guides/striver-dsa/arrays/ArrayPracticeGateContracts.java
+```
+
+Expected result:
+
+```text
+PASS groups=20 trials=20000 oracle/preservation checks=80000
+```
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
 - [Java Language Specification, Java SE 17, Chapter 4: Types, Values, and Variables](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — primitive values versus reference values and array reference semantics.
 - [Java SE 17 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Arrays.html) — copying, filling, comparison, sorting, and searching utilities.
 - [Java SE 25 `ArrayDeque`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayDeque.html) — resizable deque semantics and amortized constant-time end operations used by monotonic-window state.
+- [Java SE 25 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html) — current sorted-input and encoded insertion-point contract for `binarySearch`, including its deliberately unspecified duplicate occurrence.
+- [LeetCode, “Search Insert Position”](https://leetcode.com/problems/search-insert-position/) — primary sorted-distinct input, insertion-boundary result and logarithmic-runtime practice contract.
 - [LeetCode, “Maximum Average Subarray I”](https://leetcode.com/problems/maximum-average-subarray-i/) — primary exact-width, maximum-average, examples and bounds contract for the fixed-window drill.
 - [LeetCode, “Minimum Size Subarray Sum”](https://leetcode.com/problems/minimum-size-subarray-sum/) — primary positive-input, minimum-length threshold contract and linear-time follow-up.
 - [LeetCode, “Fruit Into Baskets”](https://leetcode.com/problems/fruit-into-baskets/) — primary contiguous collection and at-most-two-types contract for a frequency-budget window.
@@ -10338,9 +10548,9 @@ PASS groups=20 trials=20000 oracle/preservation checks=80000
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, Sections 16–18, and Section 19 Revision Sheet through line 5170 (heading line 5101). Section 20 follows at heading line 5174. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, Sections 16–18 on pages 107–113, and Section 19 on pages 114–115. Section 20 follows on page 116. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, Sections 16–19, and Section 20 Further Reading and Practice through line 5210 (heading line 5174). The final externally cross-checked supplement follows at heading line 5215. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, Sections 16–19 on pages 107–115, and Section 20 on page 116 through the DOCX ending. Compared as a corroborating companion rather than copied as a duplicate guide; it does not contain the Markdown-only final supplement.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4, Section 15, Sections 16–18, and Section 19 Revision Sheet are promoted through Markdown line 5170 / DOCX page 115. The wider source remains in progress: Section 20 Further Reading and Practice follows at Markdown heading line 5174 / DOCX page 116.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4, Section 15, Sections 16–19, and Section 20 Further Reading and Practice are promoted through Markdown line 5210 / DOCX page 116. The wider source remains in progress: the final externally cross-checked additions follow at Markdown heading line 5215 and have no DOCX companion.
 
 

@@ -88,6 +88,7 @@
 | Arrays §17 Pattern Drill | ✅ | ✅ | Fifteen contrastive recognition certificates, four traced diagnoses, ambiguity gate and independent rule-table oracle |
 | Arrays §18 Common Interview Mistakes | ✅ | ✅ | Ten pre-code guardrails, four traced failure clusters, executable boundaries and seven independent oracles |
 | Arrays §19 Revision Sheet | ✅ | ✅ | Twenty invariant/proof hooks, four traced pattern rehearsals, six diagrams, speaking script and four independent oracles |
+| Arrays §20 Further Reading and Practice | ✅ | ✅ | Evidence-based final gate, four timed traces, five diagrams, primary contracts and four independent oracles |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -652,5 +653,13 @@ Arrays Section 19 now promotes the complete Revision Sheet from the canonical Ma
 Java 21 source-file launch passed all 69 documented Arrays executables: 1,340 scenario groups and 1,360,000 seeded/randomized trials or comparisons. Standalone `javac` remains unavailable. The deterministic responsive reader embeds the exact 707,951 canonical Markdown bytes at SHA-256 `7b88581f93ffed9bb043c76fb157d13481eeac0d35e519390b86267ebb9ca99c`; validation found 2,519 unique HTML IDs, 115 search entries, 2,130 resolved fragment links, zero relative links, 874 balanced fence markers, 328 Mermaid sources and four script blocks. Both executable JavaScript blocks pass syntax checks. Rebuilding produced byte-identical HTML at SHA-256 `6e01ed5dc28c16867a50420c1496034a5d730dde9ac1b042ec92fb84f67224df`. Browser, assistive-technology and rendered Mermaid integration were not executed in this pass.
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; after fair-domain rotation, the next exact Arrays continuation is Section 20 Further Reading and Practice at Markdown heading line 5174 / DOCX page 116.
+
+## Arrays Further Reading and Practice enrichment — 2026-11-19 ET
+
+Arrays Section 20 now promotes Further Reading and Practice from the canonical Markdown heading at line 5174 through the final self-check at line 5210 and DOCX page 116 / DOCX end. The expanded section converts ten recognition statements into observable evidence and failure signals, then adds four timed practice labs for lower-bound boundaries, signed exact-sum prefix pairs, indexed monotonic-window maxima and first-feasible split capacity. Four exact traces, five diagrams, primary Java/problem contracts, a closed-book readiness cadence and `ArrayPracticeGateContracts` deepen the source without duplicating the complete algorithm cards. The new contract passed 20 deterministic groups plus 20,000 seeded trials against independent linear, quadratic, direct-window and exact-DP oracles—80,000 combined oracle or preservation checks.
+
+Java 21 source-file launch passed all 70 documented Arrays executables: 1,360 scenario groups and 1,380,000 seeded/randomized trials or comparisons. Standalone `javac` remains unavailable. The deterministic responsive reader embeds the exact 719,960 canonical Markdown bytes at SHA-256 `bb89073dfb6a41effee0f8e5598ba2f75f979db8d3f57863cdf697b79498dbbd`; validation found 2,559 unique HTML IDs, 123 search entries, 2,165 resolved fragment links, zero relative links, 898 balanced fence markers, 334 Mermaid sources and four script blocks. Both executable JavaScript blocks pass syntax checks. Rebuilding produced byte-identical HTML at SHA-256 `3f22a816be022ff4063f96bff7613375bd4702499930dc62224d939e50c0b9bf`. Browser, assistive-technology and rendered Mermaid integration were not executed in this pass.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; after fair-domain rotation, the next exact Arrays continuation is the final externally cross-checked additions at Markdown heading line 5215. The corroborating DOCX is exhausted through page 116.
 
 
