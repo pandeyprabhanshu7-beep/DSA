@@ -161,7 +161,10 @@
       "version_id": null,
       "modified_at": "2026-09-10T23:06:32.260101Z",
       "size_bytes": 18294,
-      "status": "DISCOVERED"
+      "status": "IN_PROGRESS",
+      "last_read_at": "2026-11-19T09:17:12-05:00",
+      "sha256": "32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8",
+      "selection": "Selected as the confirmed AI employment-impact source. Section 1, Why the headline numbers conflict, at lines 16-56 was promoted. Section 2 begins at line 58; Sections 2-10 remain queued."
     },
     {
       "name": "Take_U_Forward_Graph_Verified_Problem_Guide_v3.md",
@@ -1091,14 +1094,25 @@
       "id": "ai-employment-impact",
       "domain": "AI",
       "canonical_target": "study-guides/ai/employment-impact/",
-      "target_exists": false,
-      "status": "DISCOVERED",
+      "target_exists": true,
+      "status": "IN_PROGRESS",
       "source_names": [
         "ai_jobs_elimination_deep_research_2026.md"
       ],
-      "last_processed_at": null,
-      "next_action": "Read all matching source candidates and select latest substantive coverage; create one canonical Markdown/HTML pair after validation.",
-      "priority": 22
+      "last_processed_at": "2026-11-19T09:17:12-05:00",
+      "processed_sections": [
+        "Section 1 Why the headline numbers conflict — source lines 16-56; seven-field evidence requirement, four worked traces, five diagrams and executable evidence contracts"
+      ],
+      "last_successful_commit": "fdd2b729e0cbf50fe2aa6578436f05810ddb1a19",
+      "validation": "The confirmed 18,294-byte Library source was refreshed at SHA-256 32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8 and bounded to Section 1 lines 16-56. Current WEF, IMF, ILO, Goldman Sachs and McKinsey primary references were reconciled without relabeling exposure, work hours or multi-driver displacement as permanent AI job elimination. EmploymentEvidenceContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 evidence checks under Java 21 source-file launch. Deterministic reader validation passed exact 12,865-byte Markdown recovery at SHA-256 fcd6dee2abcd80cc6d1e71ba64831833851e3b27c091ca67f39cbbd0b60f1eec, 29 unique IDs, four search entries, 20 resolved fragments, zero relative links, 16 fence markers, five Mermaid sources and JavaScript syntax; HTML SHA-256 is e826edbe1380b698b705b5ca52e8ac892168035affd237ef3cd83c0542685cc1. Content commit fdd2b729e0cbf50fe2aa6578436f05810ddb1a19. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+      "next_action": "Re-evaluate fair-domain rotation; when AI employment impact returns, process Section 2 What is actually happening so far at source lines 58-83 only.",
+      "priority": 22,
+      "source_revision": {
+        "library_file_id": "libfile_ec5bdd926d1881918e6f8523ea1ab36a",
+        "file_id": "file_000000007bb881f5beb88da5cea75ef0",
+        "source_sha256": "32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8",
+        "canonical_markdown_sha256_after": "fcd6dee2abcd80cc6d1e71ba64831833851e3b27c091ca67f39cbbd0b60f1eec"
+      }
     },
     {
       "id": "technical-study-workflows",
@@ -1346,14 +1360,15 @@
     "DSA Arrays Section 18 Common Array Interview Mistakes: ten pre-code guardrails, four traced failure clusters, full-width and ownership checks and seven independent executable oracles",
     "DSA Arrays Section 19 Revision Sheet: twenty invariant/proof hooks, four traced pattern rehearsals, six diagrams, speaking script, deliberate-practice ladder and four independent executable oracles",
     "DSA Arrays Section 20 Further Reading and Practice: ten evidence/failure gates, four timed pattern traces, five diagrams, current primary contracts and four independent executable oracles",
-    "DSA Arrays externally cross-checked additions: five verification obligations, four worked traces, six diagrams and four independent executable oracles; selected Markdown and DOCX sources exhausted"
+    "DSA Arrays externally cross-checked additions: five verification obligations, four worked traces, six diagrams and four independent executable oracles; selected Markdown and DOCX sources exhausted",
+    "AI employment impact Section 1: evidence taxonomy, seven-field claim requirement, four worked traces, five diagrams and executable evidence contracts"
     ],
-  "processed_section": "DSA Arrays externally cross-checked additions, canonical Markdown heading line 5215 through line 5221 / source end; no DOCX counterpart",
-  "validation": "The final Arrays supplement was promoted through Markdown source end; the DOCX is exhausted at page 116. Java 21 source launch passed all 71 documented executables: 1,380 groups and 1,400,000 trials/comparisons. Reader validation passed exact 732253-byte recovery at SHA-256 960ba831299228788a385019a23b387459f21f690163ce02de66124cc81f5db5, 2599 IDs, 131 search entries, 2199 fragments, zero relative links, 924 fence markers, 340 Mermaid sources, JavaScript syntax and deterministic HTML SHA-256 1723f276c753e11b6de3b4d28b80296090b906ec1b03c45314a2e02eabf497eb. Content commit 072d3d8082d159f2c05f062ba8c84f28f718a320. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+  "processed_section": "AI employment impact Section 1, source lines 16-56; Sections 2-10 remain queued",
+  "validation": "The confirmed AI employment source was refreshed at SHA-256 32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8. Java 21 source launch passed 20 groups, 20,000 seeded trials and 80,000 evidence checks. Reader validation passed exact 12,865-byte recovery, SHA-256 fcd6dee2abcd80cc6d1e71ba64831833851e3b27c091ca67f39cbbd0b60f1eec, 29 unique IDs, four search entries, 20 resolved fragments, zero relative links, 16 fences, five Mermaid sources, JavaScript syntax and deterministic HTML SHA-256 e826edbe1380b698b705b5ca52e8ac892168035affd237ef3cd83c0542685cc1. Content commit fdd2b729e0cbf50fe2aa6578436f05810ddb1a19. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
   "estimated_next_tokens": 6000,
   "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section; no reliable account-quota telemetry was exposed.",
-  "last_successful_commit": "072d3d8082d159f2c05f062ba8c84f28f718a320",
-  "last_processed_at": "2026-11-19T04:22:00-05:00",
-  "next_batch_decision": "The final Arrays supplement is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Both selected Arrays sources are exhausted. Re-evaluate fair-domain rotation before choosing the next confirmed unprocessed source or one bounded live-placeholder section."
+  "last_successful_commit": "fdd2b729e0cbf50fe2aa6578436f05810ddb1a19",
+  "last_processed_at": "2026-11-19T09:17:12-05:00",
+  "next_batch_decision": "AI employment-impact Section 1 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair-domain rotation; when this AI source returns, Section 2 at lines 58-83 is the exact continuation."
   }
 }
