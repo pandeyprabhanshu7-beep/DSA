@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, and Section 16 through Matrix / 2D array are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The later source material remains queued.
+> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, Section 16, Section 17 Pattern Drill, and Section 18 Common Array Interview Mistakes are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. Section 19 remains queued.
 
 ## Study index
 
@@ -98,6 +98,14 @@
   - [Greedy on arrays — prove the local choice before coding](#greedy-on-arrays--prove-the-local-choice-before-coding)
   - [Hard mixed — expose the hidden state before optimizing](#hard-mixed--expose-the-hidden-state-before-optimizing)
   - [Pattern Drill — identify before solving](#pattern-drill--identify-before-solving)
+- [18. Common Array Interview Mistakes](#18-common-array-interview-mistakes)
+  - [The ten-check pre-code gate](#the-ten-check-pre-code-gate)
+  - [Worked example 1 — negatives invalidate the ordinary sum window](#worked-example-1--negatives-invalidate-the-ordinary-sum-window)
+  - [Worked example 2 — use one boundary convention from API to loop](#worked-example-2--use-one-boundary-convention-from-api-to-loop)
+  - [Worked example 3 — a swap can import unknown state](#worked-example-3--a-swap-can-import-unknown-state)
+  - [Worked example 4 — identity controls expiration and output uniqueness](#worked-example-4--identity-controls-expiration-and-output-uniqueness)
+  - [Executable guardrail toolkit](#executable-guardrail-toolkit)
+  - [Proof and review checklist](#proof-and-review-checklist)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -9777,6 +9785,187 @@ The recognizer is sound relative to its rule set because a pattern is emitted on
 
 **Follow-ups:** add weighted costs that invalidate greedy choices; require stable output after three-way partitioning; turn offline updates into online queries; remove the unique-duplicate promise from Floyd mapping; require deterministic worst-case selection; ask for a streaming median; or supply two compatible certificates and explain what additional requirement separates them.
 
+## 18. Common Array Interview Mistakes
+
+Most array failures are not syntax failures. They are **contract drift**: the implementation silently changes a precondition, boundary convention, ownership promise, arithmetic width, or output identity. The defense is to turn each likely mistake into a question that must have a concrete answer before coding.
+
+```mermaid
+flowchart TD
+  A[Read requirements] --> B[State preconditions and ownership]
+  B --> C[Choose boundary and arithmetic models]
+  C --> D[Name processed and unknown regions]
+  D --> E[State discard or update proof]
+  E --> F[Run adversarial trace and oracle]
+```
+
+### The ten-check pre-code gate
+
+| Mistake | Guard question | Safe contract | Failing probe |
+|---|---|---|---|
+| Window chosen for signed exact sums | Does moving either endpoint change the score in one predictable direction? | Use earlier-prefix frequencies when negatives destroy monotonicity | `[1,-1,1]`, target `1` has three answers |
+| Sorting destroys identity | Does the answer require original indices, encounter order, or stable ties? | Sort `(value,index)` records or a copy; otherwise preserve the input | Two Sum must return original positions |
+| Prefix off-by-one | Is a stored prefix a value index or a boundary before values? | Store `prefix[0]=0`; inclusive `[l,r]` is `prefix[r+1]-prefix[l]` | Single element `[i,i]` and full range |
+| Binary-search rule mixing | Is the live interval closed or half-open? | For lower bound, keep `[left,right)` and return `left` | Empty array, duplicate target, insertion at `n` |
+| Arithmetic overflow | What is the mathematical maximum before any Java operation occurs? | Widen an operand **before** addition or multiplication; use exact methods when wrap is forbidden | two `Integer.MAX_VALUE` values |
+| Wrong pointer after partition swap | Is the value just received at `mid` already classified? | After swapping with `high`, decrement only `high`; inspect `mid` again | `[2,0,1]` |
+| Deque stores only values | How will an expired duplicate be distinguished from a live duplicate? | Store indices; compare values through the array | `[4,4,3]`, width `2` |
+| Duplicate combinations emitted | What defines output identity: indices, values, or both? | Canonicalize values and skip equal anchors/endpoints after emission | `[-1,-1,0,1,2]` |
+| Complexity asserted but not derived | How often can one index enter, leave, or cause work? | Charge deque/pointer work to an index, binary work to a halving, and merge work to a level | Explain why the inner `while` is amortized, not nested-quadratic |
+| Code memorized without invariant | Which region/state is already correct at loop entry? | Say the invariant before the update and show preservation plus termination | Modify one surface detail and re-derive the update |
+
+The gate deliberately separates **algorithm selection** from **implementation mechanics**. A correct pattern with a mixed boundary convention is still an incorrect program.
+
+### Worked example 1 — negatives invalidate the ordinary sum window
+
+**Requirement.** Count non-empty contiguous subarrays of `[1,-1,1]` with exact sum `1`. Valid ranges are `[0,0]`, `[0,2]`, and `[2,2]`, so the result is `3`.
+
+A positive-input window would shrink when its sum becomes too large. Here that move has no discard proof: extending by `-1` decreases the sum, while removing `-1` increases it. Use boundary prefixes instead. Before consuming the next value, the frequency map contains exactly the earlier prefix boundaries.
+
+| consumed | prefix | needed `prefix-target` | earlier frequency | added answers |
+|---:|---:|---:|---:|---:|
+| — | 0 | — | seed `freq[0]=1` | 0 |
+| 1 | 1 | 0 | 1 | 1 |
+| -1 | 0 | -1 | 0 | 0 |
+| 1 | 1 | 0 | 2 | 2 |
+
+```mermaid
+flowchart LR
+  A[Earlier prefix q] --> B[Subarray sum is p minus q]
+  B --> C{q equals p minus target?}
+  C -->|Yes| D[Count its frequency]
+  C -->|No| E[Do not count]
+```
+
+```java
+Map<Long, Long> frequency = new HashMap<>();
+frequency.put(0L, 1L);
+long prefix = 0L, answer = 0L;
+for (int value : nums) {
+    prefix += value;
+    answer += frequency.getOrDefault(prefix - target, 0L);
+    frequency.merge(prefix, 1L, Long::sum);
+}
+```
+
+The seed represents the boundary before index `0`. Query before insertion prevents the current boundary from pairing with itself when `target==0`. Expected time is `O(n)` and space is `O(n)`; both the prefix and answer are `long` in the reusable contract.
+
+### Worked example 2 — use one boundary convention from API to loop
+
+Two common boundary bugs share one cure: write down what every index denotes.
+
+**Prefix query.** For `[2,-5,4,7]`, build boundary prefixes `[0,2,-3,1,8]`. The inclusive query `[1,3]` is `prefix[4]-prefix[1]=8-2=6`. A length-`n+1` prefix makes the empty prefix explicit and removes the `left==0` special case.
+
+**Lower bound.** In sorted `[1,3,3,8]`, the first position whose value is at least `3` is index `1`. Maintain a half-open live interval `[left,right)`:
+
+| `left` | `right` | `mid` | value | retained interval |
+|---:|---:|---:|---:|---|
+| 0 | 4 | 2 | 3 | `[0,2)` |
+| 0 | 2 | 1 | 3 | `[0,1)` |
+| 0 | 1 | 0 | 1 | `[1,1)`; return `1` |
+
+```mermaid
+flowchart TD
+  A[Candidate range left inclusive, right exclusive] --> B{value at mid below target?}
+  B -->|Yes| C[Discard through mid: left=mid+1]
+  B -->|No| D[Keep mid: right=mid]
+  C --> E{left equals right?}
+  D --> E
+  E -->|No| A
+  E -->|Yes| F[First value at least target]
+```
+
+The midpoint `left + (right-left)/2` stays inside the half-open interval without adding two large indices. Empty input starts and ends at `[0,0)`; a target greater than every value returns `n`, which is a valid insertion boundary but not an array element index.
+
+### Worked example 3 — a swap can import unknown state
+
+Sort `[2,0,2,1,1,0]` in one pass with four regions:
+
+- `[0,low)` contains only `0`;
+- `[low,mid)` contains only `1`;
+- `[mid,high]` is unknown;
+- `(high,n)` contains only `2`.
+
+| step | array | `low` | `mid` | `high` | action |
+|---:|---|---:|---:|---:|---|
+| 0 | `[2,0,2,1,1,0]` | 0 | 0 | 5 | swap `mid,high`; do not advance `mid` |
+| 1 | `[0,0,2,1,1,2]` | 0 | 0 | 4 | swap `low,mid`; both advance |
+| 2 | `[0,0,2,1,1,2]` | 1 | 1 | 4 | swap `low,mid`; both advance |
+| 3 | `[0,0,2,1,1,2]` | 2 | 2 | 4 | swap `mid,high`; inspect imported `1` |
+| 4 | `[0,0,1,1,2,2]` | 2 | 2 | 3 | `1`: advance `mid` |
+| 5 | `[0,0,1,1,2,2]` | 2 | 3 | 3 | `1`: advance `mid`; done |
+
+```mermaid
+flowchart LR
+  Z[zeros: 0 to low) --> O[ones: low to mid)
+  O --> U[unknown: mid to high]
+  U --> T[twos: (high to n)]
+```
+
+When `nums[mid]==2`, the swapped-in value came from the unknown region, so advancing `mid` could skip an unclassified `0` or `1`. Each iteration shrinks the unknown region, giving `O(n)` time and `O(1)` auxiliary space. The reusable wrapper validates the `{0,1,2}` domain before mutating so invalid input cannot leave a partially partitioned array.
+
+### Worked example 4 — identity controls expiration and output uniqueness
+
+**Window maximum.** For `[4,4,3]`, width `2`, values alone cannot reveal which `4` expires. Store indices in decreasing-value order. Equal incoming values may remove the older equal index because the newer one lives at least as long.
+
+| right | window | deque indices after repair | emitted maximum |
+|---:|---|---|---:|
+| 0 | — | `[0]` | — |
+| 1 | `[0,1]` | `[1]` | 4 |
+| 2 | `[1,2]` | `[1,2]` | 4 |
+
+```mermaid
+flowchart TD
+  A[Advance right] --> B[Expire indices at front]
+  B --> C[Remove dominated indices at back]
+  C --> D[Append current index]
+  D --> E[Front index owns maximum]
+```
+
+Each index is appended once and removed at most once from each end, so the apparently nested loops total `O(n)` operations, not `O(nk)`.
+
+**3Sum output.** For `[-1,-1,0,1,2]`, distinct index triples can describe the same value triple. The required value-set output is `[[-1,-1,2],[-1,0,1]]`. Sort a copy to preserve caller order, skip equal anchors, and after emitting a triple skip equal left and right values. Widen before summing: `(long)a+b+c`. Sorting costs `O(n log n)`, the anchor/two-pointer scan costs `O(n^2)`, and the result contains no duplicate value triples.
+
+### Executable guardrail toolkit
+
+`ArrayMistakeGuardContracts.java` keeps the guardrails reusable rather than hiding them inside prose. It contains:
+
+- signed exact-sum prefix frequencies;
+- an immutable `long` prefix-range object;
+- a half-open lower bound;
+- validated Dutch National Flag partitioning;
+- an index-based monotonic deque;
+- preservation-safe, duplicate-free 3Sum; and
+- a widened two-pointer container-area check.
+
+The non-mutating methods are tested for input preservation. The partition method is intentionally mutating and validates its domain before the first swap. Twenty deterministic groups cover official examples, empty extended contracts, duplicates, invalid arguments, imported partition state, and `int`-overflow probes. Then 20,000 seeded trials compare seven optimized methods with independent scan, sort, cubic, or all-pairs oracles: **140,000 oracle/preservation checks**.
+
+Run the source directly on Java 21:
+
+```bash
+java -ea study-guides/striver-dsa/arrays/ArrayMistakeGuardContracts.java
+```
+
+Expected result:
+
+```text
+PASS groups=20 trials=20000 oracle/preservation checks=140000
+```
+
+### Proof and review checklist
+
+Before submitting, answer these aloud:
+
+1. **Precondition:** What monotonicity, sortedness, value domain, or uniqueness promise makes the algorithm legal?
+2. **Ownership:** Which inputs may be reordered or mutated, and which outputs must retain original indices or stable order?
+3. **Boundary:** Does each index denote an element or a boundary? Is the live interval consistently closed or half-open?
+4. **Arithmetic:** What is the largest mathematical intermediate, and was widening performed before the risky operation?
+5. **Invariant:** Which region/state is already correct, which region remains unknown, and why does the update preserve that claim?
+6. **Discard proof:** Why can the removed pointer, half, candidate, or duplicate never contribute a new answer?
+7. **Complexity charge:** Is work charged to an index once, a halving step, a merge level, or an output item?
+8. **Adversarial trace:** Did the solution handle empty/one-element extended contracts, all equal values, duplicates, negative values, and full-width arithmetic where applicable?
+
+If any answer is vague, the implementation is not ready. The invariant is the durable knowledge; memorized pointer movements are only its consequence.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -9942,9 +10131,9 @@ The recognizer is sound relative to its rule set because a pattern is emitted on
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 and Section 17 Pattern Drill through line 5073 (heading line 5055 in the canonical checkpoint). Common Array Interview Mistakes follows at line 5077. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 and Section 17 Pattern Drill on pages 107-112. Common Array Interview Mistakes follows on page 113. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, Section 16, Section 17 Pattern Drill, and Section 18 Common Array Interview Mistakes through line 5097 (heading line 5077). Section 19 follows at heading line 5101. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, Section 16 and Section 17 Pattern Drill on pages 107-112, and Section 18 on page 113. Section 19 follows on page 114. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4, Section 15, Section 16 and Section 17 Pattern Drill are promoted through Markdown line 5073 / DOCX page 112. The wider source remains in progress: Common Array Interview Mistakes follows at Markdown line 5077 / DOCX page 113.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4, Section 15, Section 16, Section 17 Pattern Drill, and Section 18 Common Array Interview Mistakes are promoted through Markdown line 5097 / DOCX page 113. The wider source remains in progress: Section 19 Revision Sheet follows at Markdown heading line 5101 / DOCX page 114.
 
 

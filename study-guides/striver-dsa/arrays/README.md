@@ -72,6 +72,7 @@ java -ea study-guides/striver-dsa/arrays/SortingSelectionDivideConquerContracts.
 java -ea study-guides/striver-dsa/arrays/GreedyArrayPatternContracts.java
 java -ea study-guides/striver-dsa/arrays/HardMixedPatternContracts.java
 java -ea study-guides/striver-dsa/arrays/PatternRecognitionDrillContracts.java
+java -ea study-guides/striver-dsa/arrays/ArrayMistakeGuardContracts.java
 ```
 
 Rebuild the reader:
@@ -80,6 +81,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, Section 16, and Section 17 Pattern Drill are promoted. Later source material remains queued from Section 18 Common Array Interview Mistakes.
+This is an incremental guide. Source Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, Section 16, Section 17 Pattern Drill, and Section 18 Common Array Interview Mistakes are promoted. Later source material remains queued from Section 19 Revision Sheet.
 
 
