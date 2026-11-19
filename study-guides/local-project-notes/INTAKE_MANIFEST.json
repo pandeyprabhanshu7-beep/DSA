@@ -864,8 +864,8 @@
     }
   ],
   "next_batch": {
-    "source": "Fair-domain confirmed intake; advanced-trees continuation remains exact",
-    "section": "Re-read the current queue; when advanced trees returns, process Section 12 at selected source lines 1188-1316 only",
+    "source": "Fair-domain confirmed intake; AI employment continuation remains exact",
+    "section": "Re-read the current queue; when AI employment impact returns, process Section 3 at source lines 85-98 only",
     "status": "SELECTION_REQUIRED",
     "estimated_tokens": 6000,
     "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section. No weekly/hourly quota telemetry was exposed.",
@@ -991,18 +991,18 @@
     "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section; no reliable quota percentages were exposed"
   },
   "ai_employment_impact_intake_checkpoint": {
-    "last_processed_at": "2026-11-19T09:17:12-05:00",
+    "last_processed_at": "2026-11-19T11:00:36-05:00",
     "source_library_file_id": "libfile_ec5bdd926d1881918e6f8523ea1ab36a",
     "source_file_id": "file_000000007bb881f5beb88da5cea75ef0",
     "source_sha256": "32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8",
-    "canonical_markdown_sha256": "fcd6dee2abcd80cc6d1e71ba64831833851e3b27c091ca67f39cbbd0b60f1eec",
-    "processed": "Section 1 Why the headline numbers conflict at source lines 16-56; Sections 2-10 remain queued",
+    "canonical_markdown_sha256": "0d2e7f273a0fcd5ab2ca7c2c9d01903bceb710ad03eccb0882ee220e43ddf014",
+    "processed": "Sections 1-2 at source lines 16-83; latest bounded range is Section 2 What is actually happening so far at lines 58-83; Sections 3-10 remain queued",
     "status": "IN_PROGRESS",
-    "validation": "The confirmed Library source was refreshed and bounded to one section. EmploymentEvidenceContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 evidence checks under Java 21 source-file launch. Deterministic reader validation passed exact 12,865-byte Markdown recovery at SHA-256 fcd6dee2abcd80cc6d1e71ba64831833851e3b27c091ca67f39cbbd0b60f1eec, 29 unique IDs, four search entries, 20 resolved fragments, zero relative links, 16 fence markers, five Mermaid sources and JavaScript syntax; HTML SHA-256 is e826edbe1380b698b705b5ca52e8ac892168035affd237ef3cd83c0542685cc1. The live placeholder audit remains 170.",
-    "content_commit": "fdd2b729e0cbf50fe2aa6578436f05810ddb1a19",
-    "next_section": "Re-evaluate fair-domain rotation; when this source returns, process Section 2 What is actually happening so far at lines 58-83",
-    "estimated_next_tokens": 7000,
-    "estimate_method": "Heuristic reserve for one bounded Section 2 source review, primary-reference verification, worked traces, executable contracts, reader synchronization and checkpoint overhead; no reliable account-quota telemetry was exposed"
+    "validation": "The confirmed Library source was refreshed and bounded to Section 2 lines 58-83. Current Yale Budget Lab, Stanford SIEPR and New York Fed evidence, including 2026 official updates, was kept within its scale and denominator. EmploymentEvidenceContracts and ObservedLaborEvidenceContracts each passed 20 deterministic groups, 20,000 seeded trials and 80,000 evidence checks under Java 21 source-file launch. Deterministic reader validation passed exact 26,064-byte Markdown recovery at SHA-256 0d2e7f273a0fcd5ab2ca7c2c9d01903bceb710ad03eccb0882ee220e43ddf014, 48 unique IDs, five search entries, 37 resolved fragments, zero relative links, 32 fence markers, ten Mermaid sources and JavaScript syntax; HTML SHA-256 is c2d883ffe09b0291a92120d37aa2700b00125949170305fbe4e103bee1307e9b. The live placeholder audit remains 170.",
+    "content_commit": "2c1446326f291999fd25d82d6cc3446aade624ba",
+    "next_section": "Re-evaluate fair-domain rotation; when this source returns, process Section 3 Why I use 30-80 million as a central 2030 gross-elimination range at lines 85-98",
+    "estimated_next_tokens": 8000,
+    "estimate_method": "Heuristic reserve for one bounded Section 3 source review, primary-reference verification, synthesis-range audit, worked traces, executable contracts, reader synchronization and checkpoint overhead; no reliable account-quota telemetry was exposed"
   },
   "advanced_trees_intake_checkpoint": {
     "last_processed_at": "2026-11-19T10:18:00-05:00",
