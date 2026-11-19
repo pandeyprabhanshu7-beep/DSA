@@ -75,6 +75,7 @@ java -ea study-guides/striver-dsa/arrays/PatternRecognitionDrillContracts.java
 java -ea study-guides/striver-dsa/arrays/ArrayMistakeGuardContracts.java
 java -ea study-guides/striver-dsa/arrays/ArrayRevisionSheetContracts.java
 java -ea study-guides/striver-dsa/arrays/ArrayPracticeGateContracts.java
+java -ea study-guides/striver-dsa/arrays/ArrayCrossCheckContracts.java
 ```
 
 Rebuild the reader:
@@ -83,6 +84,6 @@ Rebuild the reader:
 python3 study-guides/striver-dsa/arrays/build_reader.py
 ```
 
-This is an incremental guide. Source Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, Sections 16–19, and Section 20 Further Reading and Practice are promoted. The final Markdown-only externally cross-checked supplement remains queued.
+The selected Arrays source pair is exhausted. Source Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, Sections 16–20, and the final Markdown-only externally cross-checked supplement are promoted. The wider collection and its placeholder backlog remain incomplete.
 
 

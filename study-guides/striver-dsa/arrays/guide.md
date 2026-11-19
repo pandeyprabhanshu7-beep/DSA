@@ -1,6 +1,6 @@
 # Arrays — FAANG Deep Study Guide
 
-> **Incremental status:** Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, Sections 16–19, and Section 20 Further Reading and Practice are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared and corroborates these ranges. The final Markdown-only externally cross-checked supplement remains queued.
+> **Incremental status:** The selected Arrays source pair is exhausted: Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques, Sections 16–19, Section 20, and the final Markdown-only cross-check supplement are processed. The canonical Markdown workbook is the structural source; its expanded Word companion was compared through page 116 / its end and does not contain the final supplement. This source-pair milestone does not complete the wider collection or its placeholder backlog.
 
 ## Study index
 
@@ -124,6 +124,14 @@
   - [Timed lab 4 — minimize the maximum by finding first feasible capacity](#timed-lab-4--minimize-the-maximum-by-finding-first-feasible-capacity)
   - [Final self-check as observable evidence](#final-self-check-as-observable-evidence)
   - [Executable practice gate](#executable-practice-gate)
+- [Externally cross-checked additions](#externally-cross-checked-additions)
+  - [Cross-check gate — five claims, five obligations](#cross-check-gate--five-claims-five-obligations)
+  - [Example 1 — classify the selected positions before optimizing](#example-1--classify-the-selected-positions-before-optimizing)
+  - [Example 2 — a pointer move is an elimination proof](#example-2--a-pointer-move-is-an-elimination-proof)
+  - [Example 3 — widen before arithmetic and declare ownership](#example-3--widen-before-arithmetic-and-declare-ownership)
+  - [Example 4 — store deque indices when age and identity matter](#example-4--store-deque-indices-when-age-and-identity-matter)
+  - [Complexity claims need a counted event](#complexity-claims-need-a-counted-event)
+  - [Executable cross-check contracts](#executable-cross-check-contracts)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -10381,6 +10389,213 @@ Expected result:
 PASS groups=20 trials=20000 oracle/preservation checks=80000
 ```
 
+## Externally cross-checked additions
+
+The source closes with five compact reminders. They are not extra templates; they are **verification obligations** that apply across the guide. Before accepting an array solution, classify the selected positions, prove every discarded candidate, widen arithmetic before the operation, declare whether caller-owned storage may change, and justify cost from counted work. The sorting and searching tables in the Princeton Algorithms cheatsheet are a useful external reasonableness check, but a table does not replace a proof for this implementation and this input contract.
+
+### Cross-check gate — five claims, five obligations
+
+| Claim in a solution | Obligation before the claim is credible | Adversarial probe |
+|---|---|---|
+| “This is a subarray problem” | selected indices form one interval `[left,right]` | can an omitted middle position still be selected? |
+| “Move this pointer” | every pair/range discarded by that move is impossible | which monotone or sorted fact eliminates the whole set? |
+| “`int` is enough” | bound every intermediate, not only the returned answer | do two legal `int` values overflow before assignment? |
+| “The input is unchanged” | no sort, swap, overwrite, or alias mutation touches caller storage | does a second observer see reordered components? |
+| “The loop is linear” | each element has a constant amortized charge | can an index be appended or removed more than once? |
+
+```mermaid
+flowchart TD
+  A[Proposed array pattern] --> B{Positions classified?}
+  B -->|No| C[State interval, order, or membership]
+  B -->|Yes| D{Discards proved?}
+  D -->|No| E[Name eliminating fact]
+  D -->|Yes| F{Arithmetic and ownership safe?}
+  F -->|No| G[Widen or copy before mutation]
+  F -->|Yes| H[Count operations and validate]
+```
+
+The order matters. Complexity is not useful if the algorithm solves a subsequence problem when the contract asks for a contiguous range, and a correct mathematical recurrence is not a correct Java implementation if an intermediate already overflowed.
+
+### Example 1 — classify the selected positions before optimizing
+
+For `values = [2,-1,3]`, these three selections use the same values but express different contracts:
+
+| selection | indices | classification | property preserved |
+|---|---|---|---|
+| `[2,-1]` | `[0,1]` | subarray | order and contiguity |
+| `[2,3]` | `[0,2]` | subsequence | order, but not contiguity |
+| `{3,2}` | `{2,0}` | subset | membership only; order is irrelevant |
+
+```mermaid
+flowchart TD
+  A[Choose array positions] --> B{Must they be contiguous?}
+  B -->|Yes| C[Subarray: one interval]
+  B -->|No| D{Must order be preserved?}
+  D -->|Yes| E[Subsequence]
+  D -->|No| F[Subset]
+```
+
+That distinction chooses the state. An exact-sum **subarray** can be expressed by two prefix boundaries because every contiguous interval satisfies
+
+`sum(left..right) = prefix(right + 1) - prefix(left)`.
+
+For target `1`, the contiguous answer `[2,-1]` is found when the current prefix is `1` and an earlier prefix `0` exists. A subset solver is not an acceptable oracle: it could select positions `0` and `2`, crossing the omitted middle component.
+
+```java
+long prefix = 0L, count = 0L;
+Map<Long, Long> frequency = new HashMap<>();
+frequency.put(0L, 1L);                 // boundary before index 0
+for (int value : values) {
+    prefix += value;
+    count += frequency.getOrDefault(prefix - target, 0L);
+    frequency.merge(prefix, 1L, Long::sum);
+}
+```
+
+The state stores boundaries, not chosen elements. Querying `prefix - target` proves contiguity because the two boundaries delimit exactly one interval. Expected time is `O(n)` under the hash-table assumption and space is `O(n)`; the executable oracle instead enumerates every `(left,right)` interval.
+
+### Example 2 — a pointer move is an elimination proof
+
+Given sorted `[1,2,4,7,11]` and target `9`, a two-pointer move must explain which candidates disappear:
+
+| step | `left` / value | `right` / value | widened sum | certified elimination |
+|---:|---|---|---:|---|
+| 0 | `0 / 1` | `4 / 11` | 12 | too large; every pair using `11` and an index at least `left` is at least 12, so discard index 4 |
+| 1 | `0 / 1` | `3 / 7` | 8 | too small; every pair using `1` and an index at most `right` is at most 8, so discard index 0 |
+| 2 | `1 / 2` | `3 / 7` | 9 | match `(1,3)` |
+
+```mermaid
+flowchart TD
+  A[Sorted candidates left through right] --> B{sum versus target}
+  B -->|Too small| C[Discard left and all its remaining pairs]
+  B -->|Too large| D[Discard right and all its remaining pairs]
+  B -->|Equal| E[Return pair]
+```
+
+```java
+while (left < right) {
+    long sum = (long) sorted[left] + sorted[right];
+    if (sum == target) return true;
+    if (sum < target) left++;
+    else right--;
+}
+```
+
+The sorted precondition is doing the proof work. Without nondecreasing order, `sum < target` says nothing about all other partners of `sorted[left]`, so incrementing `left` could discard a valid pair. Each move permanently removes one endpoint, giving `O(n)` time and `O(1)` auxiliary space. The executable cross-check compares the result with all `i < j` pairs and rejects unsorted input rather than silently applying an invalid pattern.
+
+### Example 3 — widen before arithmetic and declare ownership
+
+For `[Integer.MAX_VALUE, 1, -Integer.MAX_VALUE]`, the mathematical prefix boundaries are
+
+| boundary | mathematical sum | stored as `long` |
+|---:|---:|---:|
+| 0 | 0 | 0 |
+| 1 | 2,147,483,647 | 2,147,483,647 |
+| 2 | 2,147,483,648 | 2,147,483,648 |
+| 3 | 1 | 1 |
+
+An `int` accumulator wraps at boundary 2. Casting the already-overflowed result is too late:
+
+```java
+long wrong = (long) (leftInt + rightInt); // addition happened as int
+long safe  = (long) leftInt + rightInt;   // first operand widened first
+```
+
+Java integer addition does not throw merely because it overflows; the low-order bits are retained. Therefore sums, products, prefix totals, rectangle areas, counts, and binary-search bounds need a range argument. Use `long` when legal `int` inputs can produce an intermediate outside the `int` range, and use an exact operation or a wider mathematical oracle when even `long` is not proven sufficient.
+
+Arithmetic and mutation are separate contracts. `Arrays.sort(values)` changes the caller-visible array because the parameter and caller may reference the same object. If reordering is forbidden, copy first:
+
+```java
+int[] ordered = values.clone();
+Arrays.sort(ordered);
+```
+
+```mermaid
+flowchart TD
+  A[Operation on caller array] --> B{May it mutate?}
+  B -->|No| C[Clone before sort, swap, or marking]
+  B -->|Yes| D[Document in-place postcondition]
+  C --> E{Intermediate range proved?}
+  D --> E
+  E -->|No| F[Widen before the operation]
+  E -->|Yes| G[Execute and test aliases]
+```
+
+The executable prefix contract returns a new `long[]`, compares it with a `BigInteger` accumulation oracle, and verifies byte-for-byte that the input components remain unchanged.
+
+### Example 4 — store deque indices when age and identity matter
+
+For `[5,5,1]` with width `2`, the maxima are `[5,5]`. Values alone cannot identify which `5` expires when the window advances. Indices encode both value and age:
+
+| `right` | front expiry | back domination | deque after append | output |
+|---:|---|---|---|---:|
+| 0 | none | none | `[0]` | — |
+| 1 | none | remove `0` because newer equal `1` survives longer | `[1]` | 5 |
+| 2 | none (`1 > 0`) | none | `[1,2]` | 5 |
+
+```java
+while (!deque.isEmpty() && deque.peekFirst() <= right - width) {
+    deque.removeFirst();
+}
+while (!deque.isEmpty() && values[deque.peekLast()] <= values[right]) {
+    deque.removeLast();
+}
+deque.addLast(right);
+```
+
+```mermaid
+flowchart TD
+  A[New index] --> B[Expire front indices outside window]
+  B --> C[Remove back indices no larger than new value]
+  C --> D[Append new index]
+  D --> E[Front owns maximum]
+```
+
+The front-removal proof uses age; the back-removal proof uses dominance. An older value no larger than the new one cannot beat the new value and expires earlier, so it can never again own a maximum. Keeping indices also preserves original-position information for answers that request boundaries rather than values. `ArrayDeque<Integer>` is appropriate here because the algorithm needs constant-amortized end operations; it is not a license to call its linear-time occurrence-removal methods inside the scan.
+
+### Complexity claims need a counted event
+
+External tables are best used as a warning light. If a custom comparison sort is claimed worst-case `O(n)` or unsorted binary search is claimed `O(log n)`, revisit the contract. Then prove the actual code from its charged events:
+
+| mechanism | charged event | maximum charge |
+|---|---|---:|
+| two pointers | discard one endpoint | `n` endpoint discards |
+| prefix + frequency map | query and insert one boundary | `n + 1` boundaries, expected `O(1)` map operations |
+| indexed monotonic deque | append/remove an index | one append and at most one removal per end per index |
+| binary search | halve the candidate interval | `ceil(log2(range size))` iterations |
+| comparison sorting | compare keys across levels/partitions | algorithm-dependent; use its proved worst/average case |
+
+```mermaid
+flowchart LR
+  A[One input index] --> B[Append once]
+  B --> C[Remove at most once]
+  C --> D[Constant amortized charge]
+  D --> E[All indices give linear total]
+```
+
+This accounting separates worst-case, expected, and amortized statements. Hash-table lookup is normally an expected-cost claim; deque linearity is amortized over the whole scan; a balanced binary search is worst-case logarithmic because the interval shrinks geometrically. State the qualifier rather than collapsing all three into “fast.”
+
+### Executable cross-check contracts
+
+`ArrayCrossCheckContracts.java` turns the five closing reminders into four runnable contracts:
+
+1. exact contiguous-range counting with widened prefix boundaries;
+2. sorted two-pointer search with a proof-bearing endpoint discard;
+3. copy-producing `long` prefix sums checked through `BigInteger`;
+4. indexed monotonic-deque maxima with duplicate ownership and expiry.
+
+Twenty deterministic groups cover empty and singleton extensions, signed and zero ranges, duplicate pair candidates, full-width sums, caller ownership, equal deque candidates, full-width windows and invalid preconditions. Then 20,000 seeded trials compare all four optimized mechanisms with quadratic interval/pair enumeration, `BigInteger` accumulation and direct window scans while checking preservation—**80,000 oracle/preservation checks**.
+
+```bash
+java -ea study-guides/striver-dsa/arrays/ArrayCrossCheckContracts.java
+```
+
+Expected result:
+
+```text
+PASS groups=20 trials=20000 oracle/preservation checks=80000
+```
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -10497,6 +10712,8 @@ PASS groups=20 trials=20000 oracle/preservation checks=80000
 - [Java SE 17 `java.util.ArrayDeque`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/ArrayDeque.html) — resizable deque behavior, null prohibition, and amortized constant-time end operations.
 - [Java Language Specification, Java SE 17, Chapter 5](https://docs.oracle.com/javase/specs/jls/se17/html/jls-5.html) — boxing/unboxing and numeric-promotion rules behind object equality and cast-before-arithmetic guidance.
 - [Java Language Specification, Java SE 25, §15.18.2](https://docs.oracle.com/javase/specs/jls/se25/html/jls-15.html#jls-15.18.2) — numeric addition/subtraction and binary-promotion rules; problems 42 and 44 retain a `long` operand so endpoint and balance arithmetic is performed at 64-bit precision.
+- [Java SE 25 `ArrayDeque`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/ArrayDeque.html) — current resizable-deque, null prohibition and amortized constant-time end-operation contract used by the final indexed-window cross-check.
+- [Princeton Algorithms, 4th Edition, “Algorithms and Data Structures Cheatsheet”](https://algs4.cs.princeton.edu/cheatsheet/) — external comparison tables for classic sorting, searching and asymptotic growth; used as a reasonableness check, not as a substitute for an implementation-specific proof.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — `max`/`min` contracts and exact-arithmetic alternatives when overflow must raise instead of being prevented by widening.
 - [Java SE 25 `java.util.Arrays`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/Arrays.html) — the range-`fill` contract corresponding to the suffix-clear phase; the guide uses an explicit loop so assignment evidence is observable.
 - [LeetCode, “Move Zeroes”](https://leetcode.com/problems/move-zeroes/) — primary problem statement for stable in-place zero movement.
@@ -10548,9 +10765,9 @@ PASS groups=20 trials=20000 oracle/preservation checks=80000
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, Sections 16–19, and Section 20 Further Reading and Practice through line 5210 (heading line 5174). The final externally cross-checked supplement follows at heading line 5215. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, Sections 16–20, and the final externally cross-checked additions at lines 5215–5221 / source end. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged. This selected source is exhausted.
 - `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, Sections 16–19 on pages 107–115, and Section 20 on page 116 through the DOCX ending. Compared as a corroborating companion rather than copied as a duplicate guide; it does not contain the Markdown-only final supplement.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4, Section 15, Sections 16–19, and Section 20 Further Reading and Practice are promoted through Markdown line 5210 / DOCX page 116. The wider source remains in progress: the final externally cross-checked additions follow at Markdown heading line 5215 and have no DOCX companion.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. The selected Markdown is promoted through line 5221 / source end; the corroborating DOCX is exhausted through page 116 / its end and has no counterpart for the final supplement. The Arrays source-pair intake is complete, but the wider study-guide collection and its live-placeholder backlog are not complete.
 
 
