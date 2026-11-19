@@ -96,6 +96,7 @@
   - [Monotonic stack / deque — discard only dominated candidates](#monotonic-stack--deque--discard-only-dominated-candidates)
   - [Sorting / selection / divide-conquer — order only the evidence the answer needs](#sorting--selection--divide-conquer--order-only-the-evidence-the-answer-needs)
   - [Greedy on arrays — prove the local choice before coding](#greedy-on-arrays--prove-the-local-choice-before-coding)
+  - [Hard mixed — expose the hidden state before optimizing](#hard-mixed--expose-the-hidden-state-before-optimizing)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -9424,6 +9425,197 @@ Independent validation deliberately avoids each optimized mechanism: quadratic r
 
 Executable evidence is in `GreedyArrayPatternContracts.java`. It supplies 20 deterministic groups across official examples, blocked frontiers, singleton and invalid inputs, circular impossibility, transitive closures, forced solo boats, filled/idle scheduler frames, signed full-width moves, preservation, and normalization. It then runs 20,000 seeded trials against independent reachability-DP, every-start circuit, partition-mask, pairing-bitmask, cooldown-state, and repeated-decrement oracles—exactly 120,000 oracle/preservation checks. Existing `JumpGameIIContracts.java`, `CandyContracts.java`, and `IntervalPatternContracts.java` retain the specialized source drills already promoted elsewhere.
 
+### Hard mixed — expose the hidden state before optimizing
+
+“Hard” is not a reusable pattern. Each drill becomes manageable only after naming the state that a local scan cannot see: an ordered prefix-pair count, the best compatible side windows, an exact frequency budget, a satisfied multiset, a histogram boundary, a fixed last action, or a tie-safe one-dimensional order. Diagnose that state before selecting a data structure.
+
+#### Requirement contract and 15-drill map
+
+| Source drill | Hidden state / reduction | Canonical coverage |
+|---|---|---|
+| Median of Two Sorted Arrays | partition with equal left-side cardinality | complete problem 32 card |
+| Trapping Rain Water | finalized smaller boundary | complete problem 10 card |
+| First Missing Positive | value-to-home-index placement | complete problem 23 card |
+| Sliding Window Maximum | undominated candidate indices | complete problem 13 card |
+| Largest Rectangle in Histogram | nearest strictly lower boundaries | complete problem 36 card |
+| Shortest Subarray with Sum at Least K | increasing prefix candidates | complete problem 37 card |
+| Split Array Largest Sum | first feasible capacity | complete problem 27 card |
+| Reverse Pairs | ordered cross-half pairs | Sorting / Selection / Divide-and-conquer section |
+| Count of Range Sum | prefix pairs whose difference lies in an interval | new executable evidence here |
+| Maximum Sum of 3 Non-Overlapping Subarrays | best left/right window around each middle | new executable evidence here |
+| Subarrays with K Different Integers | `atMost(k) - atMost(k-1)` | new executable evidence here |
+| Minimum Window Substring | covered multiset plus smallest valid boundary | new executable evidence here |
+| Maximal Rectangle | each row as a histogram base | new executable evidence here |
+| Burst Balloons | choose the **last**, not first, action in an interval | new executable evidence here |
+| Russian Doll Envelopes | width order with equal-width exclusion, then height LIS | new executable evidence here |
+
+```mermaid
+flowchart TD
+  A[Name the hidden state] --> B{Counts ordered prefix pairs?}
+  B -->|Yes| C[Merge-sort counting]
+  B -->|No| D{Contiguous frequency budget?}
+  D -->|Yes| E[Two windows or multiset window]
+  D -->|No| F[Histogram, interval DP, or sort plus LIS]
+```
+
+The first eight rows are links to already-deep cards, not invitations to copy them. The seven remaining rows share a validation file because the learning objective is pattern selection across different mechanisms.
+
+#### Ordered prefix pairs: Count of Range Sum
+
+Let `prefix[x]` be the sum before index `x`. A subarray `[i,j)` is valid when
+`lower <= prefix[j]-prefix[i] <= upper`. During merge sort, both prefix halves are ordered. For each left prefix, advance two monotonic right pointers: the first difference not below `lower`, and the first difference above `upper`. Their distance counts all valid cross pairs. Then merge the halves so the parent receives the same invariant.
+
+```java
+for (int left = lo; left < mid; left++) {
+    while (first < hi && prefix[first] - prefix[left] < lower) first++;
+    while (past  < hi && prefix[past]  - prefix[left] <= upper) past++;
+    count += past - first;
+}
+```
+
+```mermaid
+flowchart LR
+  A[Sorted left prefixes] --> B[Two monotonic right bounds]
+  B --> C[Add past minus first]
+  C --> D[Merge sorted halves]
+```
+
+**Worked example 1 — count pairs, not ranges directly.** For `[-2,5,-1]`, bounds `[-2,2]`, prefixes are `[0,-2,3,2]`. The valid ordered pairs are `(0,-2)` for `[-2]`, `(0,2)` for `[-2,5,-1]`, and `(3,2)` for `[-1]`.
+
+| right prefix | eligible earlier prefix interval `[right-upper, right-lower]` | matches | running count |
+|---:|---:|---|---:|
+| -2 | `[-4,0]` | `0` | 1 |
+| 3 | `[1,5]` | none | 1 |
+| 2 | `[0,4]` | `0,3` | 3 |
+
+Prefix values, differences, and the answer are widened to `long`; the input is preserved. Time is `O(n log n)`, auxiliary space is `O(n)`, and the recursion stack is `O(log n)`.
+
+#### Three fixed windows: make compatibility explicit
+
+Build every width-`k` window sum. `left[i]` stores the earliest maximum-sum window ending no later than `i`; `right[i]` stores the earliest maximum-sum window starting no earlier than `i`. For a middle start `m`, the only compatible candidates needed are `left[m-k]` and `right[m+k]`. Strict `>` on the left preserves the earlier tie; `>=` while scanning the right backward replaces a later tie with an earlier index.
+
+```mermaid
+flowchart LR
+  A[Best left through m-k] --> B[Middle m]
+  B --> C[Best right from m+k]
+  C --> D[Max sum; lexicographically earliest tie]
+```
+
+**Worked example 2 — tie direction is part of correctness.** For `[1,2,1,2,6,7,5,1]`, `k=2`, the window sums are `[3,3,3,8,13,12,6]`.
+
+| middle `m` | best compatible left | best compatible right | total |
+|---:|---|---|---:|
+| 2 | start 0, sum 3 | start 4, sum 13 | 19 |
+| 3 | start 0, sum 3 | start 5, sum 12 | **23** |
+| 4 | start 0, sum 3 | start 6, sum 6 | 22 |
+
+The last row shows why compatibility uses `m-k`, not `m-1`: start `3` has the tempting left sum `8` but overlaps middle start `4`, so the compatible left winner remains the earliest sum-3 window at start `0`. The answer is `[0,3,5]`. The algorithm is `O(n)` time and space and preserves the input.
+
+#### Exact distinctness is a difference of monotone budgets
+
+“Exactly `k` distinct” is not monotone under window expansion, but “at most `k`” is. Every right endpoint contributes `right-left+1` valid starts after shrinking to budget. A subarray appears in `atMost(k)` but not `atMost(k-1)` exactly when it contains `k` distinct values.
+
+```java
+long exactK = atMost(nums, k) - atMost(nums, k - 1);
+```
+
+```mermaid
+flowchart LR
+  A[Count windows with at most k] --> C[Subtract]
+  B[Count windows with at most k-1] --> C
+  C --> D[Exactly k distinct]
+```
+
+For `[1,2,1,2,3]`, `atMost(2)=12` and `atMost(1)=5`, so exactly two distinct gives `7`. Removing zero-frequency keys is essential because `map.size()` is the budget state. Time is expected `O(n)` with a hash map, space is `O(k)` inside a valid window, and the count is `long`.
+
+#### Minimum cover: track missing occurrences, not merely distinct keys
+
+Initialize `need[c]` with the target multiplicities and `missing=target.length()`. Expanding right satisfies an occurrence only when the pre-decrement need is positive. Once `missing==0`, shrink left until the next removal would make a required count positive. Record only strictly shorter windows so an extended tie policy remains earliest-start.
+
+```mermaid
+flowchart TD
+  A[Expand right; reduce missing] --> B{All target occurrences covered?}
+  B -->|No| A
+  B -->|Yes| C[Record and shrink left]
+  C --> B
+```
+
+**Worked example 3 — validity and minimality are separate phases.** For source `ADOBECODEBANC` and target `ABC`:
+
+| event | window | `missing` | action |
+|---|---|---:|---|
+| read `C` at 5 | `ADOBEC` | 0 | record length 6; removing `A` breaks cover |
+| read `A` at 10 | `DOBECODEBA` | 0 | shrink through surplus/nonrequired characters |
+| read `C` at 12 | `CODEBANC` | 0 | shrink to `BANC`, length 4 |
+| remove `B` | `ANC` | 1 | stop shrinking |
+
+The answer is `BANC`. The Java contract supports UTF-16 code units with a fixed count table; for Unicode code points, iterate `codePoints()` and preserve code-point-to-offset boundaries. Time is `O(|s|+|t|)` and auxiliary space is fixed for the selected alphabet representation.
+
+#### A binary matrix becomes one histogram per row
+
+At row `r`, `height[c]` is the number of consecutive ones ending at `(r,c)`. Every all-one rectangle has one bottom row, so running the histogram boundary algorithm at each row considers it exactly when its bottom is reached.
+
+```mermaid
+flowchart TD
+  A[Read binary row] --> B[Extend or reset column heights]
+  B --> C[Monotonic-stack histogram area]
+  C --> D[Update global maximum]
+  D --> A
+```
+
+For rows `10100`, `10111`, `11111`, `10010`, the height vectors are `[1,0,1,0,0]`, `[2,0,2,1,1]`, `[3,1,3,2,2]`, and `[4,0,0,3,0]`. On the third row, height `2` spans columns `2..4`, producing area `6`. The implementation validates rectangular binary input, preserves the matrix, and runs in `O(rows*cols)` time with `O(cols)` state.
+
+#### Interval DP: choose the last balloon
+
+Choosing the first balloon exposes changing neighbors and does not create independent subproblems. If balloon `last` is the final one burst inside interval `[left,right]`, every other balloon inside is already gone, so its neighbors are the fixed boundaries `left-1` and `right+1`. The two remaining subintervals are independent:
+
+`dp[left][right] = max(dp[left][last-1] + value[left-1]*value[last]*value[right+1] + dp[last+1][right])`.
+
+```mermaid
+flowchart TD
+  A[Interval left to right] --> B[Choose its last balloon k]
+  B --> C[Solve left interval]
+  B --> D[Solve right interval]
+  C --> E[Add fixed-boundary product]
+  D --> E
+```
+
+**Worked example 4 — the final action freezes the boundary.** For `[3,1,5,8]`, add virtual boundary ones.
+
+| interval | chosen last | subproblem value | final product | total |
+|---|---:|---:|---:|---:|
+| `[1]` between `3,5` | 1 | 0 | `3*1*5=15` | 15 |
+| `[1,5]` between `3,8` | 5 | 15 | `3*5*8=120` | 135 |
+| `[3,1,5]` between `1,8` | 3 | 135 | `1*3*8=24` | 159 |
+| whole interval, last 8 | 8 | 159 | `1*8*1=8` | **167** |
+
+Bottom-up interval width ensures every subproblem is ready. Time is `O(n^3)`, space is `O(n^2)`, products are `long`, and the caller's array is preserved.
+
+#### Two-dimensional nesting: sort to make one dimension disappear
+
+Sort envelopes by width ascending and, critically, height **descending** for equal widths. Then compute a strictly increasing LIS over heights. Descending equal-width heights ensure two envelopes with the same width cannot both enter the height LIS. Use lower bound (first tail `>= height`) so equal heights replace rather than extend.
+
+```mermaid
+flowchart LR
+  A[Sort width up] --> B[Sort equal widths height down]
+  B --> C[Strict height LIS by lower bound]
+  C --> D[Maximum nesting count]
+```
+
+For `[[5,4],[6,4],[6,7],[2,3]]`, order becomes `[[2,3],[5,4],[6,7],[6,4]]`; heights `[3,4,7,4]` have strict LIS length `3`. Sorting equal widths upward would incorrectly permit both width-6 envelopes. The implementation sorts a deep copy, runs in `O(n log n)` time, and uses `O(n)` space under the preservation contract.
+
+#### Proofs, complexity, and validation
+
+**Range-count invariant.** Before merging, each half is sorted and recursively complete; the two monotonic bounds count every cross pair exactly once. **Three-window invariant.** Each middle start is combined with the optimal compatible left and right windows, and asymmetric tie updates preserve the lexicographically earliest optimum. **Exact-budget identity.** `atMost(k)` partitions all windows by distinct count, so subtraction isolates exactly `k`. **Cover invariant.** `missing` is the number of target occurrences not yet represented; the shrink loop ends at the first indispensable left occurrence. **Matrix reduction.** Every all-one rectangle is a histogram rectangle on its unique bottom row. **Interval recurrence.** Fixing the last balloon makes the two interior sides independent with stable exterior neighbors. **Envelope reduction.** sorted widths make height the only remaining strict dimension, while descending equal-width ties prevent false chains.
+
+Independent baselines deliberately use different mechanisms: quadratic subarray-sum enumeration; cubic compatible-window enumeration; quadratic distinct-set enumeration; substring enumeration with full count comparison; rectangle enumeration; memoized burst-order search; and a dominance-DAG longest path. These oracles also verify that optimized methods do not mutate caller-owned inputs.
+
+**Common interview errors:** using `int` prefix sums; counting unordered rather than earlier/later prefix pairs; allowing side windows to overlap the middle; using the wrong strictness in left/right tie updates; attempting one nonmonotone “exactly `k`” window; counting only distinct target characters instead of duplicate occurrences; forgetting to remove zero-frequency keys; failing to reset a matrix height on zero; using `>=` versus `>` in a histogram stack without a consistent boundary proof; choosing the first Burst Balloons action as DP state; multiplying before widening; sorting equal-width envelopes by height ascending; or sorting caller-owned nested arrays despite a preservation promise.
+
+**Follow-ups:** replace merge counting with coordinate compression plus Fenwick tree; return all lexicographically tied triples; compute exactly `k` under a bounded integer alphabet; stream minimum covers; return maximal-rectangle coordinates; reconstruct one optimal balloon order; reconstruct an envelope chain; or explain which reductions still work when costs become negative, dimensions permit equality, or input arrives online.
+
+Executable evidence is in `HardMixedPatternContracts.java`. It supplies 20 deterministic groups across official examples, tie cases, full-width prefixes, empty extended contracts, multiplicities, matrices, zero balloons, equal envelopes, validation, and preservation. It then runs 20,000 seeded trials against seven independent oracles—exactly 140,000 oracle/preservation checks. The eight earlier drills remain validated by their specialized cards and `SortingSelectionDivideConquerContracts.java` rather than being reimplemented here.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -9579,12 +9771,19 @@ Executable evidence is in `GreedyArrayPatternContracts.java`. It supplies 20 det
 - [Java Language Specification, Java SE 17, Chapter 4](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html) — integer operators use 32- or 64-bit precision according to promotion and do not signal ordinary overflow.
 - [Java SE 17 `java.lang.Math`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html) — `addExact(long,long)` reports an overflow instead of silently wrapping.
 - [Boyer and Moore, “A Linear Time Majority Vote Algorithm”](https://www.cs.utexas.edu/~moore/best-ideas/mjrty/) — primary description and history of the cancellation algorithm used to produce the majority candidate.
+- [LeetCode, “Count of Range Sum”](https://leetcode.com/problems/count-of-range-sum/) — primary inclusive range-sum bounds, signed/full-width inputs, examples and current constraints for ordered prefix-pair counting.
+- [LeetCode, “Maximum Sum of 3 Non-Overlapping Subarrays”](https://leetcode.com/problems/maximum-sum-of-3-non-overlapping-subarrays/) — primary fixed-width, non-overlap, maximum-sum and lexicographically-smallest-index contract.
+- [LeetCode, “Subarrays with K Different Integers”](https://leetcode.com/problems/subarrays-with-k-different-integers/) — primary exactly-`k` distinct contiguous-subarray count, examples, current bounds and sliding-window hints.
+- [LeetCode, “Minimum Window Substring”](https://leetcode.com/problems/minimum-window-substring/) — primary duplicate-sensitive target multiset, minimum-cover contract, examples and linear-time follow-up.
+- [LeetCode, “Maximal Rectangle”](https://leetcode.com/problems/maximal-rectangle/) — primary binary-matrix maximum-area contract, examples and current bounds.
+- [LeetCode, “Burst Balloons”](https://leetcode.com/problems/burst-balloons/) — primary neighbor-product semantics, virtual boundary ones, maximum-coins result, examples and current bounds.
+- [LeetCode, “Russian Doll Envelopes”](https://leetcode.com/problems/russian-doll-envelopes/) — primary strict two-dimension nesting, no-rotation contract, examples and current bounds.
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Greedy on arrays lines 4882–5036 (heading line 5028 in the canonical checkpoint). Hard mixed follows at line 5040. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Greedy on arrays on pages 107–111. Hard mixed follows on page 111. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Hard mixed lines 4882-5051 (heading line 5040 in the canonical checkpoint). Pattern Drill follows at line 5055. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Hard mixed on pages 107-111. Pattern Drill follows on page 112. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Greedy on arrays, ending at Markdown line 5036 / DOCX page 111. The wider source remains in progress: Hard mixed follows at Markdown line 5040 / DOCX page 111.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4, Section 15 and Section 16 are fully promoted through Hard mixed, ending at Markdown line 5051 / DOCX page 111. The wider source remains in progress: Pattern Drill follows at Markdown line 5055 / DOCX page 112.
 
 

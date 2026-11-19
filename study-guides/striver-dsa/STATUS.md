@@ -84,6 +84,7 @@
 | Arrays §16 Monotonic stack / deque | ✅ | ✅ | Eleven-drill frontier map, four traced mechanisms, six diagrams and seven independent brute-force oracles |
 | Arrays §16 Sorting / selection / divide-conquer | ✅ | ✅ | Ten-drill ordered-evidence map, four traced mechanisms, six diagrams and six independent sort/permutation/quadratic/backtracking oracles |
 | Arrays §16 Greedy on arrays | ✅ | ✅ | Ten-drill proof-certificate map, four traced mechanisms, seven diagrams and six independent DP/enumeration/state-search oracles |
+| Arrays §16 Hard mixed | ✅ | ✅ | Fifteen-drill hidden-state map, four traced examples, seven optimized mechanisms and seven independent oracles |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -616,5 +617,13 @@ Arrays Section 16 now promotes its thirteenth bounded pattern family, Greedy on 
 Java 21 source-file launch passed all 65 unique Arrays executables: 1,260 scenario groups and 1,280,000 seeded/randomized oracle trials or comparisons. Standalone `javac` was unavailable. The deterministic responsive reader embeds the exact 657,137 canonical Markdown bytes at SHA-256 `b85d94136fc79e50c6039c5501509c2627820904236a8e467fd0a9976fabb50c`; validation found 2,447 unique HTML IDs, 95 unique search entries, 2,081 resolved fragment links, zero relative links, 806 balanced fence markers, 303 Mermaid sources and four script blocks. Both executable script blocks parse as JavaScript modules. Rebuilding produced byte-identical HTML at SHA-256 `f64a1b66730855ab0ac1461e592fa5e136a55e4d3a4744643a1beb422f491f9d`. Local Chromium rendering was attempted but exited 134 because its process-singleton socket was not permitted; assistive-technology and rendered Mermaid QA were unavailable.
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; after fair-domain rotation, the next exact Arrays continuation is Section 16 Hard mixed at Markdown heading line 5040 / DOCX page 111.
+
+## Arrays Hard mixed enrichment — 2026-11-18 ET
+
+Arrays Section 16 now promotes its fourteenth bounded pattern family, Hard mixed, from the canonical Markdown heading at line 5040 through the 15-drill table ending at line 5051 and DOCX page 111. The section links the first eight drills to their complete specialized cards and deepens the seven remaining mechanisms: ordered prefix-pair merge counting, compatible left/middle/right windows, exact-distinct budget subtraction, duplicate-sensitive minimum cover, row-to-histogram reduction, last-action interval DP and equal-width-safe sort plus LIS. Four detailed worked examples, exact traces and eight diagrams cover Count of Range Sum, Maximum Sum of 3 Non-Overlapping Subarrays, Minimum Window Substring and Burst Balloons, with supporting reductions for the other three. `HardMixedPatternContracts` passed 20 deterministic groups plus 20,000 seeded trials against seven independent enumeration, substring, rectangle, burst-order and dominance-DAG oracles—140,000 oracle or preservation checks.
+
+Java 21 source-file launch passed all 66 unique Arrays executables: 1,280 scenario groups and 1,300,000 seeded/randomized oracle trials or comparisons. Standalone `javac` was unavailable. The deterministic responsive reader embeds the exact 672,149 canonical Markdown bytes at SHA-256 `2165556886d899b2895a2b311bf594ec2127c805eb3f958d61449842e9c74ffe`; validation found 2,465 unique HTML IDs, 96 unique search entries, 2,088 resolved fragment links, zero relative links, 826 balanced fence markers, 311 Mermaid sources and four script blocks. Both executable script blocks parse as JavaScript modules. Rebuilding produced byte-identical HTML at SHA-256 `e9e41677a8dbbc7365c1c6d8f910dffad6a2ec7f4d4633ddd069043149d7f4be`. Browser, assistive-technology and rendered Mermaid integration were not executed in this pass.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; after fair-domain rotation, the next exact Arrays continuation is Section 17 Pattern Drill at Markdown heading line 5055 / DOCX page 112.
 
 
