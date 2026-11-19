@@ -95,6 +95,7 @@
   - [Matrix / 2D array — make coordinate meaning explicit](#matrix--2d-array--make-coordinate-meaning-explicit)
   - [Monotonic stack / deque — discard only dominated candidates](#monotonic-stack--deque--discard-only-dominated-candidates)
   - [Sorting / selection / divide-conquer — order only the evidence the answer needs](#sorting--selection--divide-conquer--order-only-the-evidence-the-answer-needs)
+  - [Greedy on arrays — prove the local choice before coding](#greedy-on-arrays--prove-the-local-choice-before-coding)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -9245,6 +9246,184 @@ Independent baselines are intentionally slower: combine then library-sort for ba
 
 Executable evidence is in `SortingSelectionDivideConquerContracts.java`. It supplies 20 deterministic groups across official examples, empty merge sides, normalization, singleton/full-width gaps, frequency results, strict comparisons, duplicate counts, wiggle feasibility, and preservation. It then runs 20,000 seeded trials against independent combine-sort, permutation, sorted-gap, quadratic reverse-pair, quadratic suffix-count, and multiset-backtracking wiggle oracles—exactly 120,000 oracle/preservation checks. Existing `SortColorsContracts.java`, `QuickselectContracts.java`, and `CountInversionsContracts.java` retain the specialized implementations.
 
+### Greedy on arrays — prove the local choice before coding
+
+A greedy implementation is short because its proof has already discarded the alternatives. Before choosing a local action, state the exchange, dominance, or cut argument that makes every rejected choice unnecessary. If that statement is missing, a one-pass loop is only a guess; the right solution may instead be dynamic programming, exhaustive search, or a different ordering.
+
+#### Requirement contract and ten-drill map
+
+| Source drill | Irreversible local choice | Proof certificate | Existing specialized coverage |
+|---|---|---|---|
+| Jump Game | keep only the farthest reachable boundary | every index inside the boundary is available before the boundary closes | new executable evidence here |
+| Jump Game II | finish the current reach layer before taking a jump | one jump reaches every index in the current interval | complete problem 38 card |
+| Gas Station | discard every start through the first negative prefix | none of those starts has more fuel at the failure edge | new executable evidence here |
+| Candy | satisfy left and right neighbor lower bounds independently | pointwise maximum is feasible and component-wise minimal | complete problem 39 card |
+| Partition Labels | close at the farthest last occurrence seen so far | an earlier cut would split a character; a later cut loses a valid part | new executable evidence here |
+| Minimum Number of Arrows | shoot at the earliest finishing balloon end | any solution hitting that balloon can move its shot left to this end | complete Intervals section |
+| Boats to Save People | always board the heaviest remaining person | the heaviest consumes a boat; pair only with the lightest feasible person | new executable evidence here |
+| Task Scheduler | reserve frames around the most frequent tasks | only other tasks can fill mandatory cooling slots | new executable evidence here |
+| Can Complete Circuit | same circular-start contract as Gas Station | total surplus plus negative-prefix elimination | same source problem; no duplicate card |
+| Minimum Moves to Equal Array Elements | reinterpret one move as decrementing one excluded element | subtracting a common increment does not change equality | new executable evidence here |
+
+```mermaid
+flowchart TD
+  A[Propose a local choice] --> B{Can rejected choices be exchanged or dominated?}
+  B -->|Yes| C[State the invariant and cut]
+  B -->|No| D[Use DP, search, or a different order]
+  C --> E[Implement the one-pass greedy]
+```
+
+The table intentionally links Jump Game II, Candy, and Minimum Number of Arrows to their already-complete cards. “Gas Station” and “Can Complete Circuit” are two names for the same circular-tour contract in this source family, so one proof and one executable implementation cover both without inflating the guide.
+
+#### Reachability frontier: spend no jump until a cut requires it
+
+For Jump Game reachability, `farthest` summarizes every path through the scanned prefix. Index `i` is usable only when `i<=farthest`; after scanning it, every landing position through `i+jumps[i]` joins the reachable frontier. There is no reason to remember which earlier path reached `i`, because future choices depend only on whether the index is reachable and how far it extends the boundary.
+
+```java
+static boolean canJump(int[] jumps) {
+    long farthest = 0;
+    for (int i = 0; i < jumps.length && i <= farthest; i++) {
+        farthest = Math.max(farthest, (long) i + jumps[i]);
+        if (farthest >= jumps.length - 1L) return true;
+    }
+    return jumps.length == 1;
+}
+```
+
+```mermaid
+flowchart LR
+  A[Scan reachable index i] --> B[Extend farthest]
+  B --> C{Last index covered?}
+  C -->|Yes| D[Reachable]
+  C -->|No| A
+```
+
+**Worked example 1 — reachability versus jump count.** For `[2,3,1,1,4]`:
+
+| scanned index | previous `farthest` | candidate `i+jumps[i]` | new `farthest` |
+|---:|---:|---:|---:|
+| 0 | 0 | 2 | 2 |
+| 1 | 2 | 4 | 4 |
+
+The last index is covered, so reachability is true. For `[3,2,1,0,4]`, scanning indices `0..3` never moves the frontier beyond `3`; index `4` is outside the reachable cut, so the answer is false. Jump Game II asks a different question under a reachable-destination promise: `currentEnd` closes one breadth layer and increments the jump count, while `farthest` builds the next layer. Do not return a minimum count from the reachability loop without that layer boundary.
+
+#### Negative-prefix elimination on a circle
+
+For Gas Station, write `delta[i]=gas[i]-cost[i]`. If a candidate start accumulates a negative tank at station `i`, every station between that candidate and `i` also fails by `i`: each later start removes a prefix whose running sum was nonnegative before the first failure, so it cannot have more tank at the same edge. The next possible start is therefore `i+1`. A full circuit exists exactly when total delta is nonnegative.
+
+```java
+long total = 0, tank = 0;
+int candidate = 0;
+for (int i = 0; i < gas.length; i++) {
+    long delta = (long) gas[i] - cost[i];
+    total += delta;
+    tank += delta;
+    if (tank < 0) {
+        candidate = i + 1;
+        tank = 0;
+    }
+}
+return total < 0 ? -1 : candidate % gas.length;
+```
+
+```mermaid
+flowchart TD
+  A[Add station delta] --> B{Candidate tank negative?}
+  B -->|Yes| C[Discard starts through this station]
+  C --> D[Restart at next station]
+  B -->|No| E[Keep candidate]
+  D --> A
+  E --> A
+```
+
+**Worked example 2 — reset only at a proven cut.** For gas `[1,2,3,4,5]` and cost `[3,4,5,1,2]`, deltas are `[-2,-2,-2,+3,+3]`.
+
+| station | tank before reset | action | next candidate |
+|---:|---:|---|---:|
+| 0 | -2 | reset | 1 |
+| 1 | -2 | reset | 2 |
+| 2 | -2 | reset | 3 |
+| 3 | 3 | retain | 3 |
+| 4 | 6 | retain | 3 |
+
+The total is zero, so candidate `3` completes the circle. For gas `[2,3,4]`, cost `[3,4,3]`, total delta is `-1`; no reset strategy can manufacture missing fuel, so return `-1`. Widen both `total` and `tank` in a reusable implementation.
+
+#### Partition closure: the smallest safe cut maximizes part count
+
+Precompute the last position of each lowercase letter. While scanning one part, extend `end` to the farthest last occurrence of any character already included. When `i==end`, every included character ends inside the part, and cutting now is safe. It is also optimal: cutting earlier is invalid, while cutting later merges two feasible parts and reduces the requested count.
+
+```mermaid
+flowchart LR
+  A[Read character at i] --> B[Extend end to its last occurrence]
+  B --> C{i equals end?}
+  C -->|Yes| D[Emit smallest safe part]
+  C -->|No| A
+  D --> A
+```
+
+**Worked example 3 — closures can expand transitively.** In `"ababcbacadefegdehijhklij"`, the first `a` initially requires index `8`; the letters encountered before that boundary do not extend it farther, so the first size is `9`. Starting at `d`, occurrences of `e` and `g` extend the next closure through index `15`, producing size `7`. The remaining closure ends at `23`, producing size `8`. Result: `[9,7,8]`. In `"eccbbbbdec"`, the first `e` reaches index `8`, but the `c` inside that span reaches index `9`, so the only valid maximum-count partition has size `[10]`.
+
+#### Ordered extremes: the heaviest person fixes one boat
+
+Sort a clone of the weights. The heaviest remaining person must consume one boat. If that person can pair with the lightest remaining person, doing so is safe: replacing that light partner with anyone heavier cannot create more future capacity. If the lightest does not fit, nobody fits with the heaviest, so the heaviest rides alone.
+
+```mermaid
+flowchart TD
+  A[Take heaviest remaining] --> B{Heaviest plus lightest fits?}
+  B -->|Yes| C[Pair them]
+  B -->|No| D[Send heaviest alone]
+  C --> E[Consume one boat]
+  D --> E
+```
+
+For `[3,2,2,1]` with limit `3`, sorted weights are `[1,2,2,3]`: `3` rides alone, `2` pairs with `1`, and the remaining `2` rides alone—three boats. Sorting a clone makes the nonmutation contract explicit. This proof relies on **at most two** people per boat; an arbitrary-capacity boat changes the problem.
+
+#### Frequency frames: idle time is a lower bound, not a simulation rule
+
+Let `maximum` be the largest task frequency and `tied` the number of labels with that frequency. The first `maximum-1` copies of each dominant label open frames of length `cooldown+1`; the last copies occupy the frame tail. This yields lower bound `(maximum-1)*(cooldown+1)+tied`. If enough other tasks fill every slot, ordinary task count dominates instead. The answer is the maximum of those two bounds.
+
+```java
+long frame = (long) (maximum - 1) * (cooldown + 1L) + tied;
+return Math.toIntExact(Math.max(tasks.length, frame));
+```
+
+```mermaid
+flowchart LR
+  A[Count task frequencies] --> B[Find maximum and ties]
+  B --> C[Build mandatory cooling frame]
+  C --> D[Answer max of frame and task count]
+```
+
+**Worked example 4 — two dominant labels share the frame tail.** For `AAABBB` with cooldown `2`, `maximum=3` and `tied=2`, so the frame lower bound is `(3-1)*(2+1)+2=8`. A schedule is `A,B,idle,A,B,idle,A,B`. For `A,C,A,B,D,B` with cooldown `1`, the same formula gives `6`, equal to the six real tasks; `A,B,C,D,A,B` needs no idle slots. The formula determines the length, not a particular schedule; use a heap plus release queue when the actual sequence must be emitted or when cooldowns differ by task.
+
+#### Equivalent operation: increment all but one means decrement one
+
+In Minimum Moves to Equal Array Elements, incrementing `n-1` positions is equivalent—after subtracting the common `+1` from every position—to decrementing the excluded position by one. Equality is invariant under a common shift. Therefore every value must descend to the original minimum, and the exact move count is
+`sum(values) - n*minimum`. Accumulate and multiply in `long` for an extended full-width contract even though the primary problem promises a 32-bit answer.
+
+```mermaid
+flowchart TD
+  A[Increment all but one] --> B[Subtract one from every position]
+  B --> C[Equivalent: decrement excluded value]
+  C --> D[Move every value down to original minimum]
+```
+
+For `[1,2,3]`, the differences above the minimum are `0+1+2=3`. For `[-2,0,2]`, they are `0+2+4=6`. The method preserves the input; direct simulation is unnecessary and can take billions of steps.
+
+#### Proofs, complexity, and validation
+
+**Frontier invariant.** Every index at most `farthest` is reachable from the start through the scanned prefix. **Circuit cut.** After a negative candidate tank at `i`, no start in the discarded block can cross edge `i`; total nonnegativity makes the surviving candidate complete the wraparound. **Partition closure.** `end` is the farthest last occurrence of every character in the current part, so `i==end` is the earliest safe cut. **Boat exchange.** The heaviest person consumes one boat in every solution, and choosing the lightest feasible partner cannot make the remaining instance harder. **Scheduler lower bound.** Dominant repetitions require fixed separation slots, while `tasks.length` is the unavoidable work bound; either bound can dominate. **Move equivalence.** Removing a common increment maps each move bijectively to one decrement of the excluded position.
+
+Jump Game, Gas Station, partitioning, and minimum moves are `O(n)` time; partitioning uses `O(1)` state for the fixed lowercase alphabet. Gas Station and minimum moves use `O(1)` auxiliary space. Boats is `O(n log n)` time and `O(n)` clone space under a preservation contract. Task Scheduler is `O(n+alphabet)` time and `O(alphabet)` space. The completed Jump Game II, Candy, and arrow cards retain their own complexity and proofs.
+
+Independent validation deliberately avoids each optimized mechanism: quadratic reachability DP; try every circuit start; enumerate every partition mask; recursively pair bitmask subsets into boats; exact cooldown-state search; and repeated maximum decrements on small arrays. These baselines are slow but answer the same contracts without copying the greedy step.
+
+**Common interview errors:** claiming a local choice is “obvious” without an exchange or cut proof; scanning an unreachable Jump Game index; confusing reachability with minimum jumps; resetting Gas Station after any negative delta instead of negative accumulated tank; checking only total gas and returning index `0`; cutting Partition Labels at the first character's last occurrence without extending for nested characters; sorting caller-owned boat weights without permission; pairing the two lightest while leaving an impossible heavy person; forgetting multiple labels tied for maximum scheduler frequency; simulating idle slots when only the length is requested; treating Gas Station and Can Complete Circuit as distinct algorithms; or interpreting Minimum Moves as moves toward the maximum instead of using the equivalent decrement model.
+
+**Follow-ups:** return one reachability path; prove the Jump Game II layer count; report all feasible circuit starts when uniqueness is removed; stream partition closures when future last occurrences are unavailable; allow more than two boat occupants; emit one valid task schedule; support per-label cooldowns; generalize Candy to a graph; return arrow coordinates; or compare greedy certificates with counterexamples where weighted or nonlocal constraints require DP.
+
+Executable evidence is in `GreedyArrayPatternContracts.java`. It supplies 20 deterministic groups across official examples, blocked frontiers, singleton and invalid inputs, circular impossibility, transitive closures, forced solo boats, filled/idle scheduler frames, signed full-width moves, preservation, and normalization. It then runs 20,000 seeded trials against independent reachability-DP, every-start circuit, partition-mask, pairing-bitmask, cooldown-state, and repeated-decrement oracles—exactly 120,000 oracle/preservation checks. Existing `JumpGameIIContracts.java`, `CandyContracts.java`, and `IntervalPatternContracts.java` retain the specialized source drills already promoted elsewhere.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -9300,6 +9479,12 @@ Executable evidence is in `SortingSelectionDivideConquerContracts.java`. It supp
 - [LeetCode, “Reverse Pairs”](https://leetcode.com/problems/reverse-pairs/) — primary strict `i<j` and `nums[i] > 2*nums[j]` definition, full-width input and merge-sort hint.
 - [LeetCode, “Count of Smaller Numbers After Self”](https://leetcode.com/problems/count-of-smaller-numbers-after-self/) — primary per-original-index strictly-smaller-right count and duplicate behavior.
 - [LeetCode, “Wiggle Sort II”](https://leetcode.com/problems/wiggle-sort-ii/) — primary strict alternating in-place reorder, valid-answer promise and linear-time/constant-space follow-up.
+- [LeetCode, “Jump Game”](https://leetcode.com/problems/jump-game/) — primary nonnegative maximum-forward-jump reachability contract, reachable/blocked examples and current bounds.
+- [LeetCode, “Gas Station”](https://leetcode.com/problems/gas-station/) — primary circular route, empty starting tank, unlimited capacity, unique-solution promise, impossible result and current bounds.
+- [LeetCode, “Partition Labels”](https://leetcode.com/problems/partition-labels/) — primary maximum-part-count, whole-string reconstruction, one-part-per-letter contract and lowercase bounds.
+- [LeetCode, “Boats to Save People”](https://leetcode.com/problems/boats-to-save-people/) — primary at-most-two occupants, per-boat weight limit, minimum-boat objective and feasible individual-weight contract.
+- [LeetCode, “Task Scheduler”](https://leetcode.com/problems/task-scheduler/) — primary uppercase task, arbitrary-order, minimum-interval and same-label cooldown contract.
+- [LeetCode, “Minimum Moves to Equal Array Elements”](https://leetcode.com/problems/minimum-moves-to-equal-array-elements/) — primary increment-exactly-`n-1` operation, minimum-move objective, signed bounds and 32-bit-answer promise.
 - [LeetCode, “Median of Two Sorted Arrays”](https://leetcode.com/problems/median-of-two-sorted-arrays/) — primary sorted-input, non-empty-total, canonical examples, input bounds and logarithmic-time requirement for problem 32.
 - [HackerRank, “Merge Sort: Counting Inversions”](https://www.hackerrank.com/challenges/ctci-merge-sort/problem) — primary strict index-pair definition, long-result contract, sample cases and adjacent-swap interpretation for problem 33.
 - [LeetCode, “Maximum Product Subarray”](https://leetcode.com/problems/maximum-product-subarray/) — primary non-empty contiguous-subarray result, official examples, input bounds and every-subarray-product 32-bit guarantee for problem 34.
@@ -9397,9 +9582,9 @@ Executable evidence is in `SortingSelectionDivideConquerContracts.java`. It supp
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Sorting / selection / divide-conquer lines 4882–5024 (heading line 5017 in the canonical checkpoint). Greedy on arrays follows. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Sorting / selection / divide-conquer on pages 107–111. Greedy on arrays follows on page 111. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Greedy on arrays lines 4882–5036 (heading line 5028 in the canonical checkpoint). Hard mixed follows at line 5040. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Greedy on arrays on pages 107–111. Hard mixed follows on page 111. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Sorting / selection / divide-conquer, ending at Markdown line 5024 / DOCX page 111. The wider source remains in progress: Greedy on arrays follows on page 111.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4 and Section 15 are fully promoted; Section 16 is promoted through Greedy on arrays, ending at Markdown line 5036 / DOCX page 111. The wider source remains in progress: Hard mixed follows at Markdown line 5040 / DOCX page 111.
 
 
