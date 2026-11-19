@@ -97,6 +97,7 @@
   - [Sorting / selection / divide-conquer — order only the evidence the answer needs](#sorting--selection--divide-conquer--order-only-the-evidence-the-answer-needs)
   - [Greedy on arrays — prove the local choice before coding](#greedy-on-arrays--prove-the-local-choice-before-coding)
   - [Hard mixed — expose the hidden state before optimizing](#hard-mixed--expose-the-hidden-state-before-optimizing)
+  - [Pattern Drill — identify before solving](#pattern-drill--identify-before-solving)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Array mental model and invariants
@@ -9616,6 +9617,166 @@ Independent baselines deliberately use different mechanisms: quadratic subarray-
 
 Executable evidence is in `HardMixedPatternContracts.java`. It supplies 20 deterministic groups across official examples, tie cases, full-width prefixes, empty extended contracts, multiplicities, matrices, zero balloons, equal envelopes, validation, and preservation. It then runs 20,000 seeded trials against seven independent oracles—exactly 140,000 oracle/preservation checks. The eight earlier drills remain validated by their specialized cards and `SortingSelectionDivideConquerContracts.java` rather than being reimplemented here.
 
+### Pattern Drill — identify before solving
+
+Pattern recognition is a requirements exercise, not keyword matching. “Subarray” does not automatically mean sliding window, “sorted” does not automatically mean binary search, and “maximum” does not automatically mean Kadane. Before coding, translate the prompt into a **shape**, an **operation**, a **constraint**, and a **proof certificate**. If two patterns remain possible, the prompt is underspecified: ask another question instead of guessing.
+
+#### The 15-clue speaking map
+
+| Question clue | Say this pattern | Required certificate | Near miss to reject |
+|---|---|---|---|
+| sorted array, target pair, `O(1)` space | two pointers | moving one endpoint discards only impossible sums | unsorted input without permission to sort |
+| count exact-sum subarrays with negatives | prefix sum + frequency map | current prefix needs an earlier `prefix-target` | positive-only threshold window |
+| smallest positive missing, `O(1)` extra | index placement | value `v` has home slot `v-1` | immutable input |
+| maximum in every `k`-window | monotonic deque | keep unexpired, undominated indices | only one global maximum |
+| minimum rate finishing by a deadline | binary search on answer | feasibility is false…false, true…true | nonmonotone cost surface |
+| three categories in-place | Dutch National Flag | four regions with one unknown region shrinking | stable category order required |
+| maximum circular contiguous sum | Kadane max + total − Kadane min | optimum is ordinary or wraps around one excluded minimum segment | all-negative wrap treated as empty |
+| `n+1` values in `[1,n]`, no modification | Floyd cycle detection | value-as-next-index creates a reachable cycle | arbitrary values or multiple unrelated duplicates |
+| overlapping ranges | sort + merge | next interval either joins the current component or starts another | online insert/query workload |
+| many offline range increments | difference array | record boundary events, materialize once | interleaved updates and queries |
+| next greater element | monotonic stack | unresolved indices wait for their first greater witness | maximum of every fixed window |
+| count inversions | merge-sort counting | ordered halves turn cross pairs into a block count | one kth statistic |
+| kth largest, average linear time | Quickselect | partition discards the side that cannot contain the rank | worst-case guarantee required without pivot control |
+| longest range with at most `k` violations | sliding-window budget | validity is restored by advancing left | negatives make a sum threshold nonmonotone |
+| median of two sorted arrays in logarithmic time | binary-search partition | left cardinality fixed; both left maxima ≤ opposite right minima | linear merge allowed |
+
+```mermaid
+flowchart TD
+  A[Extract shape and output] --> B[State mutation and space limits]
+  B --> C[Name monotonicity or ordering]
+  C --> D{Exactly one proof certificate?}
+  D -->|Yes| E[Choose pattern and invariant]
+  D -->|No| F[Ask for missing requirement]
+```
+
+The table is a trigger map, not a substitute for the specialized sections. Each selected pattern must still pass its preconditions and explain why its state discards no valid answer.
+
+#### Worked example 1 — exact sum with negatives is not a sliding window
+
+**Prompt.** Count subarrays of `[1,-1,1]` whose sum is `1`. The answer is `3`: indices `[0,0]`, `[0,2]`, and `[2,2]`.
+
+With negative values, extending right can decrease a sum and shrinking left can increase it. Therefore the usual “sum too large → move left” certificate is false. Prefix boundaries restore an exact algebraic test: at current prefix `p`, every earlier prefix `p-target` starts one valid subarray.
+
+| consumed value | current prefix | required earlier prefix | frequency before | new answers |
+|---:|---:|---:|---:|---:|
+| 1 | 1 | 0 | 1 | 1 |
+| -1 | 0 | -1 | 0 | 0 |
+| 1 | 1 | 0 | 2 | 2 |
+
+```mermaid
+flowchart LR
+  A[Signed exact-sum count] --> B{Window sum monotone?}
+  B -->|No| C[Prefix frequencies]
+  C --> D[Add frequency of prefix minus target]
+```
+
+**Speaking answer:** “Because negatives destroy window monotonicity and I need a count, I will store frequencies of earlier prefixes. The invariant is that the map contains exactly the prefix boundaries before the current endpoint.” Time is expected `O(n)`, space is `O(n)`, and prefix/count arithmetic should be widened where constraints require it.
+
+#### Worked example 2 — fixed-window maximum needs candidates, not a rolling aggregate
+
+**Prompt.** Return the maximum of each width-3 window in `[1,3,-1,-3,5,3,6,7]`: `[3,3,5,5,6,7]`.
+
+A rolling sum is invertible (`+incoming-outgoing`), but a maximum is not: when the maximum expires, the second-best value must still be known. A decreasing deque stores only indices that can still become a future maximum. Expire from the front; remove dominated values from the back; read the maximum at the front.
+
+| right | incoming | deque indices after repair | emitted max |
+|---:|---:|---|---:|
+| 0 | 1 | `[0]` | — |
+| 1 | 3 | `[1]` | — |
+| 2 | -1 | `[1,2]` | 3 |
+| 3 | -3 | `[1,2,3]` | 3 |
+| 4 | 5 | `[4]` | 5 |
+
+```mermaid
+flowchart TD
+  A[Advance right] --> B[Expire front indices]
+  B --> C[Remove dominated back indices]
+  C --> D[Append current index]
+  D --> E[Front is window maximum]
+```
+
+**Contrast.** “Next greater” also uses monotonic order, but it resolves each element once with a stack. “Maximum in every overlapping window” needs expiration at one end and domination at the other, so the double-ended structure is the certificate. Each index enters and leaves once: `O(n)` time and `O(k)` space.
+
+#### Worked example 3 — binary-search the answer only after proving monotonicity
+
+**Prompt.** Piles `[3,6,7,11]`, deadline `8` hours; find the minimum integer rate. At rate `r`, required hours are `sum(ceil(pile/r))`.
+
+The answer range `[1,11]` is ordered even though the piles are not. If rate `r` is feasible, every faster rate is feasible; the predicate has the form `FFFFTTTT`. Search for the first true value.
+
+| candidate rate | hours | feasible within 8? | retained interval |
+|---:|---:|---|---|
+| 6 | 6 | yes | `[1,6]` |
+| 3 | 10 | no | `[4,6]` |
+| 5 | 8 | yes | `[4,5]` |
+| 4 | 8 | yes | answer `4` |
+
+```mermaid
+flowchart LR
+  A[Answer domain 1 through max] --> B[Monotone feasibility predicate]
+  B --> C[First true boundary]
+  C --> D[Minimum feasible rate]
+```
+
+**Speaking answer:** “I am not searching the input; I am searching an ordered answer domain. I can binary-search because finishing by the deadline is monotone in the rate.” Use overflow-safe ceiling division and stop accumulating once hours exceed the deadline. Complexity is `O(n log maxPile)` time and `O(1)` auxiliary space.
+
+#### Worked example 4 — two sorted arrays plus logarithmic median means a partition
+
+**Prompt.** Median of `[1,3]` and `[2]` in logarithmic time is `2`.
+
+Linear merge would be correct but violates the requested bound. Binary-search the shorter array for cut `i`; the other cut `j` is forced so the combined left side contains half the elements. A cut is valid when `leftA<=rightB` and `leftB<=rightA`.
+
+| cut in shorter `[2]` | forced cut in `[1,3]` | left maxima | right minima | decision |
+|---:|---:|---|---|---|
+| 0 | 2 | `-∞,3` | `2,+∞` | `leftB>rightA`; move cut right |
+| 1 | 1 | `2,1` | `+∞,3` | valid; odd median is `2` |
+
+```mermaid
+flowchart TD
+  A[Cut shorter array] --> B[Force total left cardinality]
+  B --> C{Both cross inequalities hold?}
+  C -->|Yes| D[Median from boundary values]
+  C -->|No| E[Move cut toward violated side]
+  E --> A
+```
+
+**Contrast.** Ordinary binary search asks whether a target lies left or right of a midpoint. Partition search asks whether a **cut** is too far left or right based on cross-boundary order. It runs in `O(log min(m,n))` time and `O(1)` space.
+
+#### An executable ambiguity gate
+
+Production prompts often contain several clues. The safe API returns **all** matching patterns; only `requireUnique` authorizes implementation. This prevents a partial clue such as “minimum rate” from silently selecting binary search before monotone feasibility is established.
+
+```java
+static Pattern requireUnique(Set<Signal> signals) {
+    EnumSet<Pattern> candidates = recommend(signals);
+    if (candidates.size() != 1) {
+        throw new IllegalArgumentException(
+            "Need more requirements; candidates=" + candidates);
+    }
+    return candidates.iterator().next();
+}
+```
+
+```mermaid
+stateDiagram-v2
+  [*] --> Incomplete: zero candidates
+  [*] --> Ambiguous: multiple candidates
+  [*] --> Ready: exactly one candidate
+  Incomplete --> Ready: add missing precondition
+  Ambiguous --> Ready: add distinguishing constraint
+```
+
+`PatternRecognitionDrillContracts.java` represents the 15 certificates as explicit signals. It tests every canonical clue, incomplete prompts, an ambiguous deque/stack prompt, and input preservation. Then 20,000 seeded signal sets compare the imperative recognizer with an independent declarative rule-table oracle—320,000 rule/preservation checks.
+
+#### Proof obligations, boundaries, and interview delivery
+
+The recognizer is sound relative to its rule set because a pattern is emitted only after every required certificate signal is present. It is intentionally not a natural-language classifier: converting prose into signals remains the interview reasoning step. Returning a set rather than the first matching rule makes overlaps observable and prevents rule order from hiding ambiguity.
+
+**Common errors:** choosing by one noun; ignoring whether sorting or mutation is allowed; confusing value order with answer-space monotonicity; using a window without a one-direction repair proof; storing values when expiration needs indices; selecting Quickselect while promising worst-case linear time; accepting an `O(m+n)` merge under a logarithmic median requirement; forcing a unique answer when the prompt supports several patterns; or reciting complexity without the each-index/half-discard/block-count argument that proves it.
+
+**30-second speaking template:** “The input shape is ___. The output asks for ___. The binding constraint is ___. A direct baseline costs ___. The reusable state is ___. I choose ___ because moving/updating ___ discards only ___. The invariant is ___. I will test ___, ___, and ___.”
+
+**Follow-ups:** add weighted costs that invalidate greedy choices; require stable output after three-way partitioning; turn offline updates into online queries; remove the unique-duplicate promise from Floyd mapping; require deterministic worst-case selection; ask for a streaming median; or supply two compatible certificates and explain what additional requirement separates them.
+
 ## References and provenance
 
 - [Java Language Specification, Java SE 17, Chapter 10: Arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) — arrays as objects, fixed component count, zero-based indices, and component types.
@@ -9781,9 +9942,9 @@ Executable evidence is in `HardMixedPatternContracts.java`. It supplies 20 deter
 
 Source intake:
 
-- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 through Hard mixed lines 4882-5051 (heading line 5040 in the canonical checkpoint). Pattern Drill follows at line 5055. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
-- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 through Hard mixed on pages 107-111. Pattern Drill follows on page 112. Compared as a corroborating companion rather than copied as a duplicate guide.
+- `DSA_Arrays_FAANG_Mermaid_Question_Workbook.md`, SHA-256 `735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda`, Sections 1–3 lines 141–251, all 47 Section 4 problems, Section 15 lines 4797–4873, and Section 16 and Section 17 Pattern Drill through line 5073 (heading line 5055 in the canonical checkpoint). Common Array Interview Mistakes follows at line 5077. Selected as the editable structural source; refreshed Library metadata and retained bytes are unchanged.
+- `DSA_Arrays_FAANG_Question_Workbook_Expanded.docx`, SHA-256 `2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e`, equivalent Sections 1–3, all 47 Section 4 problems, all five Section 15 techniques through page 106, and Section 16 and Section 17 Pattern Drill on pages 107-112. Common Array Interview Mistakes follows on page 113. Compared as a corroborating companion rather than copied as a duplicate guide.
 
-The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4, Section 15 and Section 16 are fully promoted through Hard mixed, ending at Markdown line 5051 / DOCX page 111. The wider source remains in progress: Pattern Drill follows at Markdown line 5055 / DOCX page 112.
+The source sections supplied the topic boundaries and seed concepts. The requirement contracts, decision gates, worked examples, traces, executable Java, proofs, diagrams, and validation structure here are newly authored study-guide material. Section 4, Section 15, Section 16 and Section 17 Pattern Drill are promoted through Markdown line 5073 / DOCX page 112. The wider source remains in progress: Common Array Interview Mistakes follows at Markdown line 5077 / DOCX page 113.
 
 

@@ -85,6 +85,7 @@
 | Arrays §16 Sorting / selection / divide-conquer | ✅ | ✅ | Ten-drill ordered-evidence map, four traced mechanisms, six diagrams and six independent sort/permutation/quadratic/backtracking oracles |
 | Arrays §16 Greedy on arrays | ✅ | ✅ | Ten-drill proof-certificate map, four traced mechanisms, seven diagrams and six independent DP/enumeration/state-search oracles |
 | Arrays §16 Hard mixed | ✅ | ✅ | Fifteen-drill hidden-state map, four traced examples, seven optimized mechanisms and seven independent oracles |
+| Arrays §17 Pattern Drill | ✅ | ✅ | Fifteen contrastive recognition certificates, four traced diagnoses, ambiguity gate and independent rule-table oracle |
 
 ## Completion audit — 2026-10-08 ET (updated 21:29)
 
@@ -625,5 +626,13 @@ Arrays Section 16 now promotes its fourteenth bounded pattern family, Hard mixed
 Java 21 source-file launch passed all 66 unique Arrays executables: 1,280 scenario groups and 1,300,000 seeded/randomized oracle trials or comparisons. Standalone `javac` was unavailable. The deterministic responsive reader embeds the exact 672,149 canonical Markdown bytes at SHA-256 `2165556886d899b2895a2b311bf594ec2127c805eb3f958d61449842e9c74ffe`; validation found 2,465 unique HTML IDs, 96 unique search entries, 2,088 resolved fragment links, zero relative links, 826 balanced fence markers, 311 Mermaid sources and four script blocks. Both executable script blocks parse as JavaScript modules. Rebuilding produced byte-identical HTML at SHA-256 `e9e41677a8dbbc7365c1c6d8f910dffad6a2ec7f4d4633ddd069043149d7f4be`. Browser, assistive-technology and rendered Mermaid integration were not executed in this pass.
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; after fair-domain rotation, the next exact Arrays continuation is Section 17 Pattern Drill at Markdown heading line 5055 / DOCX page 112.
+
+## Arrays Pattern Drill enrichment — 2026-11-18 ET
+
+Arrays Section 17 now promotes Pattern Drill from the canonical Markdown heading at line 5055 through its 15-row trigger table ending at line 5073 and DOCX page 112. The expanded section converts each clue into a required proof certificate and a near miss to reject, then uses four contrastive traces to distinguish signed exact-sum prefix counting from sliding windows, fixed-window maxima from next-greater stacks, answer-space binary search from input search, and two-array median partitions from linear merge. Six diagrams, an ambiguity gate and a 30-second speaking template emphasize requirements-first diagnosis without duplicating the already-complete algorithm cards. `PatternRecognitionDrillContracts` passed 20 deterministic groups plus 20,000 seeded signal sets against an independent declarative rule-table oracle—320,000 rule or preservation checks.
+
+Java 21 source-file launch passed all 67 unique Arrays executables: 1,300 scenario groups and 1,320,000 seeded/randomized oracle trials or comparisons. Standalone `javac` was unavailable. The deterministic responsive reader embeds the exact 683,109 canonical Markdown bytes at SHA-256 `51295fe95ce90fd5574a1db311eb1e62ae3d287cc20fc98fe8086f4d02bdd922`; validation found 2,482 unique HTML IDs, 97 unique search entries, 2,097 resolved fragment links, zero relative links, 840 balanced fence markers, 317 Mermaid sources and four script blocks. Both executable script blocks parse as JavaScript modules. Rebuilding produced byte-identical HTML at SHA-256 `7e3a4f0b490a37ab82978a537c73bfa46bdf897541fba09e3947c92cc3843057`. Browser, assistive-technology and rendered Mermaid integration were not executed in this pass.
+
+Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The collection and intake backlog remain incomplete; after fair-domain rotation, the next exact Arrays continuation is Section 18 Common Array Interview Mistakes at Markdown heading line 5077 / DOCX page 113.
 
 
