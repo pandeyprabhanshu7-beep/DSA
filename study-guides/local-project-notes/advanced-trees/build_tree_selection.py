@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the deterministic searchable reader for the tree-selection guide."""
+"""Build deterministic searchable readers for focused advanced-tree guides."""
 
 from __future__ import annotations
 
@@ -13,8 +13,22 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-SOURCE = ROOT / "tree-selection-decision-matrix.md"
-TARGET = ROOT / "tree-selection-decision-matrix.html"
+GUIDES = (
+    (
+        ROOT / "tree-selection-decision-matrix.md",
+        ROOT / "tree-selection-decision-matrix.html",
+        "Advanced Trees — Requirement-First Selection Matrix",
+        "Advanced Trees",
+        "Try: heap, range, B+ tree",
+    ),
+    (
+        ROOT / "faang-problem-ladder.md",
+        ROOT / "faang-problem-ladder.html",
+        "Advanced Trees — FAANG Problem Ladder",
+        "Tree Problem Ladder",
+        "Try: ancestor bounds, kth, Fenwick",
+    ),
+)
 
 
 def source_sections(markdown: str) -> list[tuple[int, str, int, int]]:
@@ -32,8 +46,8 @@ def source_sections(markdown: str) -> list[tuple[int, str, int, int]]:
     return sections
 
 
-def build() -> None:
-    source_bytes = SOURCE.read_bytes()
+def build_one(source: Path, target: Path, title_text: str, brand: str, placeholder: str) -> None:
+    source_bytes = source.read_bytes()
     markdown = source_bytes.decode("utf-8")
     rendered = subprocess.run(
         ["pandoc", "--from=gfm", "--to=html5", "--wrap=none"],
@@ -64,7 +78,7 @@ def build() -> None:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="source-sha256" content="{digest}">
-<title>Advanced Trees — Requirement-First Selection Matrix</title>
+<title>{html.escape(title_text)}</title>
 <style>
 :root{{--bg:#f4f7fb;--paper:#fff;--ink:#172033;--muted:#5c667a;--accent:#1261a0;--line:#d3dce9;--code:#101c30;--code-ink:#eef4ff}}
 *{{box-sizing:border-box}}html{{scroll-behavior:smooth}}body{{margin:0;background:var(--bg);color:var(--ink);font:16px/1.68 system-ui,-apple-system,Segoe UI,sans-serif}}
@@ -83,7 +97,7 @@ blockquote{{margin:1rem 0;padding:.4rem 1rem;border-left:4px solid var(--accent)
 </head>
 <body>
 <div class="layout">
-<aside><div class="brand">Advanced Trees</div><label for="guide-search">Search this guide</label><input id="guide-search" type="search" placeholder="Try: heap, range, B+ tree" autocomplete="off"><div id="search-status">Type to search headings and section text.</div><ul id="results"></ul><a href="#{index[0]['id']}">Back to top</a></aside>
+<aside><div class="brand">{html.escape(brand)}</div><label for="guide-search">Search this guide</label><input id="guide-search" type="search" placeholder="{html.escape(placeholder)}" autocomplete="off"><div id="search-status">Type to search headings and section text.</div><ul id="results"></ul><a href="#{index[0]['id']}">Back to top</a></aside>
 <main id="content">{rendered}</main>
 </div>
 <script id="source-markdown" type="application/octet-stream">{payload}</script>
@@ -101,8 +115,13 @@ try{{const{{default:mermaid}}=await import('https://cdn.jsdelivr.net/npm/mermaid
 </body>
 </html>
 """
-    TARGET.write_text(page, encoding="utf-8")
-    print(f"built {TARGET.name} sha256={digest} search_entries={len(index)}")
+    target.write_text(page, encoding="utf-8")
+    print(f"built {target.name} sha256={digest} search_entries={len(index)}")
+
+
+def build() -> None:
+    for guide in GUIDES:
+        build_one(*guide)
 
 
 if __name__ == "__main__":

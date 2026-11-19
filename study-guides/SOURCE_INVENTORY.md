@@ -10,7 +10,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | dsa-linked-list | DSA | PROMOTED | `study-guides/striver-dsa/linked-list/` | Repository source or earlier analysis; locate as needed |
 | dsa-hashing | DSA | PROMOTED | `study-guides/striver-dsa/hashmap-hashing/` | Repository source or earlier analysis; locate as needed |
 | dsa-arrays | DSA | IN_PROGRESS | [`study-guides/striver-dsa/arrays/`](striver-dsa/arrays/) | DSA_Arrays_FAANG_Mermaid_Question_Workbook.md<br>DSA_Arrays_FAANG_Question_Workbook_Expanded.docx |
-| advanced-trees | DSA | IN_PROGRESS | [`study-guides/local-project-notes/advanced-trees/`](local-project-notes/advanced-trees/) | Advanced_Trees_FAANG_Mermaid_Study_Guide.md — Sections 1–11 promoted or merged<br>Tree_Advanced_FAANG_Study_Guide.docx — Section 11 corroborated<br>advanced_trees_interview_guide.md — compared; no inferior duplicate copied |
+| advanced-trees | DSA | IN_PROGRESS | [`study-guides/local-project-notes/advanced-trees/`](local-project-notes/advanced-trees/) | Advanced_Trees_FAANG_Mermaid_Study_Guide.md — Sections 1–12 promoted or merged<br>Tree_Advanced_FAANG_Study_Guide.docx — Sections 11–12 corroborated<br>advanced_trees_interview_guide.md — compared; no inferior duplicate copied |
 | ai-foundations-rag-cag | AI | PROMOTED | `study-guides/ai/foundations-rag-cag/` | AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md<br>AI_RAG_CAG_Deep_Learning_Developer_Guide.docx |
 | ai-platform | AI | IN_PROGRESS | [`study-guides/ai/platform/`](ai/platform/) | ai_cicd_spring_python_guides_complete.zip<br>ai_platform_master_guide.html<br>ai_platform_engineering_complete_bundle.zip<br>ai_platform_engineering_illustrated.html |
 | system-design-fundamentals | System design/data | PROMOTED | `study-guides/system-design/fundamentals/` | system_design_fundamentals_deep_research.md<br>system_design_fundamentals.md |
@@ -52,7 +52,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | Take_U_Forward_Stack_Queue_Complete_Deep_Guide_v2.md | 2026-09-08T01:35:54.662145Z | DISCOVERED |
 | AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md | 2026-09-08T00:10:00.856206Z | PROMOTED — canonical AI foundations/RAG/CAG base |
 | DSA_Graph_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.813753Z | DISCOVERED |
-| Advanced_Trees_FAANG_Mermaid_Study_Guide.md | 2026-09-08T00:10:00.813395Z | IN PROGRESS — sections 3–11 promoted as focused modules; sections 1–2 merged into canonical Trees/BST cards; sections 12–15 remain queued; refreshed SHA-256 `86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1` |
+| Advanced_Trees_FAANG_Mermaid_Study_Guide.md | 2026-09-08T00:10:00.813395Z | IN PROGRESS — sections 3–12 promoted as focused modules; sections 1–2 merged into canonical Trees/BST cards; sections 13–15 remain queued; refreshed SHA-256 `86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1` |
 | Angular_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.775386Z | PROMOTED — Q1–Q74, rapid-fire items 1–39 and Final Revision Sheet processed through source end at line 1751 |
 | JavaScript_HTML_CSS_Interview_Mermaid_Workbook.md | 2026-09-08T00:10:00.753196Z | PROMOTED — Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet compared/promoted through source end at line 2041 |
 | DSA_Tree_FAANG_Mermaid_Question_Workbook.md | 2026-09-08T00:10:00.743385Z | DISCOVERED |
@@ -70,7 +70,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | JavaScript_HTML_CSS_Interview_Workbook.docx | 2026-08-31T14:40:39.905787Z | PROMOTED — corroborated Q1–Q72, rapid-fire items 1–32 and the Final Revision Sheet through rendered source end at line 1445 |
 | DSA_Graph_FAANG_Question_Workbook.docx | 2026-08-30T07:02:49.102302Z | DISCOVERED |
 | DSA_Tree_FAANG_Question_Workbook.docx | 2026-08-30T07:02:48.410227Z | DISCOVERED |
-| Tree_Advanced_FAANG_Study_Guide.docx | 2026-08-30T05:23:39.553805Z | COMPARED — Section 11 Pandoc lines 1559–1586 corroborate the selected matrix; SHA-256 `fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f` |
+| Tree_Advanced_FAANG_Study_Guide.docx | 2026-08-30T05:23:39.553805Z | COMPARED — Sections 11–12 corroborate the selected matrix and problem ladder; latest bounded range is Pandoc lines 1587–1791; SHA-256 `fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f` |
 | advanced_trees_interview_guide.md | 2026-08-19T04:44:00.028771Z | COMPARED — distinct numbering/broader implementation edition; no duplicate Section 11 guide copied |
 
 ## Interpretation
