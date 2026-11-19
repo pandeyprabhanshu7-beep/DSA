@@ -269,10 +269,10 @@
       "version_id": null,
       "modified_at": "2026-09-08T00:10:00.740223Z",
       "size_bytes": 229697,
-      "status": "IN_PROGRESS",
-      "last_read_at": "2026-11-19T04:15:56-05:00",
+      "status": "PROMOTED",
+      "last_read_at": "2026-11-19T04:22:00-05:00",
       "sha256": "735a1d5f921e48a1bca3465951ee37ebbf3a5946272e23079f105f3305fafcda",
-      "selection": "Selected as the editable structural source; Sections 1-3, all 47 Section 4 problems, all five Section 15 techniques, Sections 16-19 and Section 20 Further Reading and Practice through line 5210 were compared and promoted. The final externally cross-checked additions begin at heading line 5215. Refreshed Library metadata, source bytes and hash are unchanged."
+      "selection": "Selected as the editable structural source and exhausted through final externally cross-checked additions at lines 5215-5221 / source end. Sections 1-20 and all 47 Section 4 problems are promoted. Refreshed Library metadata, source bytes and hash are unchanged; the wider collection and placeholder backlog remain incomplete."
     },
     {
       "name": "Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
@@ -497,12 +497,12 @@
       "domain": "DSA",
       "canonical_target": "study-guides/striver-dsa/arrays/",
       "target_exists": true,
-      "status": "IN_PROGRESS",
+      "status": "PROMOTED",
       "source_names": [
         "DSA_Arrays_FAANG_Mermaid_Question_Workbook.md",
         "DSA_Arrays_FAANG_Question_Workbook_Expanded.docx"
       ],
-      "last_processed_at": "2026-11-19T04:15:56-05:00",
+      "last_processed_at": "2026-11-19T04:22:00-05:00",
       "processed_sections": [
         "Section 1: Array Mental Model and Invariants — Markdown lines 141-182 / DOCX extracted lines 65-108",
         "Section 2: Pattern-Recognition Decision Tree — Markdown lines 183-229 / DOCX extracted lines 93-135",
@@ -573,11 +573,12 @@
         "Section 17 Pattern Drill — fifteen proof-certificate triggers, four contrastive traces, explicit ambiguity gate and independent rule-table oracle — Markdown lines 5055-5073 / DOCX page 112",
         "Section 18 Common Array Interview Mistakes — ten pre-code guardrails, four traced failure clusters and seven independent executable oracles — Markdown lines 5077-5097 / DOCX page 113",
         "Section 19 Revision Sheet — twenty invariant/proof hooks, four traced pattern rehearsals, speaking script, deliberate-practice ladder and four independent executable oracles — Markdown lines 5101-5170 / DOCX pages 114-115",
-        "Section 20 Further Reading and Practice — evidence-based final gate, four timed pattern traces, five diagrams, current primary contracts and four independent executable oracles — Markdown lines 5174-5210 / DOCX page 116"
+        "Section 20 Further Reading and Practice — evidence-based final gate, four timed pattern traces, five diagrams, current primary contracts and four independent executable oracles — Markdown lines 5174-5210 / DOCX page 116",
+        "Externally cross-checked additions — five verification obligations, four worked traces, six diagrams and four independent executable oracles — Markdown lines 5215-5221 / source end; no DOCX counterpart"
       ],
-      "last_successful_commit": "b680f77592b84f46facb7c24fc084bededf79ec6",
-      "validation": "The refreshed paired Arrays workbooks agree on bounded Section 20 Further Reading and Practice at Markdown heading line 5174 through final self-check line 5210 and DOCX page 116 / DOCX end; both source hashes remain unchanged, the editable Markdown remains structural and no duplicate guide was created. Ten evidence/failure gates, four worked timed traces, five diagrams, current primary contracts, a closed-book cadence and ArrayPracticeGateContracts cover lower-bound boundaries, signed exact sums, indexed window maxima and first-feasible split capacity without duplicating complete algorithm cards. Java 21 source-file launch passed all seventy documented Arrays executables: 1,360 scenario groups and 1,380,000 seeded/randomized trials or comparisons; the new contract passed 20 groups and 20,000 seeded trials with 80,000 oracle/preservation checks. Reader validation passed exact 719960-byte Markdown recovery, SHA-256 bb89073dfb6a41effee0f8e5598ba2f75f979db8d3f57863cdf697b79498dbbd, 2559 unique HTML IDs, 123 search entries, 2165 resolved fragments, zero relative links, 898 balanced fence markers, 334 Mermaid sources, four script blocks, two parseable executable JavaScript modules and deterministic HTML SHA-256 3f22a816be022ff4063f96bff7613375bd4702499930dc62224d939e50c0b9bf. The validated content tree is commit b680f77592b84f46facb7c24fc084bededf79ec6. Standalone javac was unavailable; browser, assistive-technology and rendered Mermaid QA were not executed. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
-      "next_action": "Section 20 Further Reading and Practice is complete and the corroborating DOCX is exhausted. Re-evaluate fair domain rotation, then process the final externally cross-checked additions at Markdown heading line 5215; the wider intake and placeholders remain queued.",
+      "last_successful_commit": "072d3d8082d159f2c05f062ba8c84f28f718a320",
+      "validation": "The final Markdown-only supplement at lines 5215-5221 / source end was promoted; the corroborating DOCX is exhausted at page 116 and has no counterpart. Four traces, six diagrams and ArrayCrossCheckContracts cover taxonomy, pointer elimination, widened arithmetic, ownership and indexed deques. Java 21 source launch passed all 71 documented executables: 1,380 groups and 1,400,000 trials/comparisons; the new contract passed 20 groups and 20,000 trials with 80,000 checks. Reader validation passed exact 732253-byte recovery, SHA-256 960ba831299228788a385019a23b387459f21f690163ce02de66124cc81f5db5, 2599 unique IDs, 131 search entries, 2199 resolved fragments, zero relative links, 924 fence markers, 340 Mermaid sources, four script blocks, JavaScript syntax and deterministic HTML SHA-256 1723f276c753e11b6de3b4d28b80296090b906ec1b03c45314a2e02eabf497eb. Content commit 072d3d8082d159f2c05f062ba8c84f28f718a320. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+      "next_action": "Selected Arrays Markdown and DOCX sources are exhausted. Re-evaluate fair-domain rotation and select the next confirmed unprocessed source or live-placeholder section; do not assert an unsupported Arrays continuation.",
       "priority": 6,
       "source_revision": {
         "baseline_commit": "a9f582b5dbe8b6fcda6e275054f217350a810d52",
@@ -588,7 +589,7 @@
         "compared_file_id": "file_00000000672882118a9ca69f00c30be7",
         "compared_version_id": "1",
         "compared_sha256": "2402f45d17423b689b34ff03e55eaa6b52c8720fe6c7c4e162cb962ef5d8d38e",
-        "canonical_sha256_after": "bb89073dfb6a41effee0f8e5598ba2f75f979db8d3f57863cdf697b79498dbbd"
+        "canonical_sha256_after": "960ba831299228788a385019a23b387459f21f690163ce02de66124cc81f5db5"
       }
     },
     {
@@ -1126,7 +1127,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25, all 47 Arrays Section 4 problems, all five Section 15 techniques and Arrays Sections 16-20 are promoted. The selected AI-platform, Spring AI/Python and Arrays DOCX sources are exhausted. Re-evaluate fair rotation, then process the Arrays externally cross-checked additions at Markdown heading line 5215; retain wider confirmed intake and placeholders.",
+    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25 and the selected Arrays source pair are exhausted and promoted through their ends. Re-evaluate fair-domain rotation and choose the next confirmed unprocessed source or one bounded live-placeholder section; retain the wider intake and 170 placeholders.",
     "batch_policy": {
       "max_sections_per_run": 1,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1344,14 +1345,15 @@
     "DSA Arrays Section 17 Pattern Drill: fifteen proof-certificate triggers, four contrastive traces, explicit ambiguity gate and independent imperative/declarative rule matching",
     "DSA Arrays Section 18 Common Array Interview Mistakes: ten pre-code guardrails, four traced failure clusters, full-width and ownership checks and seven independent executable oracles",
     "DSA Arrays Section 19 Revision Sheet: twenty invariant/proof hooks, four traced pattern rehearsals, six diagrams, speaking script, deliberate-practice ladder and four independent executable oracles",
-    "DSA Arrays Section 20 Further Reading and Practice: ten evidence/failure gates, four timed pattern traces, five diagrams, current primary contracts and four independent executable oracles"
+    "DSA Arrays Section 20 Further Reading and Practice: ten evidence/failure gates, four timed pattern traces, five diagrams, current primary contracts and four independent executable oracles",
+    "DSA Arrays externally cross-checked additions: five verification obligations, four worked traces, six diagrams and four independent executable oracles; selected Markdown and DOCX sources exhausted"
     ],
-  "processed_section": "DSA Arrays Section 20 Further Reading and Practice, canonical Markdown heading line 5174 through final self-check line 5210 / DOCX page 116 and DOCX end",
-  "validation": "The refreshed paired Arrays workbooks agree on bounded Section 20 Further Reading and Practice at Markdown heading line 5174 through final self-check line 5210 and DOCX page 116 / DOCX end; both source hashes remain unchanged, the editable Markdown remains structural and no duplicate guide was created. Ten evidence/failure gates, four worked timed traces, five diagrams, current primary contracts, a closed-book cadence and ArrayPracticeGateContracts cover lower-bound boundaries, signed exact sums, indexed window maxima and first-feasible split capacity without duplicating complete algorithm cards. Java 21 source-file launch passed all seventy documented Arrays executables: 1,360 scenario groups and 1,380,000 seeded/randomized trials or comparisons; the new contract passed 20 groups and 20,000 seeded trials with 80,000 oracle/preservation checks. Reader validation passed exact 719960-byte Markdown recovery, SHA-256 bb89073dfb6a41effee0f8e5598ba2f75f979db8d3f57863cdf697b79498dbbd, 2559 unique HTML IDs, 123 search entries, 2165 resolved fragments, zero relative links, 898 balanced fence markers, 334 Mermaid sources, four script blocks, two parseable executable JavaScript modules and deterministic HTML SHA-256 3f22a816be022ff4063f96bff7613375bd4702499930dc62224d939e50c0b9bf. The validated content tree is commit b680f77592b84f46facb7c24fc084bededf79ec6. Standalone javac was unavailable; browser, assistive-technology and rendered Mermaid QA were not executed. The exact five-folder canonical Markdown marker audit remains 170 (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST).",
-  "estimated_next_tokens": 5600,
-  "estimate_method": "Heuristic only for one bounded Arrays externally cross-checked additions pass with current primary reference verification, examples, contracts, reader validation and checkpoint reserves; not account-quota telemetry.",
-  "last_successful_commit": "b680f77592b84f46facb7c24fc084bededf79ec6",
-  "last_processed_at": "2026-11-19T04:15:56-05:00",
-  "next_batch_decision": "Section 20 Further Reading and Practice is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. The corroborating DOCX is exhausted; re-evaluate fair domain rotation, then continue with the final externally cross-checked additions at Markdown heading line 5215."
+  "processed_section": "DSA Arrays externally cross-checked additions, canonical Markdown heading line 5215 through line 5221 / source end; no DOCX counterpart",
+  "validation": "The final Arrays supplement was promoted through Markdown source end; the DOCX is exhausted at page 116. Java 21 source launch passed all 71 documented executables: 1,380 groups and 1,400,000 trials/comparisons. Reader validation passed exact 732253-byte recovery at SHA-256 960ba831299228788a385019a23b387459f21f690163ce02de66124cc81f5db5, 2599 IDs, 131 search entries, 2199 fragments, zero relative links, 924 fence markers, 340 Mermaid sources, JavaScript syntax and deterministic HTML SHA-256 1723f276c753e11b6de3b4d28b80296090b906ec1b03c45314a2e02eabf497eb. Content commit 072d3d8082d159f2c05f062ba8c84f28f718a320. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+  "estimated_next_tokens": 6000,
+  "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section; no reliable account-quota telemetry was exposed.",
+  "last_successful_commit": "072d3d8082d159f2c05f062ba8c84f28f718a320",
+  "last_processed_at": "2026-11-19T04:22:00-05:00",
+  "next_batch_decision": "The final Arrays supplement is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Both selected Arrays sources are exhausted. Re-evaluate fair-domain rotation before choosing the next confirmed unprocessed source or one bounded live-placeholder section."
   }
 }
