@@ -35,6 +35,13 @@ GUIDES = (
         "Tree Mistake Contracts",
         "Try: ancestor bounds, pre-split, lazy tag",
     ),
+    (
+        ROOT / "revision-sheet-interview-speaking-guide.md",
+        ROOT / "revision-sheet-interview-speaking-guide.html",
+        "Advanced Trees — Revision Sheet and Interview Speaking Guide",
+        "Tree Interview Speaking Guide",
+        "Try: AVL vs red-black, top-k, range structure",
+    ),
 )
 
 

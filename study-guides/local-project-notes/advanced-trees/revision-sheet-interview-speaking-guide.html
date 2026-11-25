@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="source-sha256" content="6cc729351c96946ef2055a3c04abf1a217f516fb7385f1ddc73d9a59f3b7b43b">
+<title>Advanced Trees — Revision Sheet and Interview Speaking Guide</title>
+<style>
+:root{--bg:#f4f7fb;--paper:#fff;--ink:#172033;--muted:#5c667a;--accent:#1261a0;--line:#d3dce9;--code:#101c30;--code-ink:#eef4ff}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.68 system-ui,-apple-system,Segoe UI,sans-serif}
+.layout{display:grid;grid-template-columns:minmax(240px,310px) minmax(0,1040px);gap:1.4rem;max-width:1380px;margin:auto;padding:1rem}
+aside{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:1rem}
+main{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:clamp(1rem,4vw,3rem)}
+.brand{font-weight:800;margin-bottom:.7rem}input{width:100%;padding:.7rem;border:1px solid var(--line);border-radius:9px;font:inherit}
+#results{list-style:none;padding:0;margin:.7rem 0}#results li{margin:.42rem 0}#results a{color:var(--accent);text-decoration:none;font-size:.92rem}#search-status{color:var(--muted);font-size:.82rem;margin:.45rem 0}
+h1,h2,h3{line-height:1.25;scroll-margin-top:1rem}h1{border-bottom:2px solid var(--line);padding-bottom:.35rem}h2{margin-top:2.3rem}a{color:var(--accent)}
+table{border-collapse:collapse;width:100%;display:block;overflow-x:auto}th,td{border:1px solid var(--line);padding:.55rem;text-align:left;vertical-align:top}
+pre{background:var(--code);color:var(--code-ink);padding:1rem;border-radius:10px;overflow:auto}code{font:0.9em ui-monospace,SFMono-Regular,Consolas,monospace}:not(pre)>code{background:#edf2f7;padding:.12rem .3rem;border-radius:4px}
+blockquote{margin:1rem 0;padding:.4rem 1rem;border-left:4px solid var(--accent);background:#eaf2fa}.mermaid{overflow:auto;text-align:center}
+@media(max-width:820px){.layout{display:block;padding:.5rem}aside{position:relative;max-height:none;margin-bottom:.75rem}main{padding:1rem}#results{max-height:12rem;overflow:auto}}
+@media print{aside{display:none}.layout{display:block}main{border:0}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside><div class="brand">Tree Interview Speaking Guide</div><label for="guide-search">Search this guide</label><input id="guide-search" type="search" placeholder="Try: AVL vs red-black, top-k, range structure" autocomplete="off"><div id="search-status">Type to search headings and section text.</div><ul id="results"></ul><a href="#advanced-trees--revision-sheet-and-interview-speaking-guide">Back to top</a></aside>
+<main id="content"><h1 id="advanced-trees--revision-sheet-and-interview-speaking-guide">Advanced Trees — Revision Sheet and Interview Speaking Guide</h1>
+<blockquote>
+<p>Incremental status: this guide promotes source Section 14, “Revision Sheet &amp; Interview Speaking Guide,” at selected Markdown lines 1336–1395 and fresh corroborating DOCX Pandoc lines 1809–1873. Section 15 remains queued.</p>
+</blockquote>
+<h2 id="contents">Contents</h2>
+<ul>
+<li><a href="#requirement-contract">Requirement contract</a></li>
+<li><a href="#the-six-slot-answer-packet">The six-slot answer packet</a></li>
+<li><a href="#example-1--avl-versus-red-black-without-case-list-dumping">Example 1 — AVL versus red-black without case-list dumping</a></li>
+<li><a href="#example-2--derive-complexity-from-height-and-storage-geometry">Example 2 — derive complexity from height and storage geometry</a></li>
+<li><a href="#example-3--explain-a-heap-by-its-public-operation">Example 3 — explain a heap by its public operation</a></li>
+<li><a href="#example-4--choose-a-range-structure-from-the-operation-algebra">Example 4 — choose a range structure from the operation algebra</a></li>
+<li><a href="#executable-speaking-contracts">Executable speaking contracts</a></li>
+<li><a href="#references-and-provenance">References and provenance</a></li>
+</ul>
+<h2 id="requirement-contract">Requirement contract</h2>
+<p>A revision answer is not a list of remembered nouns. It is a short proof that a structure satisfies a workload. Before speaking, bind the answer to six fields:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Slot</th>
+<th>Required question</th>
+<th>Failure prevented</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>invariant</td>
+<td>what must remain true after every public operation?</td>
+<td>describing only the current drawing</td>
+</tr>
+<tr class="even">
+<td>problem</td>
+<td>which failure or workload makes the structure useful?</td>
+<td>recommending a structure without a requirement</td>
+</tr>
+<tr class="odd">
+<td>mechanics</td>
+<td>what state changes during the key operation?</td>
+<td>dumping case names without causality</td>
+</tr>
+<tr class="even">
+<td>complexity</td>
+<td>which operation, bound and parameter are being measured?</td>
+<td>saying “<code>O(log n)</code>” without a height guarantee</td>
+</tr>
+<tr class="odd">
+<td>trade-off</td>
+<td>what cost buys the guarantee?</td>
+<td>claiming one structure is universally best</td>
+</tr>
+<tr class="even">
+<td>use case</td>
+<td>what concrete system or interview problem matches the contract?</td>
+<td>giving an abstract answer with no decision value</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart TD
+  A[Invariant] --&gt; B[Problem solved]
+  B --&gt; C[Operation mechanics]
+  C --&gt; D[Complexity from the invariant]
+  D --&gt; E[Trade-off]
+  E --&gt; F[Concrete use case]</code></pre>
+<p>The source's “30-second” answer becomes reliable only when every claim is tied to one of these slots. If the interviewer changes the workload—such as asking for ordered iteration instead of the next minimum—the answer must change too.</p>
+<h2 id="the-six-slot-answer-packet">The six-slot answer packet</h2>
+<p>Use this speaking order:</p>
+<ol type="1">
+<li><strong>Definition plus invariant.</strong> Name the global promise, not merely the node fields.</li>
+<li><strong>Problem.</strong> State the failure it prevents or query it accelerates.</li>
+<li><strong>Mechanics.</strong> Trace one decisive mutation or query step.</li>
+<li><strong>Complexity.</strong> Derive it from height, fan-out, output size or maintained state.</li>
+<li><strong>Trade-off.</strong> Name extra metadata, rotations, memory, write cost or narrower operations.</li>
+<li><strong>Use case.</strong> Match the structure to one real requirement.</li>
+</ol>
+<pre class="mermaid"><code>flowchart LR
+  A[Requirement changes] --&gt; B[Re-evaluate invariant]
+  B --&gt; C[Re-select operation]
+  C --&gt; D[Re-derive cost]
+  D --&gt; E[Revise recommendation]</code></pre>
+<p>A defensible answer can be interrupted after any slot and expanded. A memorized paragraph often cannot: removing one sentence destroys its order because the speaker has not separated the proof obligations.</p>
+<h2 id="example-1--avl-versus-red-black-without-case-list-dumping">Example 1 — AVL versus red-black without case-list dumping</h2>
+<p><strong>Prompt:</strong> “Compare AVL and red-black trees for an in-memory ordered map.”</p>
+<p>Start from the shared contract: both are binary-search trees, so comparator order defines lookup direction. Their balancing invariants prevent the height from degenerating to <code>n</code>.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Slot</th>
+<th>AVL answer</th>
+<th>Red-black answer</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>invariant</td>
+<td>every node has balance factor <code>-1</code>, <code>0</code> or <code>1</code></td>
+<td>root black; no red-red edge; equal black height on root-to-null paths</td>
+</tr>
+<tr class="even">
+<td>problem</td>
+<td>prevents a skewed BST and keeps a tighter height bound</td>
+<td>prevents skew while permitting looser local shape</td>
+</tr>
+<tr class="odd">
+<td>mechanics</td>
+<td>update heights; single or double rotation at an unbalanced ancestor</td>
+<td>recolor and rotate to repair red-red or black-height violations</td>
+</tr>
+<tr class="even">
+<td>complexity</td>
+<td>search/insert/delete <code>O(log n)</code> because height is logarithmic</td>
+<td>search/insert/delete <code>O(log n)</code> because height is logarithmic</td>
+</tr>
+<tr class="odd">
+<td>trade-off</td>
+<td>stricter balance can mean more repair work</td>
+<td>potentially taller searches, often less rigid update repair</td>
+</tr>
+<tr class="even">
+<td>use case</td>
+<td>ordered reads where a tighter height is valuable</td>
+<td>general ordered maps with mixed reads and writes</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart TD
+  A[Ordered-map requirement] --&gt; B{Need a guaranteed logarithmic height?}
+  B --&gt;|No| C[Plain BST may still degrade]
+  B --&gt;|Yes| D{Tighter balance or looser repair?}
+  D --&gt;|Tighter| E[AVL]
+  D --&gt;|Looser| F[Red-black]</code></pre>
+<p>Dry-run the explanation on insertion into an AVL tree:</p>
+<pre class="text"><code>insert 30, 20, 10
+
+before repair:      after right rotation:
+      30                    20
+     /                     /  \
+    20                    10  30
+   /
+  10</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">Step</th>
+<th>Local evidence</th>
+<th>Spoken conclusion</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">insert <code>10</code></td>
+<td>node <code>30</code> has left height two greater than right</td>
+<td>logarithmic-height invariant is broken</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">classify</td>
+<td>heavy child <code>20</code> is left-heavy</td>
+<td>one right rotation is sufficient</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">repair</td>
+<td><code>20</code> becomes local root</td>
+<td>BST order remains <code>10 &lt; 20 &lt; 30</code></td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">recompute</td>
+<td>moved-down <code>30</code> first, then <code>20</code></td>
+<td>cached heights again describe the post-state</td>
+</tr>
+</tbody>
+</table>
+<p>Do not say every BST operation is logarithmic. An unbalanced plain BST can have height <code>n</code>. Also do not claim Java's <code>TreeMap</code> is AVL: current Java SE 26 documentation identifies it as a red-black-tree implementation and guarantees logarithmic <code>containsKey</code>, <code>get</code>, <code>put</code> and <code>remove</code>.</p>
+<h2 id="example-2--derive-complexity-from-height-and-storage-geometry">Example 2 — derive complexity from height and storage geometry</h2>
+<p><strong>Prompt:</strong> “Why use a B+ tree for a database index instead of an in-memory binary tree?”</p>
+<p>A B+ tree is a balanced, high-fan-out search index. Internal entries route to child pages; leaf entries point to rows and leaves support ordered scanning. The point is not that <code>B+</code> is a fashionable label—the point is that one page read chooses among many children.</p>
+<pre class="mermaid"><code>flowchart TD
+  A[Root page: separators] --&gt; B[Internal page]
+  A --&gt; C[Internal page]
+  B --&gt; D[Leaf page: row pointers]
+  B --&gt; E[Leaf page: row pointers]
+  D --&gt; F[Next leaf]
+  F --&gt; E</code></pre>
+<p>Idealized height trace for one million leaf entries:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">Effective fan-out</th>
+<th style="text-align: right;">Capacity after level 1</th>
+<th style="text-align: right;">Level 2</th>
+<th style="text-align: right;">Level 3</th>
+<th style="text-align: right;">First level reaching <code>1,000,000</code></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>4</code></td>
+<td style="text-align: right;"><code>8</code></td>
+<td style="text-align: right;">about <code>20</code></td>
+</tr>
+<tr class="even">
+<td style="text-align: right;"><code>100</code></td>
+<td style="text-align: right;"><code>100</code></td>
+<td style="text-align: right;"><code>10,000</code></td>
+<td style="text-align: right;"><code>1,000,000</code></td>
+<td style="text-align: right;"><code>3</code></td>
+</tr>
+</tbody>
+</table>
+<p>This is a teaching estimate, not a storage-capacity promise: real height depends on page size, tuple width, fill factor, splits, deduplication and implementation details. The sound complexity statement is:</p>
+<ul>
+<li>point lookup descends <code>O(h)</code> index levels, where <code>h</code> is logarithmic in entry count for bounded fan-out;</li>
+<li>a range scan pays the descent to the first qualifying leaf plus work proportional to the qualifying leaf entries/pages;</li>
+<li>writes pay page maintenance and may split pages, cascading upward.</li>
+</ul>
+<p>Current PostgreSQL 19 documentation describes the same ownership boundary: leaf tuples point to table rows, internal tuples point to the next level, and a page split may propagate a new downlink toward the root. It also documents that B-tree indexes can provide sorted output, sometimes avoiding a separate sort for a matching <code>ORDER BY</code>.</p>
+<p>The two-minute answer is therefore: invariant and page roles, page-read problem, descent/split/leaf-scan mechanics, height-plus-output cost, write/space trade-off, then database point/range query use case.</p>
+<h2 id="example-3--explain-a-heap-by-its-public-operation">Example 3 — explain a heap by its public operation</h2>
+<p><strong>Prompt:</strong> “Use a heap to keep the three largest values from <code>5, 1, 9, 3, 9, 7</code>.”</p>
+<p>Maintain a min-heap of at most three candidates. Its root is the smallest value currently admitted, so the root is exactly the candidate to evict when a larger value arrives.</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">Read</th>
+<th>Heap contents as a set</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;"><code>5</code></td>
+<td><code>{5}</code></td>
+<td>fill capacity</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;"><code>1</code></td>
+<td><code>{1,5}</code></td>
+<td>fill capacity</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;"><code>9</code></td>
+<td><code>{1,5,9}</code></td>
+<td>fill capacity</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;"><code>3</code></td>
+<td><code>{3,5,9}</code></td>
+<td>replace root <code>1</code></td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;"><code>9</code></td>
+<td><code>{5,9,9}</code></td>
+<td>replace root <code>3</code></td>
+</tr>
+<tr class="even">
+<td style="text-align: right;"><code>7</code></td>
+<td><code>{7,9,9}</code></td>
+<td>replace root <code>5</code></td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart TD
+  A[Read value] --&gt; B{Heap size below k?}
+  B --&gt;|Yes| C[Offer value]
+  B --&gt;|No| D{Value greater than root?}
+  D --&gt;|No| E[Discard value]
+  D --&gt;|Yes| F[Remove root, offer value]
+  C --&gt; G[Continue]
+  E --&gt; G
+  F --&gt; G</code></pre>
+<div class="sourceCode" id="cb7"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">int</span><span class="op">[]</span> <span class="fu">topKLargest</span><span class="op">(</span><span class="dt">int</span><span class="op">[]</span> values<span class="op">,</span> <span class="dt">int</span> k<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">PriorityQueue</span><span class="op">&lt;</span><span class="bu">Integer</span><span class="op">&gt;</span> candidates <span class="op">=</span> <span class="kw">new</span> <span class="bu">PriorityQueue</span><span class="op">&lt;&gt;();</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> value <span class="op">:</span> values<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>candidates<span class="op">.</span><span class="fu">size</span><span class="op">()</span> <span class="op">&lt;</span> k<span class="op">)</span> candidates<span class="op">.</span><span class="fu">add</span><span class="op">(</span>value<span class="op">);</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>k <span class="op">&gt;</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> value <span class="op">&gt;</span> candidates<span class="op">.</span><span class="fu">element</span><span class="op">())</span> <span class="op">{</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>            candidates<span class="op">.</span><span class="fu">remove</span><span class="op">();</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>            candidates<span class="op">.</span><span class="fu">add</span><span class="op">(</span>value<span class="op">);</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span><span class="op">[]</span> result <span class="op">=</span> <span class="kw">new</span> <span class="dt">int</span><span class="op">[</span>k<span class="op">];</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> k <span class="op">-</span> <span class="dv">1</span><span class="op">;</span> i <span class="op">&gt;=</span> <span class="dv">0</span><span class="op">;</span> i<span class="op">--)</span> result<span class="op">[</span>i<span class="op">]</span> <span class="op">=</span> candidates<span class="op">.</span><span class="fu">remove</span><span class="op">();</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> result<span class="op">;</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>For <code>n</code> inputs and retained size <code>k</code>, this uses <code>O(k)</code> auxiliary space and <code>O(n log k)</code> time. The heap does <strong>not</strong> promise sorted iteration; repeated removal (or an explicit final sort) is a separate output step. Java SE 26 documents <code>offer</code>/<code>poll</code> as <code>O(log n)</code>, <code>peek</code> as constant time, and iterator order as unspecified.</p>
+<p>This answer stays honest because it names the public observation: “next eviction candidate at the root,” not “the backing array is sorted.”</p>
+<h2 id="example-4--choose-a-range-structure-from-the-operation-algebra">Example 4 — choose a range structure from the operation algebra</h2>
+<p><strong>Prompt:</strong> “Should I use a Fenwick tree or a segment tree?”</p>
+<p>Ask for the update, query and algebra before naming a structure:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Workload</th>
+<th>Compact choice</th>
+<th>Sufficient state</th>
+<th>Typical cost</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>point addition + prefix/range sum</td>
+<td>Fenwick tree</td>
+<td>lowbit prefix buckets</td>
+<td><code>O(log n)</code> update/query, <code>O(n)</code> memory</td>
+</tr>
+<tr class="even">
+<td>point assignment + range minimum</td>
+<td>segment tree</td>
+<td>minimum per interval</td>
+<td><code>O(log n)</code> update/query, larger constant memory</td>
+</tr>
+<tr class="odd">
+<td>range addition + range sum</td>
+<td>lazy segment tree</td>
+<td>interval sum plus deferred delta</td>
+<td><code>O(log n)</code> update/query when tags are maintained correctly</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart TD
+  A[State update and query exactly] --&gt; B{Point add plus prefix sum?}
+  B --&gt;|Yes| C[Fenwick]
+  B --&gt;|No| D{Range add plus range aggregate?}
+  D --&gt;|Yes| E[Lazy segment tree]
+  D --&gt;|No| F{Associative custom interval aggregate?}
+  F --&gt;|Yes| G[Segment tree]
+  F --&gt;|No| H[Reformulate or choose another structure]</code></pre>
+<p>Fenwick trace for <code>add(index=5, delta=4)</code> in a one-based tree of size eight:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">Current index</th>
+<th style="text-align: right;"><code>lowbit(i)</code></th>
+<th>Bucket updated</th>
+<th style="text-align: right;">Next index</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;"><code>5</code> (<code>0101₂</code>)</td>
+<td style="text-align: right;"><code>1</code></td>
+<td>tree bucket ending at <code>5</code></td>
+<td style="text-align: right;"><code>6</code></td>
+</tr>
+<tr class="even">
+<td style="text-align: right;"><code>6</code> (<code>0110₂</code>)</td>
+<td style="text-align: right;"><code>2</code></td>
+<td>tree bucket ending at <code>6</code></td>
+<td style="text-align: right;"><code>8</code></td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;"><code>8</code> (<code>1000₂</code>)</td>
+<td style="text-align: right;"><code>8</code></td>
+<td>tree bucket ending at <code>8</code></td>
+<td style="text-align: right;"><code>16</code> stop</td>
+</tr>
+</tbody>
+</table>
+<p>Lazy segment-tree trace for adding <code>+3</code> to a fully covered interval of length four:</p>
+<table>
+<thead>
+<tr class="header">
+<th>State</th>
+<th style="text-align: right;">Sum</th>
+<th style="text-align: right;">Pending tag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>before</td>
+<td style="text-align: right;"><code>10</code></td>
+<td style="text-align: right;"><code>0</code></td>
+<td>descendants materialized</td>
+</tr>
+<tr class="even">
+<td>absorb full cover</td>
+<td style="text-align: right;"><code>22</code></td>
+<td style="text-align: right;"><code>3</code></td>
+<td>aggregate changes by <code>3 × 4</code></td>
+</tr>
+<tr class="odd">
+<td>later push</td>
+<td style="text-align: right;">parent tag <code>0</code></td>
+<td style="text-align: right;">children each add <code>3</code></td>
+<td>deferred ownership moves once</td>
+</tr>
+</tbody>
+</table>
+<p>The interview contrast is not “Fenwick is faster.” Fenwick is compact for a narrower algebra. A segment tree stores more explicit interval state and supports broader aggregates and lazy transformations. State the operation contract first, then derive the recommendation.</p>
+<h2 id="executable-speaking-contracts">Executable speaking contracts</h2>
+<p><a href="java/TreeInterviewAnswerContracts.java"><code>TreeInterviewAnswerContracts.java</code></a> encodes the six-slot packet, rejects unsupported claims such as sorted heap iteration or unconditional logarithmic search in a plain BST, selects a range structure from the declared workload, and implements ownership-safe top-<code>k</code> selection.</p>
+<p>Twenty deterministic groups cover completeness, structure/claim boundaries, all three range workloads, the exact top-<code>k</code> trace and failure cases. Then 20,000 seeded trials perform 80,000 checks against an independent sorted top-<code>k</code> oracle, input-ownership snapshots, range-selection cases and generated six-slot packets.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">java</span> <span class="at">-ea</span> study-guides/local-project-notes/advanced-trees/java/TreeInterviewAnswerContracts.java</span></code></pre></div>
+<p>Expected result:</p>
+<pre class="text"><code>PASS groups=20 trials=20000 checks=80000</code></pre>
+<h2 id="references-and-provenance">References and provenance</h2>
+<ul>
+<li>Oracle, <a href="https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/util/TreeMap.html">Java SE 26 <code>TreeMap</code></a> — red-black implementation and guaranteed logarithmic <code>containsKey</code>, <code>get</code>, <code>put</code> and <code>remove</code>.</li>
+<li>Oracle, <a href="https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/util/PriorityQueue.html">Java SE 26 <code>PriorityQueue</code></a> — heap head semantics, operation costs and unspecified iterator order.</li>
+<li>PostgreSQL 19, <a href="https://www.postgresql.org/docs/current/btree.html">B-Tree Indexes</a> — internal/leaf page roles and page-split propagation.</li>
+<li>PostgreSQL 19, <a href="https://www.postgresql.org/docs/19/indexes-ordering.html">Indexes and <code>ORDER BY</code></a> — B-tree ordered output and forward/backward scan behavior.</li>
+<li>G. M. Adel'son-Vel'skii and E. M. Landis, <a href="https://www.mathnet.ru/php/archive.phtml?jrnid=dan&amp;option_lang=eng&amp;paperid=26964&amp;wshow=paper">“An algorithm for organization of information”</a>, 1962 — original height-balanced search-tree work.</li>
+<li>Leo J. Guibas and Robert Sedgewick, <a href="https://doi.org/10.1109/SFCS.1978.3">“A Dichromatic Framework for Balanced Trees”</a>, 1978 — color invariants and logarithmic balanced-tree framework.</li>
+<li>Rudolf Bayer and Edward McCreight, <a href="https://doi.org/10.1007/BF00288683">“Organization and Maintenance of Large Ordered Indexes”</a>, 1972 — original page-oriented B-tree organization.</li>
+<li>Peter M. Fenwick, <a href="https://doi.org/10.1002/SPE.4380240306">“A New Data Structure for Cumulative Frequency Tables”</a>, 1994 — lowbit-based cumulative-frequency decomposition.</li>
+</ul>
+<p>Source intake:</p>
+<ul>
+<li>Selected <code>Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>, Library file <code>libfile_7346abf23a3c81918843c9a9f5b5d80f</code>, 68,775 bytes, SHA-256 <code>86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1</code>. This pass promotes only Section 14 at lines 1336–1395, bounded before the Section 15 anchor.</li>
+<li>Compared <code>Tree_Advanced_FAANG_Study_Guide.docx</code>, Library file <code>libfile_b71f27c80d4c81918c672303add6bfb5</code>, 227,748 bytes, SHA-256 <code>fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f</code>. A fresh Pandoc 3.1.11.1 GFM conversion places the matching Section 14 at lines 1809–1873, bounded before Section 15. This supersedes the stale checkpoint range <code>1946–2023</code>.</li>
+<li>The earlier broad <code>advanced_trees_interview_guide.md</code> and focused Sections 3–13 remain comparison/canonical material. This guide deepens the distinct revision/speaking section without duplicating their full implementations.</li>
+</ul>
+<p>The requirement contract, four worked speaking traces, six diagrams, executable contract and randomized oracles are newly authored teaching material. Source Section 15 and the wider 170-placeholder backlog remain incomplete.</p>
+</main>
+</div>
+<script id="source-markdown" type="application/octet-stream">IyBBZHZhbmNlZCBUcmVlcyDigJQgUmV2aXNpb24gU2hlZXQgYW5kIEludGVydmlldyBTcGVha2luZyBHdWlkZQoKPiBJbmNyZW1lbnRhbCBzdGF0dXM6IHRoaXMgZ3VpZGUgcHJvbW90ZXMgc291cmNlIFNlY3Rpb24gMTQsIOKAnFJldmlzaW9uIFNoZWV0ICYgSW50ZXJ2aWV3IFNwZWFraW5nIEd1aWRlLOKAnSBhdCBzZWxlY3RlZCBNYXJrZG93biBsaW5lcyAxMzM24oCTMTM5NSBhbmQgZnJlc2ggY29ycm9ib3JhdGluZyBET0NYIFBhbmRvYyBsaW5lcyAxODA54oCTMTg3My4gU2VjdGlvbiAxNSByZW1haW5zIHF1ZXVlZC4KCiMjIENvbnRlbnRzCgotIFtSZXF1aXJlbWVudCBjb250cmFjdF0oI3JlcXVpcmVtZW50LWNvbnRyYWN0KQotIFtUaGUgc2l4LXNsb3QgYW5zd2VyIHBhY2tldF0oI3RoZS1zaXgtc2xvdC1hbnN3ZXItcGFja2V0KQotIFtFeGFtcGxlIDEg4oCUIEFWTCB2ZXJzdXMgcmVkLWJsYWNrIHdpdGhvdXQgY2FzZS1saXN0IGR1bXBpbmddKCNleGFtcGxlLTEtLWF2bC12ZXJzdXMtcmVkLWJsYWNrLXdpdGhvdXQtY2FzZS1saXN0LWR1bXBpbmcpCi0gW0V4YW1wbGUgMiDigJQgZGVyaXZlIGNvbXBsZXhpdHkgZnJvbSBoZWlnaHQgYW5kIHN0b3JhZ2UgZ2VvbWV0cnldKCNleGFtcGxlLTItLWRlcml2ZS1jb21wbGV4aXR5LWZyb20taGVpZ2h0LWFuZC1zdG9yYWdlLWdlb21ldHJ5KQotIFtFeGFtcGxlIDMg4oCUIGV4cGxhaW4gYSBoZWFwIGJ5IGl0cyBwdWJsaWMgb3BlcmF0aW9uXSgjZXhhbXBsZS0zLS1leHBsYWluLWEtaGVhcC1ieS1pdHMtcHVibGljLW9wZXJhdGlvbikKLSBbRXhhbXBsZSA0IOKAlCBjaG9vc2UgYSByYW5nZSBzdHJ1Y3R1cmUgZnJvbSB0aGUgb3BlcmF0aW9uIGFsZ2VicmFdKCNleGFtcGxlLTQtLWNob29zZS1hLXJhbmdlLXN0cnVjdHVyZS1mcm9tLXRoZS1vcGVyYXRpb24tYWxnZWJyYSkKLSBbRXhlY3V0YWJsZSBzcGVha2luZyBjb250cmFjdHNdKCNleGVjdXRhYmxlLXNwZWFraW5nLWNvbnRyYWN0cykKLSBbUmVmZXJlbmNlcyBhbmQgcHJvdmVuYW5jZV0oI3JlZmVyZW5jZXMtYW5kLXByb3ZlbmFuY2UpCgojIyBSZXF1aXJlbWVudCBjb250cmFjdAoKQSByZXZpc2lvbiBhbnN3ZXIgaXMgbm90IGEgbGlzdCBvZiByZW1lbWJlcmVkIG5vdW5zLiBJdCBpcyBhIHNob3J0IHByb29mIHRoYXQgYSBzdHJ1Y3R1cmUgc2F0aXNmaWVzIGEgd29ya2xvYWQuIEJlZm9yZSBzcGVha2luZywgYmluZCB0aGUgYW5zd2VyIHRvIHNpeCBmaWVsZHM6Cgp8IFNsb3QgfCBSZXF1aXJlZCBxdWVzdGlvbiB8IEZhaWx1cmUgcHJldmVudGVkIHwKfC0tLXwtLS18LS0tfAp8IGludmFyaWFudCB8IHdoYXQgbXVzdCByZW1haW4gdHJ1ZSBhZnRlciBldmVyeSBwdWJsaWMgb3BlcmF0aW9uPyB8IGRlc2NyaWJpbmcgb25seSB0aGUgY3VycmVudCBkcmF3aW5nIHwKfCBwcm9ibGVtIHwgd2hpY2ggZmFpbHVyZSBvciB3b3JrbG9hZCBtYWtlcyB0aGUgc3RydWN0dXJlIHVzZWZ1bD8gfCByZWNvbW1lbmRpbmcgYSBzdHJ1Y3R1cmUgd2l0aG91dCBhIHJlcXVpcmVtZW50IHwKfCBtZWNoYW5pY3MgfCB3aGF0IHN0YXRlIGNoYW5nZXMgZHVyaW5nIHRoZSBrZXkgb3BlcmF0aW9uPyB8IGR1bXBpbmcgY2FzZSBuYW1lcyB3aXRob3V0IGNhdXNhbGl0eSB8CnwgY29tcGxleGl0eSB8IHdoaWNoIG9wZXJhdGlvbiwgYm91bmQgYW5kIHBhcmFtZXRlciBhcmUgYmVpbmcgbWVhc3VyZWQ/IHwgc2F5aW5nIOKAnGBPKGxvZyBuKWDigJ0gd2l0aG91dCBhIGhlaWdodCBndWFyYW50ZWUgfAp8IHRyYWRlLW9mZiB8IHdoYXQgY29zdCBidXlzIHRoZSBndWFyYW50ZWU/IHwgY2xhaW1pbmcgb25lIHN0cnVjdHVyZSBpcyB1bml2ZXJzYWxseSBiZXN0IHwKfCB1c2UgY2FzZSB8IHdoYXQgY29uY3JldGUgc3lzdGVtIG9yIGludGVydmlldyBwcm9ibGVtIG1hdGNoZXMgdGhlIGNvbnRyYWN0PyB8IGdpdmluZyBhbiBhYnN0cmFjdCBhbnN3ZXIgd2l0aCBubyBkZWNpc2lvbiB2YWx1ZSB8CgpgYGBtZXJtYWlkCmZsb3djaGFydCBURAogIEFbSW52YXJpYW50XSAtLT4gQltQcm9ibGVtIHNvbHZlZF0KICBCIC0tPiBDW09wZXJhdGlvbiBtZWNoYW5pY3NdCiAgQyAtLT4gRFtDb21wbGV4aXR5IGZyb20gdGhlIGludmFyaWFudF0KICBEIC0tPiBFW1RyYWRlLW9mZl0KICBFIC0tPiBGW0NvbmNyZXRlIHVzZSBjYXNlXQpgYGAKClRoZSBzb3VyY2UncyDigJwzMC1zZWNvbmTigJ0gYW5zd2VyIGJlY29tZXMgcmVsaWFibGUgb25seSB3aGVuIGV2ZXJ5IGNsYWltIGlzIHRpZWQgdG8gb25lIG9mIHRoZXNlIHNsb3RzLiBJZiB0aGUgaW50ZXJ2aWV3ZXIgY2hhbmdlcyB0aGUgd29ya2xvYWTigJRzdWNoIGFzIGFza2luZyBmb3Igb3JkZXJlZCBpdGVyYXRpb24gaW5zdGVhZCBvZiB0aGUgbmV4dCBtaW5pbXVt4oCUdGhlIGFuc3dlciBtdXN0IGNoYW5nZSB0b28uCgojIyBUaGUgc2l4LXNsb3QgYW5zd2VyIHBhY2tldAoKVXNlIHRoaXMgc3BlYWtpbmcgb3JkZXI6CgoxLiAqKkRlZmluaXRpb24gcGx1cyBpbnZhcmlhbnQuKiogTmFtZSB0aGUgZ2xvYmFsIHByb21pc2UsIG5vdCBtZXJlbHkgdGhlIG5vZGUgZmllbGRzLgoyLiAqKlByb2JsZW0uKiogU3RhdGUgdGhlIGZhaWx1cmUgaXQgcHJldmVudHMgb3IgcXVlcnkgaXQgYWNjZWxlcmF0ZXMuCjMuICoqTWVjaGFuaWNzLioqIFRyYWNlIG9uZSBkZWNpc2l2ZSBtdXRhdGlvbiBvciBxdWVyeSBzdGVwLgo0LiAqKkNvbXBsZXhpdHkuKiogRGVyaXZlIGl0IGZyb20gaGVpZ2h0LCBmYW4tb3V0LCBvdXRwdXQgc2l6ZSBvciBtYWludGFpbmVkIHN0YXRlLgo1LiAqKlRyYWRlLW9mZi4qKiBOYW1lIGV4dHJhIG1ldGFkYXRhLCByb3RhdGlvbnMsIG1lbW9yeSwgd3JpdGUgY29zdCBvciBuYXJyb3dlciBvcGVyYXRpb25zLgo2LiAqKlVzZSBjYXNlLioqIE1hdGNoIHRoZSBzdHJ1Y3R1cmUgdG8gb25lIHJlYWwgcmVxdWlyZW1lbnQuCgpgYGBtZXJtYWlkCmZsb3djaGFydCBMUgogIEFbUmVxdWlyZW1lbnQgY2hhbmdlc10gLS0+IEJbUmUtZXZhbHVhdGUgaW52YXJpYW50XQogIEIgLS0+IENbUmUtc2VsZWN0IG9wZXJhdGlvbl0KICBDIC0tPiBEW1JlLWRlcml2ZSBjb3N0XQogIEQgLS0+IEVbUmV2aXNlIHJlY29tbWVuZGF0aW9uXQpgYGAKCkEgZGVmZW5zaWJsZSBhbnN3ZXIgY2FuIGJlIGludGVycnVwdGVkIGFmdGVyIGFueSBzbG90IGFuZCBleHBhbmRlZC4gQSBtZW1vcml6ZWQgcGFyYWdyYXBoIG9mdGVuIGNhbm5vdDogcmVtb3Zpbmcgb25lIHNlbnRlbmNlIGRlc3Ryb3lzIGl0cyBvcmRlciBiZWNhdXNlIHRoZSBzcGVha2VyIGhhcyBub3Qgc2VwYXJhdGVkIHRoZSBwcm9vZiBvYmxpZ2F0aW9ucy4KCiMjIEV4YW1wbGUgMSDigJQgQVZMIHZlcnN1cyByZWQtYmxhY2sgd2l0aG91dCBjYXNlLWxpc3QgZHVtcGluZwoKKipQcm9tcHQ6Kiog4oCcQ29tcGFyZSBBVkwgYW5kIHJlZC1ibGFjayB0cmVlcyBmb3IgYW4gaW4tbWVtb3J5IG9yZGVyZWQgbWFwLuKAnQoKU3RhcnQgZnJvbSB0aGUgc2hhcmVkIGNvbnRyYWN0OiBib3RoIGFyZSBiaW5hcnktc2VhcmNoIHRyZWVzLCBzbyBjb21wYXJhdG9yIG9yZGVyIGRlZmluZXMgbG9va3VwIGRpcmVjdGlvbi4gVGhlaXIgYmFsYW5jaW5nIGludmFyaWFudHMgcHJldmVudCB0aGUgaGVpZ2h0IGZyb20gZGVnZW5lcmF0aW5nIHRvIGBuYC4KCnwgU2xvdCB8IEFWTCBhbnN3ZXIgfCBSZWQtYmxhY2sgYW5zd2VyIHwKfC0tLXwtLS18LS0tfAp8IGludmFyaWFudCB8IGV2ZXJ5IG5vZGUgaGFzIGJhbGFuY2UgZmFjdG9yIGAtMWAsIGAwYCBvciBgMWAgfCByb290IGJsYWNrOyBubyByZWQtcmVkIGVkZ2U7IGVxdWFsIGJsYWNrIGhlaWdodCBvbiByb290LXRvLW51bGwgcGF0aHMgfAp8IHByb2JsZW0gfCBwcmV2ZW50cyBhIHNrZXdlZCBCU1QgYW5kIGtlZXBzIGEgdGlnaHRlciBoZWlnaHQgYm91bmQgfCBwcmV2ZW50cyBza2V3IHdoaWxlIHBlcm1pdHRpbmcgbG9vc2VyIGxvY2FsIHNoYXBlIHwKfCBtZWNoYW5pY3MgfCB1cGRhdGUgaGVpZ2h0czsgc2luZ2xlIG9yIGRvdWJsZSByb3RhdGlvbiBhdCBhbiB1bmJhbGFuY2VkIGFuY2VzdG9yIHwgcmVjb2xvciBhbmQgcm90YXRlIHRvIHJlcGFpciByZWQtcmVkIG9yIGJsYWNrLWhlaWdodCB2aW9sYXRpb25zIHwKfCBjb21wbGV4aXR5IHwgc2VhcmNoL2luc2VydC9kZWxldGUgYE8obG9nIG4pYCBiZWNhdXNlIGhlaWdodCBpcyBsb2dhcml0aG1pYyB8IHNlYXJjaC9pbnNlcnQvZGVsZXRlIGBPKGxvZyBuKWAgYmVjYXVzZSBoZWlnaHQgaXMgbG9nYXJpdGhtaWMgfAp8IHRyYWRlLW9mZiB8IHN0cmljdGVyIGJhbGFuY2UgY2FuIG1lYW4gbW9yZSByZXBhaXIgd29yayB8IHBvdGVudGlhbGx5IHRhbGxlciBzZWFyY2hlcywgb2Z0ZW4gbGVzcyByaWdpZCB1cGRhdGUgcmVwYWlyIHwKfCB1c2UgY2FzZSB8IG9yZGVyZWQgcmVhZHMgd2hlcmUgYSB0aWdodGVyIGhlaWdodCBpcyB2YWx1YWJsZSB8IGdlbmVyYWwgb3JkZXJlZCBtYXBzIHdpdGggbWl4ZWQgcmVhZHMgYW5kIHdyaXRlcyB8CgpgYGBtZXJtYWlkCmZsb3djaGFydCBURAogIEFbT3JkZXJlZC1tYXAgcmVxdWlyZW1lbnRdIC0tPiBCe05lZWQgYSBndWFyYW50ZWVkIGxvZ2FyaXRobWljIGhlaWdodD99CiAgQiAtLT58Tm98IENbUGxhaW4gQlNUIG1heSBzdGlsbCBkZWdyYWRlXQogIEIgLS0+fFllc3wgRHtUaWdodGVyIGJhbGFuY2Ugb3IgbG9vc2VyIHJlcGFpcj99CiAgRCAtLT58VGlnaHRlcnwgRVtBVkxdCiAgRCAtLT58TG9vc2VyfCBGW1JlZC1ibGFja10KYGBgCgpEcnktcnVuIHRoZSBleHBsYW5hdGlvbiBvbiBpbnNlcnRpb24gaW50byBhbiBBVkwgdHJlZToKCmBgYHRleHQKaW5zZXJ0IDMwLCAyMCwgMTAKCmJlZm9yZSByZXBhaXI6ICAgICAgYWZ0ZXIgcmlnaHQgcm90YXRpb246CiAgICAgIDMwICAgICAgICAgICAgICAgICAgICAyMAogICAgIC8gICAgICAgICAgICAgICAgICAgICAvICBcCiAgICAyMCAgICAgICAgICAgICAgICAgICAgMTAgIDMwCiAgIC8KICAxMApgYGAKCnwgU3RlcCB8IExvY2FsIGV2aWRlbmNlIHwgU3Bva2VuIGNvbmNsdXNpb24gfAp8LS0tOnwtLS18LS0tfAp8IGluc2VydCBgMTBgIHwgbm9kZSBgMzBgIGhhcyBsZWZ0IGhlaWdodCB0d28gZ3JlYXRlciB0aGFuIHJpZ2h0IHwgbG9nYXJpdGhtaWMtaGVpZ2h0IGludmFyaWFudCBpcyBicm9rZW4gfAp8IGNsYXNzaWZ5IHwgaGVhdnkgY2hpbGQgYDIwYCBpcyBsZWZ0LWhlYXZ5IHwgb25lIHJpZ2h0IHJvdGF0aW9uIGlzIHN1ZmZpY2llbnQgfAp8IHJlcGFpciB8IGAyMGAgYmVjb21lcyBsb2NhbCByb290IHwgQlNUIG9yZGVyIHJlbWFpbnMgYDEwIDwgMjAgPCAzMGAgfAp8IHJlY29tcHV0ZSB8IG1vdmVkLWRvd24gYDMwYCBmaXJzdCwgdGhlbiBgMjBgIHwgY2FjaGVkIGhlaWdodHMgYWdhaW4gZGVzY3JpYmUgdGhlIHBvc3Qtc3RhdGUgfAoKRG8gbm90IHNheSBldmVyeSBCU1Qgb3BlcmF0aW9uIGlzIGxvZ2FyaXRobWljLiBBbiB1bmJhbGFuY2VkIHBsYWluIEJTVCBjYW4gaGF2ZSBoZWlnaHQgYG5gLiBBbHNvIGRvIG5vdCBjbGFpbSBKYXZhJ3MgYFRyZWVNYXBgIGlzIEFWTDogY3VycmVudCBKYXZhIFNFIDI2IGRvY3VtZW50YXRpb24gaWRlbnRpZmllcyBpdCBhcyBhIHJlZC1ibGFjay10cmVlIGltcGxlbWVudGF0aW9uIGFuZCBndWFyYW50ZWVzIGxvZ2FyaXRobWljIGBjb250YWluc0tleWAsIGBnZXRgLCBgcHV0YCBhbmQgYHJlbW92ZWAuCgojIyBFeGFtcGxlIDIg4oCUIGRlcml2ZSBjb21wbGV4aXR5IGZyb20gaGVpZ2h0IGFuZCBzdG9yYWdlIGdlb21ldHJ5CgoqKlByb21wdDoqKiDigJxXaHkgdXNlIGEgQisgdHJlZSBmb3IgYSBkYXRhYmFzZSBpbmRleCBpbnN0ZWFkIG9mIGFuIGluLW1lbW9yeSBiaW5hcnkgdHJlZT/igJ0KCkEgQisgdHJlZSBpcyBhIGJhbGFuY2VkLCBoaWdoLWZhbi1vdXQgc2VhcmNoIGluZGV4LiBJbnRlcm5hbCBlbnRyaWVzIHJvdXRlIHRvIGNoaWxkIHBhZ2VzOyBsZWFmIGVudHJpZXMgcG9pbnQgdG8gcm93cyBhbmQgbGVhdmVzIHN1cHBvcnQgb3JkZXJlZCBzY2FubmluZy4gVGhlIHBvaW50IGlzIG5vdCB0aGF0IGBCK2AgaXMgYSBmYXNoaW9uYWJsZSBsYWJlbOKAlHRoZSBwb2ludCBpcyB0aGF0IG9uZSBwYWdlIHJlYWQgY2hvb3NlcyBhbW9uZyBtYW55IGNoaWxkcmVuLgoKYGBgbWVybWFpZApmbG93Y2hhcnQgVEQKICBBW1Jvb3QgcGFnZTogc2VwYXJhdG9yc10gLS0+IEJbSW50ZXJuYWwgcGFnZV0KICBBIC0tPiBDW0ludGVybmFsIHBhZ2VdCiAgQiAtLT4gRFtMZWFmIHBhZ2U6IHJvdyBwb2ludGVyc10KICBCIC0tPiBFW0xlYWYgcGFnZTogcm93IHBvaW50ZXJzXQogIEQgLS0+IEZbTmV4dCBsZWFmXQogIEYgLS0+IEUKYGBgCgpJZGVhbGl6ZWQgaGVpZ2h0IHRyYWNlIGZvciBvbmUgbWlsbGlvbiBsZWFmIGVudHJpZXM6Cgp8IEVmZmVjdGl2ZSBmYW4tb3V0IHwgQ2FwYWNpdHkgYWZ0ZXIgbGV2ZWwgMSB8IExldmVsIDIgfCBMZXZlbCAzIHwgRmlyc3QgbGV2ZWwgcmVhY2hpbmcgYDEsMDAwLDAwMGAgfAp8LS0tOnwtLS06fC0tLTp8LS0tOnwtLS06fAp8IGAyYCB8IGAyYCB8IGA0YCB8IGA4YCB8IGFib3V0IGAyMGAgfAp8IGAxMDBgIHwgYDEwMGAgfCBgMTAsMDAwYCB8IGAxLDAwMCwwMDBgIHwgYDNgIHwKClRoaXMgaXMgYSB0ZWFjaGluZyBlc3RpbWF0ZSwgbm90IGEgc3RvcmFnZS1jYXBhY2l0eSBwcm9taXNlOiByZWFsIGhlaWdodCBkZXBlbmRzIG9uIHBhZ2Ugc2l6ZSwgdHVwbGUgd2lkdGgsIGZpbGwgZmFjdG9yLCBzcGxpdHMsIGRlZHVwbGljYXRpb24gYW5kIGltcGxlbWVudGF0aW9uIGRldGFpbHMuIFRoZSBzb3VuZCBjb21wbGV4aXR5IHN0YXRlbWVudCBpczoKCi0gcG9pbnQgbG9va3VwIGRlc2NlbmRzIGBPKGgpYCBpbmRleCBsZXZlbHMsIHdoZXJlIGBoYCBpcyBsb2dhcml0aG1pYyBpbiBlbnRyeSBjb3VudCBmb3IgYm91bmRlZCBmYW4tb3V0OwotIGEgcmFuZ2Ugc2NhbiBwYXlzIHRoZSBkZXNjZW50IHRvIHRoZSBmaXJzdCBxdWFsaWZ5aW5nIGxlYWYgcGx1cyB3b3JrIHByb3BvcnRpb25hbCB0byB0aGUgcXVhbGlmeWluZyBsZWFmIGVudHJpZXMvcGFnZXM7Ci0gd3JpdGVzIHBheSBwYWdlIG1haW50ZW5hbmNlIGFuZCBtYXkgc3BsaXQgcGFnZXMsIGNhc2NhZGluZyB1cHdhcmQuCgpDdXJyZW50IFBvc3RncmVTUUwgMTkgZG9jdW1lbnRhdGlvbiBkZXNjcmliZXMgdGhlIHNhbWUgb3duZXJzaGlwIGJvdW5kYXJ5OiBsZWFmIHR1cGxlcyBwb2ludCB0byB0YWJsZSByb3dzLCBpbnRlcm5hbCB0dXBsZXMgcG9pbnQgdG8gdGhlIG5leHQgbGV2ZWwsIGFuZCBhIHBhZ2Ugc3BsaXQgbWF5IHByb3BhZ2F0ZSBhIG5ldyBkb3dubGluayB0b3dhcmQgdGhlIHJvb3QuIEl0IGFsc28gZG9jdW1lbnRzIHRoYXQgQi10cmVlIGluZGV4ZXMgY2FuIHByb3ZpZGUgc29ydGVkIG91dHB1dCwgc29tZXRpbWVzIGF2b2lkaW5nIGEgc2VwYXJhdGUgc29ydCBmb3IgYSBtYXRjaGluZyBgT1JERVIgQllgLgoKVGhlIHR3by1taW51dGUgYW5zd2VyIGlzIHRoZXJlZm9yZTogaW52YXJpYW50IGFuZCBwYWdlIHJvbGVzLCBwYWdlLXJlYWQgcHJvYmxlbSwgZGVzY2VudC9zcGxpdC9sZWFmLXNjYW4gbWVjaGFuaWNzLCBoZWlnaHQtcGx1cy1vdXRwdXQgY29zdCwgd3JpdGUvc3BhY2UgdHJhZGUtb2ZmLCB0aGVuIGRhdGFiYXNlIHBvaW50L3JhbmdlIHF1ZXJ5IHVzZSBjYXNlLgoKIyMgRXhhbXBsZSAzIOKAlCBleHBsYWluIGEgaGVhcCBieSBpdHMgcHVibGljIG9wZXJhdGlvbgoKKipQcm9tcHQ6Kiog4oCcVXNlIGEgaGVhcCB0byBrZWVwIHRoZSB0aHJlZSBsYXJnZXN0IHZhbHVlcyBmcm9tIGA1LCAxLCA5LCAzLCA5LCA3YC7igJ0KCk1haW50YWluIGEgbWluLWhlYXAgb2YgYXQgbW9zdCB0aHJlZSBjYW5kaWRhdGVzLiBJdHMgcm9vdCBpcyB0aGUgc21hbGxlc3QgdmFsdWUgY3VycmVudGx5IGFkbWl0dGVkLCBzbyB0aGUgcm9vdCBpcyBleGFjdGx5IHRoZSBjYW5kaWRhdGUgdG8gZXZpY3Qgd2hlbiBhIGxhcmdlciB2YWx1ZSBhcnJpdmVzLgoKfCBSZWFkIHwgSGVhcCBjb250ZW50cyBhcyBhIHNldCB8IERlY2lzaW9uIHwKfC0tLTp8LS0tfC0tLXwKfCBgNWAgfCBgezV9YCB8IGZpbGwgY2FwYWNpdHkgfAp8IGAxYCB8IGB7MSw1fWAgfCBmaWxsIGNhcGFjaXR5IHwKfCBgOWAgfCBgezEsNSw5fWAgfCBmaWxsIGNhcGFjaXR5IHwKfCBgM2AgfCBgezMsNSw5fWAgfCByZXBsYWNlIHJvb3QgYDFgIHwKfCBgOWAgfCBgezUsOSw5fWAgfCByZXBsYWNlIHJvb3QgYDNgIHwKfCBgN2AgfCBgezcsOSw5fWAgfCByZXBsYWNlIHJvb3QgYDVgIHwKCmBgYG1lcm1haWQKZmxvd2NoYXJ0IFRECiAgQVtSZWFkIHZhbHVlXSAtLT4gQntIZWFwIHNpemUgYmVsb3cgaz99CiAgQiAtLT58WWVzfCBDW09mZmVyIHZhbHVlXQogIEIgLS0+fE5vfCBEe1ZhbHVlIGdyZWF0ZXIgdGhhbiByb290P30KICBEIC0tPnxOb3wgRVtEaXNjYXJkIHZhbHVlXQogIEQgLS0+fFllc3wgRltSZW1vdmUgcm9vdCwgb2ZmZXIgdmFsdWVdCiAgQyAtLT4gR1tDb250aW51ZV0KICBFIC0tPiBHCiAgRiAtLT4gRwpgYGAKCmBgYGphdmEKc3RhdGljIGludFtdIHRvcEtMYXJnZXN0KGludFtdIHZhbHVlcywgaW50IGspIHsKICAgIFByaW9yaXR5UXVldWU8SW50ZWdlcj4gY2FuZGlkYXRlcyA9IG5ldyBQcmlvcml0eVF1ZXVlPD4oKTsKICAgIGZvciAoaW50IHZhbHVlIDogdmFsdWVzKSB7CiAgICAgICAgaWYgKGNhbmRpZGF0ZXMuc2l6ZSgpIDwgaykgY2FuZGlkYXRlcy5hZGQodmFsdWUpOwogICAgICAgIGVsc2UgaWYgKGsgPiAwICYmIHZhbHVlID4gY2FuZGlkYXRlcy5lbGVtZW50KCkpIHsKICAgICAgICAgICAgY2FuZGlkYXRlcy5yZW1vdmUoKTsKICAgICAgICAgICAgY2FuZGlkYXRlcy5hZGQodmFsdWUpOwogICAgICAgIH0KICAgIH0KICAgIGludFtdIHJlc3VsdCA9IG5ldyBpbnRba107CiAgICBmb3IgKGludCBpID0gayAtIDE7IGkgPj0gMDsgaS0tKSByZXN1bHRbaV0gPSBjYW5kaWRhdGVzLnJlbW92ZSgpOwogICAgcmV0dXJuIHJlc3VsdDsKfQpgYGAKCkZvciBgbmAgaW5wdXRzIGFuZCByZXRhaW5lZCBzaXplIGBrYCwgdGhpcyB1c2VzIGBPKGspYCBhdXhpbGlhcnkgc3BhY2UgYW5kIGBPKG4gbG9nIGspYCB0aW1lLiBUaGUgaGVhcCBkb2VzICoqbm90KiogcHJvbWlzZSBzb3J0ZWQgaXRlcmF0aW9uOyByZXBlYXRlZCByZW1vdmFsIChvciBhbiBleHBsaWNpdCBmaW5hbCBzb3J0KSBpcyBhIHNlcGFyYXRlIG91dHB1dCBzdGVwLiBKYXZhIFNFIDI2IGRvY3VtZW50cyBgb2ZmZXJgL2Bwb2xsYCBhcyBgTyhsb2cgbilgLCBgcGVla2AgYXMgY29uc3RhbnQgdGltZSwgYW5kIGl0ZXJhdG9yIG9yZGVyIGFzIHVuc3BlY2lmaWVkLgoKVGhpcyBhbnN3ZXIgc3RheXMgaG9uZXN0IGJlY2F1c2UgaXQgbmFtZXMgdGhlIHB1YmxpYyBvYnNlcnZhdGlvbjog4oCcbmV4dCBldmljdGlvbiBjYW5kaWRhdGUgYXQgdGhlIHJvb3Qs4oCdIG5vdCDigJx0aGUgYmFja2luZyBhcnJheSBpcyBzb3J0ZWQu4oCdCgojIyBFeGFtcGxlIDQg4oCUIGNob29zZSBhIHJhbmdlIHN0cnVjdHVyZSBmcm9tIHRoZSBvcGVyYXRpb24gYWxnZWJyYQoKKipQcm9tcHQ6Kiog4oCcU2hvdWxkIEkgdXNlIGEgRmVud2ljayB0cmVlIG9yIGEgc2VnbWVudCB0cmVlP+KAnQoKQXNrIGZvciB0aGUgdXBkYXRlLCBxdWVyeSBhbmQgYWxnZWJyYSBiZWZvcmUgbmFtaW5nIGEgc3RydWN0dXJlOgoKfCBXb3JrbG9hZCB8IENvbXBhY3QgY2hvaWNlIHwgU3VmZmljaWVudCBzdGF0ZSB8IFR5cGljYWwgY29zdCB8CnwtLS18LS0tfC0tLXwtLS18CnwgcG9pbnQgYWRkaXRpb24gKyBwcmVmaXgvcmFuZ2Ugc3VtIHwgRmVud2ljayB0cmVlIHwgbG93Yml0IHByZWZpeCBidWNrZXRzIHwgYE8obG9nIG4pYCB1cGRhdGUvcXVlcnksIGBPKG4pYCBtZW1vcnkgfAp8IHBvaW50IGFzc2lnbm1lbnQgKyByYW5nZSBtaW5pbXVtIHwgc2VnbWVudCB0cmVlIHwgbWluaW11bSBwZXIgaW50ZXJ2YWwgfCBgTyhsb2cgbilgIHVwZGF0ZS9xdWVyeSwgbGFyZ2VyIGNvbnN0YW50IG1lbW9yeSB8CnwgcmFuZ2UgYWRkaXRpb24gKyByYW5nZSBzdW0gfCBsYXp5IHNlZ21lbnQgdHJlZSB8IGludGVydmFsIHN1bSBwbHVzIGRlZmVycmVkIGRlbHRhIHwgYE8obG9nIG4pYCB1cGRhdGUvcXVlcnkgd2hlbiB0YWdzIGFyZSBtYWludGFpbmVkIGNvcnJlY3RseSB8CgpgYGBtZXJtYWlkCmZsb3djaGFydCBURAogIEFbU3RhdGUgdXBkYXRlIGFuZCBxdWVyeSBleGFjdGx5XSAtLT4gQntQb2ludCBhZGQgcGx1cyBwcmVmaXggc3VtP30KICBCIC0tPnxZZXN8IENbRmVud2lja10KICBCIC0tPnxOb3wgRHtSYW5nZSBhZGQgcGx1cyByYW5nZSBhZ2dyZWdhdGU/fQogIEQgLS0+fFllc3wgRVtMYXp5IHNlZ21lbnQgdHJlZV0KICBEIC0tPnxOb3wgRntBc3NvY2lhdGl2ZSBjdXN0b20gaW50ZXJ2YWwgYWdncmVnYXRlP30KICBGIC0tPnxZZXN8IEdbU2VnbWVudCB0cmVlXQogIEYgLS0+fE5vfCBIW1JlZm9ybXVsYXRlIG9yIGNob29zZSBhbm90aGVyIHN0cnVjdHVyZV0KYGBgCgpGZW53aWNrIHRyYWNlIGZvciBgYWRkKGluZGV4PTUsIGRlbHRhPTQpYCBpbiBhIG9uZS1iYXNlZCB0cmVlIG9mIHNpemUgZWlnaHQ6Cgp8IEN1cnJlbnQgaW5kZXggfCBgbG93Yml0KGkpYCB8IEJ1Y2tldCB1cGRhdGVkIHwgTmV4dCBpbmRleCB8CnwtLS06fC0tLTp8LS0tfC0tLTp8CnwgYDVgIChgMDEwMeKCgmApIHwgYDFgIHwgdHJlZSBidWNrZXQgZW5kaW5nIGF0IGA1YCB8IGA2YCB8CnwgYDZgIChgMDExMOKCgmApIHwgYDJgIHwgdHJlZSBidWNrZXQgZW5kaW5nIGF0IGA2YCB8IGA4YCB8CnwgYDhgIChgMTAwMOKCgmApIHwgYDhgIHwgdHJlZSBidWNrZXQgZW5kaW5nIGF0IGA4YCB8IGAxNmAgc3RvcCB8CgpMYXp5IHNlZ21lbnQtdHJlZSB0cmFjZSBmb3IgYWRkaW5nIGArM2AgdG8gYSBmdWxseSBjb3ZlcmVkIGludGVydmFsIG9mIGxlbmd0aCBmb3VyOgoKfCBTdGF0ZSB8IFN1bSB8IFBlbmRpbmcgdGFnIHwgTWVhbmluZyB8CnwtLS18LS0tOnwtLS06fC0tLXwKfCBiZWZvcmUgfCBgMTBgIHwgYDBgIHwgZGVzY2VuZGFudHMgbWF0ZXJpYWxpemVkIHwKfCBhYnNvcmIgZnVsbCBjb3ZlciB8IGAyMmAgfCBgM2AgfCBhZ2dyZWdhdGUgY2hhbmdlcyBieSBgMyDDlyA0YCB8CnwgbGF0ZXIgcHVzaCB8IHBhcmVudCB0YWcgYDBgIHwgY2hpbGRyZW4gZWFjaCBhZGQgYDNgIHwgZGVmZXJyZWQgb3duZXJzaGlwIG1vdmVzIG9uY2UgfAoKVGhlIGludGVydmlldyBjb250cmFzdCBpcyBub3Qg4oCcRmVud2ljayBpcyBmYXN0ZXIu4oCdIEZlbndpY2sgaXMgY29tcGFjdCBmb3IgYSBuYXJyb3dlciBhbGdlYnJhLiBBIHNlZ21lbnQgdHJlZSBzdG9yZXMgbW9yZSBleHBsaWNpdCBpbnRlcnZhbCBzdGF0ZSBhbmQgc3VwcG9ydHMgYnJvYWRlciBhZ2dyZWdhdGVzIGFuZCBsYXp5IHRyYW5zZm9ybWF0aW9ucy4gU3RhdGUgdGhlIG9wZXJhdGlvbiBjb250cmFjdCBmaXJzdCwgdGhlbiBkZXJpdmUgdGhlIHJlY29tbWVuZGF0aW9uLgoKIyMgRXhlY3V0YWJsZSBzcGVha2luZyBjb250cmFjdHMKCltgVHJlZUludGVydmlld0Fuc3dlckNvbnRyYWN0cy5qYXZhYF0oamF2YS9UcmVlSW50ZXJ2aWV3QW5zd2VyQ29udHJhY3RzLmphdmEpIGVuY29kZXMgdGhlIHNpeC1zbG90IHBhY2tldCwgcmVqZWN0cyB1bnN1cHBvcnRlZCBjbGFpbXMgc3VjaCBhcyBzb3J0ZWQgaGVhcCBpdGVyYXRpb24gb3IgdW5jb25kaXRpb25hbCBsb2dhcml0aG1pYyBzZWFyY2ggaW4gYSBwbGFpbiBCU1QsIHNlbGVjdHMgYSByYW5nZSBzdHJ1Y3R1cmUgZnJvbSB0aGUgZGVjbGFyZWQgd29ya2xvYWQsIGFuZCBpbXBsZW1lbnRzIG93bmVyc2hpcC1zYWZlIHRvcC1ga2Agc2VsZWN0aW9uLgoKVHdlbnR5IGRldGVybWluaXN0aWMgZ3JvdXBzIGNvdmVyIGNvbXBsZXRlbmVzcywgc3RydWN0dXJlL2NsYWltIGJvdW5kYXJpZXMsIGFsbCB0aHJlZSByYW5nZSB3b3JrbG9hZHMsIHRoZSBleGFjdCB0b3AtYGtgIHRyYWNlIGFuZCBmYWlsdXJlIGNhc2VzLiBUaGVuIDIwLDAwMCBzZWVkZWQgdHJpYWxzIHBlcmZvcm0gODAsMDAwIGNoZWNrcyBhZ2FpbnN0IGFuIGluZGVwZW5kZW50IHNvcnRlZCB0b3AtYGtgIG9yYWNsZSwgaW5wdXQtb3duZXJzaGlwIHNuYXBzaG90cywgcmFuZ2Utc2VsZWN0aW9uIGNhc2VzIGFuZCBnZW5lcmF0ZWQgc2l4LXNsb3QgcGFja2V0cy4KCmBgYGJhc2gKamF2YSAtZWEgc3R1ZHktZ3VpZGVzL2xvY2FsLXByb2plY3Qtbm90ZXMvYWR2YW5jZWQtdHJlZXMvamF2YS9UcmVlSW50ZXJ2aWV3QW5zd2VyQ29udHJhY3RzLmphdmEKYGBgCgpFeHBlY3RlZCByZXN1bHQ6CgpgYGB0ZXh0ClBBU1MgZ3JvdXBzPTIwIHRyaWFscz0yMDAwMCBjaGVja3M9ODAwMDAKYGBgCgojIyBSZWZlcmVuY2VzIGFuZCBwcm92ZW5hbmNlCgotIE9yYWNsZSwgW0phdmEgU0UgMjYgYFRyZWVNYXBgXShodHRwczovL2RvY3Mub3JhY2xlLmNvbS9lbi9qYXZhL2phdmFzZS8yNi9kb2NzL2FwaS9qYXZhLmJhc2UvamF2YS91dGlsL1RyZWVNYXAuaHRtbCkg4oCUIHJlZC1ibGFjayBpbXBsZW1lbnRhdGlvbiBhbmQgZ3VhcmFudGVlZCBsb2dhcml0aG1pYyBgY29udGFpbnNLZXlgLCBgZ2V0YCwgYHB1dGAgYW5kIGByZW1vdmVgLgotIE9yYWNsZSwgW0phdmEgU0UgMjYgYFByaW9yaXR5UXVldWVgXShodHRwczovL2RvY3Mub3JhY2xlLmNvbS9lbi9qYXZhL2phdmFzZS8yNi9kb2NzL2FwaS9qYXZhLmJhc2UvamF2YS91dGlsL1ByaW9yaXR5UXVldWUuaHRtbCkg4oCUIGhlYXAgaGVhZCBzZW1hbnRpY3MsIG9wZXJhdGlvbiBjb3N0cyBhbmQgdW5zcGVjaWZpZWQgaXRlcmF0b3Igb3JkZXIuCi0gUG9zdGdyZVNRTCAxOSwgW0ItVHJlZSBJbmRleGVzXShodHRwczovL3d3dy5wb3N0Z3Jlc3FsLm9yZy9kb2NzL2N1cnJlbnQvYnRyZWUuaHRtbCkg4oCUIGludGVybmFsL2xlYWYgcGFnZSByb2xlcyBhbmQgcGFnZS1zcGxpdCBwcm9wYWdhdGlvbi4KLSBQb3N0Z3JlU1FMIDE5LCBbSW5kZXhlcyBhbmQgYE9SREVSIEJZYF0oaHR0cHM6Ly93d3cucG9zdGdyZXNxbC5vcmcvZG9jcy8xOS9pbmRleGVzLW9yZGVyaW5nLmh0bWwpIOKAlCBCLXRyZWUgb3JkZXJlZCBvdXRwdXQgYW5kIGZvcndhcmQvYmFja3dhcmQgc2NhbiBiZWhhdmlvci4KLSBHLiBNLiBBZGVsJ3Nvbi1WZWwnc2tpaSBhbmQgRS4gTS4gTGFuZGlzLCBb4oCcQW4gYWxnb3JpdGhtIGZvciBvcmdhbml6YXRpb24gb2YgaW5mb3JtYXRpb27igJ1dKGh0dHBzOi8vd3d3Lm1hdGhuZXQucnUvcGhwL2FyY2hpdmUucGh0bWw/anJuaWQ9ZGFuJm9wdGlvbl9sYW5nPWVuZyZwYXBlcmlkPTI2OTY0JndzaG93PXBhcGVyKSwgMTk2MiDigJQgb3JpZ2luYWwgaGVpZ2h0LWJhbGFuY2VkIHNlYXJjaC10cmVlIHdvcmsuCi0gTGVvIEouIEd1aWJhcyBhbmQgUm9iZXJ0IFNlZGdld2ljaywgW+KAnEEgRGljaHJvbWF0aWMgRnJhbWV3b3JrIGZvciBCYWxhbmNlZCBUcmVlc+KAnV0oaHR0cHM6Ly9kb2kub3JnLzEwLjExMDkvU0ZDUy4xOTc4LjMpLCAxOTc4IOKAlCBjb2xvciBpbnZhcmlhbnRzIGFuZCBsb2dhcml0aG1pYyBiYWxhbmNlZC10cmVlIGZyYW1ld29yay4KLSBSdWRvbGYgQmF5ZXIgYW5kIEVkd2FyZCBNY0NyZWlnaHQsIFvigJxPcmdhbml6YXRpb24gYW5kIE1haW50ZW5hbmNlIG9mIExhcmdlIE9yZGVyZWQgSW5kZXhlc+KAnV0oaHR0cHM6Ly9kb2kub3JnLzEwLjEwMDcvQkYwMDI4ODY4MyksIDE5NzIg4oCUIG9yaWdpbmFsIHBhZ2Utb3JpZW50ZWQgQi10cmVlIG9yZ2FuaXphdGlvbi4KLSBQZXRlciBNLiBGZW53aWNrLCBb4oCcQSBOZXcgRGF0YSBTdHJ1Y3R1cmUgZm9yIEN1bXVsYXRpdmUgRnJlcXVlbmN5IFRhYmxlc+KAnV0oaHR0cHM6Ly9kb2kub3JnLzEwLjEwMDIvU1BFLjQzODAyNDAzMDYpLCAxOTk0IOKAlCBsb3diaXQtYmFzZWQgY3VtdWxhdGl2ZS1mcmVxdWVuY3kgZGVjb21wb3NpdGlvbi4KClNvdXJjZSBpbnRha2U6CgotIFNlbGVjdGVkIGBBZHZhbmNlZF9UcmVlc19GQUFOR19NZXJtYWlkX1N0dWR5X0d1aWRlLm1kYCwgTGlicmFyeSBmaWxlIGBsaWJmaWxlXzczNDZhYmYyM2EzYzgxOTE4ODQzYzlhOWY1YjVkODBmYCwgNjgsNzc1IGJ5dGVzLCBTSEEtMjU2IGA4NmNiNjVmM2Q2ZDBmMzI3ZTVkMjJjMDNiNWQ1ODcxNDRlYjExY2M5ZmYyN2E1YjUyM2IyOThiMDlhZDdmNWIxYC4gVGhpcyBwYXNzIHByb21vdGVzIG9ubHkgU2VjdGlvbiAxNCBhdCBsaW5lcyAxMzM24oCTMTM5NSwgYm91bmRlZCBiZWZvcmUgdGhlIFNlY3Rpb24gMTUgYW5jaG9yLgotIENvbXBhcmVkIGBUcmVlX0FkdmFuY2VkX0ZBQU5HX1N0dWR5X0d1aWRlLmRvY3hgLCBMaWJyYXJ5IGZpbGUgYGxpYmZpbGVfYjcxZjI3YzgwZDRjODE5MThjNjcyMzAzYWRkNmJmYjVgLCAyMjcsNzQ4IGJ5dGVzLCBTSEEtMjU2IGBmYjFkYzZmN2Q5OTkwYzA0NjkxYTY5ZTIzNDVkYWM1ZTZhMDhmM2QzNjQ0OGUwZTljM2E2N2I5NmI1NWVlNThmYC4gQSBmcmVzaCBQYW5kb2MgMy4xLjExLjEgR0ZNIGNvbnZlcnNpb24gcGxhY2VzIHRoZSBtYXRjaGluZyBTZWN0aW9uIDE0IGF0IGxpbmVzIDE4MDnigJMxODczLCBib3VuZGVkIGJlZm9yZSBTZWN0aW9uIDE1LiBUaGlzIHN1cGVyc2VkZXMgdGhlIHN0YWxlIGNoZWNrcG9pbnQgcmFuZ2UgYDE5NDbigJMyMDIzYC4KLSBUaGUgZWFybGllciBicm9hZCBgYWR2YW5jZWRfdHJlZXNfaW50ZXJ2aWV3X2d1aWRlLm1kYCBhbmQgZm9jdXNlZCBTZWN0aW9ucyAz4oCTMTMgcmVtYWluIGNvbXBhcmlzb24vY2Fub25pY2FsIG1hdGVyaWFsLiBUaGlzIGd1aWRlIGRlZXBlbnMgdGhlIGRpc3RpbmN0IHJldmlzaW9uL3NwZWFraW5nIHNlY3Rpb24gd2l0aG91dCBkdXBsaWNhdGluZyB0aGVpciBmdWxsIGltcGxlbWVudGF0aW9ucy4KClRoZSByZXF1aXJlbWVudCBjb250cmFjdCwgZm91ciB3b3JrZWQgc3BlYWtpbmcgdHJhY2VzLCBzaXggZGlhZ3JhbXMsIGV4ZWN1dGFibGUgY29udHJhY3QgYW5kIHJhbmRvbWl6ZWQgb3JhY2xlcyBhcmUgbmV3bHkgYXV0aG9yZWQgdGVhY2hpbmcgbWF0ZXJpYWwuIFNvdXJjZSBTZWN0aW9uIDE1IGFuZCB0aGUgd2lkZXIgMTcwLXBsYWNlaG9sZGVyIGJhY2tsb2cgcmVtYWluIGluY29tcGxldGUuCg==</script>
+<script id="search-index" type="application/json">[{"level": "1", "id": "advanced-trees--revision-sheet-and-interview-speaking-guide", "title": "Advanced Trees — Revision Sheet and Interview Speaking Guide", "text": "Incremental status: this guide promotes source Section 14, “Revision Sheet & Interview Speaking Guide,” at selected Markdown lines 1336–1395 and fresh corroborating DOCX Pandoc lines 1809–1873. Section 15 remains queued."}, {"level": "2", "id": "contents", "title": "Contents", "text": "- Requirement contract requirement-contract - The six-slot answer packet the-six-slot-answer-packet - Example 1 — AVL versus red-black without case-list dumping example-1--avl-versus-red-black-without-case-list-dumping - Example 2 — derive complexity from height and storage geometry example-2--derive-complexity-from-height-and-storage-geometry - Example 3 — explain a heap by its public operation example-3--explain-a-heap-by-its-public-operation - Example 4 — choose a range structure from the operation algebra example-4--choose-a-range-structure-from-the-operation-algebra - Executable speaking contracts executable-speaking-contracts - References and provenance references-and-provenance"}, {"level": "2", "id": "requirement-contract", "title": "Requirement contract", "text": "A revision answer is not a list of remembered nouns. It is a short proof that a structure satisfies a workload. Before speaking, bind the answer to six fields: Slot Required question Failure prevented --- --- --- invariant what must remain true after every public operation? describing only the current drawing problem which failure or workload makes the structure useful? recommending a structure without a requirement mechanics what state changes during the key operation? dumping case names without causality complexity which operation, bound and parameter are being measured? saying “ O log n ” without a height guarantee trade-off what cost buys the guarantee? claiming one structure is universally best use case what concrete system or interview problem matches the contract? giving an abstract answer with no decision value mermaid flowchart TD A Invariant -- B Problem solved B -- C Operation mechanics C -- D Complexity from the invariant D -- E Trade-off E -- F Concrete use case The source's “30-second” answer becomes reliable only when every claim is tied to one of these slots. If the interviewer changes the workload—such as asking for ordered iteration instead of the next minimum—the answer must change too."}, {"level": "2", "id": "the-six-slot-answer-packet", "title": "The six-slot answer packet", "text": "Use this speaking order: 1. Definition plus invariant. Name the global promise, not merely the node fields. 2. Problem. State the failure it prevents or query it accelerates. 3. Mechanics. Trace one decisive mutation or query step. 4. Complexity. Derive it from height, fan-out, output size or maintained state. 5. Trade-off. Name extra metadata, rotations, memory, write cost or narrower operations. 6. Use case. Match the structure to one real requirement. mermaid flowchart LR A Requirement changes -- B Re-evaluate invariant B -- C Re-select operation C -- D Re-derive cost D -- E Revise recommendation A defensible answer can be interrupted after any slot and expanded. A memorized paragraph often cannot: removing one sentence destroys its order because the speaker has not separated the proof obligations."}, {"level": "2", "id": "example-1--avl-versus-red-black-without-case-list-dumping", "title": "Example 1 — AVL versus red-black without case-list dumping", "text": "Prompt: “Compare AVL and red-black trees for an in-memory ordered map.” Start from the shared contract: both are binary-search trees, so comparator order defines lookup direction. Their balancing invariants prevent the height from degenerating to n . Slot AVL answer Red-black answer --- --- --- invariant every node has balance factor -1 , 0 or 1 root black; no red-red edge; equal black height on root-to-null paths problem prevents a skewed BST and keeps a tighter height bound prevents skew while permitting looser local shape mechanics update heights; single or double rotation at an unbalanced ancestor recolor and rotate to repair red-red or black-height violations complexity search/insert/delete O log n because height is logarithmic search/insert/delete O log n because height is logarithmic trade-off stricter balance can mean more repair work potentially taller searches, often less rigid update repair use case ordered reads where a tighter height is valuable general ordered maps with mixed reads and writes mermaid flowchart TD A Ordered-map requirement -- B{Need a guaranteed logarithmic height?} B -- No C Plain BST may still degrade B -- Yes D{Tighter balance or looser repair?} D -- Tighter E AVL D -- Looser F Red-black Dry-run the explanation on insertion into an AVL tree: text insert 30, 20, 10 before repair: after right rotation: 30 20 / / \\ 20 10 30 / 10 Step Local evidence Spoken conclusion ---: --- --- insert 10 node 30 has left height two greater than right logarithmic-height invariant is broken classify heavy child 20 is left-heavy one right rotation is sufficient repair 20 becomes local root BST order remains 10 < 20 < 30 recompute moved-down 30 first, then 20 cached heights again describe the post-state Do not say every BST operation is logarithmic. An unbalanced plain BST can have height n . Also do not claim Java's TreeMap is AVL: current Java SE 26 documentation identifies it as a red-black-tree implementation and guarantees logarithmic containsKey , get , put and remove ."}, {"level": "2", "id": "example-2--derive-complexity-from-height-and-storage-geometry", "title": "Example 2 — derive complexity from height and storage geometry", "text": "Prompt: “Why use a B+ tree for a database index instead of an in-memory binary tree?” A B+ tree is a balanced, high-fan-out search index. Internal entries route to child pages; leaf entries point to rows and leaves support ordered scanning. The point is not that B+ is a fashionable label—the point is that one page read chooses among many children. mermaid flowchart TD A Root page: separators -- B Internal page A -- C Internal page B -- D Leaf page: row pointers B -- E Leaf page: row pointers D -- F Next leaf F -- E Idealized height trace for one million leaf entries: Effective fan-out Capacity after level 1 Level 2 Level 3 First level reaching 1,000,000 ---: ---: ---: ---: ---: 2 2 4 8 about 20 100 100 10,000 1,000,000 3 This is a teaching estimate, not a storage-capacity promise: real height depends on page size, tuple width, fill factor, splits, deduplication and implementation details. The sound complexity statement is: - point lookup descends O h index levels, where h is logarithmic in entry count for bounded fan-out; - a range scan pays the descent to the first qualifying leaf plus work proportional to the qualifying leaf entries/pages; - writes pay page maintenance and may split pages, cascading upward. Current PostgreSQL 19 documentation describes the same ownership boundary: leaf tuples point to table rows, internal tuples point to the next level, and a page split may propagate a new downlink toward the root. It also documents that B-tree indexes can provide sorted output, sometimes avoiding a separate sort for a matching ORDER BY . The two-minute answer is therefore: invariant and page roles, page-read problem, descent/split/leaf-scan mechanics, height-plus-output cost, write/space trade-off, then database point/range query use case."}, {"level": "2", "id": "example-3--explain-a-heap-by-its-public-operation", "title": "Example 3 — explain a heap by its public operation", "text": "Prompt: “Use a heap to keep the three largest values from 5, 1, 9, 3, 9, 7 .” Maintain a min-heap of at most three candidates. Its root is the smallest value currently admitted, so the root is exactly the candidate to evict when a larger value arrives. Read Heap contents as a set Decision ---: --- --- 5 {5} fill capacity 1 {1,5} fill capacity 9 {1,5,9} fill capacity 3 {3,5,9} replace root 1 9 {5,9,9} replace root 3 7 {7,9,9} replace root 5 mermaid flowchart TD A Read value -- B{Heap size below k?} B -- Yes C Offer value B -- No D{Value greater than root?} D -- No E Discard value D -- Yes F Remove root, offer value C -- G Continue E -- G F -- G java static int topKLargest int values, int k { PriorityQueue<Integer candidates = new PriorityQueue< ; for int value : values { if candidates.size < k candidates.add value ; else if k 0 && value candidates.element { candidates.remove ; candidates.add value ; } } int result = new int k ; for int i = k - 1; i = 0; i-- result i = candidates.remove ; return result; } For n inputs and retained size k , this uses O k auxiliary space and O n log k time. The heap does not promise sorted iteration; repeated removal or an explicit final sort is a separate output step. Java SE 26 documents offer / poll as O log n , peek as constant time, and iterator order as unspecified. This answer stays honest because it names the public observation: “next eviction candidate at the root,” not “the backing array is sorted.”"}, {"level": "2", "id": "example-4--choose-a-range-structure-from-the-operation-algebra", "title": "Example 4 — choose a range structure from the operation algebra", "text": "Prompt: “Should I use a Fenwick tree or a segment tree?” Ask for the update, query and algebra before naming a structure: Workload Compact choice Sufficient state Typical cost --- --- --- --- point addition + prefix/range sum Fenwick tree lowbit prefix buckets O log n update/query, O n memory point assignment + range minimum segment tree minimum per interval O log n update/query, larger constant memory range addition + range sum lazy segment tree interval sum plus deferred delta O log n update/query when tags are maintained correctly mermaid flowchart TD A State update and query exactly -- B{Point add plus prefix sum?} B -- Yes C Fenwick B -- No D{Range add plus range aggregate?} D -- Yes E Lazy segment tree D -- No F{Associative custom interval aggregate?} F -- Yes G Segment tree F -- No H Reformulate or choose another structure Fenwick trace for add index=5, delta=4 in a one-based tree of size eight: Current index lowbit i Bucket updated Next index ---: ---: --- ---: 5 0101₂ 1 tree bucket ending at 5 6 6 0110₂ 2 tree bucket ending at 6 8 8 1000₂ 8 tree bucket ending at 8 16 stop Lazy segment-tree trace for adding +3 to a fully covered interval of length four: State Sum Pending tag Meaning --- ---: ---: --- before 10 0 descendants materialized absorb full cover 22 3 aggregate changes by 3 × 4 later push parent tag 0 children each add 3 deferred ownership moves once The interview contrast is not “Fenwick is faster.” Fenwick is compact for a narrower algebra. A segment tree stores more explicit interval state and supports broader aggregates and lazy transformations. State the operation contract first, then derive the recommendation."}, {"level": "2", "id": "executable-speaking-contracts", "title": "Executable speaking contracts", "text": "TreeInterviewAnswerContracts.java java/TreeInterviewAnswerContracts.java encodes the six-slot packet, rejects unsupported claims such as sorted heap iteration or unconditional logarithmic search in a plain BST, selects a range structure from the declared workload, and implements ownership-safe top- k selection. Twenty deterministic groups cover completeness, structure/claim boundaries, all three range workloads, the exact top- k trace and failure cases. Then 20,000 seeded trials perform 80,000 checks against an independent sorted top- k oracle, input-ownership snapshots, range-selection cases and generated six-slot packets. bash java -ea study-guides/local-project-notes/advanced-trees/java/TreeInterviewAnswerContracts.java Expected result: text PASS groups=20 trials=20000 checks=80000"}, {"level": "2", "id": "references-and-provenance", "title": "References and provenance", "text": "- Oracle, Java SE 26 TreeMap https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/util/TreeMap.html — red-black implementation and guaranteed logarithmic containsKey , get , put and remove . - Oracle, Java SE 26 PriorityQueue https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/util/PriorityQueue.html — heap head semantics, operation costs and unspecified iterator order. - PostgreSQL 19, B-Tree Indexes https://www.postgresql.org/docs/current/btree.html — internal/leaf page roles and page-split propagation. - PostgreSQL 19, Indexes and ORDER BY https://www.postgresql.org/docs/19/indexes-ordering.html — B-tree ordered output and forward/backward scan behavior. - G. M. Adel'son-Vel'skii and E. M. Landis, “An algorithm for organization of information” https://www.mathnet.ru/php/archive.phtml?jrnid=dan&option lang=eng&paperid=26964&wshow=paper , 1962 — original height-balanced search-tree work. - Leo J. Guibas and Robert Sedgewick, “A Dichromatic Framework for Balanced Trees” https://doi.org/10.1109/SFCS.1978.3 , 1978 — color invariants and logarithmic balanced-tree framework. - Rudolf Bayer and Edward McCreight, “Organization and Maintenance of Large Ordered Indexes” https://doi.org/10.1007/BF00288683 , 1972 — original page-oriented B-tree organization. - Peter M. Fenwick, “A New Data Structure for Cumulative Frequency Tables” https://doi.org/10.1002/SPE.4380240306 , 1994 — lowbit-based cumulative-frequency decomposition. Source intake: - Selected Advanced Trees FAANG Mermaid Study Guide.md , Library file libfile 7346abf23a3c81918843c9a9f5b5d80f , 68,775 bytes, SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1 . This pass promotes only Section 14 at lines 1336–1395, bounded before the Section 15 anchor. - Compared Tree Advanced FAANG Study Guide.docx , Library file libfile b71f27c80d4c81918c672303add6bfb5 , 227,748 bytes, SHA-256 fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f . A fresh Pandoc 3.1.11.1 GFM conversion places the matching Section 14 at lines 1809–1873, bounded before Section 15. This supersedes the stale checkpoint range 1946–2023 . - The earlier broad advanced trees interview guide.md and focused Sections 3–13 remain comparison/canonical material. This guide deepens the distinct revision/speaking section without duplicating their full implementations. The requirement contract, four worked speaking traces, six diagrams, executable contract and randomized oracles are newly authored teaching material. Source Section 15 and the wider 170-placeholder backlog remain incomplete."}]</script>
+<script>
+const input=document.querySelector('#guide-search'),results=document.querySelector('#results'),status=document.querySelector('#search-status');
+const index=JSON.parse(document.querySelector('#search-index').textContent);
+function escapeHtml(value){return value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function search(){const q=input.value.trim().toLocaleLowerCase();results.replaceChildren();if(!q){status.textContent='Type to search headings and section text.';return;}const matches=index.filter(x=>(x.title+' '+x.text).toLocaleLowerCase().includes(q)).slice(0,30);status.textContent=matches.length?`${matches.length} matching sections (first 30 max).`:'No matching section.';for(const item of matches){const li=document.createElement('li'),a=document.createElement('a');a.href='#'+item.id;a.innerHTML=escapeHtml(item.title);li.append(a);results.append(li);}}
+input.addEventListener('input',search);input.addEventListener('keydown',event=>{if(event.key==='Enter'&&results.firstElementChild)results.querySelector('a').click();});
+</script>
+<script type="module">
+try{const{default:mermaid}=await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');document.querySelectorAll('pre.mermaid').forEach(pre=>{const div=document.createElement('div');div.className='mermaid';div.textContent=pre.textContent;pre.replaceWith(div);});mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'neutral'});await mermaid.run({querySelector:'.mermaid'});}catch(error){console.warn('Mermaid unavailable; source diagrams remain readable.',error);}
+</script>
+</body>
+</html>
