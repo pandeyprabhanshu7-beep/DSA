@@ -1,6 +1,6 @@
 # AI Employment Impact — Reading Evidence Without Headline Errors
 
-> **Incremental status:** Source Sections 1–3 are promoted from lines 16–98. Sections 4–10 remain queued. The source's scenario ranges are retained as attributed analysis, not presented here as consensus forecasts.
+> **Incremental status:** Source Sections 1–4 are promoted from lines 16–121. Sections 5–10 remain queued. The source's scenario ranges and occupational-pressure list are retained as attributed analysis, not presented here as consensus forecasts.
 
 ## Contents
 
@@ -27,6 +27,13 @@
   - [Example 3 — a ten-year displacement path cannot be silently compressed to 2030](#example-3--a-ten-year-displacement-path-cannot-be-silently-compressed-to-2030)
   - [Example 4 — a scenario ledger keeps evidence and assumptions separate](#example-4--a-scenario-ledger-keeps-evidence-and-assumptions-separate)
   - [Executable scenario-range contracts](#executable-scenario-range-contracts)
+- [4. The occupations I expect to take the hardest hit](#4-the-occupations-i-expect-to-take-the-hardest-hit)
+  - [Occupational-pressure contract](#occupational-pressure-contract)
+  - [Example 1 — a declining occupation can still have many openings](#example-1--a-declining-occupation-can-still-have-many-openings)
+  - [Example 2 — absolute decline and decline rate answer different questions](#example-2--absolute-decline-and-decline-rate-answer-different-questions)
+  - [Example 3 — task pressure can produce redesign without disappearance](#example-3--task-pressure-can-produce-redesign-without-disappearance)
+  - [Example 4 — exposed tasks can coexist with occupational growth](#example-4--exposed-tasks-can-coexist-with-occupational-growth)
+  - [Executable occupational-pressure contracts](#executable-occupational-pressure-contracts)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Why the headline numbers conflict
@@ -555,6 +562,164 @@ Expected result:
 PASS groups=20 trials=20000 scenario checks=80000
 ```
 
+## 4. The occupations I expect to take the hardest hit
+
+The source prioritizes work that is digital, repetitive, language-heavy, measurable and easy to verify. That is a useful **task-pressure hypothesis**, not a ranked forecast that every listed occupation will shrink. The unit of analysis must remain explicit:
+
+- a task can be automated while its occupation grows,
+- an occupation can contract while still producing many replacement openings,
+- a projection can name AI as one contributing mechanism without assigning the whole change to AI, and
+- a projected decline is not a count of permanent eliminations.
+
+### Occupational-pressure contract
+
+Before describing an occupation as “hard hit,” preserve this packet:
+
+| Field | Required question | Invalid shortcut prevented |
+|---|---|---|
+| task mechanism | which activities are standardized, digital and verifiable? | labeling the whole occupation automatable |
+| projection metric | employment stock, numeric change, percent change, or annual openings? | subtracting a flow from a stock |
+| population | U.S. occupation, industry-specific role, or global work category? | generalizing U.S. projections globally |
+| horizon | observed period or 2025–2035 projection? | calling a decade projection a current layoff count |
+| driver scope | AI explicit, broader automation, occupational substitution, or demand change? | assigning every decline to AI |
+| countervailing demand | replacement needs, new products, regulation, trust or human review? | treating efficiency as zero demand |
+| uncertainty | rounded estimate, scenario and revision cycle? | reporting false precision |
+
+```mermaid
+flowchart TD
+  A[Task-level pressure hypothesis] --> B[BLS occupation projection]
+  B --> C[Numeric and percent change]
+  C --> D[Annual openings and demand factors]
+  D --> E{AI named explicitly?}
+  E -->|Yes| F[AI contributes; do not allocate entire change]
+  E -->|No| G[Retain broader driver label]
+```
+
+The current BLS 2025–2035 projections supply a consistent U.S. horizon, occupation codes, employment stocks and annual openings. BLS also warns that its AI-exposure category is not a forecast of employment growth, decline, automation probability or wage effects. Exposure and projection are related evidence, not interchangeable metrics.
+
+### Example 1 — a declining occupation can still have many openings
+
+BLS projects U.S. customer-service-representative employment to move from about 2.666 million in 2025 to 2.524 million in 2035: a published decline of 141,800 jobs, or 5.3%. Its utilization table explicitly names speech/language processing and AI as technologies that allow computers to handle more interactions.
+
+The same Occupational Outlook Handbook projects about 289,500 openings per year, all from workers transferring or leaving the labour force. These statements coexist because they measure different things:
+
+```mermaid
+flowchart LR
+  A[2025 employment stock 2.666M] --> B[Entrants and replacement hires]
+  B --> C[2035 employment stock 2.524M]
+  A --> D[Transfers, retirements and other exits]
+  D --> C
+```
+
+| Measure | Value | Interpretation |
+|---|---:|---|
+| projected net stock change | `-141,800` over ten years | occupation contracts |
+| projected percent change | `-5.3%` | contraction relative to 2025 employment |
+| average annual openings | `289,500` | gross hiring opportunities, primarily replacement |
+| AI factor | explicitly named | contributes to pressure; not a complete causal allocation |
+
+Multiplying `289,500 × 10` gives a decade gross-opening flow, not net growth. The same position can be vacated and refilled, and many workers can enter while the ending stock is smaller. A learner deciding whether to enter the field needs both the contraction signal and the continued replacement market.
+
+### Example 2 — absolute decline and decline rate answer different questions
+
+The BLS largest-declines table illustrates why a single “most affected” ranking is underspecified:
+
+| Occupation | 2025 employment | 2035 employment | Numeric change | Percent change |
+|---|---:|---:|---:|---:|
+| customer service representatives | 2,666,000 | 2,524,100 | `-141,800` | `-5.3%` |
+| bookkeeping, accounting and auditing clerks | 1,532,400 | 1,446,800 | `-85,600` | `-5.6%` |
+| data entry keyers | 131,800 | 98,200 | `-33,600` | `-25.5%` |
+
+The displayed customer-service stocks are rounded independently, so their subtraction differs from the separately published numeric change by 100 jobs. Treat that as table rounding, not as an analytical discovery.
+
+```mermaid
+flowchart TD
+  A[Choose ranking question] --> B{Workforce scale or contraction intensity?}
+  B -->|Scale| C[Compare absolute numeric decline]
+  B -->|Intensity| D[Compare percent decline]
+  C --> E[Customer service is largest of these three]
+  D --> F[Data entry is steepest of these three]
+```
+
+BLS explicitly names AI, machine learning, mobile capture and OCR in the data-entry mechanism. For bookkeeping, its current utilization table names automated bookkeeping software more broadly. The careful conclusion is that both face automation pressure, while the cited driver scope is not identical. Neither row alone estimates permanent unemployment or an AI-only share of the decline.
+
+### Example 3 — task pressure can produce redesign without disappearance
+
+Routine claims processing, document review and translation are highly digitized, but the occupation-level evidence remains mixed:
+
+| Occupation | 2025–2035 projection | Average annual openings | What the official evidence says about technology |
+|---|---:|---:|---|
+| insurance claims and policy processing clerks | `-1.9%` (`-4,400`) | `17,500` | BLS names AI-enhanced software automating claims/policy processing in several insurance industries |
+| paralegals and legal assistants | approximately `0%` (`-1,100`) | `40,800` | AI can improve research/document preparation and may limit demand |
+| interpreters and translators | `+2%` (`+1,500`) | `6,000` | AI improves efficiency, but BLS says many jobs cannot be entirely automated |
+
+```mermaid
+flowchart LR
+  A[Occupation task bundle] --> B[Routine drafting, lookup or classification]
+  A --> C[Accountability, context and human interaction]
+  B --> D[Automation or post-editing]
+  C --> E[Retained or redesigned human work]
+  D --> F[Changed staffing mix]
+  E --> F
+```
+
+The source's “routine paralegal/document-review” and “basic translation” labels are therefore best read at task level. The BLS evidence supports efficiency pressure, but it does not support replacing the occupation name with “eliminated.” A rounded `0%` can also coexist with a small numeric decline because the published rate is rounded.
+
+### Example 4 — exposed tasks can coexist with occupational growth
+
+The source includes repetitive software testing and basic code maintenance among near-term pressure areas. Yet BLS projects combined employment of software developers, quality-assurance analysts and testers to grow 10% from 2025 to 2035; software QA analysts and testers alone are projected to grow 6%. About 106,100 openings per year are projected for the combined group.
+
+```mermaid
+flowchart TD
+  A[AI automates some coding and test tasks] --> B[Less labour per unchanged task bundle]
+  C[More AI, security, IoT and automation software] --> D[More software demand]
+  B --> E[Occupation-level outcome]
+  D --> E
+  E --> F[Tasks transform while aggregate employment can grow]
+```
+
+This is not a contradiction. Productivity can reduce labour required for some existing tasks while lower costs, new products, security needs and AI infrastructure expand total demand. The correct statement is bounded: repetitive testing and straightforward maintenance may face workflow pressure; the current BLS projection does not show the broader U.S. occupation group disappearing.
+
+Use this decision gate for every occupation on the source list:
+
+```mermaid
+flowchart TD
+  A[Occupation claim] --> B{Task evidence or occupation projection?}
+  B -->|Task evidence| C[Describe affected activities]
+  B -->|Projection| D[Keep geography, horizon and metric]
+  C --> E{Net decline also projected?}
+  D --> E
+  E -->|Yes| F[Report pressure plus openings and drivers]
+  E -->|No| G[Report transformation without inventing decline]
+```
+
+### Executable occupational-pressure contracts
+
+`OccupationalPressureContracts.java` encodes the stock/flow, absolute/rate, driver-scope and claim boundaries. It permits “AI contributes to pressure” only when the cited factor explicitly names AI, and it never promotes an employment projection into permanent job elimination.
+
+```java
+static boolean supports(Projection evidence, Claim claim) {
+    return switch (claim) {
+        case PROJECTED_NET_DECLINE -> evidence.publishedChange() < 0;
+        case AI_CONTRIBUTES_TO_PRESSURE ->
+                evidence.driverScope() == DriverScope.AI_EXPLICIT;
+        case PERMANENT_JOB_ELIMINATION -> false;
+    };
+}
+```
+
+Twenty deterministic groups encode the BLS customer-service, bookkeeping, data-entry, claims, paralegal and translation boundaries. Then 20,000 seeded trials perform 80,000 checks of rounded count consistency, percentage arithmetic, stock/flow coexistence and rejection of permanent-elimination claims.
+
+```bash
+java -ea study-guides/ai/employment-impact/OccupationalPressureContracts.java
+```
+
+Expected result:
+
+```text
+PASS groups=20 trials=20000 checks=80000
+```
+
 ## References and provenance
 
 - [World Economic Forum, *Future of Jobs Report 2025*](https://www.weforum.org/publications/the-future-of-jobs-report-2025/) — survey frame, multiple structural drivers, 170 million created, 92 million displaced and 78 million net growth through 2030.
@@ -568,9 +733,15 @@ PASS groups=20 trials=20000 scenario checks=80000
 - [Stanford SIEPR, *Canaries in the Coal Mine? Six Facts about the Recent Employment Effects of Artificial Intelligence*](https://siepr.stanford.edu/publications/working-paper/canaries-coal-mine-six-facts-about-recent-employment-effects-artificial) — August 2025 working paper, administrative payroll design and conditional 13% relative early-career estimate.
 - [Federal Reserve Bank of New York, *Are Businesses Scaling Back Hiring Due to AI?*](https://libertystreeteconomics.newyorkfed.org/2025/09/are-businesses-scaling-back-hiring-due-to-ai/) — September 4, 2025 regional survey, realized versus expected workforce responses and firm-share denominators.
 - [Federal Reserve Bank of New York, *Businesses Are Using AI to Transform Work, Not Cut Jobs*](https://libertystreeteconomics.newyorkfed.org/2026/09/businesses-are-using-ai-to-transform-work-not-cut-jobs/) — September 1, 2026 update showing time-varying adoption, layoffs, hiring and retraining responses.
+- [U.S. Bureau of Labor Statistics, *Occupations with the largest job declines, 2025–2035*](https://www.bls.gov/emp/tables/occupations-largest-job-declines.htm) — current employment stocks, numeric changes and percent changes for customer service, bookkeeping and data entry.
+- [U.S. Bureau of Labor Statistics, *Factors affecting occupational utilization*](https://www.bls.gov/emp/tables/factors-affecting-occupational-utilization.htm) — occupation/industry-specific AI, automation, productivity, substitution and demand mechanisms.
+- [U.S. Bureau of Labor Statistics, *Artificial Intelligence exposure categories*](https://www.bls.gov/emp/publications/ai-exposure-categories.htm) — current methodology and warning that exposure is not an employment-growth forecast.
+- [U.S. Bureau of Labor Statistics, *Customer Service Representatives*](https://www.bls.gov/ooh/office-and-administrative-support/customer-service-representatives.htm) — 2025–2035 decline and replacement-opening distinction.
+- [U.S. Bureau of Labor Statistics, *Paralegals and Legal Assistants*](https://www.bls.gov/ooh/legal/paralegals-and-legal-assistants.htm) and [*Interpreters and Translators*](https://www.bls.gov/ooh/media-and-communication/interpreters-and-translators.htm) — task-efficiency pressure alongside flat or growing occupational projections and replacement openings.
+- [U.S. Bureau of Labor Statistics, *Software Developers, Quality Assurance Analysts, and Testers*](https://www.bls.gov/ooh/computer-and-information-technology/software-developers.htm) — task automation alongside 2025–2035 demand growth and annual openings.
 
 Source intake:
 
-- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–3 at lines 16–98 are promoted. Source lines 99–212 remain queued; Section 4 is the next bounded continuation at lines 99–121.
+- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–4 at lines 16–121 are promoted. Source lines 123–212 remain queued; Section 5 is the next bounded continuation at lines 123–137.
 
-The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, twelve worked traces across three sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
+The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, sixteen worked traces across four sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
