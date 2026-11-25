@@ -232,9 +232,9 @@
       "modified_at": "2026-09-08T00:10:00.813395Z",
       "size_bytes": 68775,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-11-25T04:27:10-05:00",
+      "last_read_at": "2026-11-25T06:59:44-05:00",
       "sha256": "86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1",
-      "selection": "Selected as the editable advanced-trees source. Sections 1-13 are promoted or merged; latest bounded range is Section 13 lines 1317-1332. Section 14 begins at line 1336."
+      "selection": "Selected as the editable advanced-trees source. Sections 1-14 are promoted or merged; latest bounded range is Section 14 lines 1336-1395. Section 15 begins at line 1398 and ends with the source at line 1448."
     },
     {
       "name": "Angular_Interview_Mermaid_Workbook.md",
@@ -416,9 +416,9 @@
       "modified_at": "2026-08-30T05:23:39.553805Z",
       "size_bytes": 227748,
       "status": "READY",
-      "last_read_at": "2026-11-25T04:27:10-05:00",
+      "last_read_at": "2026-11-25T06:59:44-05:00",
       "sha256": "fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f",
-      "selection": "Compared as corroborating source. Sections 11-13 agree with the selected Markdown and no duplicate edition was created. A fresh Pandoc GFM conversion places Section 13 at lines 1929-1945, correcting the stale 1792-1807 range; Section 14 spans lines 1946-2023."
+      "selection": "Compared as corroborating source. Sections 11-14 agree with the selected Markdown and no duplicate edition was created. A fresh Pandoc 3.1.11.1 GFM conversion places Section 14 at lines 1809-1873, correcting the stale 1946-2023 range; Section 15 spans lines 1874-1923 through conversion end."
     },
     {
       "name": "advanced_trees_interview_guide.md",
@@ -614,17 +614,18 @@
         "Tree_Advanced_FAANG_Study_Guide.docx",
         "advanced_trees_interview_guide.md"
       ],
-      "last_processed_at": "2026-11-25T04:27:10-05:00",
+      "last_processed_at": "2026-11-25T06:59:44-05:00",
       "processed_sections": [
         "Sections 1-2 merged into canonical Trees/BST cards",
         "Sections 3-10 promoted as focused AVL, red-black, B-tree, B+ tree, heap, trie, segment-tree and Fenwick modules",
         "Section 11 Decision Matrix — selected Markdown lines 1167-1187 / corroborating DOCX Pandoc lines 1559-1586; requirement contract, four worked traces, six diagrams and executable selector/top-K contracts",
         "Section 12 FAANG Problem Ladder — selected Markdown lines 1188-1314 / corroborating DOCX Pandoc lines 1587-1791; four worked examples, six diagrams and executable BST/rank/Fenwick contracts",
-        "Section 13 Common Mistakes & Interview Traps — selected Markdown lines 1317-1332 / fresh corroborating DOCX Pandoc lines 1929-1945; four repair traces, seven diagrams and executable mistake contracts"
+        "Section 13 Common Mistakes & Interview Traps — selected Markdown lines 1317-1332 / fresh corroborating DOCX Pandoc lines 1929-1945; four repair traces, seven diagrams and executable mistake contracts",
+        "Section 14 Revision Sheet & Interview Speaking Guide — selected Markdown lines 1336-1395 / fresh corroborating DOCX Pandoc lines 1809-1873; six-slot requirement contract, four worked speaking traces, six diagrams and executable interview-answer contracts"
       ],
-      "last_successful_commit": "cf0e900bd86ecac82d7f9919937be1e4a12c12ff",
-      "validation": "The selected Markdown and corroborating DOCX were refreshed unchanged at SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1 and fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f. A fresh conversion located matching Section 13 at DOCX Pandoc lines 1929-1945 and corrected the stale queue range. Current Oracle Java 25 and PostgreSQL 19 documentation plus original AVL, red-black, B-tree and Fenwick references were verified. TreeMistakeContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch. Reader validation passed exact 14,965-byte Markdown recovery at SHA-256 05ec319dcdd8cc295806f38a281e4d965ead9738236c6bd0afc2108e3c04a092, 48 unique IDs, nine search entries, 36 resolved fragments, one resolved relative link, 32 fence markers, seven Mermaid sources and JavaScript syntax; deterministic HTML SHA-256 is c6321c2fb68adbadc775b71721b60db5c8d1867e66f8c0cfa6d04c5b3b6e37e3. Content commit cf0e900bd86ecac82d7f9919937be1e4a12c12ff. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
-      "next_action": "Re-evaluate fair-domain rotation; when advanced trees returns, process Section 14 Revision Sheet & Interview Speaking Guide at selected source lines 1336-1395 / corroborating DOCX Pandoc lines 1946-2023 only.",
+      "last_successful_commit": "55e5e8b4938e3fd27e3906f8cc8786b123c02b9a",
+      "validation": "The selected Markdown and corroborating DOCX were refreshed unchanged at SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1 and fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f. A fresh Pandoc 3.1.11.1 conversion located matching Section 14 at DOCX lines 1809-1873 and corrected the stale queue range. Current Oracle Java 26 and PostgreSQL 19 documentation plus original AVL, red-black, B-tree and Fenwick references were verified. TreeInterviewAnswerContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch; the three preceding focused contracts also remained green. Reader validation passed exact 14,974-byte Markdown recovery at SHA-256 6cc729351c96946ef2055a3c04abf1a217f516fb7385f1ddc73d9a59f3b7b43b, 32 unique IDs, 10 search entries, 23 resolved fragments, one resolved relative link, 20 fence markers, six Mermaid sources and JavaScript syntax; deterministic HTML SHA-256 is 027910138bb95ee40fb602bc194de44d47b8ee3cf10939f79e7ebb57f8870df7. Content commit 55e5e8b4938e3fd27e3906f8cc8786b123c02b9a. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+      "next_action": "Re-evaluate fair-domain rotation; when advanced trees returns, process Section 15 References & Practice Links at selected source lines 1398-1448 / corroborating DOCX Pandoc lines 1874-1923, both through source end.",
       "priority": 7,
       "source_revision": {
         "selected_library_file_id": "libfile_7346abf23a3c81918843c9a9f5b5d80f",
@@ -633,7 +634,7 @@
         "compared_library_file_id": "libfile_b71f27c80d4c81918c672303add6bfb5",
         "compared_file_id": "file_00000000b2ec820894a863ce6d23cb44",
         "compared_sha256": "fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f",
-        "canonical_markdown_sha256_after": "05ec319dcdd8cc295806f38a281e4d965ead9738236c6bd0afc2108e3c04a092"
+        "canonical_markdown_sha256_after": "6cc729351c96946ef2055a3c04abf1a217f516fb7385f1ddc73d9a59f3b7b43b"
       }
     },
     {
@@ -1170,7 +1171,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25 and the selected Arrays source pair are exhausted. AI employment Sections 1-4 are promoted. Re-evaluate fair-domain rotation and choose the next confirmed unprocessed source or one bounded live-placeholder section; retain the wider intake and 170 placeholders.",
+    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25 and the selected Arrays source pair are exhausted. AI employment Sections 1-4 and advanced-trees Sections 1-14 are promoted or merged. Re-evaluate fair-domain rotation and choose the next confirmed unprocessed source or one bounded live-placeholder section; retain the wider intake and 170 placeholders.",
     "batch_policy": {
       "max_sections_per_run": 1,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1395,15 +1396,16 @@
     "AI employment impact Section 2: observed-evidence scale and denominator contract, four worked traces, five diagrams, current official updates and executable observed-labour contracts",
     "Advanced trees Section 12 FAANG Problem Ladder: strict BST bounds, one-based inorder rank, duplicate-safe suffix counts, four worked examples, six diagrams and executable contracts",
     "Advanced trees Section 13 Common Mistakes & Interview Traps: four invariant-repair traces, seven diagrams and executable mistake contracts",
+    "Advanced trees Section 14 Revision Sheet & Interview Speaking Guide: six-slot answer contract, four worked speaking traces, six diagrams and executable interview-answer contracts",
     "AI employment impact Section 3: author-synthesis scenario range, provenance and timing contracts, four worked traces, five diagrams, current official updates and executable scenario-range contracts",
     "AI employment impact Section 4: task-versus-occupation pressure, stock/flow and absolute/rate contracts, four worked traces, five diagrams, current BLS references and executable occupational-pressure contracts"
     ],
-  "processed_section": "AI employment impact Section 4 The occupations I expect to take the hardest hit, source lines 99-121; Sections 5-10 remain queued",
-  "validation": "The AI employment source was refreshed unchanged. All four Java 21 source-file contracts passed 20 groups, 20,000 seeded trials and 80,000 checks apiece. Reader validation passed exact 49,016-byte recovery, SHA-256 06aa0b991fca8d7ca11e54be68006fcd073363dda45a5149505481a095f8ceb4, 84 unique IDs, seven search entries, 69 fragments, 66 fences, 21 Mermaid sources, JavaScript syntax and deterministic HTML SHA-256 a432b88533d8ec8b7be7d9aa57cb572b20eba6714368571958cee41fc75e4532. Content commit 6b5e34bd99abd3e9c1109811836ee4c7cad50464. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
-  "estimated_next_tokens": 8000,
+  "processed_section": "Advanced trees Section 14 Revision Sheet & Interview Speaking Guide, selected Markdown lines 1336-1395 / fresh corroborating DOCX Pandoc lines 1809-1873; Section 15 remains queued",
+  "validation": "Both advanced-tree sources were refreshed unchanged. Java 21 source launch passed 20 groups, 20,000 seeded trials and 80,000 checks for the new interview-answer contract; the three preceding focused contracts also remained green. Reader validation passed exact 14,974-byte recovery, SHA-256 6cc729351c96946ef2055a3c04abf1a217f516fb7385f1ddc73d9a59f3b7b43b, 32 unique IDs, 10 search entries, 23 fragments, one relative link, 20 fences, six Mermaid sources, JavaScript syntax and deterministic HTML SHA-256 027910138bb95ee40fb602bc194de44d47b8ee3cf10939f79e7ebb57f8870df7. Content commit 55e5e8b4938e3fd27e3906f8cc8786b123c02b9a. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+  "estimated_next_tokens": 7000,
   "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section; no reliable account-quota telemetry was exposed.",
-  "last_successful_commit": "6b5e34bd99abd3e9c1109811836ee4c7cad50464",
-  "last_processed_at": "2026-11-25T06:19:08-05:00",
-  "next_batch_decision": "AI employment Section 4 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair-domain rotation; when AI employment returns, Section 5 at source lines 123-137 is the exact continuation; advanced trees remains queued at Section 14 selected lines 1336-1395 / corroborating DOCX Pandoc lines 1946-2023."
+  "last_successful_commit": "55e5e8b4938e3fd27e3906f8cc8786b123c02b9a",
+  "last_processed_at": "2026-11-25T06:59:44-05:00",
+  "next_batch_decision": "Advanced trees Section 14 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair-domain rotation; AI employment Section 5 remains queued at lines 123-137, and advanced trees Section 15 remains queued at selected lines 1398-1448 / corroborating DOCX lines 1874-1923 through source end."
   }
 }
