@@ -17,6 +17,8 @@
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 11",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 12",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 13",
+    "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 14",
+    "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 15",
     "Angular_Interview_Mermaid_Workbook.md Q1-Q74 plus rapid-fire items 1-39",
     "src/README.md excerpt"
   ],
@@ -88,7 +90,7 @@
       "relative_path": "untitled/Advanced_Trees_FAANG_Mermaid_Study_Guide.md",
       "bytes": 68775,
       "sha256": "86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1",
-      "status": "IN_PROGRESS",
+      "status": "PROMOTED",
       "headings": [
         "# Advanced Trees - FAANG Mermaid Study Guide",
         "## Clickable contents",
@@ -118,11 +120,14 @@
         "2. Binary Search Tree Core",
         "1. Tree Mental Model & Taxonomy",
         "11. Decision Matrix — Which Tree Should Trigger?",
-        "12. FAANG Problem Ladder — Easy / Medium / Hard"
+        "12. FAANG Problem Ladder — Easy / Medium / Hard",
+        "13. Common Mistakes & Interview Traps",
+        "14. Revision Sheet & Interview Speaking Guide",
+        "15. References & Practice Links"
       ],
-      "next_section": "Section 13 Interview Checklist at selected source lines 1317-1332 / corroborating DOCX Pandoc lines 1792-1807; Sections 14-15 remain queued",
-      "processed_range": "Sections 1-12; latest bounded range is selected source lines 1188-1314 / corroborating DOCX Pandoc lines 1587-1791",
-      "target": "advanced-trees/faang-problem-ladder.md for Section 12; Sections 1-2 remain merged into canonical Trees/BST cards"
+      "next_section": "Selected source exhausted through final display line 1449; choose another confirmed source or bounded live-placeholder section after fair-domain rotation",
+      "processed_range": "Sections 1-15 through selected source end; final bounded range is display lines 1398-1449 / corroborating DOCX Pandoc lines 1874-1923",
+      "target": "advanced-trees/reference-practice-roadmap.md for Section 15; Sections 1-2 remain merged into canonical Trees/BST cards"
     },
     {
       "relative_path": "untitled/AI_RAG_CAG_Deep_Learning_Mermaid_Developer_Guide.md",
@@ -867,8 +872,8 @@
     }
   ],
   "next_batch": {
-    "source": "Fair-domain confirmed intake; AI-employment and advanced-trees continuations remain exact",
-    "section": "Re-read the current queue; advanced trees remains queued at Section 15, selected lines 1398-1448 / corroborating DOCX Pandoc lines 1874-1923 through source end; AI employment remains queued at Section 6 lines 139-150",
+    "source": "Fair-domain confirmed intake; advanced-trees source pair exhausted; AI-employment continuation remains exact",
+    "section": "Re-read the current queue; AI employment remains queued at Section 6 lines 139-150, while advanced trees has no invented continuation after both sources ended",
     "status": "SELECTION_REQUIRED",
     "estimated_tokens": 6000,
     "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section. No weekly/hourly quota telemetry was exposed.",
@@ -1008,20 +1013,20 @@
     "estimate_method": "Heuristic reserve for one bounded Section 6 source review, current software-employment reference verification, worked traces, executable contracts, reader synchronization and checkpoint overhead; no reliable account-quota telemetry was exposed"
   },
   "advanced_trees_intake_checkpoint": {
-    "last_processed_at": "2026-11-25T06:59:44-05:00",
+    "last_processed_at": "2026-11-25T10:33:27-05:00",
     "selected_library_file_id": "libfile_7346abf23a3c81918843c9a9f5b5d80f",
     "selected_file_id": "file_000000004d3081fd9e4ce3b364d10d49",
     "selected_source_sha256": "86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1",
     "corroborating_library_file_id": "libfile_b71f27c80d4c81918c672303add6bfb5",
     "corroborating_file_id": "file_00000000b2ec820894a863ce6d23cb44",
     "corroborating_sha256": "fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f",
-    "canonical_markdown_sha256": "6cc729351c96946ef2055a3c04abf1a217f516fb7385f1ddc73d9a59f3b7b43b",
-    "processed": "Sections 1-14; latest bounded range is Section 14 at selected Markdown lines 1336-1395 / fresh corroborating DOCX Pandoc lines 1809-1873",
-    "status": "IN_PROGRESS",
-    "validation": "The selected Markdown and corroborating DOCX were refreshed unchanged and agree on Section 14. A fresh Pandoc 3.1.11.1 conversion corrected the stale corroborating range to lines 1809-1873. TreeInterviewAnswerContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch; the three preceding focused contracts also remained green. Deterministic reader validation passed exact 14,974-byte Markdown recovery at SHA-256 6cc729351c96946ef2055a3c04abf1a217f516fb7385f1ddc73d9a59f3b7b43b, 32 unique IDs, 10 search entries, 23 resolved fragments, one resolved relative link, 20 fence markers, six Mermaid sources and JavaScript syntax; HTML SHA-256 is 027910138bb95ee40fb602bc194de44d47b8ee3cf10939f79e7ebb57f8870df7. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
-    "content_commit": "55e5e8b4938e3fd27e3906f8cc8786b123c02b9a",
-    "next_section": "Re-evaluate fair-domain rotation; when this source returns, process Section 15 References & Practice Links at selected lines 1398-1448 / corroborating DOCX Pandoc lines 1874-1923 through source end",
-    "estimated_next_tokens": 7000,
-    "estimate_method": "Heuristic reserve for one bounded Section 15 comparison, primary-reference and practice-link verification, worked progression, executable contracts, reader synchronization and checkpoint overhead; no reliable account-quota telemetry was exposed"
+    "canonical_markdown_sha256": "72c692e0a13605ba60b1d1202829f98d1b3e8c31aafb443ff88e959d4a1ce8da",
+    "processed": "Sections 1-15 through both source ends; final bounded range is Section 15 at selected Markdown display lines 1398-1449 / corroborating DOCX Pandoc lines 1874-1923",
+    "status": "PROMOTED",
+    "validation": "Both sources remained unchanged and were read through their ends. TreePracticeContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch; the four preceding focused contracts remained green. Deterministic reader validation passed exact 16,267-byte Markdown recovery at SHA-256 72c692e0a13605ba60b1d1202829f98d1b3e8c31aafb443ff88e959d4a1ce8da, 41 unique IDs, 11 search entries, 29 resolved fragments, one relative link, 26 fence markers, seven Mermaid sources and JavaScript syntax; HTML SHA-256 is 065e9f14bb257f423e3800a406968ff3bcc2847b742f0186c3b2c31227705cb5. Standalone javac, PostgreSQL integration and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+    "content_commit": "67ed44eaf32e206b135987e03d7be241f953f627",
+    "next_section": "Selected advanced-trees Markdown and corroborating DOCX are exhausted; re-evaluate fair-domain rotation and do not invent another source section",
+    "estimated_next_tokens": 8000,
+    "estimate_method": "Heuristic reserve for one bounded confirmed-source or live-placeholder section after fair-domain rotation; no reliable account-quota telemetry was exposed"
   }
 }
