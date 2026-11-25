@@ -162,9 +162,9 @@
       "modified_at": "2026-09-10T23:06:32.260101Z",
       "size_bytes": 18294,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-11-25T06:19:08-05:00",
+      "last_read_at": "2026-11-25T09:12:29-05:00",
       "sha256": "32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8",
-      "selection": "Selected as the confirmed AI employment-impact source. Sections 1-4 at lines 16-121 are promoted. Section 5 begins at line 123; Sections 5-10 remain queued."
+      "selection": "Selected as the confirmed AI employment-impact source. Sections 1-5 at lines 16-137 are promoted. Section 6 begins at line 139; Sections 6-10 remain queued."
     },
     {
       "name": "Take_U_Forward_Graph_Verified_Problem_Guide_v3.md",
@@ -1126,22 +1126,23 @@
       "source_names": [
         "ai_jobs_elimination_deep_research_2026.md"
       ],
-      "last_processed_at": "2026-11-25T06:19:08-05:00",
+      "last_processed_at": "2026-11-25T09:12:29-05:00",
       "processed_sections": [
         "Section 1 Why the headline numbers conflict — source lines 16-56; seven-field evidence requirement, four worked traces, five diagrams and executable evidence contracts",
         "Section 2 What is actually happening so far — source lines 58-83; scale/outcome/denominator contract, four worked traces, five diagrams, 2026 official updates and executable observed-labour contracts",
         "Section 3 Why I use 30-80 million as a central 2030 gross-elimination range — source lines 85-98; provenance and timing contracts, four worked traces, five diagrams, 2026 official updates and executable scenario-range contracts",
-        "Section 4 The occupations I expect to take the hardest hit — source lines 99-121; task-versus-occupation and stock-versus-flow contracts, four worked traces, five diagrams, current BLS references and executable occupational-pressure contracts"
+        "Section 4 The occupations I expect to take the hardest hit — source lines 99-121; task-versus-occupation and stock-versus-flow contracts, four worked traces, five diagrams, current BLS references and executable occupational-pressure contracts",
+        "Section 5 Jobs that are safer than people assume — source lines 123-137; task-assistance, human-responsibility-loop and outcome-evidence boundaries, four worked traces, six diagrams, current ILO/BLS/O*NET references and executable relative-resistance contracts"
       ],
-      "last_successful_commit": "6b5e34bd99abd3e9c1109811836ee4c7cad50464",
-      "validation": "The confirmed 18,294-byte Library source was refreshed unchanged at SHA-256 32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8 and bounded to Section 4 lines 99-121. Current BLS employment stocks, numeric/rate changes, annual openings, AI-exposure methodology and occupation-specific utilization factors were reconciled without turning task exposure into elimination. EmploymentEvidenceContracts, ObservedLaborEvidenceContracts, ScenarioRangeContracts and OccupationalPressureContracts each passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch. Deterministic reader validation passed exact 49,016-byte Markdown recovery at SHA-256 06aa0b991fca8d7ca11e54be68006fcd073363dda45a5149505481a095f8ceb4, 84 unique IDs, seven search entries, 69 resolved fragments, 66 fence markers, 21 Mermaid sources and JavaScript syntax; HTML SHA-256 is a432b88533d8ec8b7be7d9aa57cb572b20eba6714368571958cee41fc75e4532. Content commit 6b5e34bd99abd3e9c1109811836ee4c7cad50464. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
-      "next_action": "Re-evaluate fair-domain rotation; when AI employment impact returns, process Section 5 Jobs that are safer than people assume at source lines 123-137 only.",
+      "last_successful_commit": "daa836daea21ac5a0bb58320c699d4978ded74b9",
+      "validation": "The confirmed 18,294-byte Library source remained unchanged at SHA-256 32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8 and was bounded to Section 5 lines 123-137. Current ILO transformation evidence, BLS 2025-2035 projections and O*NET work-context evidence were reconciled without turning workflow resistance into immunity or employment growth. All five employment-impact contracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch. Deterministic reader validation passed exact 62,102-byte Markdown recovery at SHA-256 b338b5e179f592d331531988461ce48aef9c355c8767538f7c71917bb22e6620, 107 unique IDs, eight search entries, 90 resolved fragments, one resolved relative link, 84 fence markers, 27 Mermaid sources and JavaScript syntax; HTML SHA-256 is 10ae27709ab2610e719b550f5acd185dbc4ec5a8eb62c9d5bd13bffb86ed5546. Content commit daa836daea21ac5a0bb58320c699d4978ded74b9. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+      "next_action": "Re-evaluate fair-domain rotation; when AI employment impact returns, process Section 6 Software engineering deserves a separate answer at source lines 139-150 only.",
       "priority": 22,
       "source_revision": {
         "library_file_id": "libfile_ec5bdd926d1881918e6f8523ea1ab36a",
         "file_id": "file_000000007bb881f5beb88da5cea75ef0",
         "source_sha256": "32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8",
-        "canonical_markdown_sha256_after": "06aa0b991fca8d7ca11e54be68006fcd073363dda45a5149505481a095f8ceb4"
+        "canonical_markdown_sha256_after": "b338b5e179f592d331531988461ce48aef9c355c8767538f7c71917bb22e6620"
       }
     },
     {
@@ -1171,7 +1172,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25 and the selected Arrays source pair are exhausted. AI employment Sections 1-4 and advanced-trees Sections 1-14 are promoted or merged. Re-evaluate fair-domain rotation and choose the next confirmed unprocessed source or one bounded live-placeholder section; retain the wider intake and 170 placeholders.",
+    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25 and the selected Arrays source pair are exhausted. AI employment Sections 1-5 and advanced-trees Sections 1-14 are promoted or merged. Re-evaluate fair-domain rotation and choose the next confirmed unprocessed source or one bounded live-placeholder section; retain the wider intake and 170 placeholders.",
     "batch_policy": {
       "max_sections_per_run": 1,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1398,14 +1399,15 @@
     "Advanced trees Section 13 Common Mistakes & Interview Traps: four invariant-repair traces, seven diagrams and executable mistake contracts",
     "Advanced trees Section 14 Revision Sheet & Interview Speaking Guide: six-slot answer contract, four worked speaking traces, six diagrams and executable interview-answer contracts",
     "AI employment impact Section 3: author-synthesis scenario range, provenance and timing contracts, four worked traces, five diagrams, current official updates and executable scenario-range contracts",
-    "AI employment impact Section 4: task-versus-occupation pressure, stock/flow and absolute/rate contracts, four worked traces, five diagrams, current BLS references and executable occupational-pressure contracts"
+    "AI employment impact Section 4: task-versus-occupation pressure, stock/flow and absolute/rate contracts, four worked traces, five diagrams, current BLS references and executable occupational-pressure contracts",
+    "AI employment impact Section 5: task-assistance, human-responsibility-loop and outcome-evidence boundaries, four worked traces, six diagrams, current ILO/BLS/O*NET references and executable relative-resistance contracts"
     ],
-  "processed_section": "Advanced trees Section 14 Revision Sheet & Interview Speaking Guide, selected Markdown lines 1336-1395 / fresh corroborating DOCX Pandoc lines 1809-1873; Section 15 remains queued",
-  "validation": "Both advanced-tree sources were refreshed unchanged. Java 21 source launch passed 20 groups, 20,000 seeded trials and 80,000 checks for the new interview-answer contract; the three preceding focused contracts also remained green. Reader validation passed exact 14,974-byte recovery, SHA-256 6cc729351c96946ef2055a3c04abf1a217f516fb7385f1ddc73d9a59f3b7b43b, 32 unique IDs, 10 search entries, 23 fragments, one relative link, 20 fences, six Mermaid sources, JavaScript syntax and deterministic HTML SHA-256 027910138bb95ee40fb602bc194de44d47b8ee3cf10939f79e7ebb57f8870df7. Content commit 55e5e8b4938e3fd27e3906f8cc8786b123c02b9a. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
-  "estimated_next_tokens": 7000,
+  "processed_section": "AI employment impact Section 5 Jobs that are safer than people assume, source lines 123-137; Sections 6-10 remain queued",
+  "validation": "The unchanged confirmed source was bounded to Section 5 lines 123-137. Java 21 source launch passed all five employment-impact contracts; each reported 20 groups, 20,000 seeded trials and 80,000 checks. Reader validation passed exact 62,102-byte recovery, SHA-256 b338b5e179f592d331531988461ce48aef9c355c8767538f7c71917bb22e6620, 107 unique IDs, eight search entries, 90 fragments, one relative link, 84 fences, 27 Mermaid sources, JavaScript syntax and deterministic HTML SHA-256 10ae27709ab2610e719b550f5acd185dbc4ec5a8eb62c9d5bd13bffb86ed5546. Content commit daa836daea21ac5a0bb58320c699d4978ded74b9. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+  "estimated_next_tokens": 8000,
   "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section; no reliable account-quota telemetry was exposed.",
-  "last_successful_commit": "55e5e8b4938e3fd27e3906f8cc8786b123c02b9a",
-  "last_processed_at": "2026-11-25T06:59:44-05:00",
-  "next_batch_decision": "Advanced trees Section 14 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair-domain rotation; AI employment Section 5 remains queued at lines 123-137, and advanced trees Section 15 remains queued at selected lines 1398-1448 / corroborating DOCX lines 1874-1923 through source end."
+  "last_successful_commit": "daa836daea21ac5a0bb58320c699d4978ded74b9",
+  "last_processed_at": "2026-11-25T09:12:29-05:00",
+  "next_batch_decision": "AI employment Section 5 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair-domain rotation; advanced trees Section 15 remains queued at selected lines 1398-1448 / corroborating DOCX lines 1874-1923 through source end, and AI employment Section 6 remains queued at lines 139-150."
   }
 }

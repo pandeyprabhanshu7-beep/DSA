@@ -868,7 +868,7 @@
   ],
   "next_batch": {
     "source": "Fair-domain confirmed intake; AI-employment and advanced-trees continuations remain exact",
-    "section": "Re-read the current queue; when AI employment returns, process Section 5 at source lines 123-137 only; advanced trees remains queued at Section 15, selected lines 1398-1448 / corroborating DOCX Pandoc lines 1874-1923 through source end",
+    "section": "Re-read the current queue; advanced trees remains queued at Section 15, selected lines 1398-1448 / corroborating DOCX Pandoc lines 1874-1923 through source end; AI employment remains queued at Section 6 lines 139-150",
     "status": "SELECTION_REQUIRED",
     "estimated_tokens": 6000,
     "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section. No weekly/hourly quota telemetry was exposed.",
@@ -994,18 +994,18 @@
     "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section; no reliable quota percentages were exposed"
   },
   "ai_employment_impact_intake_checkpoint": {
-    "last_processed_at": "2026-11-25T06:19:08-05:00",
+    "last_processed_at": "2026-11-25T09:12:29-05:00",
     "source_library_file_id": "libfile_ec5bdd926d1881918e6f8523ea1ab36a",
     "source_file_id": "file_000000007bb881f5beb88da5cea75ef0",
     "source_sha256": "32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8",
-    "canonical_markdown_sha256": "06aa0b991fca8d7ca11e54be68006fcd073363dda45a5149505481a095f8ceb4",
-    "processed": "Sections 1-4 at source lines 16-121; latest bounded range is Section 4 The occupations I expect to take the hardest hit at lines 99-121; Sections 5-10 remain queued",
+    "canonical_markdown_sha256": "b338b5e179f592d331531988461ce48aef9c355c8767538f7c71917bb22e6620",
+    "processed": "Sections 1-5 at source lines 16-137; latest bounded range is Section 5 Jobs that are safer than people assume at lines 123-137; Sections 6-10 remain queued",
     "status": "IN_PROGRESS",
-    "validation": "The confirmed Library source was refreshed unchanged and bounded to Section 4 lines 99-121. Current BLS evidence was kept within task/occupation, stock/flow, numeric/rate, horizon and driver-scope boundaries. EmploymentEvidenceContracts, ObservedLaborEvidenceContracts, ScenarioRangeContracts and OccupationalPressureContracts each passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch. Deterministic reader validation passed exact 49,016-byte Markdown recovery at SHA-256 06aa0b991fca8d7ca11e54be68006fcd073363dda45a5149505481a095f8ceb4, 84 unique IDs, seven search entries, 69 resolved fragments, 66 fence markers, 21 Mermaid sources and JavaScript syntax; HTML SHA-256 is a432b88533d8ec8b7be7d9aa57cb572b20eba6714368571958cee41fc75e4532. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
-    "content_commit": "6b5e34bd99abd3e9c1109811836ee4c7cad50464",
-    "next_section": "Re-evaluate fair-domain rotation; when this source returns, process Section 5 Jobs that are safer than people assume at lines 123-137",
+    "validation": "The confirmed Library source remained unchanged and was bounded to Section 5 lines 123-137. Current ILO transformation evidence, BLS projections and O*NET work-context evidence were kept within task, responsibility-loop and outcome-evidence boundaries. All five employment-impact contracts each passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch. Deterministic reader validation passed exact 62,102-byte Markdown recovery at SHA-256 b338b5e179f592d331531988461ce48aef9c355c8767538f7c71917bb22e6620, 107 unique IDs, eight search entries, 90 resolved fragments, one relative link, 84 fence markers, 27 Mermaid sources and JavaScript syntax; HTML SHA-256 is 10ae27709ab2610e719b550f5acd185dbc4ec5a8eb62c9d5bd13bffb86ed5546. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+    "content_commit": "daa836daea21ac5a0bb58320c699d4978ded74b9",
+    "next_section": "Re-evaluate fair-domain rotation; when this source returns, process Section 6 Software engineering deserves a separate answer at lines 139-150",
     "estimated_next_tokens": 8000,
-    "estimate_method": "Heuristic reserve for one bounded Section 5 source review, primary-reference verification, safety-counterexample audit, worked traces, executable contracts, reader synchronization and checkpoint overhead; no reliable account-quota telemetry was exposed"
+    "estimate_method": "Heuristic reserve for one bounded Section 6 source review, current software-employment reference verification, worked traces, executable contracts, reader synchronization and checkpoint overhead; no reliable account-quota telemetry was exposed"
   },
   "advanced_trees_intake_checkpoint": {
     "last_processed_at": "2026-11-25T06:59:44-05:00",
