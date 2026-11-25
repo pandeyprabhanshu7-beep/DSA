@@ -1,6 +1,6 @@
 # AI Employment Impact — Reading Evidence Without Headline Errors
 
-> **Incremental status:** Source Sections 1–4 are promoted from lines 16–121. Sections 5–10 remain queued. The source's scenario ranges and occupational-pressure list are retained as attributed analysis, not presented here as consensus forecasts.
+> **Incremental status:** Source Sections 1–5 are promoted from lines 16–137. Sections 6–10 remain queued. The source's scenario ranges, occupational-pressure list and relative-resistance factors are retained as attributed analysis, not presented here as consensus forecasts.
 
 ## Contents
 
@@ -34,6 +34,13 @@
   - [Example 3 — task pressure can produce redesign without disappearance](#example-3--task-pressure-can-produce-redesign-without-disappearance)
   - [Example 4 — exposed tasks can coexist with occupational growth](#example-4--exposed-tasks-can-coexist-with-occupational-growth)
   - [Executable occupational-pressure contracts](#executable-occupational-pressure-contracts)
+- [5. Jobs that are safer than people assume](#5-jobs-that-are-safer-than-people-assume)
+  - [Relative-resistance contract](#relative-resistance-contract)
+  - [Example 1 — electricians combine physical variability with local accountability](#example-1--electricians-combine-physical-variability-with-local-accountability)
+  - [Example 2 — paramedic work has a short consequence-to-action loop](#example-2--paramedic-work-has-a-short-consequence-to-action-loop)
+  - [Example 3 — cybersecurity illustrates complementarity, not immunity](#example-3--cybersecurity-illustrates-complementarity-not-immunity)
+  - [Example 4 — architecture ownership is a role design, not an occupation forecast](#example-4--architecture-ownership-is-a-role-design-not-an-occupation-forecast)
+  - [Executable relative-resistance contracts](#executable-relative-resistance-contracts)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Why the headline numbers conflict
@@ -720,6 +727,184 @@ Expected result:
 PASS groups=20 trials=20000 checks=80000
 ```
 
+## 5. Jobs that are safer than people assume
+
+The source lists eight features that can make work relatively resistant to full substitution: physical work in unpredictable environments; legal or operational accountability; trust and relationship ownership; high-stakes judgment under uncertainty; organizational influence; cross-functional coordination; proprietary context; and responsibility for architecture or final decisions.
+
+These are **workflow properties**, not permanent labels for occupations. A role can contain resistant and automatable tasks at the same time. “Safer” therefore means that replacing the complete human responsibility loop is harder than automating a bounded task; it does not mean zero exposure, guaranteed employment growth or protection from restructuring.
+
+### Relative-resistance contract
+
+Fill this packet before calling work relatively resistant:
+
+| Field | Required question | Invalid shortcut prevented |
+|---|---|---|
+| task boundary | which activity is being automated: drafting, diagnosis, installation, approval or the whole role? | turning one capable model demo into occupation replacement |
+| environment | is the input digitally standardized, or must the worker sense and manipulate an uncertain physical setting? | assuming software access equals physical execution |
+| accountable actor | who signs, authorizes, bears liability or owns the incident after the recommendation? | confusing advice with accountable action |
+| human relationship | does trust, negotiation, consent or repeated relationship history affect the outcome? | treating communication as text generation only |
+| uncertainty loop | must the worker detect novel conditions, act and update under time pressure? | benchmarking only the happy path |
+| context access | is essential context proprietary, tacit, local or permission-gated? | assuming the model has complete ground truth |
+| coordination span | how many teams, vendors, regulators or operational systems must agree? | optimizing one step while ignoring handoffs |
+| outcome evidence | is there an official projection, work-context measure or observed adoption result? | inferring headcount from qualitative features alone |
+
+```mermaid
+flowchart TD
+  A[Candidate task] --> B{Digitally bounded and verifiable?}
+  B -->|Yes| C[Higher task-automation potential]
+  B -->|No| D[Physical or contextual execution remains]
+  C --> E{Human owns approval or consequences?}
+  D --> E
+  E -->|Yes| F[Augmentation or redesign more plausible]
+  E -->|No| G[Substitution case is stronger]
+```
+
+The ILO's 2025 refined exposure index supports this task-bundle interpretation: nearly all occupations retain activities requiring human input, so transformation is more likely than wholesale redundancy. Its exposure gradients are potential-exposure measures, not employment forecasts. Current BLS 2025–2035 projections provide a separate outcome frame; they incorporate technology assumptions but do not convert the feature list into a universal “safety score.”
+
+Use a **gate**, not an additive prediction score:
+
+1. `automationCandidate` asks whether a bounded task is standardized, accessible and verifiable.
+2. `humanResponsibilityLoop` asks whether physical execution, authorization, trust, severe consequences or cross-system coordination still require a person.
+3. `outcomeClaim` is allowed only when projection or observed evidence matches the occupation, geography, metric and horizon.
+
+```mermaid
+flowchart LR
+  A[Task evidence] --> D[Bounded task conclusion]
+  B[Work-context evidence] --> E[Responsibility-loop conclusion]
+  C[Projection evidence] --> F[Employment-outcome conclusion]
+  D --> G[Do not merge units]
+  E --> G
+  F --> G
+```
+
+### Example 1 — electricians combine physical variability with local accountability
+
+An AI system can read a wiring diagram, retrieve code requirements, propose a diagnostic sequence and draft an estimate. It cannot thereby inspect an unknown wall cavity, isolate the correct circuit, manipulate damaged hardware and accept responsibility for a safe installation.
+
+| Step | Evidence or requirement | Bounded conclusion |
+|---|---|---|
+| 1 | diagram lookup and troubleshooting text are digitally representable | those tasks can be assisted |
+| 2 | on-site sensing and manipulation vary by building and fault | execution remains physically situated |
+| 3 | errors can create fire, shock and code-compliance consequences | a competent accountable actor remains in the loop |
+| 4 | BLS projects electrician employment to grow 9% from 2025 to 2035, with about 72,700 openings per year | current U.S. projection shows growth and replacement demand |
+| 5 | BLS also cites electricity demand from AI/data centers among demand contributors | AI can increase demand while assisting some tasks |
+
+```mermaid
+sequenceDiagram
+  participant A as AI assistant
+  participant E as Electrician
+  participant S as Physical site
+  participant I as Inspector or owner
+  A->>E: Retrieve code and suggest tests
+  E->>S: Sense, isolate, manipulate and verify
+  E->>I: Document and accept accountable handoff
+  I-->>E: Approve or require correction
+```
+
+The safe claim is not “electricians cannot be automated.” It is: some information tasks are assistable; the present end-to-end workflow retains physical and accountable gates; and the cited U.S. projection currently shows growth. None of those facts guarantees an individual job.
+
+### Example 2 — paramedic work has a short consequence-to-action loop
+
+O*NET's current work-context profile for paramedics reports daily face-to-face discussion, very close physical proximity, frequent operation in vehicles and uncontrolled environments, substantial decision freedom and extremely serious consequences of error. These measurements describe the work context; they are not employment projections.
+
+Trace one chest-pain response:
+
+1. A model can surface protocol branches from reported symptoms.
+2. The responder must assess an evolving patient, scene hazards and unreliable or missing information.
+3. The responder performs physical interventions, coordinates transport and updates the plan as vital signs change.
+4. The human team owns consent, escalation, documentation and immediate consequences.
+
+```mermaid
+stateDiagram-v2
+  [*] --> SceneAssessment
+  SceneAssessment --> ProtocolSupport: symptoms and vitals
+  ProtocolSupport --> HumanDecision: recommendation
+  HumanDecision --> PhysicalIntervention
+  PhysicalIntervention --> Reassess
+  Reassess --> HumanDecision: condition changes
+  Reassess --> Handoff: stabilized or transported
+  Handoff --> [*]
+```
+
+The AI-addressable step is inside a larger closed loop. A successful protocol-answer benchmark does not demonstrate scene perception, lawful authority, physical execution or responsibility for the outcome. Conversely, resistant workflow properties do not prove that staffing, documentation or dispatch work will remain unchanged.
+
+### Example 3 — cybersecurity illustrates complementarity, not immunity
+
+BLS projects U.S. information-security-analyst employment to grow 21% from 2025 to 2035, with about 14,100 openings per year. It explicitly names greater AI use and e-commerce among contributors to security demand. This is a useful counterexample to the assumption that high AI capability must reduce every related occupation.
+
+| Workflow element | AI contribution | Human/accountable remainder |
+|---|---|---|
+| alert triage | summarize logs, cluster similar events | decide whether evidence is sufficient to escalate |
+| detection engineering | draft queries and candidate rules | validate false positives against proprietary systems |
+| incident response | propose containment steps | authorize business-disrupting isolation and coordinate owners |
+| risk acceptance | draft scenarios and controls | accountable executive or system owner accepts residual risk |
+
+```mermaid
+flowchart TD
+  A[AI-assisted alert] --> B[Analyst validates evidence]
+  B --> C{Containment affects production?}
+  C -->|Yes| D[Coordinate service and business owners]
+  C -->|No| E[Apply bounded response]
+  D --> F[Authorized action and audit trail]
+  E --> F
+```
+
+This does not make every cybersecurity task safe. Standard alert enrichment and first-draft analysis may require fewer minutes per case. The defensible conclusion is narrower: adversarial novelty, proprietary telemetry, production authority and accountability preserve a human responsibility loop, while current demand projections remain positive.
+
+### Example 4 — architecture ownership is a role design, not an occupation forecast
+
+“Senior technical roles” and “architecture” are organizational responsibilities, not single BLS occupation codes. Treat them as a workflow design that may appear inside software-development, engineering-management or computer-and-information-systems-management jobs.
+
+Trace an order-service migration:
+
+1. AI produces three plausible event schemas and a migration checklist.
+2. The architect identifies hidden constraints: a partner contract, a PCI boundary, a recovery objective and an undocumented reconciliation job.
+3. Finance, security, operations and product disagree about acceptable cost and rollout risk.
+4. A human owner chooses the trade-off, records the decision, sequences the migration and owns rollback criteria.
+
+```mermaid
+flowchart LR
+  A[AI-generated options] --> B[Proprietary constraints]
+  B --> C[Cross-functional negotiation]
+  C --> D[Accountable decision]
+  D --> E[Production feedback]
+  E --> B
+```
+
+The key boundary is **option generation versus decision ownership**. Architecture artifacts can be automated heavily; final responsibility may remain human because the decision binds several systems and stakeholders under incomplete information. Do not use that reasoning to claim headcount growth. For an employment claim, attach a matching occupation projection; for a career strategy, describe the responsibility loop explicitly.
+
+### Executable relative-resistance contracts
+
+[`RelativeResistanceContracts.java`](RelativeResistanceContracts.java) encodes the boundary between task assistance, a retained human-responsibility loop and a supported employment-outcome claim. It deliberately refuses a numeric “job safety score.”
+
+```java
+static boolean retainsHumanLoop(WorkPacket work) {
+    return work.physicalExecution()
+            || work.accountableApproval()
+            || work.severeConsequence()
+            || work.trustOwnership()
+            || work.crossSystemCoordination();
+}
+
+static boolean supportsGrowthClaim(WorkPacket work) {
+    return work.projectionDirection() == Direction.GROWTH
+            && work.projectionGeography() != null
+            && work.projectionHorizon() != null;
+}
+```
+
+Twenty deterministic groups cover the electrician, paramedic, cybersecurity and architecture boundaries. Then 20,000 seeded trials run 80,000 checks that feature order does not change the result, assistance never implies elimination, retained responsibility never implies growth, and outcome claims require matching projection metadata.
+
+```bash
+java -ea study-guides/ai/employment-impact/RelativeResistanceContracts.java
+```
+
+Expected result:
+
+```text
+PASS groups=20 trials=20000 checks=80000
+```
+
 ## References and provenance
 
 - [World Economic Forum, *Future of Jobs Report 2025*](https://www.weforum.org/publications/the-future-of-jobs-report-2025/) — survey frame, multiple structural drivers, 170 million created, 92 million displaced and 78 million net growth through 2030.
@@ -739,9 +924,13 @@ PASS groups=20 trials=20000 checks=80000
 - [U.S. Bureau of Labor Statistics, *Customer Service Representatives*](https://www.bls.gov/ooh/office-and-administrative-support/customer-service-representatives.htm) — 2025–2035 decline and replacement-opening distinction.
 - [U.S. Bureau of Labor Statistics, *Paralegals and Legal Assistants*](https://www.bls.gov/ooh/legal/paralegals-and-legal-assistants.htm) and [*Interpreters and Translators*](https://www.bls.gov/ooh/media-and-communication/interpreters-and-translators.htm) — task-efficiency pressure alongside flat or growing occupational projections and replacement openings.
 - [U.S. Bureau of Labor Statistics, *Software Developers, Quality Assurance Analysts, and Testers*](https://www.bls.gov/ooh/computer-and-information-technology/software-developers.htm) — task automation alongside 2025–2035 demand growth and annual openings.
+- [International Labour Organization, *Generative AI and Jobs: A Refined Global Index of Occupational Exposure*](https://www.ilo.org/publications/generative-ai-and-jobs-refined-global-index-occupational-exposure) — 2025 task-level exposure gradients and the transformation-versus-redundancy boundary.
+- [U.S. Bureau of Labor Statistics, *Electricians*](https://www.bls.gov/ooh/construction-and-extraction/electricians.htm) — current 2025–2035 growth, annual openings and electricity-demand factors.
+- [U.S. Bureau of Labor Statistics, *Information Security Analysts*](https://www.bls.gov/ooh/computer-and-information-technology/information-security-analysts.htm) — current 2025–2035 growth, annual openings and AI/security demand interaction.
+- [O*NET OnLine, *Paramedics*](https://www.onetonline.org/link/summary/29-2043.00) — work-context evidence for proximity, physical environment, decision freedom and consequence of error.
 
 Source intake:
 
-- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–4 at lines 16–121 are promoted. Source lines 123–212 remain queued; Section 5 is the next bounded continuation at lines 123–137.
+- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–5 at lines 16–137 are promoted. Source lines 139–212 remain queued; Section 6 is the next bounded continuation at lines 139–150.
 
-The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, sixteen worked traces across four sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
+The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, twenty worked traces across five sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
