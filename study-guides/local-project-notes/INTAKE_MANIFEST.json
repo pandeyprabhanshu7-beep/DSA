@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "6e395f9747556eef9e080e59660b8040e1e2a4bd",
+  "last_successful_commit": "b1a9012f3166c1a6cf43eab65b65442b2119196f",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -873,7 +873,7 @@
   ],
   "next_batch": {
     "source": "Fair-domain confirmed intake; advanced-trees source pair exhausted; AI-employment continuation remains exact",
-    "section": "Re-read the current queue; AI employment remains queued at line 152 plus Section 7 lines 154-164, while advanced trees has no invented continuation after both sources ended",
+    "section": "Re-read the current queue; AI employment remains queued at Section 8 lines 166-177, while advanced trees has no invented continuation after both sources ended",
     "status": "SELECTION_REQUIRED",
     "estimated_tokens": 6000,
     "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section. No weekly/hourly quota telemetry was exposed.",
@@ -999,18 +999,18 @@
     "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section; no reliable quota percentages were exposed"
   },
   "ai_employment_impact_intake_checkpoint": {
-    "last_processed_at": "2026-11-25T11:35:51-05:00",
+    "last_processed_at": "2026-11-25T14:23:35-05:00",
     "source_library_file_id": "libfile_ec5bdd926d1881918e6f8523ea1ab36a",
     "source_file_id": "file_000000007bb881f5beb88da5cea75ef0",
     "source_sha256": "32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8",
-    "canonical_markdown_sha256": "d7b0bde1b4848eec69485438d786a691ea1738a7269154f0e32494755e1e4b38",
-    "processed": "Sections 1-6 at source lines 16-150; latest bounded range is Section 6 Software engineering deserves a separate answer at lines 139-150; line 152 and Sections 7-10 remain queued",
+    "canonical_markdown_sha256": "52e980e425e47db0a7106c39f456560d71713101ebeccec57c742994abe38597",
+    "processed": "Sections 1-7 at source lines 16-164; latest bounded range is the Section 6 coda at line 152 plus Section 7 Evidence against a simple AI destroys jobs model at lines 154-164; Sections 8-10 remain queued",
     "status": "IN_PROGRESS",
-    "validation": "The confirmed Library source remained unchanged and was bounded to Section 6 lines 139-150. Current BLS projections and exposure limits plus NIST/CISA software-responsibility guidance were kept within task, productivity, demand, responsibility and outcome-evidence boundaries. All six employment-impact contracts each passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch. Deterministic reader validation passed exact 75,400-byte Markdown recovery at SHA-256 d7b0bde1b4848eec69485438d786a691ea1738a7269154f0e32494755e1e4b38, 129 unique IDs, nine search entries, 110 resolved fragments, the new relative link, 102 fence markers, 32 Mermaid sources and JavaScript syntax; HTML SHA-256 is 10240bf210dab4c8c4eface67fdd761ead2733161868ccd34f4b1fd6485df6a6. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
-    "content_commit": "6e395f9747556eef9e080e59660b8040e1e2a4bd",
-    "next_section": "Re-evaluate fair-domain rotation; when this source returns, process the Section 6 coda at line 152 plus Section 7 Evidence against a simple AI destroys jobs model at lines 154-164",
+    "validation": "The confirmed Library source remained unchanged and was bounded to the Section 6 coda at line 152 plus Section 7 lines 154-164. Current PwC company/posting associations, Anthropic task-use primitives and BLS exposure limits were kept within exposure, use, association, causality and complete-workflow-delegation boundaries. All seven employment-impact contracts each passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch. Deterministic reader validation passed exact 87,308-byte Markdown recovery at SHA-256 52e980e425e47db0a7106c39f456560d71713101ebeccec57c742994abe38597, 151 unique IDs, ten search entries, 130 resolved fragments, the new relative link, 118 fence markers, 37 Mermaid sources and JavaScript syntax; HTML SHA-256 is 8e7f1d11608deb3a5cbcde2ad0895bc5ce3b3dcaba56b7629582450f3b81ab8e. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+    "content_commit": "b1a9012f3166c1a6cf43eab65b65442b2119196f",
+    "next_section": "Re-evaluate fair-domain rotation; when this source returns, process Section 8 What could make the forecast much worse at lines 166-177",
     "estimated_next_tokens": 8000,
-    "estimate_method": "Heuristic reserve for one bounded Section 7 source review, current labor-evidence reference verification, worked traces, executable contracts, reader synchronization and checkpoint overhead; no reliable account-quota telemetry was exposed"
+    "estimate_method": "Heuristic reserve for one bounded Section 8 source review, current scenario-risk reference verification, worked traces, executable contracts, reader synchronization and checkpoint overhead; no reliable account-quota telemetry was exposed"
   },
   "advanced_trees_intake_checkpoint": {
     "last_processed_at": "2026-11-25T10:33:27-05:00",
