@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="source-sha256" content="72c692e0a13605ba60b1d1202829f98d1b3e8c31aafb443ff88e959d4a1ce8da">
+<title>Advanced Trees — Verified References and Practice Roadmap</title>
+<style>
+:root{--bg:#f4f7fb;--paper:#fff;--ink:#172033;--muted:#5c667a;--accent:#1261a0;--line:#d3dce9;--code:#101c30;--code-ink:#eef4ff}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.68 system-ui,-apple-system,Segoe UI,sans-serif}
+.layout{display:grid;grid-template-columns:minmax(240px,310px) minmax(0,1040px);gap:1.4rem;max-width:1380px;margin:auto;padding:1rem}
+aside{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:1rem}
+main{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:clamp(1rem,4vw,3rem)}
+.brand{font-weight:800;margin-bottom:.7rem}input{width:100%;padding:.7rem;border:1px solid var(--line);border-radius:9px;font:inherit}
+#results{list-style:none;padding:0;margin:.7rem 0}#results li{margin:.42rem 0}#results a{color:var(--accent);text-decoration:none;font-size:.92rem}#search-status{color:var(--muted);font-size:.82rem;margin:.45rem 0}
+h1,h2,h3{line-height:1.25;scroll-margin-top:1rem}h1{border-bottom:2px solid var(--line);padding-bottom:.35rem}h2{margin-top:2.3rem}a{color:var(--accent)}
+table{border-collapse:collapse;width:100%;display:block;overflow-x:auto}th,td{border:1px solid var(--line);padding:.55rem;text-align:left;vertical-align:top}
+pre{background:var(--code);color:var(--code-ink);padding:1rem;border-radius:10px;overflow:auto}code{font:0.9em ui-monospace,SFMono-Regular,Consolas,monospace}:not(pre)>code{background:#edf2f7;padding:.12rem .3rem;border-radius:4px}
+blockquote{margin:1rem 0;padding:.4rem 1rem;border-left:4px solid var(--accent);background:#eaf2fa}.mermaid{overflow:auto;text-align:center}
+@media(max-width:820px){.layout{display:block;padding:.5rem}aside{position:relative;max-height:none;margin-bottom:.75rem}main{padding:1rem}#results{max-height:12rem;overflow:auto}}
+@media print{aside{display:none}.layout{display:block}main{border:0}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside><div class="brand">Tree Practice Roadmap</div><label for="guide-search">Search this guide</label><input id="guide-search" type="search" placeholder="Try: TreeMap, top-K, Fenwick, B-tree index" autocomplete="off"><div id="search-status">Type to search headings and section text.</div><ul id="results"></ul><a href="#advanced-trees--verified-references-and-practice-roadmap">Back to top</a></aside>
+<main id="content"><h1 id="advanced-trees--verified-references-and-practice-roadmap">Advanced Trees — Verified References and Practice Roadmap</h1>
+<blockquote>
+<p><strong>Source boundary:</strong> Advanced Trees Section 15, selected Markdown display lines 1398–1449 (the final line has no trailing newline) and corroborating DOCX Pandoc lines 1874–1923 through source end. This module turns the source's link list and topic table into an evidence-gated practice system; it does not duplicate the completed structure guides.</p>
+</blockquote>
+<h2 id="contents">Contents</h2>
+<ul>
+<li><a href="#reference-contract">Reference contract</a></li>
+<li><a href="#practice-gate">Practice gate</a></li>
+<li><a href="#example-1--ordered-map-invariant-before-red-black-mechanics">Example 1 — ordered-map invariant before red-black mechanics</a></li>
+<li><a href="#example-2--top-k-proves-what-a-heap-does-not-guarantee">Example 2 — top-K proves what a heap does not guarantee</a></li>
+<li><a href="#example-3--mutable-range-sums-force-an-operation-algebra-choice">Example 3 — mutable range sums force an operation-algebra choice</a></li>
+<li><a href="#example-4--an-index-exercise-must-include-query-shape">Example 4 — an index exercise must include query shape</a></li>
+<li><a href="#four-stage-deliberate-practice-loop">Four-stage deliberate-practice loop</a></li>
+<li><a href="#executable-practice-contracts">Executable practice contracts</a></li>
+<li><a href="#verified-references-and-provenance">Verified references and provenance</a></li>
+</ul>
+<h2 id="reference-contract">Reference contract</h2>
+<p>A reference is useful only when the claim, version and retrieval purpose are explicit. Before attaching a link to an interview answer, record:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Field</th>
+<th>Required question</th>
+<th>Failure prevented</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>claim owner</td>
+<td>specification, implementation documentation, academic exposition or practice platform?</td>
+<td>treating a tutorial as a language/API contract</td>
+</tr>
+<tr class="even">
+<td>version</td>
+<td>which Java/PostgreSQL edition or problem statement was checked?</td>
+<td>silently applying future or obsolete behavior</td>
+</tr>
+<tr class="odd">
+<td>exact claim</td>
+<td>invariant, asymptotic guarantee, API ordering, query-planner behavior or exercise input/output?</td>
+<td>citing a page that is merely about the same topic</td>
+</tr>
+<tr class="even">
+<td>scope</td>
+<td>abstract data structure or one production implementation?</td>
+<td>claiming every B-tree behaves like PostgreSQL</td>
+</tr>
+<tr class="odd">
+<td>retrieval date</td>
+<td>when was the live page rechecked?</td>
+<td>hiding link/version drift</td>
+</tr>
+<tr class="even">
+<td>exercise role</td>
+<td>learn, implement, falsify, optimize or explain?</td>
+<td>collecting links without a practice objective</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart TD
+  A[Interview claim] --&gt; B{API or product behavior?}
+  B --&gt;|Yes| C[Current vendor documentation]
+  B --&gt;|No| D{Algorithm invariant or proof?}
+  D --&gt;|Yes| E[Academic or standards reference]
+  D --&gt;|No| F[Canonical practice statement]
+  C --&gt; G[Record version and exact scope]
+  E --&gt; G
+  F --&gt; G</code></pre>
+<p>The source's NIST DADS and Princeton links remain useful for terminology and algorithmic exposition. Current product claims in this module use Oracle Java SE 26 and PostgreSQL 19 documentation. Practice problems are linked only as problem statements; their editorial code is neither copied nor treated as normative.</p>
+<h2 id="practice-gate">Practice gate</h2>
+<p>Every practice item must pass six gates before it counts as learned:</p>
+<ol type="1">
+<li><strong>Requirement:</strong> state the operations, mutation pattern, ordering and acceptable latency.</li>
+<li><strong>Invariant:</strong> draw what remains true after each operation.</li>
+<li><strong>Trace:</strong> execute at least one adversarial example by hand.</li>
+<li><strong>Implementation:</strong> write the core operation without library shortcuts when the exercise requires it.</li>
+<li><strong>Oracle:</strong> compare against a simpler trusted model on many generated cases.</li>
+<li><strong>Explanation:</strong> give complexity in terms of height, elements, alphabet or query range—not by memorized slogan.</li>
+</ol>
+<pre class="mermaid"><code>flowchart LR
+  A[Requirement] --&gt; B[Invariant]
+  B --&gt; C[Hand trace]
+  C --&gt; D[Implementation]
+  D --&gt; E[Independent oracle]
+  E --&gt; F[Two-minute explanation]
+  F --&gt; A</code></pre>
+<p>The loop is intentionally cyclic. A failing oracle sends you back to the invariant or requirement; it is not repaired by memorizing another solution.</p>
+<h2 id="example-1--ordered-map-invariant-before-red-black-mechanics">Example 1 — ordered-map invariant before red-black mechanics</h2>
+<p><strong>Requirement.</strong> Maintain <code>(key, value)</code> mappings with ordered lookup, updates, deletion, predecessor/successor navigation and logarithmic worst-case core operations.</p>
+<p><strong>Trigger.</strong> This is an ordered-map requirement, not merely “use a tree.” Java's current <code>TreeMap</code> documentation identifies its implementation as a red-black-tree-based <code>NavigableMap</code> and guarantees logarithmic <code>containsKey</code>, <code>get</code>, <code>put</code> and <code>remove</code>.</p>
+<p>Trace the operations <code>put(40,A)</code>, <code>put(20,B)</code>, <code>put(60,C)</code>, <code>put(10,D)</code>, <code>put(30,E)</code>, <code>put(20,F)</code>, then <code>higherKey(30)</code>:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Step</th>
+<th>Ordered keys</th>
+<th style="text-align: right;">Size</th>
+<th>Observation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>put(40,A)</code></td>
+<td><code>[40]</code></td>
+<td style="text-align: right;">1</td>
+<td>first root-level mapping</td>
+</tr>
+<tr class="even">
+<td><code>put(20,B)</code></td>
+<td><code>[20,40]</code></td>
+<td style="text-align: right;">2</td>
+<td>key order, not insertion order</td>
+</tr>
+<tr class="odd">
+<td><code>put(60,C)</code></td>
+<td><code>[20,40,60]</code></td>
+<td style="text-align: right;">3</td>
+<td>both sides represented</td>
+</tr>
+<tr class="even">
+<td><code>put(10,D)</code></td>
+<td><code>[10,20,40,60]</code></td>
+<td style="text-align: right;">4</td>
+<td>implementation may recolor/rotate</td>
+</tr>
+<tr class="odd">
+<td><code>put(30,E)</code></td>
+<td><code>[10,20,30,40,60]</code></td>
+<td style="text-align: right;">5</td>
+<td>order invariant remains</td>
+</tr>
+<tr class="even">
+<td><code>put(20,F)</code></td>
+<td><code>[10,20,30,40,60]</code></td>
+<td style="text-align: right;">5</td>
+<td>equal key replaces value; no duplicate node</td>
+</tr>
+<tr class="odd">
+<td><code>higherKey(30)</code></td>
+<td>answer <code>40</code></td>
+<td style="text-align: right;">5</td>
+<td>least key strictly greater than 30</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart TD
+  A[Ordered-map requirement] --&gt; B[BST key-order invariant]
+  B --&gt; C[Red-black height invariant]
+  C --&gt; D[Logarithmic search path]
+  D --&gt; E[Navigation: floor ceiling lower higher]</code></pre>
+<p><strong>What to implement.</strong> First write a plain BST map and make replacement semantics explicit. Then implement or explain red-black repair. Do not infer a particular internal shape from <code>TreeMap</code>; the API guarantees ordering and complexity, not a stable node layout.</p>
+<p><strong>Oracle.</strong> Compare your map's sorted keys, size, values, <code>floor</code> and <code>ceiling</code> with a <code>TreeMap</code> after every randomized update. The oracle checks observable behavior while separate invariant validation checks your internal tree.</p>
+<h2 id="example-2--top-k-proves-what-a-heap-does-not-guarantee">Example 2 — top-K proves what a heap does not guarantee</h2>
+<p><strong>Requirement.</strong> Return the three largest values from stream <code>[8, 1, 7, 3, 9, 2, 9]</code> using <code>O(k)</code> retained memory.</p>
+<p>Maintain a min-heap of accepted candidates. The root is the weakest current winner:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">Value</th>
+<th>Heap content as a set/multiset</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">8</td>
+<td><code>[8]</code></td>
+<td>accept; fewer than 3</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">1</td>
+<td><code>[1,8]</code></td>
+<td>accept</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">7</td>
+<td><code>[1,7,8]</code></td>
+<td>accept</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">3</td>
+<td><code>[3,7,8]</code></td>
+<td>replace root 1</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">9</td>
+<td><code>[7,8,9]</code></td>
+<td>replace root 3</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">2</td>
+<td><code>[7,8,9]</code></td>
+<td>reject; not above root 7</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">9</td>
+<td><code>[8,9,9]</code></td>
+<td>replace root 7</td>
+</tr>
+</tbody>
+</table>
+<p>Final winners are <code>{8,9,9}</code>. If sorted output is required, drain or sort the final <code>k</code> elements.</p>
+<pre class="mermaid"><code>flowchart LR
+  A[Next stream value] --&gt; B{Heap size below k?}
+  B --&gt;|Yes| C[Offer]
+  B --&gt;|No| D{Value above minimum winner?}
+  D --&gt;|Yes| E[Poll then offer]
+  D --&gt;|No| F[Reject]
+  C --&gt; G[Root remains weakest winner]
+  E --&gt; G
+  F --&gt; G</code></pre>
+<p>Oracle Java SE 26 documents <code>offer</code> and <code>poll</code> as logarithmic and <code>peek</code> as constant time. It also warns that iterator traversal is not ordered. Therefore this is invalid:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> value <span class="op">:</span> heap<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Wrong: iterator order is not sorted order.</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>The full stream costs <code>O(n log k)</code> time and <code>O(k)</code> auxiliary space. Arbitrary-key search is still linear; the heap guarantees only parent priority and fast access to its head.</p>
+<p><strong>Oracle.</strong> Sort a copy of each generated input and compare the largest <code>k</code> multiset with the heap result. Include duplicates, negative values, <code>k = 0</code>, <code>k = 1</code> and <code>k &gt; n</code>.</p>
+<h2 id="example-3--mutable-range-sums-force-an-operation-algebra-choice">Example 3 — mutable range sums force an operation-algebra choice</h2>
+<p><strong>Requirement.</strong> Start with <code>[2,1,5,3,4]</code>; support point assignment and inclusive range-sum queries. Perform <code>sum(1,3)</code>, <code>set(2,8)</code>, <code>sum(1,3)</code>.</p>
+<p>Expected trace:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Operation</th>
+<th>Array state</th>
+<th>Result or delta</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>start</td>
+<td><code>[2,1,5,3,4]</code></td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td><code>sum(1,3)</code></td>
+<td>unchanged</td>
+<td><code>1+5+3 = 9</code></td>
+</tr>
+<tr class="odd">
+<td><code>set(2,8)</code></td>
+<td><code>[2,1,8,3,4]</code></td>
+<td>Fenwick delta <code>+3</code></td>
+</tr>
+<tr class="even">
+<td><code>sum(1,3)</code></td>
+<td>unchanged</td>
+<td><code>1+8+3 = 12</code></td>
+</tr>
+</tbody>
+</table>
+<p>A Fenwick tree stores invertible prefix aggregates compactly. Assignment is translated to a delta using the old value. A segment tree stores interval aggregates directly and generalizes more naturally to non-invertible combinations, range updates and richer node state.</p>
+<pre class="mermaid"><code>flowchart TD
+  A[Mutable range requirement] --&gt; B{Point updates and invertible prefix operation?}
+  B --&gt;|Yes| C[Fenwick tree candidate]
+  B --&gt;|No| D{Associative interval combine?}
+  D --&gt;|Yes| E[Segment tree candidate]
+  D --&gt;|No| F[Revisit data model]
+  C --&gt; G[Validate against array oracle]
+  E --&gt; G</code></pre>
+<p>The practice goal is not “solve LeetCode 307.” It is to defend the choice:</p>
+<ul>
+<li>point assignment becomes <code>delta = newValue - oldValue</code>,</li>
+<li>inclusive sum is <code>prefix(right) - prefix(left - 1)</code>,</li>
+<li>each Fenwick update/query visits <code>O(log n)</code> indices, and</li>
+<li>a plain prefix array has <code>O(1)</code> queries but <code>O(n)</code> point updates.</li>
+</ul>
+<p><strong>Oracle.</strong> Maintain the literal array and compute every queried range with a loop. Generate point assignments and valid <code>[left,right]</code> pairs; compare after every operation. This catches one-based-index conversion and stale-old-value errors.</p>
+<h2 id="example-4--an-index-exercise-must-include-query-shape">Example 4 — an index exercise must include query shape</h2>
+<p><strong>Requirement.</strong> Support recent orders for one tenant:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">SELECT</span> order_id, created_at</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> orders</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">WHERE</span> tenant_id <span class="op">=</span> <span class="dv">42</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ORDER</span> <span class="kw">BY</span> created_at <span class="kw">DESC</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">LIMIT</span> <span class="dv">20</span>;</span></code></pre></div>
+<p>A plausible PostgreSQL index is:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> orders_tenant_recent</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">ON</span> orders (tenant_id, created_at <span class="kw">DESC</span>);</span></code></pre></div>
+<p>Trace the reasoning rather than chanting “databases use B+ trees”:</p>
+<ol type="1">
+<li>Equality on leading <code>tenant_id</code> identifies one contiguous key group.</li>
+<li>Within that group, <code>created_at DESC</code> matches the required ordering.</li>
+<li>A matching B-tree scan can return the first 20 entries without sorting the entire tenant history.</li>
+<li>The planner still chooses among index scan, table scan and explicit sort using statistics and estimated cost.</li>
+</ol>
+<pre class="mermaid"><code>flowchart TD
+  A[WHERE tenant_id = 42] --&gt; B[Leading-key interval]
+  B --&gt; C[created_at DESC index order]
+  C --&gt; D[Read first 20 index entries]
+  D --&gt; E[Fetch needed rows or use covering data]</code></pre>
+<p>PostgreSQL 19 documents that B-tree is the supported index type that can directly produce sorted output. Its multicolumn guidance says leading equalities plus the first inequality constrain the scanned portion most directly, while later columns may filter without necessarily shrinking the scan; current PostgreSQL can also consider skip scan in suitable low-distinctness cases.</p>
+<p><strong>Boundary.</strong> This exercise practices logical access-path reasoning, not PostgreSQL page concurrency. Production B-tree behavior also involves operator classes, MVCC-visible table tuples, page splits, deletion, recovery, latching and planner economics.</p>
+<p><strong>Oracle.</strong> Populate tenants with repeated timestamps, run <code>EXPLAIN (ANALYZE, BUFFERS)</code> in a disposable PostgreSQL instance, and compare returned rows with an explicit full sort. The repository does not claim this integration was executed here.</p>
+<h2 id="four-stage-deliberate-practice-loop">Four-stage deliberate-practice loop</h2>
+<p>Use each completed advanced-tree module in four passes:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Stage</th>
+<th style="text-align: right;">Time box</th>
+<th>Deliverable</th>
+<th>Exit gate</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>recognition</td>
+<td style="text-align: right;">10 minutes</td>
+<td>requirement → candidate structure table</td>
+<td>can reject two plausible wrong structures</td>
+</tr>
+<tr class="even">
+<td>mechanics</td>
+<td style="text-align: right;">20 minutes</td>
+<td>hand trace with invariant after every mutation</td>
+<td>no unexplained rotation, split, sift or index jump</td>
+</tr>
+<tr class="odd">
+<td>implementation</td>
+<td style="text-align: right;">35 minutes</td>
+<td>core code plus invariant validator</td>
+<td>deterministic and randomized oracle pass</td>
+</tr>
+<tr class="even">
+<td>interview defense</td>
+<td style="text-align: right;">5 minutes</td>
+<td>definition, problem, mechanics, complexity, tradeoff, use case</td>
+<td>answers one follow-up without changing the invariant</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart TD
+  A[Recognition] --&gt; B[Mechanics]
+  B --&gt; C[Implementation]
+  C --&gt; D[Interview defense]
+  D --&gt; E{Failure found?}
+  E --&gt;|Yes| A
+  E --&gt;|No| F[Spaced repetition]</code></pre>
+<p>Recommended order:</p>
+<ol type="1">
+<li>BST ordering and ancestor bounds.</li>
+<li>AVL and red-black repair classification.</li>
+<li>Heap candidate ownership.</li>
+<li>Trie prefix states.</li>
+<li>Fenwick and segment-tree operation algebra.</li>
+<li>B-tree/B+ tree page and range-scan reasoning.</li>
+</ol>
+<h2 id="executable-practice-contracts">Executable practice contracts</h2>
+<p><a href="java/TreePracticeContracts.java"><code>TreePracticeContracts.java</code></a> makes the four example gates executable. It checks ordered-map replacement/navigation, duplicate-safe top-K ownership, Fenwick assignment/range behavior and requirement-to-structure selection.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> Structure <span class="fu">choose</span><span class="op">(</span>Requirement r<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>r<span class="op">.</span><span class="fu">orderedMap</span><span class="op">()</span> <span class="op">&amp;&amp;</span> r<span class="op">.</span><span class="fu">predecessorSuccessor</span><span class="op">())</span> <span class="cf">return</span> Structure<span class="op">.</span><span class="fu">RED_BLACK_TREE</span><span class="op">;</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>r<span class="op">.</span><span class="fu">topK</span><span class="op">()</span> <span class="op">&amp;&amp;</span> <span class="op">!</span>r<span class="op">.</span><span class="fu">arbitrarySearch</span><span class="op">())</span> <span class="cf">return</span> Structure<span class="op">.</span><span class="fu">BINARY_HEAP</span><span class="op">;</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>r<span class="op">.</span><span class="fu">pointUpdates</span><span class="op">()</span> <span class="op">&amp;&amp;</span> r<span class="op">.</span><span class="fu">prefixInvertible</span><span class="op">())</span> <span class="cf">return</span> Structure<span class="op">.</span><span class="fu">FENWICK_TREE</span><span class="op">;</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>r<span class="op">.</span><span class="fu">rangeUpdates</span><span class="op">()</span> <span class="op">||</span> r<span class="op">.</span><span class="fu">richIntervalState</span><span class="op">())</span> <span class="cf">return</span> Structure<span class="op">.</span><span class="fu">SEGMENT_TREE</span><span class="op">;</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>r<span class="op">.</span><span class="fu">diskPages</span><span class="op">()</span> <span class="op">&amp;&amp;</span> r<span class="op">.</span><span class="fu">rangeScan</span><span class="op">())</span> <span class="cf">return</span> Structure<span class="op">.</span><span class="fu">B_PLUS_TREE</span><span class="op">;</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">throw</span> <span class="kw">new</span> <span class="bu">IllegalArgumentException</span><span class="op">(</span><span class="st">&quot;insufficient requirement packet&quot;</span><span class="op">);</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Twenty deterministic groups cover the four traces and rejection boundaries. Then 20,000 seeded trials execute 80,000 independent checks: <code>TreeMap</code> navigation, sort-oracle top-K, array-oracle mutable sums and unambiguous structure selection.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">java</span> <span class="at">-ea</span> study-guides/local-project-notes/advanced-trees/java/TreePracticeContracts.java</span></code></pre></div>
+<p>Expected result:</p>
+<pre class="text"><code>PASS groups=20 trials=20000 checks=80000</code></pre>
+<h2 id="verified-references-and-provenance">Verified references and provenance</h2>
+<p>Current primary/product references, rechecked November 25, 2026:</p>
+<ul>
+<li><a href="https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/util/TreeMap.html">Oracle Java SE 26 <code>TreeMap</code></a> — red-black implementation and guaranteed logarithmic core operations.</li>
+<li><a href="https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/util/PriorityQueue.html">Oracle Java SE 26 <code>PriorityQueue</code></a> — heap semantics, operation costs and unordered iterator boundary.</li>
+<li><a href="https://www.postgresql.org/docs/19/indexes-ordering.html">PostgreSQL 19: Indexes and <code>ORDER BY</code></a> — sorted-output behavior and <code>ORDER BY ... LIMIT</code> reasoning.</li>
+<li><a href="https://www.postgresql.org/docs/current/indexes-multicolumn.html">PostgreSQL 19: Multicolumn Indexes</a> — leading-column constraints and skip-scan boundary.</li>
+<li><a href="https://www.postgresql.org/docs/current/btree.html">PostgreSQL 19: B-Tree Indexes</a> — implementation scope and operator-family semantics.</li>
+</ul>
+<p>Established algorithm references retained from the source:</p>
+<ul>
+<li><a href="https://xlinux.nist.gov/dads/HTML/tree.html">NIST Dictionary of Algorithms and Data Structures: Tree</a>, <a href="https://xlinux.nist.gov/dads/HTML/avltree.html">AVL tree</a>, <a href="https://xlinux.nist.gov/dads/HTML/redblack.html">red-black tree</a>, <a href="https://xlinux.nist.gov/dads/HTML/btree.html">B-tree</a>, <a href="https://xlinux.nist.gov/dads/HTML/bplustree.html">B+ tree</a>, <a href="https://xlinux.nist.gov/dads/HTML/binaryheap.html">binary heap</a> and <a href="https://xlinux.nist.gov/dads/HTML/trie.html">trie</a>.</li>
+<li><a href="https://algs4.cs.princeton.edu/33balanced/">Princeton Algorithms: Balanced Search Trees</a> and <a href="https://algs4.cs.princeton.edu/24pq/">Priority Queues</a> — academic exposition, proofs and exercises.</li>
+<li><a href="https://cp-algorithms.com/data_structures/segment_tree.html">CP-Algorithms: Segment Tree</a> and <a href="https://cp-algorithms.com/data_structures/fenwick.html">Fenwick Tree</a> — established competitive-programming exposition.</li>
+<li><a href="https://leetcode.com/problems/range-sum-query-mutable/">LeetCode 307, Range Sum Query — Mutable</a> and <a href="https://leetcode.com/problems/implement-trie-prefix-tree/">LeetCode 208, Implement Trie</a> — canonical problem statements only.</li>
+</ul>
+<p>Source comparison:</p>
+<ul>
+<li>Selected <code>Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>, Library file <code>libfile_7346abf23a3c81918843c9a9f5b5d80f</code>, SHA-256 <code>86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1</code>. Section 15 begins at display line 1398 and runs through final display line 1449; <code>wc -l</code> reports 1448 because the final line lacks a trailing newline.</li>
+<li>Corroborating <code>Tree_Advanced_FAANG_Study_Guide.docx</code>, Library file <code>libfile_b71f27c80d4c81918c672303add6bfb5</code>, SHA-256 <code>fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f</code>. Fresh Pandoc 3.1.11.1 GFM conversion places Section 15 at lines 1874–1923 through DOCX content end.</li>
+</ul>
+<p>The source supplies the reference list, six-stage progression and final interview check. The reference contract, practice gate, four requirement/trace/oracle examples, diagrams, deliberate-practice loop and executable contracts are repository-authored teaching material. This exhausts the confirmed Advanced Trees source pair only; it does not complete the wider intake or the live DSA placeholder backlog.</p>
+</main>
+</div>
+<script id="source-markdown" type="application/octet-stream">IyBBZHZhbmNlZCBUcmVlcyDigJQgVmVyaWZpZWQgUmVmZXJlbmNlcyBhbmQgUHJhY3RpY2UgUm9hZG1hcAoKPiAqKlNvdXJjZSBib3VuZGFyeToqKiBBZHZhbmNlZCBUcmVlcyBTZWN0aW9uIDE1LCBzZWxlY3RlZCBNYXJrZG93biBkaXNwbGF5IGxpbmVzIDEzOTjigJMxNDQ5ICh0aGUgZmluYWwgbGluZSBoYXMgbm8gdHJhaWxpbmcgbmV3bGluZSkgYW5kIGNvcnJvYm9yYXRpbmcgRE9DWCBQYW5kb2MgbGluZXMgMTg3NOKAkzE5MjMgdGhyb3VnaCBzb3VyY2UgZW5kLiBUaGlzIG1vZHVsZSB0dXJucyB0aGUgc291cmNlJ3MgbGluayBsaXN0IGFuZCB0b3BpYyB0YWJsZSBpbnRvIGFuIGV2aWRlbmNlLWdhdGVkIHByYWN0aWNlIHN5c3RlbTsgaXQgZG9lcyBub3QgZHVwbGljYXRlIHRoZSBjb21wbGV0ZWQgc3RydWN0dXJlIGd1aWRlcy4KCiMjIENvbnRlbnRzCgotIFtSZWZlcmVuY2UgY29udHJhY3RdKCNyZWZlcmVuY2UtY29udHJhY3QpCi0gW1ByYWN0aWNlIGdhdGVdKCNwcmFjdGljZS1nYXRlKQotIFtFeGFtcGxlIDEg4oCUIG9yZGVyZWQtbWFwIGludmFyaWFudCBiZWZvcmUgcmVkLWJsYWNrIG1lY2hhbmljc10oI2V4YW1wbGUtMS0tb3JkZXJlZC1tYXAtaW52YXJpYW50LWJlZm9yZS1yZWQtYmxhY2stbWVjaGFuaWNzKQotIFtFeGFtcGxlIDIg4oCUIHRvcC1LIHByb3ZlcyB3aGF0IGEgaGVhcCBkb2VzIG5vdCBndWFyYW50ZWVdKCNleGFtcGxlLTItLXRvcC1rLXByb3Zlcy13aGF0LWEtaGVhcC1kb2VzLW5vdC1ndWFyYW50ZWUpCi0gW0V4YW1wbGUgMyDigJQgbXV0YWJsZSByYW5nZSBzdW1zIGZvcmNlIGFuIG9wZXJhdGlvbi1hbGdlYnJhIGNob2ljZV0oI2V4YW1wbGUtMy0tbXV0YWJsZS1yYW5nZS1zdW1zLWZvcmNlLWFuLW9wZXJhdGlvbi1hbGdlYnJhLWNob2ljZSkKLSBbRXhhbXBsZSA0IOKAlCBhbiBpbmRleCBleGVyY2lzZSBtdXN0IGluY2x1ZGUgcXVlcnkgc2hhcGVdKCNleGFtcGxlLTQtLWFuLWluZGV4LWV4ZXJjaXNlLW11c3QtaW5jbHVkZS1xdWVyeS1zaGFwZSkKLSBbRm91ci1zdGFnZSBkZWxpYmVyYXRlLXByYWN0aWNlIGxvb3BdKCNmb3VyLXN0YWdlLWRlbGliZXJhdGUtcHJhY3RpY2UtbG9vcCkKLSBbRXhlY3V0YWJsZSBwcmFjdGljZSBjb250cmFjdHNdKCNleGVjdXRhYmxlLXByYWN0aWNlLWNvbnRyYWN0cykKLSBbVmVyaWZpZWQgcmVmZXJlbmNlcyBhbmQgcHJvdmVuYW5jZV0oI3ZlcmlmaWVkLXJlZmVyZW5jZXMtYW5kLXByb3ZlbmFuY2UpCgojIyBSZWZlcmVuY2UgY29udHJhY3QKCkEgcmVmZXJlbmNlIGlzIHVzZWZ1bCBvbmx5IHdoZW4gdGhlIGNsYWltLCB2ZXJzaW9uIGFuZCByZXRyaWV2YWwgcHVycG9zZSBhcmUgZXhwbGljaXQuIEJlZm9yZSBhdHRhY2hpbmcgYSBsaW5rIHRvIGFuIGludGVydmlldyBhbnN3ZXIsIHJlY29yZDoKCnwgRmllbGQgfCBSZXF1aXJlZCBxdWVzdGlvbiB8IEZhaWx1cmUgcHJldmVudGVkIHwKfC0tLXwtLS18LS0tfAp8IGNsYWltIG93bmVyIHwgc3BlY2lmaWNhdGlvbiwgaW1wbGVtZW50YXRpb24gZG9jdW1lbnRhdGlvbiwgYWNhZGVtaWMgZXhwb3NpdGlvbiBvciBwcmFjdGljZSBwbGF0Zm9ybT8gfCB0cmVhdGluZyBhIHR1dG9yaWFsIGFzIGEgbGFuZ3VhZ2UvQVBJIGNvbnRyYWN0IHwKfCB2ZXJzaW9uIHwgd2hpY2ggSmF2YS9Qb3N0Z3JlU1FMIGVkaXRpb24gb3IgcHJvYmxlbSBzdGF0ZW1lbnQgd2FzIGNoZWNrZWQ/IHwgc2lsZW50bHkgYXBwbHlpbmcgZnV0dXJlIG9yIG9ic29sZXRlIGJlaGF2aW9yIHwKfCBleGFjdCBjbGFpbSB8IGludmFyaWFudCwgYXN5bXB0b3RpYyBndWFyYW50ZWUsIEFQSSBvcmRlcmluZywgcXVlcnktcGxhbm5lciBiZWhhdmlvciBvciBleGVyY2lzZSBpbnB1dC9vdXRwdXQ/IHwgY2l0aW5nIGEgcGFnZSB0aGF0IGlzIG1lcmVseSBhYm91dCB0aGUgc2FtZSB0b3BpYyB8Cnwgc2NvcGUgfCBhYnN0cmFjdCBkYXRhIHN0cnVjdHVyZSBvciBvbmUgcHJvZHVjdGlvbiBpbXBsZW1lbnRhdGlvbj8gfCBjbGFpbWluZyBldmVyeSBCLXRyZWUgYmVoYXZlcyBsaWtlIFBvc3RncmVTUUwgfAp8IHJldHJpZXZhbCBkYXRlIHwgd2hlbiB3YXMgdGhlIGxpdmUgcGFnZSByZWNoZWNrZWQ/IHwgaGlkaW5nIGxpbmsvdmVyc2lvbiBkcmlmdCB8CnwgZXhlcmNpc2Ugcm9sZSB8IGxlYXJuLCBpbXBsZW1lbnQsIGZhbHNpZnksIG9wdGltaXplIG9yIGV4cGxhaW4/IHwgY29sbGVjdGluZyBsaW5rcyB3aXRob3V0IGEgcHJhY3RpY2Ugb2JqZWN0aXZlIHwKCmBgYG1lcm1haWQKZmxvd2NoYXJ0IFRECiAgQVtJbnRlcnZpZXcgY2xhaW1dIC0tPiBCe0FQSSBvciBwcm9kdWN0IGJlaGF2aW9yP30KICBCIC0tPnxZZXN8IENbQ3VycmVudCB2ZW5kb3IgZG9jdW1lbnRhdGlvbl0KICBCIC0tPnxOb3wgRHtBbGdvcml0aG0gaW52YXJpYW50IG9yIHByb29mP30KICBEIC0tPnxZZXN8IEVbQWNhZGVtaWMgb3Igc3RhbmRhcmRzIHJlZmVyZW5jZV0KICBEIC0tPnxOb3wgRltDYW5vbmljYWwgcHJhY3RpY2Ugc3RhdGVtZW50XQogIEMgLS0+IEdbUmVjb3JkIHZlcnNpb24gYW5kIGV4YWN0IHNjb3BlXQogIEUgLS0+IEcKICBGIC0tPiBHCmBgYAoKVGhlIHNvdXJjZSdzIE5JU1QgREFEUyBhbmQgUHJpbmNldG9uIGxpbmtzIHJlbWFpbiB1c2VmdWwgZm9yIHRlcm1pbm9sb2d5IGFuZCBhbGdvcml0aG1pYyBleHBvc2l0aW9uLiBDdXJyZW50IHByb2R1Y3QgY2xhaW1zIGluIHRoaXMgbW9kdWxlIHVzZSBPcmFjbGUgSmF2YSBTRSAyNiBhbmQgUG9zdGdyZVNRTCAxOSBkb2N1bWVudGF0aW9uLiBQcmFjdGljZSBwcm9ibGVtcyBhcmUgbGlua2VkIG9ubHkgYXMgcHJvYmxlbSBzdGF0ZW1lbnRzOyB0aGVpciBlZGl0b3JpYWwgY29kZSBpcyBuZWl0aGVyIGNvcGllZCBub3IgdHJlYXRlZCBhcyBub3JtYXRpdmUuCgojIyBQcmFjdGljZSBnYXRlCgpFdmVyeSBwcmFjdGljZSBpdGVtIG11c3QgcGFzcyBzaXggZ2F0ZXMgYmVmb3JlIGl0IGNvdW50cyBhcyBsZWFybmVkOgoKMS4gKipSZXF1aXJlbWVudDoqKiBzdGF0ZSB0aGUgb3BlcmF0aW9ucywgbXV0YXRpb24gcGF0dGVybiwgb3JkZXJpbmcgYW5kIGFjY2VwdGFibGUgbGF0ZW5jeS4KMi4gKipJbnZhcmlhbnQ6KiogZHJhdyB3aGF0IHJlbWFpbnMgdHJ1ZSBhZnRlciBlYWNoIG9wZXJhdGlvbi4KMy4gKipUcmFjZToqKiBleGVjdXRlIGF0IGxlYXN0IG9uZSBhZHZlcnNhcmlhbCBleGFtcGxlIGJ5IGhhbmQuCjQuICoqSW1wbGVtZW50YXRpb246Kiogd3JpdGUgdGhlIGNvcmUgb3BlcmF0aW9uIHdpdGhvdXQgbGlicmFyeSBzaG9ydGN1dHMgd2hlbiB0aGUgZXhlcmNpc2UgcmVxdWlyZXMgaXQuCjUuICoqT3JhY2xlOioqIGNvbXBhcmUgYWdhaW5zdCBhIHNpbXBsZXIgdHJ1c3RlZCBtb2RlbCBvbiBtYW55IGdlbmVyYXRlZCBjYXNlcy4KNi4gKipFeHBsYW5hdGlvbjoqKiBnaXZlIGNvbXBsZXhpdHkgaW4gdGVybXMgb2YgaGVpZ2h0LCBlbGVtZW50cywgYWxwaGFiZXQgb3IgcXVlcnkgcmFuZ2XigJRub3QgYnkgbWVtb3JpemVkIHNsb2dhbi4KCmBgYG1lcm1haWQKZmxvd2NoYXJ0IExSCiAgQVtSZXF1aXJlbWVudF0gLS0+IEJbSW52YXJpYW50XQogIEIgLS0+IENbSGFuZCB0cmFjZV0KICBDIC0tPiBEW0ltcGxlbWVudGF0aW9uXQogIEQgLS0+IEVbSW5kZXBlbmRlbnQgb3JhY2xlXQogIEUgLS0+IEZbVHdvLW1pbnV0ZSBleHBsYW5hdGlvbl0KICBGIC0tPiBBCmBgYAoKVGhlIGxvb3AgaXMgaW50ZW50aW9uYWxseSBjeWNsaWMuIEEgZmFpbGluZyBvcmFjbGUgc2VuZHMgeW91IGJhY2sgdG8gdGhlIGludmFyaWFudCBvciByZXF1aXJlbWVudDsgaXQgaXMgbm90IHJlcGFpcmVkIGJ5IG1lbW9yaXppbmcgYW5vdGhlciBzb2x1dGlvbi4KCiMjIEV4YW1wbGUgMSDigJQgb3JkZXJlZC1tYXAgaW52YXJpYW50IGJlZm9yZSByZWQtYmxhY2sgbWVjaGFuaWNzCgoqKlJlcXVpcmVtZW50LioqIE1haW50YWluIGAoa2V5LCB2YWx1ZSlgIG1hcHBpbmdzIHdpdGggb3JkZXJlZCBsb29rdXAsIHVwZGF0ZXMsIGRlbGV0aW9uLCBwcmVkZWNlc3Nvci9zdWNjZXNzb3IgbmF2aWdhdGlvbiBhbmQgbG9nYXJpdGhtaWMgd29yc3QtY2FzZSBjb3JlIG9wZXJhdGlvbnMuCgoqKlRyaWdnZXIuKiogVGhpcyBpcyBhbiBvcmRlcmVkLW1hcCByZXF1aXJlbWVudCwgbm90IG1lcmVseSDigJx1c2UgYSB0cmVlLuKAnSBKYXZhJ3MgY3VycmVudCBgVHJlZU1hcGAgZG9jdW1lbnRhdGlvbiBpZGVudGlmaWVzIGl0cyBpbXBsZW1lbnRhdGlvbiBhcyBhIHJlZC1ibGFjay10cmVlLWJhc2VkIGBOYXZpZ2FibGVNYXBgIGFuZCBndWFyYW50ZWVzIGxvZ2FyaXRobWljIGBjb250YWluc0tleWAsIGBnZXRgLCBgcHV0YCBhbmQgYHJlbW92ZWAuCgpUcmFjZSB0aGUgb3BlcmF0aW9ucyBgcHV0KDQwLEEpYCwgYHB1dCgyMCxCKWAsIGBwdXQoNjAsQylgLCBgcHV0KDEwLEQpYCwgYHB1dCgzMCxFKWAsIGBwdXQoMjAsRilgLCB0aGVuIGBoaWdoZXJLZXkoMzApYDoKCnwgU3RlcCB8IE9yZGVyZWQga2V5cyB8IFNpemUgfCBPYnNlcnZhdGlvbiB8CnwtLS18LS0tfC0tLTp8LS0tfAp8IGBwdXQoNDAsQSlgIHwgYFs0MF1gIHwgMSB8IGZpcnN0IHJvb3QtbGV2ZWwgbWFwcGluZyB8CnwgYHB1dCgyMCxCKWAgfCBgWzIwLDQwXWAgfCAyIHwga2V5IG9yZGVyLCBub3QgaW5zZXJ0aW9uIG9yZGVyIHwKfCBgcHV0KDYwLEMpYCB8IGBbMjAsNDAsNjBdYCB8IDMgfCBib3RoIHNpZGVzIHJlcHJlc2VudGVkIHwKfCBgcHV0KDEwLEQpYCB8IGBbMTAsMjAsNDAsNjBdYCB8IDQgfCBpbXBsZW1lbnRhdGlvbiBtYXkgcmVjb2xvci9yb3RhdGUgfAp8IGBwdXQoMzAsRSlgIHwgYFsxMCwyMCwzMCw0MCw2MF1gIHwgNSB8IG9yZGVyIGludmFyaWFudCByZW1haW5zIHwKfCBgcHV0KDIwLEYpYCB8IGBbMTAsMjAsMzAsNDAsNjBdYCB8IDUgfCBlcXVhbCBrZXkgcmVwbGFjZXMgdmFsdWU7IG5vIGR1cGxpY2F0ZSBub2RlIHwKfCBgaGlnaGVyS2V5KDMwKWAgfCBhbnN3ZXIgYDQwYCB8IDUgfCBsZWFzdCBrZXkgc3RyaWN0bHkgZ3JlYXRlciB0aGFuIDMwIHwKCmBgYG1lcm1haWQKZmxvd2NoYXJ0IFRECiAgQVtPcmRlcmVkLW1hcCByZXF1aXJlbWVudF0gLS0+IEJbQlNUIGtleS1vcmRlciBpbnZhcmlhbnRdCiAgQiAtLT4gQ1tSZWQtYmxhY2sgaGVpZ2h0IGludmFyaWFudF0KICBDIC0tPiBEW0xvZ2FyaXRobWljIHNlYXJjaCBwYXRoXQogIEQgLS0+IEVbTmF2aWdhdGlvbjogZmxvb3IgY2VpbGluZyBsb3dlciBoaWdoZXJdCmBgYAoKKipXaGF0IHRvIGltcGxlbWVudC4qKiBGaXJzdCB3cml0ZSBhIHBsYWluIEJTVCBtYXAgYW5kIG1ha2UgcmVwbGFjZW1lbnQgc2VtYW50aWNzIGV4cGxpY2l0LiBUaGVuIGltcGxlbWVudCBvciBleHBsYWluIHJlZC1ibGFjayByZXBhaXIuIERvIG5vdCBpbmZlciBhIHBhcnRpY3VsYXIgaW50ZXJuYWwgc2hhcGUgZnJvbSBgVHJlZU1hcGA7IHRoZSBBUEkgZ3VhcmFudGVlcyBvcmRlcmluZyBhbmQgY29tcGxleGl0eSwgbm90IGEgc3RhYmxlIG5vZGUgbGF5b3V0LgoKKipPcmFjbGUuKiogQ29tcGFyZSB5b3VyIG1hcCdzIHNvcnRlZCBrZXlzLCBzaXplLCB2YWx1ZXMsIGBmbG9vcmAgYW5kIGBjZWlsaW5nYCB3aXRoIGEgYFRyZWVNYXBgIGFmdGVyIGV2ZXJ5IHJhbmRvbWl6ZWQgdXBkYXRlLiBUaGUgb3JhY2xlIGNoZWNrcyBvYnNlcnZhYmxlIGJlaGF2aW9yIHdoaWxlIHNlcGFyYXRlIGludmFyaWFudCB2YWxpZGF0aW9uIGNoZWNrcyB5b3VyIGludGVybmFsIHRyZWUuCgojIyBFeGFtcGxlIDIg4oCUIHRvcC1LIHByb3ZlcyB3aGF0IGEgaGVhcCBkb2VzIG5vdCBndWFyYW50ZWUKCioqUmVxdWlyZW1lbnQuKiogUmV0dXJuIHRoZSB0aHJlZSBsYXJnZXN0IHZhbHVlcyBmcm9tIHN0cmVhbSBgWzgsIDEsIDcsIDMsIDksIDIsIDldYCB1c2luZyBgTyhrKWAgcmV0YWluZWQgbWVtb3J5LgoKTWFpbnRhaW4gYSBtaW4taGVhcCBvZiBhY2NlcHRlZCBjYW5kaWRhdGVzLiBUaGUgcm9vdCBpcyB0aGUgd2Vha2VzdCBjdXJyZW50IHdpbm5lcjoKCnwgVmFsdWUgfCBIZWFwIGNvbnRlbnQgYXMgYSBzZXQvbXVsdGlzZXQgfCBEZWNpc2lvbiB8CnwtLS06fC0tLXwtLS18CnwgOCB8IGBbOF1gIHwgYWNjZXB0OyBmZXdlciB0aGFuIDMgfAp8IDEgfCBgWzEsOF1gIHwgYWNjZXB0IHwKfCA3IHwgYFsxLDcsOF1gIHwgYWNjZXB0IHwKfCAzIHwgYFszLDcsOF1gIHwgcmVwbGFjZSByb290IDEgfAp8IDkgfCBgWzcsOCw5XWAgfCByZXBsYWNlIHJvb3QgMyB8CnwgMiB8IGBbNyw4LDldYCB8IHJlamVjdDsgbm90IGFib3ZlIHJvb3QgNyB8CnwgOSB8IGBbOCw5LDldYCB8IHJlcGxhY2Ugcm9vdCA3IHwKCkZpbmFsIHdpbm5lcnMgYXJlIGB7OCw5LDl9YC4gSWYgc29ydGVkIG91dHB1dCBpcyByZXF1aXJlZCwgZHJhaW4gb3Igc29ydCB0aGUgZmluYWwgYGtgIGVsZW1lbnRzLgoKYGBgbWVybWFpZApmbG93Y2hhcnQgTFIKICBBW05leHQgc3RyZWFtIHZhbHVlXSAtLT4gQntIZWFwIHNpemUgYmVsb3cgaz99CiAgQiAtLT58WWVzfCBDW09mZmVyXQogIEIgLS0+fE5vfCBEe1ZhbHVlIGFib3ZlIG1pbmltdW0gd2lubmVyP30KICBEIC0tPnxZZXN8IEVbUG9sbCB0aGVuIG9mZmVyXQogIEQgLS0+fE5vfCBGW1JlamVjdF0KICBDIC0tPiBHW1Jvb3QgcmVtYWlucyB3ZWFrZXN0IHdpbm5lcl0KICBFIC0tPiBHCiAgRiAtLT4gRwpgYGAKCk9yYWNsZSBKYXZhIFNFIDI2IGRvY3VtZW50cyBgb2ZmZXJgIGFuZCBgcG9sbGAgYXMgbG9nYXJpdGhtaWMgYW5kIGBwZWVrYCBhcyBjb25zdGFudCB0aW1lLiBJdCBhbHNvIHdhcm5zIHRoYXQgaXRlcmF0b3IgdHJhdmVyc2FsIGlzIG5vdCBvcmRlcmVkLiBUaGVyZWZvcmUgdGhpcyBpcyBpbnZhbGlkOgoKYGBgamF2YQpmb3IgKGludCB2YWx1ZSA6IGhlYXApIHsKICAgIC8vIFdyb25nOiBpdGVyYXRvciBvcmRlciBpcyBub3Qgc29ydGVkIG9yZGVyLgp9CmBgYAoKVGhlIGZ1bGwgc3RyZWFtIGNvc3RzIGBPKG4gbG9nIGspYCB0aW1lIGFuZCBgTyhrKWAgYXV4aWxpYXJ5IHNwYWNlLiBBcmJpdHJhcnkta2V5IHNlYXJjaCBpcyBzdGlsbCBsaW5lYXI7IHRoZSBoZWFwIGd1YXJhbnRlZXMgb25seSBwYXJlbnQgcHJpb3JpdHkgYW5kIGZhc3QgYWNjZXNzIHRvIGl0cyBoZWFkLgoKKipPcmFjbGUuKiogU29ydCBhIGNvcHkgb2YgZWFjaCBnZW5lcmF0ZWQgaW5wdXQgYW5kIGNvbXBhcmUgdGhlIGxhcmdlc3QgYGtgIG11bHRpc2V0IHdpdGggdGhlIGhlYXAgcmVzdWx0LiBJbmNsdWRlIGR1cGxpY2F0ZXMsIG5lZ2F0aXZlIHZhbHVlcywgYGsgPSAwYCwgYGsgPSAxYCBhbmQgYGsgPiBuYC4KCiMjIEV4YW1wbGUgMyDigJQgbXV0YWJsZSByYW5nZSBzdW1zIGZvcmNlIGFuIG9wZXJhdGlvbi1hbGdlYnJhIGNob2ljZQoKKipSZXF1aXJlbWVudC4qKiBTdGFydCB3aXRoIGBbMiwxLDUsMyw0XWA7IHN1cHBvcnQgcG9pbnQgYXNzaWdubWVudCBhbmQgaW5jbHVzaXZlIHJhbmdlLXN1bSBxdWVyaWVzLiBQZXJmb3JtIGBzdW0oMSwzKWAsIGBzZXQoMiw4KWAsIGBzdW0oMSwzKWAuCgpFeHBlY3RlZCB0cmFjZToKCnwgT3BlcmF0aW9uIHwgQXJyYXkgc3RhdGUgfCBSZXN1bHQgb3IgZGVsdGEgfAp8LS0tfC0tLXwtLS18Cnwgc3RhcnQgfCBgWzIsMSw1LDMsNF1gIHwg4oCUIHwKfCBgc3VtKDEsMylgIHwgdW5jaGFuZ2VkIHwgYDErNSszID0gOWAgfAp8IGBzZXQoMiw4KWAgfCBgWzIsMSw4LDMsNF1gIHwgRmVud2ljayBkZWx0YSBgKzNgIHwKfCBgc3VtKDEsMylgIHwgdW5jaGFuZ2VkIHwgYDErOCszID0gMTJgIHwKCkEgRmVud2ljayB0cmVlIHN0b3JlcyBpbnZlcnRpYmxlIHByZWZpeCBhZ2dyZWdhdGVzIGNvbXBhY3RseS4gQXNzaWdubWVudCBpcyB0cmFuc2xhdGVkIHRvIGEgZGVsdGEgdXNpbmcgdGhlIG9sZCB2YWx1ZS4gQSBzZWdtZW50IHRyZWUgc3RvcmVzIGludGVydmFsIGFnZ3JlZ2F0ZXMgZGlyZWN0bHkgYW5kIGdlbmVyYWxpemVzIG1vcmUgbmF0dXJhbGx5IHRvIG5vbi1pbnZlcnRpYmxlIGNvbWJpbmF0aW9ucywgcmFuZ2UgdXBkYXRlcyBhbmQgcmljaGVyIG5vZGUgc3RhdGUuCgpgYGBtZXJtYWlkCmZsb3djaGFydCBURAogIEFbTXV0YWJsZSByYW5nZSByZXF1aXJlbWVudF0gLS0+IEJ7UG9pbnQgdXBkYXRlcyBhbmQgaW52ZXJ0aWJsZSBwcmVmaXggb3BlcmF0aW9uP30KICBCIC0tPnxZZXN8IENbRmVud2ljayB0cmVlIGNhbmRpZGF0ZV0KICBCIC0tPnxOb3wgRHtBc3NvY2lhdGl2ZSBpbnRlcnZhbCBjb21iaW5lP30KICBEIC0tPnxZZXN8IEVbU2VnbWVudCB0cmVlIGNhbmRpZGF0ZV0KICBEIC0tPnxOb3wgRltSZXZpc2l0IGRhdGEgbW9kZWxdCiAgQyAtLT4gR1tWYWxpZGF0ZSBhZ2FpbnN0IGFycmF5IG9yYWNsZV0KICBFIC0tPiBHCmBgYAoKVGhlIHByYWN0aWNlIGdvYWwgaXMgbm90IOKAnHNvbHZlIExlZXRDb2RlIDMwNy7igJ0gSXQgaXMgdG8gZGVmZW5kIHRoZSBjaG9pY2U6CgotIHBvaW50IGFzc2lnbm1lbnQgYmVjb21lcyBgZGVsdGEgPSBuZXdWYWx1ZSAtIG9sZFZhbHVlYCwKLSBpbmNsdXNpdmUgc3VtIGlzIGBwcmVmaXgocmlnaHQpIC0gcHJlZml4KGxlZnQgLSAxKWAsCi0gZWFjaCBGZW53aWNrIHVwZGF0ZS9xdWVyeSB2aXNpdHMgYE8obG9nIG4pYCBpbmRpY2VzLCBhbmQKLSBhIHBsYWluIHByZWZpeCBhcnJheSBoYXMgYE8oMSlgIHF1ZXJpZXMgYnV0IGBPKG4pYCBwb2ludCB1cGRhdGVzLgoKKipPcmFjbGUuKiogTWFpbnRhaW4gdGhlIGxpdGVyYWwgYXJyYXkgYW5kIGNvbXB1dGUgZXZlcnkgcXVlcmllZCByYW5nZSB3aXRoIGEgbG9vcC4gR2VuZXJhdGUgcG9pbnQgYXNzaWdubWVudHMgYW5kIHZhbGlkIGBbbGVmdCxyaWdodF1gIHBhaXJzOyBjb21wYXJlIGFmdGVyIGV2ZXJ5IG9wZXJhdGlvbi4gVGhpcyBjYXRjaGVzIG9uZS1iYXNlZC1pbmRleCBjb252ZXJzaW9uIGFuZCBzdGFsZS1vbGQtdmFsdWUgZXJyb3JzLgoKIyMgRXhhbXBsZSA0IOKAlCBhbiBpbmRleCBleGVyY2lzZSBtdXN0IGluY2x1ZGUgcXVlcnkgc2hhcGUKCioqUmVxdWlyZW1lbnQuKiogU3VwcG9ydCByZWNlbnQgb3JkZXJzIGZvciBvbmUgdGVuYW50OgoKYGBgc3FsClNFTEVDVCBvcmRlcl9pZCwgY3JlYXRlZF9hdApGUk9NIG9yZGVycwpXSEVSRSB0ZW5hbnRfaWQgPSA0MgpPUkRFUiBCWSBjcmVhdGVkX2F0IERFU0MKTElNSVQgMjA7CmBgYAoKQSBwbGF1c2libGUgUG9zdGdyZVNRTCBpbmRleCBpczoKCmBgYHNxbApDUkVBVEUgSU5ERVggb3JkZXJzX3RlbmFudF9yZWNlbnQKT04gb3JkZXJzICh0ZW5hbnRfaWQsIGNyZWF0ZWRfYXQgREVTQyk7CmBgYAoKVHJhY2UgdGhlIHJlYXNvbmluZyByYXRoZXIgdGhhbiBjaGFudGluZyDigJxkYXRhYmFzZXMgdXNlIEIrIHRyZWVz4oCdOgoKMS4gRXF1YWxpdHkgb24gbGVhZGluZyBgdGVuYW50X2lkYCBpZGVudGlmaWVzIG9uZSBjb250aWd1b3VzIGtleSBncm91cC4KMi4gV2l0aGluIHRoYXQgZ3JvdXAsIGBjcmVhdGVkX2F0IERFU0NgIG1hdGNoZXMgdGhlIHJlcXVpcmVkIG9yZGVyaW5nLgozLiBBIG1hdGNoaW5nIEItdHJlZSBzY2FuIGNhbiByZXR1cm4gdGhlIGZpcnN0IDIwIGVudHJpZXMgd2l0aG91dCBzb3J0aW5nIHRoZSBlbnRpcmUgdGVuYW50IGhpc3RvcnkuCjQuIFRoZSBwbGFubmVyIHN0aWxsIGNob29zZXMgYW1vbmcgaW5kZXggc2NhbiwgdGFibGUgc2NhbiBhbmQgZXhwbGljaXQgc29ydCB1c2luZyBzdGF0aXN0aWNzIGFuZCBlc3RpbWF0ZWQgY29zdC4KCmBgYG1lcm1haWQKZmxvd2NoYXJ0IFRECiAgQVtXSEVSRSB0ZW5hbnRfaWQgPSA0Ml0gLS0+IEJbTGVhZGluZy1rZXkgaW50ZXJ2YWxdCiAgQiAtLT4gQ1tjcmVhdGVkX2F0IERFU0MgaW5kZXggb3JkZXJdCiAgQyAtLT4gRFtSZWFkIGZpcnN0IDIwIGluZGV4IGVudHJpZXNdCiAgRCAtLT4gRVtGZXRjaCBuZWVkZWQgcm93cyBvciB1c2UgY292ZXJpbmcgZGF0YV0KYGBgCgpQb3N0Z3JlU1FMIDE5IGRvY3VtZW50cyB0aGF0IEItdHJlZSBpcyB0aGUgc3VwcG9ydGVkIGluZGV4IHR5cGUgdGhhdCBjYW4gZGlyZWN0bHkgcHJvZHVjZSBzb3J0ZWQgb3V0cHV0LiBJdHMgbXVsdGljb2x1bW4gZ3VpZGFuY2Ugc2F5cyBsZWFkaW5nIGVxdWFsaXRpZXMgcGx1cyB0aGUgZmlyc3QgaW5lcXVhbGl0eSBjb25zdHJhaW4gdGhlIHNjYW5uZWQgcG9ydGlvbiBtb3N0IGRpcmVjdGx5LCB3aGlsZSBsYXRlciBjb2x1bW5zIG1heSBmaWx0ZXIgd2l0aG91dCBuZWNlc3NhcmlseSBzaHJpbmtpbmcgdGhlIHNjYW47IGN1cnJlbnQgUG9zdGdyZVNRTCBjYW4gYWxzbyBjb25zaWRlciBza2lwIHNjYW4gaW4gc3VpdGFibGUgbG93LWRpc3RpbmN0bmVzcyBjYXNlcy4KCioqQm91bmRhcnkuKiogVGhpcyBleGVyY2lzZSBwcmFjdGljZXMgbG9naWNhbCBhY2Nlc3MtcGF0aCByZWFzb25pbmcsIG5vdCBQb3N0Z3JlU1FMIHBhZ2UgY29uY3VycmVuY3kuIFByb2R1Y3Rpb24gQi10cmVlIGJlaGF2aW9yIGFsc28gaW52b2x2ZXMgb3BlcmF0b3IgY2xhc3NlcywgTVZDQy12aXNpYmxlIHRhYmxlIHR1cGxlcywgcGFnZSBzcGxpdHMsIGRlbGV0aW9uLCByZWNvdmVyeSwgbGF0Y2hpbmcgYW5kIHBsYW5uZXIgZWNvbm9taWNzLgoKKipPcmFjbGUuKiogUG9wdWxhdGUgdGVuYW50cyB3aXRoIHJlcGVhdGVkIHRpbWVzdGFtcHMsIHJ1biBgRVhQTEFJTiAoQU5BTFlaRSwgQlVGRkVSUylgIGluIGEgZGlzcG9zYWJsZSBQb3N0Z3JlU1FMIGluc3RhbmNlLCBhbmQgY29tcGFyZSByZXR1cm5lZCByb3dzIHdpdGggYW4gZXhwbGljaXQgZnVsbCBzb3J0LiBUaGUgcmVwb3NpdG9yeSBkb2VzIG5vdCBjbGFpbSB0aGlzIGludGVncmF0aW9uIHdhcyBleGVjdXRlZCBoZXJlLgoKIyMgRm91ci1zdGFnZSBkZWxpYmVyYXRlLXByYWN0aWNlIGxvb3AKClVzZSBlYWNoIGNvbXBsZXRlZCBhZHZhbmNlZC10cmVlIG1vZHVsZSBpbiBmb3VyIHBhc3NlczoKCnwgU3RhZ2UgfCBUaW1lIGJveCB8IERlbGl2ZXJhYmxlIHwgRXhpdCBnYXRlIHwKfC0tLXwtLS06fC0tLXwtLS18CnwgcmVjb2duaXRpb24gfCAxMCBtaW51dGVzIHwgcmVxdWlyZW1lbnQg4oaSIGNhbmRpZGF0ZSBzdHJ1Y3R1cmUgdGFibGUgfCBjYW4gcmVqZWN0IHR3byBwbGF1c2libGUgd3Jvbmcgc3RydWN0dXJlcyB8CnwgbWVjaGFuaWNzIHwgMjAgbWludXRlcyB8IGhhbmQgdHJhY2Ugd2l0aCBpbnZhcmlhbnQgYWZ0ZXIgZXZlcnkgbXV0YXRpb24gfCBubyB1bmV4cGxhaW5lZCByb3RhdGlvbiwgc3BsaXQsIHNpZnQgb3IgaW5kZXgganVtcCB8CnwgaW1wbGVtZW50YXRpb24gfCAzNSBtaW51dGVzIHwgY29yZSBjb2RlIHBsdXMgaW52YXJpYW50IHZhbGlkYXRvciB8IGRldGVybWluaXN0aWMgYW5kIHJhbmRvbWl6ZWQgb3JhY2xlIHBhc3MgfAp8IGludGVydmlldyBkZWZlbnNlIHwgNSBtaW51dGVzIHwgZGVmaW5pdGlvbiwgcHJvYmxlbSwgbWVjaGFuaWNzLCBjb21wbGV4aXR5LCB0cmFkZW9mZiwgdXNlIGNhc2UgfCBhbnN3ZXJzIG9uZSBmb2xsb3ctdXAgd2l0aG91dCBjaGFuZ2luZyB0aGUgaW52YXJpYW50IHwKCmBgYG1lcm1haWQKZmxvd2NoYXJ0IFRECiAgQVtSZWNvZ25pdGlvbl0gLS0+IEJbTWVjaGFuaWNzXQogIEIgLS0+IENbSW1wbGVtZW50YXRpb25dCiAgQyAtLT4gRFtJbnRlcnZpZXcgZGVmZW5zZV0KICBEIC0tPiBFe0ZhaWx1cmUgZm91bmQ/fQogIEUgLS0+fFllc3wgQQogIEUgLS0+fE5vfCBGW1NwYWNlZCByZXBldGl0aW9uXQpgYGAKClJlY29tbWVuZGVkIG9yZGVyOgoKMS4gQlNUIG9yZGVyaW5nIGFuZCBhbmNlc3RvciBib3VuZHMuCjIuIEFWTCBhbmQgcmVkLWJsYWNrIHJlcGFpciBjbGFzc2lmaWNhdGlvbi4KMy4gSGVhcCBjYW5kaWRhdGUgb3duZXJzaGlwLgo0LiBUcmllIHByZWZpeCBzdGF0ZXMuCjUuIEZlbndpY2sgYW5kIHNlZ21lbnQtdHJlZSBvcGVyYXRpb24gYWxnZWJyYS4KNi4gQi10cmVlL0IrIHRyZWUgcGFnZSBhbmQgcmFuZ2Utc2NhbiByZWFzb25pbmcuCgojIyBFeGVjdXRhYmxlIHByYWN0aWNlIGNvbnRyYWN0cwoKW2BUcmVlUHJhY3RpY2VDb250cmFjdHMuamF2YWBdKGphdmEvVHJlZVByYWN0aWNlQ29udHJhY3RzLmphdmEpIG1ha2VzIHRoZSBmb3VyIGV4YW1wbGUgZ2F0ZXMgZXhlY3V0YWJsZS4gSXQgY2hlY2tzIG9yZGVyZWQtbWFwIHJlcGxhY2VtZW50L25hdmlnYXRpb24sIGR1cGxpY2F0ZS1zYWZlIHRvcC1LIG93bmVyc2hpcCwgRmVud2ljayBhc3NpZ25tZW50L3JhbmdlIGJlaGF2aW9yIGFuZCByZXF1aXJlbWVudC10by1zdHJ1Y3R1cmUgc2VsZWN0aW9uLgoKYGBgamF2YQpzdGF0aWMgU3RydWN0dXJlIGNob29zZShSZXF1aXJlbWVudCByKSB7CiAgICBpZiAoci5vcmRlcmVkTWFwKCkgJiYgci5wcmVkZWNlc3NvclN1Y2Nlc3NvcigpKSByZXR1cm4gU3RydWN0dXJlLlJFRF9CTEFDS19UUkVFOwogICAgaWYgKHIudG9wSygpICYmICFyLmFyYml0cmFyeVNlYXJjaCgpKSByZXR1cm4gU3RydWN0dXJlLkJJTkFSWV9IRUFQOwogICAgaWYgKHIucG9pbnRVcGRhdGVzKCkgJiYgci5wcmVmaXhJbnZlcnRpYmxlKCkpIHJldHVybiBTdHJ1Y3R1cmUuRkVOV0lDS19UUkVFOwogICAgaWYgKHIucmFuZ2VVcGRhdGVzKCkgfHwgci5yaWNoSW50ZXJ2YWxTdGF0ZSgpKSByZXR1cm4gU3RydWN0dXJlLlNFR01FTlRfVFJFRTsKICAgIGlmIChyLmRpc2tQYWdlcygpICYmIHIucmFuZ2VTY2FuKCkpIHJldHVybiBTdHJ1Y3R1cmUuQl9QTFVTX1RSRUU7CiAgICB0aHJvdyBuZXcgSWxsZWdhbEFyZ3VtZW50RXhjZXB0aW9uKCJpbnN1ZmZpY2llbnQgcmVxdWlyZW1lbnQgcGFja2V0Iik7Cn0KYGBgCgpUd2VudHkgZGV0ZXJtaW5pc3RpYyBncm91cHMgY292ZXIgdGhlIGZvdXIgdHJhY2VzIGFuZCByZWplY3Rpb24gYm91bmRhcmllcy4gVGhlbiAyMCwwMDAgc2VlZGVkIHRyaWFscyBleGVjdXRlIDgwLDAwMCBpbmRlcGVuZGVudCBjaGVja3M6IGBUcmVlTWFwYCBuYXZpZ2F0aW9uLCBzb3J0LW9yYWNsZSB0b3AtSywgYXJyYXktb3JhY2xlIG11dGFibGUgc3VtcyBhbmQgdW5hbWJpZ3VvdXMgc3RydWN0dXJlIHNlbGVjdGlvbi4KCmBgYGJhc2gKamF2YSAtZWEgc3R1ZHktZ3VpZGVzL2xvY2FsLXByb2plY3Qtbm90ZXMvYWR2YW5jZWQtdHJlZXMvamF2YS9UcmVlUHJhY3RpY2VDb250cmFjdHMuamF2YQpgYGAKCkV4cGVjdGVkIHJlc3VsdDoKCmBgYHRleHQKUEFTUyBncm91cHM9MjAgdHJpYWxzPTIwMDAwIGNoZWNrcz04MDAwMApgYGAKCiMjIFZlcmlmaWVkIHJlZmVyZW5jZXMgYW5kIHByb3ZlbmFuY2UKCkN1cnJlbnQgcHJpbWFyeS9wcm9kdWN0IHJlZmVyZW5jZXMsIHJlY2hlY2tlZCBOb3ZlbWJlciAyNSwgMjAyNjoKCi0gW09yYWNsZSBKYXZhIFNFIDI2IGBUcmVlTWFwYF0oaHR0cHM6Ly9kb2NzLm9yYWNsZS5jb20vZW4vamF2YS9qYXZhc2UvMjYvZG9jcy9hcGkvamF2YS5iYXNlL2phdmEvdXRpbC9UcmVlTWFwLmh0bWwpIOKAlCByZWQtYmxhY2sgaW1wbGVtZW50YXRpb24gYW5kIGd1YXJhbnRlZWQgbG9nYXJpdGhtaWMgY29yZSBvcGVyYXRpb25zLgotIFtPcmFjbGUgSmF2YSBTRSAyNiBgUHJpb3JpdHlRdWV1ZWBdKGh0dHBzOi8vZG9jcy5vcmFjbGUuY29tL2VuL2phdmEvamF2YXNlLzI2L2RvY3MvYXBpL2phdmEuYmFzZS9qYXZhL3V0aWwvUHJpb3JpdHlRdWV1ZS5odG1sKSDigJQgaGVhcCBzZW1hbnRpY3MsIG9wZXJhdGlvbiBjb3N0cyBhbmQgdW5vcmRlcmVkIGl0ZXJhdG9yIGJvdW5kYXJ5LgotIFtQb3N0Z3JlU1FMIDE5OiBJbmRleGVzIGFuZCBgT1JERVIgQllgXShodHRwczovL3d3dy5wb3N0Z3Jlc3FsLm9yZy9kb2NzLzE5L2luZGV4ZXMtb3JkZXJpbmcuaHRtbCkg4oCUIHNvcnRlZC1vdXRwdXQgYmVoYXZpb3IgYW5kIGBPUkRFUiBCWSAuLi4gTElNSVRgIHJlYXNvbmluZy4KLSBbUG9zdGdyZVNRTCAxOTogTXVsdGljb2x1bW4gSW5kZXhlc10oaHR0cHM6Ly93d3cucG9zdGdyZXNxbC5vcmcvZG9jcy9jdXJyZW50L2luZGV4ZXMtbXVsdGljb2x1bW4uaHRtbCkg4oCUIGxlYWRpbmctY29sdW1uIGNvbnN0cmFpbnRzIGFuZCBza2lwLXNjYW4gYm91bmRhcnkuCi0gW1Bvc3RncmVTUUwgMTk6IEItVHJlZSBJbmRleGVzXShodHRwczovL3d3dy5wb3N0Z3Jlc3FsLm9yZy9kb2NzL2N1cnJlbnQvYnRyZWUuaHRtbCkg4oCUIGltcGxlbWVudGF0aW9uIHNjb3BlIGFuZCBvcGVyYXRvci1mYW1pbHkgc2VtYW50aWNzLgoKRXN0YWJsaXNoZWQgYWxnb3JpdGhtIHJlZmVyZW5jZXMgcmV0YWluZWQgZnJvbSB0aGUgc291cmNlOgoKLSBbTklTVCBEaWN0aW9uYXJ5IG9mIEFsZ29yaXRobXMgYW5kIERhdGEgU3RydWN0dXJlczogVHJlZV0oaHR0cHM6Ly94bGludXgubmlzdC5nb3YvZGFkcy9IVE1ML3RyZWUuaHRtbCksIFtBVkwgdHJlZV0oaHR0cHM6Ly94bGludXgubmlzdC5nb3YvZGFkcy9IVE1ML2F2bHRyZWUuaHRtbCksIFtyZWQtYmxhY2sgdHJlZV0oaHR0cHM6Ly94bGludXgubmlzdC5nb3YvZGFkcy9IVE1ML3JlZGJsYWNrLmh0bWwpLCBbQi10cmVlXShodHRwczovL3hsaW51eC5uaXN0Lmdvdi9kYWRzL0hUTUwvYnRyZWUuaHRtbCksIFtCKyB0cmVlXShodHRwczovL3hsaW51eC5uaXN0Lmdvdi9kYWRzL0hUTUwvYnBsdXN0cmVlLmh0bWwpLCBbYmluYXJ5IGhlYXBdKGh0dHBzOi8veGxpbnV4Lm5pc3QuZ292L2RhZHMvSFRNTC9iaW5hcnloZWFwLmh0bWwpIGFuZCBbdHJpZV0oaHR0cHM6Ly94bGludXgubmlzdC5nb3YvZGFkcy9IVE1ML3RyaWUuaHRtbCkuCi0gW1ByaW5jZXRvbiBBbGdvcml0aG1zOiBCYWxhbmNlZCBTZWFyY2ggVHJlZXNdKGh0dHBzOi8vYWxnczQuY3MucHJpbmNldG9uLmVkdS8zM2JhbGFuY2VkLykgYW5kIFtQcmlvcml0eSBRdWV1ZXNdKGh0dHBzOi8vYWxnczQuY3MucHJpbmNldG9uLmVkdS8yNHBxLykg4oCUIGFjYWRlbWljIGV4cG9zaXRpb24sIHByb29mcyBhbmQgZXhlcmNpc2VzLgotIFtDUC1BbGdvcml0aG1zOiBTZWdtZW50IFRyZWVdKGh0dHBzOi8vY3AtYWxnb3JpdGhtcy5jb20vZGF0YV9zdHJ1Y3R1cmVzL3NlZ21lbnRfdHJlZS5odG1sKSBhbmQgW0ZlbndpY2sgVHJlZV0oaHR0cHM6Ly9jcC1hbGdvcml0aG1zLmNvbS9kYXRhX3N0cnVjdHVyZXMvZmVud2ljay5odG1sKSDigJQgZXN0YWJsaXNoZWQgY29tcGV0aXRpdmUtcHJvZ3JhbW1pbmcgZXhwb3NpdGlvbi4KLSBbTGVldENvZGUgMzA3LCBSYW5nZSBTdW0gUXVlcnkg4oCUIE11dGFibGVdKGh0dHBzOi8vbGVldGNvZGUuY29tL3Byb2JsZW1zL3JhbmdlLXN1bS1xdWVyeS1tdXRhYmxlLykgYW5kIFtMZWV0Q29kZSAyMDgsIEltcGxlbWVudCBUcmllXShodHRwczovL2xlZXRjb2RlLmNvbS9wcm9ibGVtcy9pbXBsZW1lbnQtdHJpZS1wcmVmaXgtdHJlZS8pIOKAlCBjYW5vbmljYWwgcHJvYmxlbSBzdGF0ZW1lbnRzIG9ubHkuCgpTb3VyY2UgY29tcGFyaXNvbjoKCi0gU2VsZWN0ZWQgYEFkdmFuY2VkX1RyZWVzX0ZBQU5HX01lcm1haWRfU3R1ZHlfR3VpZGUubWRgLCBMaWJyYXJ5IGZpbGUgYGxpYmZpbGVfNzM0NmFiZjIzYTNjODE5MTg4NDNjOWE5ZjViNWQ4MGZgLCBTSEEtMjU2IGA4NmNiNjVmM2Q2ZDBmMzI3ZTVkMjJjMDNiNWQ1ODcxNDRlYjExY2M5ZmYyN2E1YjUyM2IyOThiMDlhZDdmNWIxYC4gU2VjdGlvbiAxNSBiZWdpbnMgYXQgZGlzcGxheSBsaW5lIDEzOTggYW5kIHJ1bnMgdGhyb3VnaCBmaW5hbCBkaXNwbGF5IGxpbmUgMTQ0OTsgYHdjIC1sYCByZXBvcnRzIDE0NDggYmVjYXVzZSB0aGUgZmluYWwgbGluZSBsYWNrcyBhIHRyYWlsaW5nIG5ld2xpbmUuCi0gQ29ycm9ib3JhdGluZyBgVHJlZV9BZHZhbmNlZF9GQUFOR19TdHVkeV9HdWlkZS5kb2N4YCwgTGlicmFyeSBmaWxlIGBsaWJmaWxlX2I3MWYyN2M4MGQ0YzgxOTE4YzY3MjMwM2FkZDZiZmI1YCwgU0hBLTI1NiBgZmIxZGM2ZjdkOTk5MGMwNDY5MWE2OWUyMzQ1ZGFjNWU2YTA4ZjNkMzY0NDhlMGU5YzNhNjdiOTZiNTVlZTU4ZmAuIEZyZXNoIFBhbmRvYyAzLjEuMTEuMSBHRk0gY29udmVyc2lvbiBwbGFjZXMgU2VjdGlvbiAxNSBhdCBsaW5lcyAxODc04oCTMTkyMyB0aHJvdWdoIERPQ1ggY29udGVudCBlbmQuCgpUaGUgc291cmNlIHN1cHBsaWVzIHRoZSByZWZlcmVuY2UgbGlzdCwgc2l4LXN0YWdlIHByb2dyZXNzaW9uIGFuZCBmaW5hbCBpbnRlcnZpZXcgY2hlY2suIFRoZSByZWZlcmVuY2UgY29udHJhY3QsIHByYWN0aWNlIGdhdGUsIGZvdXIgcmVxdWlyZW1lbnQvdHJhY2Uvb3JhY2xlIGV4YW1wbGVzLCBkaWFncmFtcywgZGVsaWJlcmF0ZS1wcmFjdGljZSBsb29wIGFuZCBleGVjdXRhYmxlIGNvbnRyYWN0cyBhcmUgcmVwb3NpdG9yeS1hdXRob3JlZCB0ZWFjaGluZyBtYXRlcmlhbC4gVGhpcyBleGhhdXN0cyB0aGUgY29uZmlybWVkIEFkdmFuY2VkIFRyZWVzIHNvdXJjZSBwYWlyIG9ubHk7IGl0IGRvZXMgbm90IGNvbXBsZXRlIHRoZSB3aWRlciBpbnRha2Ugb3IgdGhlIGxpdmUgRFNBIHBsYWNlaG9sZGVyIGJhY2tsb2cuCg==</script>
+<script id="search-index" type="application/json">[{"level": "1", "id": "advanced-trees--verified-references-and-practice-roadmap", "title": "Advanced Trees — Verified References and Practice Roadmap", "text": "Source boundary: Advanced Trees Section 15, selected Markdown display lines 1398–1449 the final line has no trailing newline and corroborating DOCX Pandoc lines 1874–1923 through source end. This module turns the source's link list and topic table into an evidence-gated practice system; it does not duplicate the completed structure guides."}, {"level": "2", "id": "contents", "title": "Contents", "text": "- Reference contract reference-contract - Practice gate practice-gate - Example 1 — ordered-map invariant before red-black mechanics example-1--ordered-map-invariant-before-red-black-mechanics - Example 2 — top-K proves what a heap does not guarantee example-2--top-k-proves-what-a-heap-does-not-guarantee - Example 3 — mutable range sums force an operation-algebra choice example-3--mutable-range-sums-force-an-operation-algebra-choice - Example 4 — an index exercise must include query shape example-4--an-index-exercise-must-include-query-shape - Four-stage deliberate-practice loop four-stage-deliberate-practice-loop - Executable practice contracts executable-practice-contracts - Verified references and provenance verified-references-and-provenance"}, {"level": "2", "id": "reference-contract", "title": "Reference contract", "text": "A reference is useful only when the claim, version and retrieval purpose are explicit. Before attaching a link to an interview answer, record: Field Required question Failure prevented --- --- --- claim owner specification, implementation documentation, academic exposition or practice platform? treating a tutorial as a language/API contract version which Java/PostgreSQL edition or problem statement was checked? silently applying future or obsolete behavior exact claim invariant, asymptotic guarantee, API ordering, query-planner behavior or exercise input/output? citing a page that is merely about the same topic scope abstract data structure or one production implementation? claiming every B-tree behaves like PostgreSQL retrieval date when was the live page rechecked? hiding link/version drift exercise role learn, implement, falsify, optimize or explain? collecting links without a practice objective mermaid flowchart TD A Interview claim -- B{API or product behavior?} B -- Yes C Current vendor documentation B -- No D{Algorithm invariant or proof?} D -- Yes E Academic or standards reference D -- No F Canonical practice statement C -- G Record version and exact scope E -- G F -- G The source's NIST DADS and Princeton links remain useful for terminology and algorithmic exposition. Current product claims in this module use Oracle Java SE 26 and PostgreSQL 19 documentation. Practice problems are linked only as problem statements; their editorial code is neither copied nor treated as normative."}, {"level": "2", "id": "practice-gate", "title": "Practice gate", "text": "Every practice item must pass six gates before it counts as learned: 1. Requirement: state the operations, mutation pattern, ordering and acceptable latency. 2. Invariant: draw what remains true after each operation. 3. Trace: execute at least one adversarial example by hand. 4. Implementation: write the core operation without library shortcuts when the exercise requires it. 5. Oracle: compare against a simpler trusted model on many generated cases. 6. Explanation: give complexity in terms of height, elements, alphabet or query range—not by memorized slogan. mermaid flowchart LR A Requirement -- B Invariant B -- C Hand trace C -- D Implementation D -- E Independent oracle E -- F Two-minute explanation F -- A The loop is intentionally cyclic. A failing oracle sends you back to the invariant or requirement; it is not repaired by memorizing another solution."}, {"level": "2", "id": "example-1--ordered-map-invariant-before-red-black-mechanics", "title": "Example 1 — ordered-map invariant before red-black mechanics", "text": "Requirement. Maintain key, value mappings with ordered lookup, updates, deletion, predecessor/successor navigation and logarithmic worst-case core operations. Trigger. This is an ordered-map requirement, not merely “use a tree.” Java's current TreeMap documentation identifies its implementation as a red-black-tree-based NavigableMap and guarantees logarithmic containsKey , get , put and remove . Trace the operations put 40,A , put 20,B , put 60,C , put 10,D , put 30,E , put 20,F , then higherKey 30 : Step Ordered keys Size Observation --- --- ---: --- put 40,A 40 1 first root-level mapping put 20,B 20,40 2 key order, not insertion order put 60,C 20,40,60 3 both sides represented put 10,D 10,20,40,60 4 implementation may recolor/rotate put 30,E 10,20,30,40,60 5 order invariant remains put 20,F 10,20,30,40,60 5 equal key replaces value; no duplicate node higherKey 30 answer 40 5 least key strictly greater than 30 mermaid flowchart TD A Ordered-map requirement -- B BST key-order invariant B -- C Red-black height invariant C -- D Logarithmic search path D -- E Navigation: floor ceiling lower higher What to implement. First write a plain BST map and make replacement semantics explicit. Then implement or explain red-black repair. Do not infer a particular internal shape from TreeMap ; the API guarantees ordering and complexity, not a stable node layout. Oracle. Compare your map's sorted keys, size, values, floor and ceiling with a TreeMap after every randomized update. The oracle checks observable behavior while separate invariant validation checks your internal tree."}, {"level": "2", "id": "example-2--top-k-proves-what-a-heap-does-not-guarantee", "title": "Example 2 — top-K proves what a heap does not guarantee", "text": "Requirement. Return the three largest values from stream 8, 1, 7, 3, 9, 2, 9 using O k retained memory. Maintain a min-heap of accepted candidates. The root is the weakest current winner: Value Heap content as a set/multiset Decision ---: --- --- 8 8 accept; fewer than 3 1 1,8 accept 7 1,7,8 accept 3 3,7,8 replace root 1 9 7,8,9 replace root 3 2 7,8,9 reject; not above root 7 9 8,9,9 replace root 7 Final winners are {8,9,9} . If sorted output is required, drain or sort the final k elements. mermaid flowchart LR A Next stream value -- B{Heap size below k?} B -- Yes C Offer B -- No D{Value above minimum winner?} D -- Yes E Poll then offer D -- No F Reject C -- G Root remains weakest winner E -- G F -- G Oracle Java SE 26 documents offer and poll as logarithmic and peek as constant time. It also warns that iterator traversal is not ordered. Therefore this is invalid: java for int value : heap { // Wrong: iterator order is not sorted order. } The full stream costs O n log k time and O k auxiliary space. Arbitrary-key search is still linear; the heap guarantees only parent priority and fast access to its head. Oracle. Sort a copy of each generated input and compare the largest k multiset with the heap result. Include duplicates, negative values, k = 0 , k = 1 and k n ."}, {"level": "2", "id": "example-3--mutable-range-sums-force-an-operation-algebra-choice", "title": "Example 3 — mutable range sums force an operation-algebra choice", "text": "Requirement. Start with 2,1,5,3,4 ; support point assignment and inclusive range-sum queries. Perform sum 1,3 , set 2,8 , sum 1,3 . Expected trace: Operation Array state Result or delta --- --- --- start 2,1,5,3,4 — sum 1,3 unchanged 1+5+3 = 9 set 2,8 2,1,8,3,4 Fenwick delta +3 sum 1,3 unchanged 1+8+3 = 12 A Fenwick tree stores invertible prefix aggregates compactly. Assignment is translated to a delta using the old value. A segment tree stores interval aggregates directly and generalizes more naturally to non-invertible combinations, range updates and richer node state. mermaid flowchart TD A Mutable range requirement -- B{Point updates and invertible prefix operation?} B -- Yes C Fenwick tree candidate B -- No D{Associative interval combine?} D -- Yes E Segment tree candidate D -- No F Revisit data model C -- G Validate against array oracle E -- G The practice goal is not “solve LeetCode 307.” It is to defend the choice: - point assignment becomes delta = newValue - oldValue , - inclusive sum is prefix right - prefix left - 1 , - each Fenwick update/query visits O log n indices, and - a plain prefix array has O 1 queries but O n point updates. Oracle. Maintain the literal array and compute every queried range with a loop. Generate point assignments and valid left,right pairs; compare after every operation. This catches one-based-index conversion and stale-old-value errors."}, {"level": "2", "id": "example-4--an-index-exercise-must-include-query-shape", "title": "Example 4 — an index exercise must include query shape", "text": "Requirement. Support recent orders for one tenant: sql SELECT order id, created at FROM orders WHERE tenant id = 42 ORDER BY created at DESC LIMIT 20; A plausible PostgreSQL index is: sql CREATE INDEX orders tenant recent ON orders tenant id, created at DESC ; Trace the reasoning rather than chanting “databases use B+ trees”: 1. Equality on leading tenant id identifies one contiguous key group. 2. Within that group, created at DESC matches the required ordering. 3. A matching B-tree scan can return the first 20 entries without sorting the entire tenant history. 4. The planner still chooses among index scan, table scan and explicit sort using statistics and estimated cost. mermaid flowchart TD A WHERE tenant id = 42 -- B Leading-key interval B -- C created at DESC index order C -- D Read first 20 index entries D -- E Fetch needed rows or use covering data PostgreSQL 19 documents that B-tree is the supported index type that can directly produce sorted output. Its multicolumn guidance says leading equalities plus the first inequality constrain the scanned portion most directly, while later columns may filter without necessarily shrinking the scan; current PostgreSQL can also consider skip scan in suitable low-distinctness cases. Boundary. This exercise practices logical access-path reasoning, not PostgreSQL page concurrency. Production B-tree behavior also involves operator classes, MVCC-visible table tuples, page splits, deletion, recovery, latching and planner economics. Oracle. Populate tenants with repeated timestamps, run EXPLAIN ANALYZE, BUFFERS in a disposable PostgreSQL instance, and compare returned rows with an explicit full sort. The repository does not claim this integration was executed here."}, {"level": "2", "id": "four-stage-deliberate-practice-loop", "title": "Four-stage deliberate-practice loop", "text": "Use each completed advanced-tree module in four passes: Stage Time box Deliverable Exit gate --- ---: --- --- recognition 10 minutes requirement → candidate structure table can reject two plausible wrong structures mechanics 20 minutes hand trace with invariant after every mutation no unexplained rotation, split, sift or index jump implementation 35 minutes core code plus invariant validator deterministic and randomized oracle pass interview defense 5 minutes definition, problem, mechanics, complexity, tradeoff, use case answers one follow-up without changing the invariant mermaid flowchart TD A Recognition -- B Mechanics B -- C Implementation C -- D Interview defense D -- E{Failure found?} E -- Yes A E -- No F Spaced repetition Recommended order: 1. BST ordering and ancestor bounds. 2. AVL and red-black repair classification. 3. Heap candidate ownership. 4. Trie prefix states. 5. Fenwick and segment-tree operation algebra. 6. B-tree/B+ tree page and range-scan reasoning."}, {"level": "2", "id": "executable-practice-contracts", "title": "Executable practice contracts", "text": "TreePracticeContracts.java java/TreePracticeContracts.java makes the four example gates executable. It checks ordered-map replacement/navigation, duplicate-safe top-K ownership, Fenwick assignment/range behavior and requirement-to-structure selection. java static Structure choose Requirement r { if r.orderedMap && r.predecessorSuccessor return Structure.RED BLACK TREE; if r.topK && !r.arbitrarySearch return Structure.BINARY HEAP; if r.pointUpdates && r.prefixInvertible return Structure.FENWICK TREE; if r.rangeUpdates r.richIntervalState return Structure.SEGMENT TREE; if r.diskPages && r.rangeScan return Structure.B PLUS TREE; throw new IllegalArgumentException \"insufficient requirement packet\" ; } Twenty deterministic groups cover the four traces and rejection boundaries. Then 20,000 seeded trials execute 80,000 independent checks: TreeMap navigation, sort-oracle top-K, array-oracle mutable sums and unambiguous structure selection. bash java -ea study-guides/local-project-notes/advanced-trees/java/TreePracticeContracts.java Expected result: text PASS groups=20 trials=20000 checks=80000"}, {"level": "2", "id": "verified-references-and-provenance", "title": "Verified references and provenance", "text": "Current primary/product references, rechecked November 25, 2026: - Oracle Java SE 26 TreeMap https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/util/TreeMap.html — red-black implementation and guaranteed logarithmic core operations. - Oracle Java SE 26 PriorityQueue https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/util/PriorityQueue.html — heap semantics, operation costs and unordered iterator boundary. - PostgreSQL 19: Indexes and ORDER BY https://www.postgresql.org/docs/19/indexes-ordering.html — sorted-output behavior and ORDER BY ... LIMIT reasoning. - PostgreSQL 19: Multicolumn Indexes https://www.postgresql.org/docs/current/indexes-multicolumn.html — leading-column constraints and skip-scan boundary. - PostgreSQL 19: B-Tree Indexes https://www.postgresql.org/docs/current/btree.html — implementation scope and operator-family semantics. Established algorithm references retained from the source: - NIST Dictionary of Algorithms and Data Structures: Tree https://xlinux.nist.gov/dads/HTML/tree.html , AVL tree https://xlinux.nist.gov/dads/HTML/avltree.html , red-black tree https://xlinux.nist.gov/dads/HTML/redblack.html , B-tree https://xlinux.nist.gov/dads/HTML/btree.html , B+ tree https://xlinux.nist.gov/dads/HTML/bplustree.html , binary heap https://xlinux.nist.gov/dads/HTML/binaryheap.html and trie https://xlinux.nist.gov/dads/HTML/trie.html . - Princeton Algorithms: Balanced Search Trees https://algs4.cs.princeton.edu/33balanced/ and Priority Queues https://algs4.cs.princeton.edu/24pq/ — academic exposition, proofs and exercises. - CP-Algorithms: Segment Tree https://cp-algorithms.com/data structures/segment tree.html and Fenwick Tree https://cp-algorithms.com/data structures/fenwick.html — established competitive-programming exposition. - LeetCode 307, Range Sum Query — Mutable https://leetcode.com/problems/range-sum-query-mutable/ and LeetCode 208, Implement Trie https://leetcode.com/problems/implement-trie-prefix-tree/ — canonical problem statements only. Source comparison: - Selected Advanced Trees FAANG Mermaid Study Guide.md , Library file libfile 7346abf23a3c81918843c9a9f5b5d80f , SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1 . Section 15 begins at display line 1398 and runs through final display line 1449; wc -l reports 1448 because the final line lacks a trailing newline. - Corroborating Tree Advanced FAANG Study Guide.docx , Library file libfile b71f27c80d4c81918c672303add6bfb5 , SHA-256 fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f . Fresh Pandoc 3.1.11.1 GFM conversion places Section 15 at lines 1874–1923 through DOCX content end. The source supplies the reference list, six-stage progression and final interview check. The reference contract, practice gate, four requirement/trace/oracle examples, diagrams, deliberate-practice loop and executable contracts are repository-authored teaching material. This exhausts the confirmed Advanced Trees source pair only; it does not complete the wider intake or the live DSA placeholder backlog."}]</script>
+<script>
+const input=document.querySelector('#guide-search'),results=document.querySelector('#results'),status=document.querySelector('#search-status');
+const index=JSON.parse(document.querySelector('#search-index').textContent);
+function escapeHtml(value){return value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function search(){const q=input.value.trim().toLocaleLowerCase();results.replaceChildren();if(!q){status.textContent='Type to search headings and section text.';return;}const matches=index.filter(x=>(x.title+' '+x.text).toLocaleLowerCase().includes(q)).slice(0,30);status.textContent=matches.length?`${matches.length} matching sections (first 30 max).`:'No matching section.';for(const item of matches){const li=document.createElement('li'),a=document.createElement('a');a.href='#'+item.id;a.innerHTML=escapeHtml(item.title);li.append(a);results.append(li);}}
+input.addEventListener('input',search);input.addEventListener('keydown',event=>{if(event.key==='Enter'&&results.firstElementChild)results.querySelector('a').click();});
+</script>
+<script type="module">
+try{const{default:mermaid}=await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');document.querySelectorAll('pre.mermaid').forEach(pre=>{const div=document.createElement('div');div.className='mermaid';div.textContent=pre.textContent;pre.replaceWith(div);});mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'neutral'});await mermaid.run({querySelector:'.mermaid'});}catch(error){console.warn('Mermaid unavailable; source diagrams remain readable.',error);}
+</script>
+</body>
+</html>

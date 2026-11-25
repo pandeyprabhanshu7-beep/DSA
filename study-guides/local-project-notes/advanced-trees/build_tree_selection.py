@@ -42,6 +42,13 @@ GUIDES = (
         "Tree Interview Speaking Guide",
         "Try: AVL vs red-black, top-k, range structure",
     ),
+    (
+        ROOT / "reference-practice-roadmap.md",
+        ROOT / "reference-practice-roadmap.html",
+        "Advanced Trees — Verified References and Practice Roadmap",
+        "Tree Practice Roadmap",
+        "Try: TreeMap, top-K, Fenwick, B-tree index",
+    ),
 )
 
 
