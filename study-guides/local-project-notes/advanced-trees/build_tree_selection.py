@@ -28,6 +28,13 @@ GUIDES = (
         "Tree Problem Ladder",
         "Try: ancestor bounds, kth, Fenwick",
     ),
+    (
+        ROOT / "common-mistakes-interview-traps.md",
+        ROOT / "common-mistakes-interview-traps.html",
+        "Advanced Trees — Common Mistakes and Interview Traps",
+        "Tree Mistake Contracts",
+        "Try: ancestor bounds, pre-split, lazy tag",
+    ),
 )
 
 

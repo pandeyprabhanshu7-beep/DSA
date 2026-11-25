@@ -4,6 +4,9 @@ This separate folder receives selected, enriched technical material from the upl
 
 ## Completed advanced-tree modules
 
+- [Common Mistakes and Interview Traps — Markdown](advanced-trees/common-mistakes-interview-traps.md)
+- [Common Mistakes and Interview Traps — HTML](advanced-trees/common-mistakes-interview-traps.html)
+- [Mistake-repair executable contracts](advanced-trees/java/TreeMistakeContracts.java)
 - [FAANG Problem Ladder — Markdown](advanced-trees/faang-problem-ladder.md)
 - [FAANG Problem Ladder — HTML](advanced-trees/faang-problem-ladder.html)
 - [Problem-ladder executable contracts](advanced-trees/java/TreeProblemLadderContracts.java)
@@ -55,12 +58,14 @@ See [intake manifest](INTAKE_MANIFEST.json) for source hashes, statuses and exac
 
 ## Continue next
 
-Advanced-trees Sections 1–12 are promoted or merged. The latest bounded module is Section 12, “FAANG Problem Ladder — Easy / Medium / Hard,” from selected Markdown lines 1188–1314 and corroborating DOCX Pandoc lines 1587–1791. After fair-domain rotation is re-evaluated, the exact continuation is Section 13, “Common Mistakes & Interview Traps,” at selected lines 1317–1332 / corroborating DOCX Pandoc lines 1792–1807. Sections 13–15 and the wider 170-placeholder backlog remain incomplete.
+Advanced-trees Sections 1–13 are promoted or merged. The latest bounded module is Section 13, “Common Mistakes & Interview Traps,” from selected Markdown lines 1317–1332 and fresh corroborating DOCX Pandoc lines 1929–1945. After fair-domain rotation is re-evaluated, the exact continuation is Section 14, “Revision Sheet & Interview Speaking Guide,” at selected lines 1336–1395 / corroborating DOCX Pandoc lines 1946–2023. Sections 14–15 and the wider 170-placeholder backlog remain incomplete.
 
 ## Maintain readers
 
-Run `python build_readers.py` (requires Python `markdown`) after editing local Markdown. Source Markdown is canonical; HTML is generated from it. Keep topic Java and diagram changes in the same validated commit.
+Run `python build_readers.py` (requires Python `markdown`) after editing the broad local notes. Run `python advanced-trees/build_tree_selection.py` for the focused Section 11–13 readers. Source Markdown is canonical; HTML is generated from it. Keep topic Java and diagram changes in the same validated commit.
 
 Validation: the Java 17 compiler module ran all topic harnesses. The Fenwick harness passed 100,000 randomized point updates and 200,000 oracle queries; the lazy segment tree harness passed 100,000 randomized range updates and 200,000 oracle queries; the trie harness passed 50,000 randomized insert attempts, 100,000 exact/prefix queries and 10,000 autocomplete comparisons; the heap harness passed 100,000 mixed operations and 10,000 heapify-and-drain comparisons; the B+ tree read model passed 100,000 random point lookups and 50,000 random bounded range comparisons; the B-tree set passed 1,000 shuffled insert/delete permutations and 200,000 random mixed operations across minimum degrees 2–9; the red-black and AVL sets each passed deterministic/boundary cases, 1,000 shuffled insert/delete permutations and 200,000 seeded mixed operations against `TreeSet`, with repeated structural validation. Canonical BST insertion/deletion passed 456,423 assertions. Canonical traversal moments passed 376,980 assertions across explicit shapes and 10,000 seeded random trees compared with independent iterative oracles. Generated Markdown/HTML payloads, local links/anchors and SVG XML were checked. Browser visual QA remains pending.
 
 Section 12 validation: Java 21 source-file launch passed 20 problem-contract groups and 20,000 seeded trials with 80,000 independent BST, rank, suffix-count and ownership checks. The responsive reader recovered the exact canonical Markdown payload; all IDs, local fragments, relative links, six Mermaid sources, search/filter JavaScript and deterministic rebuilding passed. The focused Pandoc builder now rebuilds both Section 11 and Section 12 readers. Standalone `javac`, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live placeholder audit remains 170.
+
+Section 13 validation: Java 21 source-file launch passed 20 mistake-contract groups and 20,000 seeded trials with 80,000 independent ancestor-bound, AVL-classification, range-aggregate and Fenwick-prefix checks. The responsive reader recovered the exact canonical Markdown payload; all IDs, fragments, the Java relative link, seven Mermaid sources, search/filter JavaScript and deterministic rebuilding passed. The focused Pandoc builder now rebuilds Sections 11–13. Standalone `javac`, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live placeholder audit remains 170.

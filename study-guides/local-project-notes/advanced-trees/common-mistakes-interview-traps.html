@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="source-sha256" content="05ec319dcdd8cc295806f38a281e4d965ead9738236c6bd0afc2108e3c04a092">
+<title>Advanced Trees — Common Mistakes and Interview Traps</title>
+<style>
+:root{--bg:#f4f7fb;--paper:#fff;--ink:#172033;--muted:#5c667a;--accent:#1261a0;--line:#d3dce9;--code:#101c30;--code-ink:#eef4ff}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.68 system-ui,-apple-system,Segoe UI,sans-serif}
+.layout{display:grid;grid-template-columns:minmax(240px,310px) minmax(0,1040px);gap:1.4rem;max-width:1380px;margin:auto;padding:1rem}
+aside{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:1rem}
+main{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:clamp(1rem,4vw,3rem)}
+.brand{font-weight:800;margin-bottom:.7rem}input{width:100%;padding:.7rem;border:1px solid var(--line);border-radius:9px;font:inherit}
+#results{list-style:none;padding:0;margin:.7rem 0}#results li{margin:.42rem 0}#results a{color:var(--accent);text-decoration:none;font-size:.92rem}#search-status{color:var(--muted);font-size:.82rem;margin:.45rem 0}
+h1,h2,h3{line-height:1.25;scroll-margin-top:1rem}h1{border-bottom:2px solid var(--line);padding-bottom:.35rem}h2{margin-top:2.3rem}a{color:var(--accent)}
+table{border-collapse:collapse;width:100%;display:block;overflow-x:auto}th,td{border:1px solid var(--line);padding:.55rem;text-align:left;vertical-align:top}
+pre{background:var(--code);color:var(--code-ink);padding:1rem;border-radius:10px;overflow:auto}code{font:0.9em ui-monospace,SFMono-Regular,Consolas,monospace}:not(pre)>code{background:#edf2f7;padding:.12rem .3rem;border-radius:4px}
+blockquote{margin:1rem 0;padding:.4rem 1rem;border-left:4px solid var(--accent);background:#eaf2fa}.mermaid{overflow:auto;text-align:center}
+@media(max-width:820px){.layout{display:block;padding:.5rem}aside{position:relative;max-height:none;margin-bottom:.75rem}main{padding:1rem}#results{max-height:12rem;overflow:auto}}
+@media print{aside{display:none}.layout{display:block}main{border:0}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside><div class="brand">Tree Mistake Contracts</div><label for="guide-search">Search this guide</label><input id="guide-search" type="search" placeholder="Try: ancestor bounds, pre-split, lazy tag" autocomplete="off"><div id="search-status">Type to search headings and section text.</div><ul id="results"></ul><a href="#advanced-trees--common-mistakes-and-interview-traps">Back to top</a></aside>
+<main id="content"><h1 id="advanced-trees--common-mistakes-and-interview-traps">Advanced Trees — Common Mistakes and Interview Traps</h1>
+<blockquote>
+<p>Incremental status: this guide promotes source Section 13, “Common Mistakes &amp; Interview Traps,” at selected Markdown lines 1317–1332 and corroborating DOCX Pandoc lines 1929–1945. Sections 14–15 remain queued.</p>
+</blockquote>
+<h2 id="contents">Contents</h2>
+<ul>
+<li><a href="#requirement-contract">Requirement contract</a></li>
+<li><a href="#example-1--repair-the-invariant-not-the-symptom">Example 1 — repair the invariant, not the symptom</a></li>
+<li><a href="#example-2--split-routing-from-record-ownership">Example 2 — split routing from record ownership</a></li>
+<li><a href="#example-3--distinguish-structural-order-from-query-semantics">Example 3 — distinguish structural order from query semantics</a></li>
+<li><a href="#example-4--make-deferred-range-state-explicit">Example 4 — make deferred range state explicit</a></li>
+<li><a href="#executable-mistake-contracts">Executable mistake contracts</a></li>
+<li><a href="#references-and-provenance">References and provenance</a></li>
+</ul>
+<h2 id="requirement-contract">Requirement contract</h2>
+<p>The twelve source traps share one failure pattern: code relies on a local shape while the data structure promises a global invariant or a different public operation. Diagnose the promised observation first, then identify the state that is sufficient to prove it.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Structure</th>
+<th>Promise to the caller</th>
+<th>State the implementation must preserve</th>
+<th>Typical invalid shortcut</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>strict BST</td>
+<td>every inorder key is strictly increasing</td>
+<td>all ancestor bounds</td>
+<td>compare only parent and child</td>
+</tr>
+<tr class="even">
+<td>AVL</td>
+<td>BST order and balance factor in <code>[-1,1]</code></td>
+<td>child heights after structural movement</td>
+<td>use the deleted key to select a case</td>
+</tr>
+<tr class="odd">
+<td>red-black tree</td>
+<td>BST order, black root, no red-red edge, equal black height</td>
+<td>color plus local shape, normalized through the root</td>
+<td>memorize cases without checking invariants</td>
+</tr>
+<tr class="even">
+<td>B-tree</td>
+<td>bounded page occupancy during every descent</td>
+<td>child occupancy before recursion</td>
+<td>descend into a full child</td>
+</tr>
+<tr class="odd">
+<td>B+ tree</td>
+<td>internal routing; records and ordered scan at leaves</td>
+<td>separator/record role and leaf links</td>
+<td>treat a separator as a full record</td>
+</tr>
+<tr class="even">
+<td>heap</td>
+<td>extremum at the root</td>
+<td>parent-child priority</td>
+<td>assume the backing array is sorted</td>
+</tr>
+<tr class="odd">
+<td>trie</td>
+<td>prefix reachability and exact word membership are distinct</td>
+<td>terminal bit at the final node</td>
+<td>return <code>true</code> for every reachable prefix</td>
+</tr>
+<tr class="even">
+<td>segment tree</td>
+<td>aggregate over a declared interval</td>
+<td>interval length and aggregate operator</td>
+<td>add a range delta only once</td>
+</tr>
+<tr class="odd">
+<td>lazy propagation</td>
+<td>deferred update is applied exactly once per descendant</td>
+<td>tag ownership before and after push</td>
+<td>copy a tag downward but leave it at the parent</td>
+</tr>
+<tr class="even">
+<td>Fenwick tree</td>
+<td>prefix sums over a documented API index convention</td>
+<td>one conversion boundary plus lowbit traversal</td>
+<td>mix zero-based and one-based loops</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart TD
+  A[Name the public promise] --&gt; B[Write the global invariant]
+  B --&gt; C[Identify sufficient state]
+  C --&gt; D[Trace ownership before mutation]
+  D --&gt; E[Apply repair]
+  E --&gt; F[Recheck invariant and boundary]</code></pre>
+<p>The repair is not “add another <code>if</code>.” It is to restore the proof obligation. That framing keeps the same reasoning valid across insertion, deletion, range updates and read-only queries.</p>
+<h2 id="example-1--repair-the-invariant-not-the-symptom">Example 1 — repair the invariant, not the symptom</h2>
+<p>This tree passes every direct parent-child comparison but is not a strict BST:</p>
+<pre class="text"><code>       10
+      /  \
+     5    15
+         /
+        6</code></pre>
+<p>The node <code>6</code> is below its parent <code>15</code>, yet it violates the lower bound inherited from ancestor <code>10</code>.</p>
+<pre class="mermaid"><code>flowchart TD
+  A[10 accepts unbounded interval] --&gt; B[5 receives less than 10]
+  A --&gt; C[15 receives greater than 10]
+  C --&gt; D[6 receives greater than 10 and less than 15]
+  D --&gt; E[Reject because 6 is not greater than 10]</code></pre>
+<div class="sourceCode" id="cb4"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">boolean</span> <span class="fu">inside</span><span class="op">(</span><span class="bu">Node</span> node<span class="op">,</span> <span class="dt">long</span> lowExclusive<span class="op">,</span> <span class="dt">long</span> highExclusive<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>node <span class="op">==</span> <span class="kw">null</span><span class="op">)</span> <span class="cf">return</span> <span class="kw">true</span><span class="op">;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>node<span class="op">.</span><span class="fu">key</span> <span class="op">&lt;=</span> lowExclusive <span class="op">||</span> node<span class="op">.</span><span class="fu">key</span> <span class="op">&gt;=</span> highExclusive<span class="op">)</span> <span class="cf">return</span> <span class="kw">false</span><span class="op">;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fu">inside</span><span class="op">(</span>node<span class="op">.</span><span class="fu">left</span><span class="op">,</span> lowExclusive<span class="op">,</span> node<span class="op">.</span><span class="fu">key</span><span class="op">)</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>            <span class="op">&amp;&amp;</span> <span class="fu">inside</span><span class="op">(</span>node<span class="op">.</span><span class="fu">right</span><span class="op">,</span> node<span class="op">.</span><span class="fu">key</span><span class="op">,</span> highExclusive<span class="op">);</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">Visit</th>
+<th>Local parent test</th>
+<th>Inherited interval</th>
+<th>Correct decision</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;"><code>10</code></td>
+<td>root</td>
+<td><code>(-∞,+∞)</code></td>
+<td>accept</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;"><code>15</code></td>
+<td><code>15 &gt; 10</code></td>
+<td><code>(10,+∞)</code></td>
+<td>accept</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;"><code>6</code></td>
+<td><code>6 &lt; 15</code></td>
+<td><code>(10,15)</code></td>
+<td>reject</td>
+</tr>
+</tbody>
+</table>
+<p>AVL deletion has the same diagnosis rule. After deletion, the deleted key no longer identifies which grandchild is heavy. Recompute balance from the surviving children:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">Unbalanced node</th>
+<th style="text-align: right;">Heavy child balance</th>
+<th>Repair</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;"><code>+2</code></td>
+<td style="text-align: right;"><code>&gt;= 0</code></td>
+<td>single right rotation</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;"><code>+2</code></td>
+<td style="text-align: right;"><code>&lt; 0</code></td>
+<td>left child left, then parent right</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;"><code>-2</code></td>
+<td style="text-align: right;"><code>&lt;= 0</code></td>
+<td>single left rotation</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;"><code>-2</code></td>
+<td style="text-align: right;"><code>&gt; 0</code></td>
+<td>right child right, then parent left</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart TD
+  A{Root balance} --&gt;|greater than 1| B{Left child balance}
+  A --&gt;|less than -1| C{Right child balance}
+  B --&gt;|nonnegative| D[Right rotation]
+  B --&gt;|negative| E[Left-right rotation]
+  C --&gt;|nonpositive| F[Left rotation]
+  C --&gt;|positive| G[Right-left rotation]</code></pre>
+<p>After a rotation, update the node moved downward before the new local root; the new root's height depends on the moved-down node's repaired height. For a red-black tree, finish the top-level update by forcing the root black. That does not replace the red-red and black-height repairs—it closes the root-specific invariant after them.</p>
+<p>Correctness comes from carrying the information the invariant quantifies over: ancestor intervals for BST order and surviving subtree heights/colors for balancing. A key that was deleted is not part of the post-state and cannot be a reliable repair witness.</p>
+<h2 id="example-2--split-routing-from-record-ownership">Example 2 — split routing from record ownership</h2>
+<p>For a B-tree with maximum five keys per node, suppose the root contains <code>[20,40]</code> and the middle child is full:</p>
+<pre class="text"><code>root: [20 | 40]
+middle child: [22 | 25 | 30 | 35 | 38]
+insert: 33</code></pre>
+<p>Descending first would ask an already-full child to accept a sixth key. Top-down insertion instead splits the full child before recursion, promotes the median separator, and then chooses one non-full side.</p>
+<pre class="mermaid"><code>flowchart TD
+  A[Parent chooses child] --&gt; B{Child is full?}
+  B --&gt;|No| C[Descend]
+  B --&gt;|Yes| D[Split child and promote separator]
+  D --&gt; E[Compare key with promoted separator]
+  E --&gt; C</code></pre>
+<p>One possible split trace for minimum degree <code>t = 3</code>:</p>
+<table>
+<thead>
+<tr class="header">
+<th>State</th>
+<th>Parent separators</th>
+<th>Candidate children</th>
+<th>Decision for <code>33</code></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>before split</td>
+<td><code>[20,40]</code></td>
+<td>middle <code>[22,25,30,35,38]</code> full</td>
+<td>do not descend</td>
+</tr>
+<tr class="even">
+<td>after split</td>
+<td><code>[20,30,40]</code></td>
+<td><code>[22,25]</code>, <code>[35,38]</code></td>
+<td>choose interval <code>(30,40)</code></td>
+</tr>
+<tr class="odd">
+<td>after leaf insert</td>
+<td><code>[20,30,40]</code></td>
+<td>right half <code>[33,35,38]</code></td>
+<td>occupancy remains legal</td>
+</tr>
+</tbody>
+</table>
+<p>The exact promoted key and occupancy bounds depend on the declared B-tree convention; this guide uses minimum degree <code>t</code>, where a full node has <code>2t-1</code> keys. State that convention before the dry run.</p>
+<p>A B+ tree separates another pair of roles:</p>
+<pre class="mermaid"><code>flowchart TD
+  A[Internal page separator] --&gt; B[Choose child page]
+  B --&gt; C[Leaf page]
+  C --&gt; D[Record pointer or row identifier]
+  C --&gt; E[Next leaf link for range scan]</code></pre>
+<p>Internal separators are routing evidence. Leaf entries own the indexed record references. A separator may repeat a boundary key, but it is not by itself an extra full record. Current PostgreSQL documentation makes the same structural distinction: internal tuples point to the next level, while leaf tuples point to table rows.</p>
+<p>The B-tree proof is inductive: recursion begins only in a non-full child, so the leaf insertion has capacity; a split can add one separator to the current parent, whose capacity was guaranteed by the caller. The B+ role split preserves lookup and range-scan semantics because routing ends at the leaf level where records and sibling links live.</p>
+<h2 id="example-3--distinguish-structural-order-from-query-semantics">Example 3 — distinguish structural order from query semantics</h2>
+<p>A min-heap array such as <code>[1,4,2,9,7,5]</code> satisfies <code>parent &lt;= child</code>, but it is not globally sorted: <code>4</code> appears before <code>2</code>, and <code>9</code> before <code>7</code>.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Operation</th>
+<th>Guaranteed result</th>
+<th>Not guaranteed</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>peek()</code></td>
+<td>one minimum element</td>
+<td>second-smallest element</td>
+</tr>
+<tr class="even">
+<td><code>poll()</code> repeatedly</td>
+<td>nondecreasing sequence</td>
+<td>preservation of the original queue</td>
+</tr>
+<tr class="odd">
+<td>iterator/backing-array scan</td>
+<td>every stored element</td>
+<td>priority order</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb9"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="bu">List</span><span class="op">&lt;</span><span class="bu">Integer</span><span class="op">&gt;</span> <span class="fu">sortedDrain</span><span class="op">(</span><span class="bu">PriorityQueue</span><span class="op">&lt;</span><span class="bu">Integer</span><span class="op">&gt;</span> queue<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">PriorityQueue</span><span class="op">&lt;</span><span class="bu">Integer</span><span class="op">&gt;</span> ownedCopy <span class="op">=</span> <span class="kw">new</span> <span class="bu">PriorityQueue</span><span class="op">&lt;&gt;(</span>queue<span class="op">);</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">List</span><span class="op">&lt;</span><span class="bu">Integer</span><span class="op">&gt;</span> ordered <span class="op">=</span> <span class="kw">new</span> <span class="bu">ArrayList</span><span class="op">&lt;&gt;();</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(!</span>ownedCopy<span class="op">.</span><span class="fu">isEmpty</span><span class="op">())</span> ordered<span class="op">.</span><span class="fu">add</span><span class="op">(</span>ownedCopy<span class="op">.</span><span class="fu">remove</span><span class="op">());</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">List</span><span class="op">.</span><span class="fu">copyOf</span><span class="op">(</span>ordered<span class="op">);</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Oracle Java SE 25 explicitly states that <code>PriorityQueue</code> iteration has no particular order. Repeated removal is the queue operation that exposes priority order. Copy first when the caller retains ownership of the original queue.</p>
+<p>A trie has a parallel semantic distinction. After inserting <code>tree</code>, nodes for <code>t</code>, <code>tr</code> and <code>tre</code> exist, so all are prefixes; only the final <code>tree</code> node is terminal.</p>
+<pre class="mermaid"><code>flowchart LR
+  A[root] --&gt; B[t]
+  B --&gt; C[r]
+  C --&gt; D[e]
+  D --&gt; E[e terminal]</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th>Query</th>
+<th>Traversal ends at</th>
+<th style="text-align: right;">Terminal?</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>startsWith("tr")</code></td>
+<td><code>r</code> node</td>
+<td style="text-align: right;">no</td>
+<td><code>true</code></td>
+</tr>
+<tr class="even">
+<td><code>contains("tr")</code></td>
+<td><code>r</code> node</td>
+<td style="text-align: right;">no</td>
+<td><code>false</code></td>
+</tr>
+<tr class="odd">
+<td><code>contains("tree")</code></td>
+<td>final <code>e</code> node</td>
+<td style="text-align: right;">yes</td>
+<td><code>true</code></td>
+</tr>
+<tr class="even">
+<td><code>contains("trip")</code></td>
+<td>missing <code>i</code> edge</td>
+<td style="text-align: right;">n/a</td>
+<td><code>false</code></td>
+</tr>
+</tbody>
+</table>
+<p>Heap shape answers “which item has highest priority next?” Trie reachability answers “is this path present?” Neither promise silently expands into sorted enumeration or complete-word membership. The public method must name and enforce the intended observation.</p>
+<h2 id="example-4--make-deferred-range-state-explicit">Example 4 — make deferred range state explicit</h2>
+<p>For a range-sum segment tree, adding <code>+3</code> to a fully covered segment of length four changes the stored sum by <code>12</code>, not <code>3</code>:</p>
+<pre class="text"><code>before: [2, 1, 4, 3] sum = 10
+after:  [5, 4, 7, 6] sum = 22</code></pre>
+<div class="sourceCode" id="cb12"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">long</span> <span class="fu">applyRangeSum</span><span class="op">(</span><span class="dt">long</span> sum<span class="op">,</span> <span class="dt">long</span> delta<span class="op">,</span> <span class="dt">int</span> length<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>length <span class="op">&lt;=</span> <span class="dv">0</span><span class="op">)</span> <span class="cf">throw</span> <span class="kw">new</span> <span class="bu">IllegalArgumentException</span><span class="op">();</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">addExact</span><span class="op">(</span>sum<span class="op">,</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">multiplyExact</span><span class="op">(</span>delta<span class="op">,</span> length<span class="op">));</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>A lazy tag means “this update belongs to the descendants but has not yet been materialized there.” Pushing transfers that ownership once:</p>
+<pre class="mermaid"><code>flowchart TD
+  A[Parent owns pending plus 5] --&gt; B[Add 5 to left tag]
+  A --&gt; C[Add 5 to right tag]
+  B --&gt; D[Clear parent tag to zero]
+  C --&gt; D</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th>State</th>
+<th style="text-align: right;">Parent tag</th>
+<th style="text-align: right;">Left tag</th>
+<th style="text-align: right;">Right tag</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>before push</td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>2</code></td>
+<td style="text-align: right;"><code>-1</code></td>
+</tr>
+<tr class="even">
+<td>after transfer</td>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>7</code></td>
+<td style="text-align: right;"><code>4</code></td>
+</tr>
+<tr class="odd">
+<td>erroneous second push if parent were not cleared</td>
+<td style="text-align: right;"><code>5</code></td>
+<td style="text-align: right;"><code>12</code></td>
+<td style="text-align: right;"><code>9</code></td>
+</tr>
+</tbody>
+</table>
+<p>Fenwick trees need an equally explicit index boundary. Offer a zero-based public API if that is natural for Java arrays, but convert exactly once to the one-based internal representation:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> <span class="fu">addAtZeroBased</span><span class="op">(</span><span class="dt">int</span> index<span class="op">,</span> <span class="dt">long</span> delta<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> index <span class="op">+</span> <span class="dv">1</span><span class="op">;</span> i <span class="op">&lt;</span> tree<span class="op">.</span><span class="fu">length</span><span class="op">;</span> i <span class="op">+=</span> i <span class="op">&amp;</span> <span class="op">-</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>        tree<span class="op">[</span>i<span class="op">]</span> <span class="op">+=</span> delta<span class="op">;</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="dt">long</span> <span class="fu">prefixThroughZeroBased</span><span class="op">(</span><span class="dt">int</span> index<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> sum <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> index <span class="op">+</span> <span class="dv">1</span><span class="op">;</span> i <span class="op">&gt;</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">-=</span> i <span class="op">&amp;</span> <span class="op">-</span>i<span class="op">)</span> sum <span class="op">+=</span> tree<span class="op">[</span>i<span class="op">];</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> sum<span class="op">;</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>For an array of length five, public index <code>0</code> maps to internal index <code>1</code>; public index <code>4</code> maps to <code>5</code>. Validate the public index before conversion. Allowing <code>-1</code> only as the documented empty-prefix query is safe; allowing <code>0</code> into a one-based update loop is not, because <code>lowbit(0) = 0</code> and progress stops.</p>
+<p>The range-update proof is conservation of ownership. The aggregate immediately reflects the whole covered interval, while the lazy tag records exactly one deferred child update. Push moves that obligation to both children and clears the parent. The Fenwick proof is partitioned-prefix coverage: subtracting lowbit visits disjoint buckets whose union is the requested prefix.</p>
+<h2 id="executable-mistake-contracts">Executable mistake contracts</h2>
+<p><a href="java/TreeMistakeContracts.java"><code>TreeMistakeContracts.java</code></a> encodes the four repair families and all twelve source traps: ancestor-bound BST validation; AVL post-state classification; red-black root normalization; B-tree pre-split and B+ role separation; heap ordered drain; trie terminal membership; length-aware segment aggregation; one-time lazy transfer; and a zero-based Fenwick API over one-based internals.</p>
+<p>Twenty deterministic groups cover explicit boundary and failure cases. Then 20,000 seeded trials perform 80,000 independent checks across ancestor traps, AVL rotation classification, repeated-versus-multiplied range updates and Fenwick prefixes.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">java</span> <span class="at">-ea</span> study-guides/local-project-notes/advanced-trees/java/TreeMistakeContracts.java</span></code></pre></div>
+<p>Expected result:</p>
+<pre class="text"><code>PASS groups=20 trials=20000 checks=80000</code></pre>
+<h2 id="references-and-provenance">References and provenance</h2>
+<ul>
+<li>Oracle, <a href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/PriorityQueue.html">Java SE 25 <code>PriorityQueue</code></a> — head operations expose priority order; iterator and spliterator order is unspecified.</li>
+<li>PostgreSQL 19, <a href="https://www.postgresql.org/docs/current/btree.html">B-Tree Indexes</a> — current internal-page routing and leaf-page table-row pointer roles.</li>
+<li>G. M. Adel'son-Vel'skii and E. M. Landis, <a href="https://www.mathnet.ru/php/archive.phtml?jrnid=dan&amp;option_lang=eng&amp;paperid=26964&amp;wshow=paper">“An algorithm for organization of information”</a>, 1962 — original height-balanced search-tree work.</li>
+<li>Leo J. Guibas and Robert Sedgewick, <a href="https://doi.org/10.1109/SFCS.1978.3">“A Dichromatic Framework for Balanced Trees”</a>, 1978 — color-based invariants and balanced-tree repair framework.</li>
+<li>Rudolf Bayer and Edward McCreight, <a href="https://doi.org/10.1007/BF00288683">“Organization and Maintenance of Large Ordered Indexes”</a>, 1972 — original B-tree page organization and logarithmic maintenance analysis.</li>
+<li>Peter M. Fenwick, <a href="https://doi.org/10.1002/SPE.4380240306">“A New Data Structure for Cumulative Frequency Tables”</a>, 1994 — binary indexed tree decomposition and logarithmic prefix/update traversal.</li>
+</ul>
+<p>Source intake:</p>
+<ul>
+<li>Selected <code>Advanced_Trees_FAANG_Mermaid_Study_Guide.md</code>, Library file <code>libfile_7346abf23a3c81918843c9a9f5b5d80f</code>, 68,775 bytes, SHA-256 <code>86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1</code>. This pass promotes only Section 13 at lines 1317–1332, bounded before the Section 14 anchor.</li>
+<li>Compared <code>Tree_Advanced_FAANG_Study_Guide.docx</code>, Library file <code>libfile_b71f27c80d4c81918c672303add6bfb5</code>, 227,748 bytes, SHA-256 <code>fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f</code>. A fresh Pandoc GFM conversion places the matching Section 13 table at lines 1929–1945, bounded before Section 14; the older queue range <code>1792–1807</code> pointed into Section 12 and is corrected by this pass.</li>
+<li>The earlier broad <code>advanced_trees_interview_guide.md</code> and focused Sections 3–12 remain comparison/canonical material. This guide consolidates the distinct trap checklist and does not duplicate their full implementations.</li>
+</ul>
+<p>The requirement table, four worked repair traces, seven diagrams, executable contract and randomized oracles are newly authored teaching material. Source Sections 14–15 and the wider 170-placeholder backlog remain incomplete.</p>
+</main>
+</div>
+<script id="source-markdown" type="application/octet-stream">IyBBZHZhbmNlZCBUcmVlcyDigJQgQ29tbW9uIE1pc3Rha2VzIGFuZCBJbnRlcnZpZXcgVHJhcHMKCj4gSW5jcmVtZW50YWwgc3RhdHVzOiB0aGlzIGd1aWRlIHByb21vdGVzIHNvdXJjZSBTZWN0aW9uIDEzLCDigJxDb21tb24gTWlzdGFrZXMgJiBJbnRlcnZpZXcgVHJhcHMs4oCdIGF0IHNlbGVjdGVkIE1hcmtkb3duIGxpbmVzIDEzMTfigJMxMzMyIGFuZCBjb3Jyb2JvcmF0aW5nIERPQ1ggUGFuZG9jIGxpbmVzIDE5MjnigJMxOTQ1LiBTZWN0aW9ucyAxNOKAkzE1IHJlbWFpbiBxdWV1ZWQuCgojIyBDb250ZW50cwoKLSBbUmVxdWlyZW1lbnQgY29udHJhY3RdKCNyZXF1aXJlbWVudC1jb250cmFjdCkKLSBbRXhhbXBsZSAxIOKAlCByZXBhaXIgdGhlIGludmFyaWFudCwgbm90IHRoZSBzeW1wdG9tXSgjZXhhbXBsZS0xLS1yZXBhaXItdGhlLWludmFyaWFudC1ub3QtdGhlLXN5bXB0b20pCi0gW0V4YW1wbGUgMiDigJQgc3BsaXQgcm91dGluZyBmcm9tIHJlY29yZCBvd25lcnNoaXBdKCNleGFtcGxlLTItLXNwbGl0LXJvdXRpbmctZnJvbS1yZWNvcmQtb3duZXJzaGlwKQotIFtFeGFtcGxlIDMg4oCUIGRpc3Rpbmd1aXNoIHN0cnVjdHVyYWwgb3JkZXIgZnJvbSBxdWVyeSBzZW1hbnRpY3NdKCNleGFtcGxlLTMtLWRpc3Rpbmd1aXNoLXN0cnVjdHVyYWwtb3JkZXItZnJvbS1xdWVyeS1zZW1hbnRpY3MpCi0gW0V4YW1wbGUgNCDigJQgbWFrZSBkZWZlcnJlZCByYW5nZSBzdGF0ZSBleHBsaWNpdF0oI2V4YW1wbGUtNC0tbWFrZS1kZWZlcnJlZC1yYW5nZS1zdGF0ZS1leHBsaWNpdCkKLSBbRXhlY3V0YWJsZSBtaXN0YWtlIGNvbnRyYWN0c10oI2V4ZWN1dGFibGUtbWlzdGFrZS1jb250cmFjdHMpCi0gW1JlZmVyZW5jZXMgYW5kIHByb3ZlbmFuY2VdKCNyZWZlcmVuY2VzLWFuZC1wcm92ZW5hbmNlKQoKIyMgUmVxdWlyZW1lbnQgY29udHJhY3QKClRoZSB0d2VsdmUgc291cmNlIHRyYXBzIHNoYXJlIG9uZSBmYWlsdXJlIHBhdHRlcm46IGNvZGUgcmVsaWVzIG9uIGEgbG9jYWwgc2hhcGUgd2hpbGUgdGhlIGRhdGEgc3RydWN0dXJlIHByb21pc2VzIGEgZ2xvYmFsIGludmFyaWFudCBvciBhIGRpZmZlcmVudCBwdWJsaWMgb3BlcmF0aW9uLiBEaWFnbm9zZSB0aGUgcHJvbWlzZWQgb2JzZXJ2YXRpb24gZmlyc3QsIHRoZW4gaWRlbnRpZnkgdGhlIHN0YXRlIHRoYXQgaXMgc3VmZmljaWVudCB0byBwcm92ZSBpdC4KCnwgU3RydWN0dXJlIHwgUHJvbWlzZSB0byB0aGUgY2FsbGVyIHwgU3RhdGUgdGhlIGltcGxlbWVudGF0aW9uIG11c3QgcHJlc2VydmUgfCBUeXBpY2FsIGludmFsaWQgc2hvcnRjdXQgfAp8LS0tfC0tLXwtLS18LS0tfAp8IHN0cmljdCBCU1QgfCBldmVyeSBpbm9yZGVyIGtleSBpcyBzdHJpY3RseSBpbmNyZWFzaW5nIHwgYWxsIGFuY2VzdG9yIGJvdW5kcyB8IGNvbXBhcmUgb25seSBwYXJlbnQgYW5kIGNoaWxkIHwKfCBBVkwgfCBCU1Qgb3JkZXIgYW5kIGJhbGFuY2UgZmFjdG9yIGluIGBbLTEsMV1gIHwgY2hpbGQgaGVpZ2h0cyBhZnRlciBzdHJ1Y3R1cmFsIG1vdmVtZW50IHwgdXNlIHRoZSBkZWxldGVkIGtleSB0byBzZWxlY3QgYSBjYXNlIHwKfCByZWQtYmxhY2sgdHJlZSB8IEJTVCBvcmRlciwgYmxhY2sgcm9vdCwgbm8gcmVkLXJlZCBlZGdlLCBlcXVhbCBibGFjayBoZWlnaHQgfCBjb2xvciBwbHVzIGxvY2FsIHNoYXBlLCBub3JtYWxpemVkIHRocm91Z2ggdGhlIHJvb3QgfCBtZW1vcml6ZSBjYXNlcyB3aXRob3V0IGNoZWNraW5nIGludmFyaWFudHMgfAp8IEItdHJlZSB8IGJvdW5kZWQgcGFnZSBvY2N1cGFuY3kgZHVyaW5nIGV2ZXJ5IGRlc2NlbnQgfCBjaGlsZCBvY2N1cGFuY3kgYmVmb3JlIHJlY3Vyc2lvbiB8IGRlc2NlbmQgaW50byBhIGZ1bGwgY2hpbGQgfAp8IEIrIHRyZWUgfCBpbnRlcm5hbCByb3V0aW5nOyByZWNvcmRzIGFuZCBvcmRlcmVkIHNjYW4gYXQgbGVhdmVzIHwgc2VwYXJhdG9yL3JlY29yZCByb2xlIGFuZCBsZWFmIGxpbmtzIHwgdHJlYXQgYSBzZXBhcmF0b3IgYXMgYSBmdWxsIHJlY29yZCB8CnwgaGVhcCB8IGV4dHJlbXVtIGF0IHRoZSByb290IHwgcGFyZW50LWNoaWxkIHByaW9yaXR5IHwgYXNzdW1lIHRoZSBiYWNraW5nIGFycmF5IGlzIHNvcnRlZCB8CnwgdHJpZSB8IHByZWZpeCByZWFjaGFiaWxpdHkgYW5kIGV4YWN0IHdvcmQgbWVtYmVyc2hpcCBhcmUgZGlzdGluY3QgfCB0ZXJtaW5hbCBiaXQgYXQgdGhlIGZpbmFsIG5vZGUgfCByZXR1cm4gYHRydWVgIGZvciBldmVyeSByZWFjaGFibGUgcHJlZml4IHwKfCBzZWdtZW50IHRyZWUgfCBhZ2dyZWdhdGUgb3ZlciBhIGRlY2xhcmVkIGludGVydmFsIHwgaW50ZXJ2YWwgbGVuZ3RoIGFuZCBhZ2dyZWdhdGUgb3BlcmF0b3IgfCBhZGQgYSByYW5nZSBkZWx0YSBvbmx5IG9uY2UgfAp8IGxhenkgcHJvcGFnYXRpb24gfCBkZWZlcnJlZCB1cGRhdGUgaXMgYXBwbGllZCBleGFjdGx5IG9uY2UgcGVyIGRlc2NlbmRhbnQgfCB0YWcgb3duZXJzaGlwIGJlZm9yZSBhbmQgYWZ0ZXIgcHVzaCB8IGNvcHkgYSB0YWcgZG93bndhcmQgYnV0IGxlYXZlIGl0IGF0IHRoZSBwYXJlbnQgfAp8IEZlbndpY2sgdHJlZSB8IHByZWZpeCBzdW1zIG92ZXIgYSBkb2N1bWVudGVkIEFQSSBpbmRleCBjb252ZW50aW9uIHwgb25lIGNvbnZlcnNpb24gYm91bmRhcnkgcGx1cyBsb3diaXQgdHJhdmVyc2FsIHwgbWl4IHplcm8tYmFzZWQgYW5kIG9uZS1iYXNlZCBsb29wcyB8CgpgYGBtZXJtYWlkCmZsb3djaGFydCBURAogIEFbTmFtZSB0aGUgcHVibGljIHByb21pc2VdIC0tPiBCW1dyaXRlIHRoZSBnbG9iYWwgaW52YXJpYW50XQogIEIgLS0+IENbSWRlbnRpZnkgc3VmZmljaWVudCBzdGF0ZV0KICBDIC0tPiBEW1RyYWNlIG93bmVyc2hpcCBiZWZvcmUgbXV0YXRpb25dCiAgRCAtLT4gRVtBcHBseSByZXBhaXJdCiAgRSAtLT4gRltSZWNoZWNrIGludmFyaWFudCBhbmQgYm91bmRhcnldCmBgYAoKVGhlIHJlcGFpciBpcyBub3Qg4oCcYWRkIGFub3RoZXIgYGlmYC7igJ0gSXQgaXMgdG8gcmVzdG9yZSB0aGUgcHJvb2Ygb2JsaWdhdGlvbi4gVGhhdCBmcmFtaW5nIGtlZXBzIHRoZSBzYW1lIHJlYXNvbmluZyB2YWxpZCBhY3Jvc3MgaW5zZXJ0aW9uLCBkZWxldGlvbiwgcmFuZ2UgdXBkYXRlcyBhbmQgcmVhZC1vbmx5IHF1ZXJpZXMuCgojIyBFeGFtcGxlIDEg4oCUIHJlcGFpciB0aGUgaW52YXJpYW50LCBub3QgdGhlIHN5bXB0b20KClRoaXMgdHJlZSBwYXNzZXMgZXZlcnkgZGlyZWN0IHBhcmVudC1jaGlsZCBjb21wYXJpc29uIGJ1dCBpcyBub3QgYSBzdHJpY3QgQlNUOgoKYGBgdGV4dAogICAgICAgMTAKICAgICAgLyAgXAogICAgIDUgICAgMTUKICAgICAgICAgLwogICAgICAgIDYKYGBgCgpUaGUgbm9kZSBgNmAgaXMgYmVsb3cgaXRzIHBhcmVudCBgMTVgLCB5ZXQgaXQgdmlvbGF0ZXMgdGhlIGxvd2VyIGJvdW5kIGluaGVyaXRlZCBmcm9tIGFuY2VzdG9yIGAxMGAuCgpgYGBtZXJtYWlkCmZsb3djaGFydCBURAogIEFbMTAgYWNjZXB0cyB1bmJvdW5kZWQgaW50ZXJ2YWxdIC0tPiBCWzUgcmVjZWl2ZXMgbGVzcyB0aGFuIDEwXQogIEEgLS0+IENbMTUgcmVjZWl2ZXMgZ3JlYXRlciB0aGFuIDEwXQogIEMgLS0+IERbNiByZWNlaXZlcyBncmVhdGVyIHRoYW4gMTAgYW5kIGxlc3MgdGhhbiAxNV0KICBEIC0tPiBFW1JlamVjdCBiZWNhdXNlIDYgaXMgbm90IGdyZWF0ZXIgdGhhbiAxMF0KYGBgCgpgYGBqYXZhCnN0YXRpYyBib29sZWFuIGluc2lkZShOb2RlIG5vZGUsIGxvbmcgbG93RXhjbHVzaXZlLCBsb25nIGhpZ2hFeGNsdXNpdmUpIHsKICAgIGlmIChub2RlID09IG51bGwpIHJldHVybiB0cnVlOwogICAgaWYgKG5vZGUua2V5IDw9IGxvd0V4Y2x1c2l2ZSB8fCBub2RlLmtleSA+PSBoaWdoRXhjbHVzaXZlKSByZXR1cm4gZmFsc2U7CiAgICByZXR1cm4gaW5zaWRlKG5vZGUubGVmdCwgbG93RXhjbHVzaXZlLCBub2RlLmtleSkKICAgICAgICAgICAgJiYgaW5zaWRlKG5vZGUucmlnaHQsIG5vZGUua2V5LCBoaWdoRXhjbHVzaXZlKTsKfQpgYGAKCnwgVmlzaXQgfCBMb2NhbCBwYXJlbnQgdGVzdCB8IEluaGVyaXRlZCBpbnRlcnZhbCB8IENvcnJlY3QgZGVjaXNpb24gfAp8LS0tOnwtLS18LS0tfC0tLXwKfCBgMTBgIHwgcm9vdCB8IGAoLeKIniwr4oieKWAgfCBhY2NlcHQgfAp8IGAxNWAgfCBgMTUgPiAxMGAgfCBgKDEwLCviiJ4pYCB8IGFjY2VwdCB8CnwgYDZgIHwgYDYgPCAxNWAgfCBgKDEwLDE1KWAgfCByZWplY3QgfAoKQVZMIGRlbGV0aW9uIGhhcyB0aGUgc2FtZSBkaWFnbm9zaXMgcnVsZS4gQWZ0ZXIgZGVsZXRpb24sIHRoZSBkZWxldGVkIGtleSBubyBsb25nZXIgaWRlbnRpZmllcyB3aGljaCBncmFuZGNoaWxkIGlzIGhlYXZ5LiBSZWNvbXB1dGUgYmFsYW5jZSBmcm9tIHRoZSBzdXJ2aXZpbmcgY2hpbGRyZW46Cgp8IFVuYmFsYW5jZWQgbm9kZSB8IEhlYXZ5IGNoaWxkIGJhbGFuY2UgfCBSZXBhaXIgfAp8LS0tOnwtLS06fC0tLXwKfCBgKzJgIHwgYD49IDBgIHwgc2luZ2xlIHJpZ2h0IHJvdGF0aW9uIHwKfCBgKzJgIHwgYDwgMGAgfCBsZWZ0IGNoaWxkIGxlZnQsIHRoZW4gcGFyZW50IHJpZ2h0IHwKfCBgLTJgIHwgYDw9IDBgIHwgc2luZ2xlIGxlZnQgcm90YXRpb24gfAp8IGAtMmAgfCBgPiAwYCB8IHJpZ2h0IGNoaWxkIHJpZ2h0LCB0aGVuIHBhcmVudCBsZWZ0IHwKCmBgYG1lcm1haWQKZmxvd2NoYXJ0IFRECiAgQXtSb290IGJhbGFuY2V9IC0tPnxncmVhdGVyIHRoYW4gMXwgQntMZWZ0IGNoaWxkIGJhbGFuY2V9CiAgQSAtLT58bGVzcyB0aGFuIC0xfCBDe1JpZ2h0IGNoaWxkIGJhbGFuY2V9CiAgQiAtLT58bm9ubmVnYXRpdmV8IERbUmlnaHQgcm90YXRpb25dCiAgQiAtLT58bmVnYXRpdmV8IEVbTGVmdC1yaWdodCByb3RhdGlvbl0KICBDIC0tPnxub25wb3NpdGl2ZXwgRltMZWZ0IHJvdGF0aW9uXQogIEMgLS0+fHBvc2l0aXZlfCBHW1JpZ2h0LWxlZnQgcm90YXRpb25dCmBgYAoKQWZ0ZXIgYSByb3RhdGlvbiwgdXBkYXRlIHRoZSBub2RlIG1vdmVkIGRvd253YXJkIGJlZm9yZSB0aGUgbmV3IGxvY2FsIHJvb3Q7IHRoZSBuZXcgcm9vdCdzIGhlaWdodCBkZXBlbmRzIG9uIHRoZSBtb3ZlZC1kb3duIG5vZGUncyByZXBhaXJlZCBoZWlnaHQuIEZvciBhIHJlZC1ibGFjayB0cmVlLCBmaW5pc2ggdGhlIHRvcC1sZXZlbCB1cGRhdGUgYnkgZm9yY2luZyB0aGUgcm9vdCBibGFjay4gVGhhdCBkb2VzIG5vdCByZXBsYWNlIHRoZSByZWQtcmVkIGFuZCBibGFjay1oZWlnaHQgcmVwYWlyc+KAlGl0IGNsb3NlcyB0aGUgcm9vdC1zcGVjaWZpYyBpbnZhcmlhbnQgYWZ0ZXIgdGhlbS4KCkNvcnJlY3RuZXNzIGNvbWVzIGZyb20gY2FycnlpbmcgdGhlIGluZm9ybWF0aW9uIHRoZSBpbnZhcmlhbnQgcXVhbnRpZmllcyBvdmVyOiBhbmNlc3RvciBpbnRlcnZhbHMgZm9yIEJTVCBvcmRlciBhbmQgc3Vydml2aW5nIHN1YnRyZWUgaGVpZ2h0cy9jb2xvcnMgZm9yIGJhbGFuY2luZy4gQSBrZXkgdGhhdCB3YXMgZGVsZXRlZCBpcyBub3QgcGFydCBvZiB0aGUgcG9zdC1zdGF0ZSBhbmQgY2Fubm90IGJlIGEgcmVsaWFibGUgcmVwYWlyIHdpdG5lc3MuCgojIyBFeGFtcGxlIDIg4oCUIHNwbGl0IHJvdXRpbmcgZnJvbSByZWNvcmQgb3duZXJzaGlwCgpGb3IgYSBCLXRyZWUgd2l0aCBtYXhpbXVtIGZpdmUga2V5cyBwZXIgbm9kZSwgc3VwcG9zZSB0aGUgcm9vdCBjb250YWlucyBgWzIwLDQwXWAgYW5kIHRoZSBtaWRkbGUgY2hpbGQgaXMgZnVsbDoKCmBgYHRleHQKcm9vdDogWzIwIHwgNDBdCm1pZGRsZSBjaGlsZDogWzIyIHwgMjUgfCAzMCB8IDM1IHwgMzhdCmluc2VydDogMzMKYGBgCgpEZXNjZW5kaW5nIGZpcnN0IHdvdWxkIGFzayBhbiBhbHJlYWR5LWZ1bGwgY2hpbGQgdG8gYWNjZXB0IGEgc2l4dGgga2V5LiBUb3AtZG93biBpbnNlcnRpb24gaW5zdGVhZCBzcGxpdHMgdGhlIGZ1bGwgY2hpbGQgYmVmb3JlIHJlY3Vyc2lvbiwgcHJvbW90ZXMgdGhlIG1lZGlhbiBzZXBhcmF0b3IsIGFuZCB0aGVuIGNob29zZXMgb25lIG5vbi1mdWxsIHNpZGUuCgpgYGBtZXJtYWlkCmZsb3djaGFydCBURAogIEFbUGFyZW50IGNob29zZXMgY2hpbGRdIC0tPiBCe0NoaWxkIGlzIGZ1bGw/fQogIEIgLS0+fE5vfCBDW0Rlc2NlbmRdCiAgQiAtLT58WWVzfCBEW1NwbGl0IGNoaWxkIGFuZCBwcm9tb3RlIHNlcGFyYXRvcl0KICBEIC0tPiBFW0NvbXBhcmUga2V5IHdpdGggcHJvbW90ZWQgc2VwYXJhdG9yXQogIEUgLS0+IEMKYGBgCgpPbmUgcG9zc2libGUgc3BsaXQgdHJhY2UgZm9yIG1pbmltdW0gZGVncmVlIGB0ID0gM2A6Cgp8IFN0YXRlIHwgUGFyZW50IHNlcGFyYXRvcnMgfCBDYW5kaWRhdGUgY2hpbGRyZW4gfCBEZWNpc2lvbiBmb3IgYDMzYCB8CnwtLS18LS0tfC0tLXwtLS18CnwgYmVmb3JlIHNwbGl0IHwgYFsyMCw0MF1gIHwgbWlkZGxlIGBbMjIsMjUsMzAsMzUsMzhdYCBmdWxsIHwgZG8gbm90IGRlc2NlbmQgfAp8IGFmdGVyIHNwbGl0IHwgYFsyMCwzMCw0MF1gIHwgYFsyMiwyNV1gLCBgWzM1LDM4XWAgfCBjaG9vc2UgaW50ZXJ2YWwgYCgzMCw0MClgIHwKfCBhZnRlciBsZWFmIGluc2VydCB8IGBbMjAsMzAsNDBdYCB8IHJpZ2h0IGhhbGYgYFszMywzNSwzOF1gIHwgb2NjdXBhbmN5IHJlbWFpbnMgbGVnYWwgfAoKVGhlIGV4YWN0IHByb21vdGVkIGtleSBhbmQgb2NjdXBhbmN5IGJvdW5kcyBkZXBlbmQgb24gdGhlIGRlY2xhcmVkIEItdHJlZSBjb252ZW50aW9uOyB0aGlzIGd1aWRlIHVzZXMgbWluaW11bSBkZWdyZWUgYHRgLCB3aGVyZSBhIGZ1bGwgbm9kZSBoYXMgYDJ0LTFgIGtleXMuIFN0YXRlIHRoYXQgY29udmVudGlvbiBiZWZvcmUgdGhlIGRyeSBydW4uCgpBIEIrIHRyZWUgc2VwYXJhdGVzIGFub3RoZXIgcGFpciBvZiByb2xlczoKCmBgYG1lcm1haWQKZmxvd2NoYXJ0IFRECiAgQVtJbnRlcm5hbCBwYWdlIHNlcGFyYXRvcl0gLS0+IEJbQ2hvb3NlIGNoaWxkIHBhZ2VdCiAgQiAtLT4gQ1tMZWFmIHBhZ2VdCiAgQyAtLT4gRFtSZWNvcmQgcG9pbnRlciBvciByb3cgaWRlbnRpZmllcl0KICBDIC0tPiBFW05leHQgbGVhZiBsaW5rIGZvciByYW5nZSBzY2FuXQpgYGAKCkludGVybmFsIHNlcGFyYXRvcnMgYXJlIHJvdXRpbmcgZXZpZGVuY2UuIExlYWYgZW50cmllcyBvd24gdGhlIGluZGV4ZWQgcmVjb3JkIHJlZmVyZW5jZXMuIEEgc2VwYXJhdG9yIG1heSByZXBlYXQgYSBib3VuZGFyeSBrZXksIGJ1dCBpdCBpcyBub3QgYnkgaXRzZWxmIGFuIGV4dHJhIGZ1bGwgcmVjb3JkLiBDdXJyZW50IFBvc3RncmVTUUwgZG9jdW1lbnRhdGlvbiBtYWtlcyB0aGUgc2FtZSBzdHJ1Y3R1cmFsIGRpc3RpbmN0aW9uOiBpbnRlcm5hbCB0dXBsZXMgcG9pbnQgdG8gdGhlIG5leHQgbGV2ZWwsIHdoaWxlIGxlYWYgdHVwbGVzIHBvaW50IHRvIHRhYmxlIHJvd3MuCgpUaGUgQi10cmVlIHByb29mIGlzIGluZHVjdGl2ZTogcmVjdXJzaW9uIGJlZ2lucyBvbmx5IGluIGEgbm9uLWZ1bGwgY2hpbGQsIHNvIHRoZSBsZWFmIGluc2VydGlvbiBoYXMgY2FwYWNpdHk7IGEgc3BsaXQgY2FuIGFkZCBvbmUgc2VwYXJhdG9yIHRvIHRoZSBjdXJyZW50IHBhcmVudCwgd2hvc2UgY2FwYWNpdHkgd2FzIGd1YXJhbnRlZWQgYnkgdGhlIGNhbGxlci4gVGhlIEIrIHJvbGUgc3BsaXQgcHJlc2VydmVzIGxvb2t1cCBhbmQgcmFuZ2Utc2NhbiBzZW1hbnRpY3MgYmVjYXVzZSByb3V0aW5nIGVuZHMgYXQgdGhlIGxlYWYgbGV2ZWwgd2hlcmUgcmVjb3JkcyBhbmQgc2libGluZyBsaW5rcyBsaXZlLgoKIyMgRXhhbXBsZSAzIOKAlCBkaXN0aW5ndWlzaCBzdHJ1Y3R1cmFsIG9yZGVyIGZyb20gcXVlcnkgc2VtYW50aWNzCgpBIG1pbi1oZWFwIGFycmF5IHN1Y2ggYXMgYFsxLDQsMiw5LDcsNV1gIHNhdGlzZmllcyBgcGFyZW50IDw9IGNoaWxkYCwgYnV0IGl0IGlzIG5vdCBnbG9iYWxseSBzb3J0ZWQ6IGA0YCBhcHBlYXJzIGJlZm9yZSBgMmAsIGFuZCBgOWAgYmVmb3JlIGA3YC4KCnwgT3BlcmF0aW9uIHwgR3VhcmFudGVlZCByZXN1bHQgfCBOb3QgZ3VhcmFudGVlZCB8CnwtLS18LS0tfC0tLXwKfCBgcGVlaygpYCB8IG9uZSBtaW5pbXVtIGVsZW1lbnQgfCBzZWNvbmQtc21hbGxlc3QgZWxlbWVudCB8CnwgYHBvbGwoKWAgcmVwZWF0ZWRseSB8IG5vbmRlY3JlYXNpbmcgc2VxdWVuY2UgfCBwcmVzZXJ2YXRpb24gb2YgdGhlIG9yaWdpbmFsIHF1ZXVlIHwKfCBpdGVyYXRvci9iYWNraW5nLWFycmF5IHNjYW4gfCBldmVyeSBzdG9yZWQgZWxlbWVudCB8IHByaW9yaXR5IG9yZGVyIHwKCmBgYGphdmEKc3RhdGljIExpc3Q8SW50ZWdlcj4gc29ydGVkRHJhaW4oUHJpb3JpdHlRdWV1ZTxJbnRlZ2VyPiBxdWV1ZSkgewogICAgUHJpb3JpdHlRdWV1ZTxJbnRlZ2VyPiBvd25lZENvcHkgPSBuZXcgUHJpb3JpdHlRdWV1ZTw+KHF1ZXVlKTsKICAgIExpc3Q8SW50ZWdlcj4gb3JkZXJlZCA9IG5ldyBBcnJheUxpc3Q8PigpOwogICAgd2hpbGUgKCFvd25lZENvcHkuaXNFbXB0eSgpKSBvcmRlcmVkLmFkZChvd25lZENvcHkucmVtb3ZlKCkpOwogICAgcmV0dXJuIExpc3QuY29weU9mKG9yZGVyZWQpOwp9CmBgYAoKT3JhY2xlIEphdmEgU0UgMjUgZXhwbGljaXRseSBzdGF0ZXMgdGhhdCBgUHJpb3JpdHlRdWV1ZWAgaXRlcmF0aW9uIGhhcyBubyBwYXJ0aWN1bGFyIG9yZGVyLiBSZXBlYXRlZCByZW1vdmFsIGlzIHRoZSBxdWV1ZSBvcGVyYXRpb24gdGhhdCBleHBvc2VzIHByaW9yaXR5IG9yZGVyLiBDb3B5IGZpcnN0IHdoZW4gdGhlIGNhbGxlciByZXRhaW5zIG93bmVyc2hpcCBvZiB0aGUgb3JpZ2luYWwgcXVldWUuCgpBIHRyaWUgaGFzIGEgcGFyYWxsZWwgc2VtYW50aWMgZGlzdGluY3Rpb24uIEFmdGVyIGluc2VydGluZyBgdHJlZWAsIG5vZGVzIGZvciBgdGAsIGB0cmAgYW5kIGB0cmVgIGV4aXN0LCBzbyBhbGwgYXJlIHByZWZpeGVzOyBvbmx5IHRoZSBmaW5hbCBgdHJlZWAgbm9kZSBpcyB0ZXJtaW5hbC4KCmBgYG1lcm1haWQKZmxvd2NoYXJ0IExSCiAgQVtyb290XSAtLT4gQlt0XQogIEIgLS0+IENbcl0KICBDIC0tPiBEW2VdCiAgRCAtLT4gRVtlIHRlcm1pbmFsXQpgYGAKCnwgUXVlcnkgfCBUcmF2ZXJzYWwgZW5kcyBhdCB8IFRlcm1pbmFsPyB8IFJlc3VsdCB8CnwtLS18LS0tfC0tLTp8LS0tfAp8IGBzdGFydHNXaXRoKCJ0ciIpYCB8IGByYCBub2RlIHwgbm8gfCBgdHJ1ZWAgfAp8IGBjb250YWlucygidHIiKWAgfCBgcmAgbm9kZSB8IG5vIHwgYGZhbHNlYCB8CnwgYGNvbnRhaW5zKCJ0cmVlIilgIHwgZmluYWwgYGVgIG5vZGUgfCB5ZXMgfCBgdHJ1ZWAgfAp8IGBjb250YWlucygidHJpcCIpYCB8IG1pc3NpbmcgYGlgIGVkZ2UgfCBuL2EgfCBgZmFsc2VgIHwKCkhlYXAgc2hhcGUgYW5zd2VycyDigJx3aGljaCBpdGVtIGhhcyBoaWdoZXN0IHByaW9yaXR5IG5leHQ/4oCdIFRyaWUgcmVhY2hhYmlsaXR5IGFuc3dlcnMg4oCcaXMgdGhpcyBwYXRoIHByZXNlbnQ/4oCdIE5laXRoZXIgcHJvbWlzZSBzaWxlbnRseSBleHBhbmRzIGludG8gc29ydGVkIGVudW1lcmF0aW9uIG9yIGNvbXBsZXRlLXdvcmQgbWVtYmVyc2hpcC4gVGhlIHB1YmxpYyBtZXRob2QgbXVzdCBuYW1lIGFuZCBlbmZvcmNlIHRoZSBpbnRlbmRlZCBvYnNlcnZhdGlvbi4KCiMjIEV4YW1wbGUgNCDigJQgbWFrZSBkZWZlcnJlZCByYW5nZSBzdGF0ZSBleHBsaWNpdAoKRm9yIGEgcmFuZ2Utc3VtIHNlZ21lbnQgdHJlZSwgYWRkaW5nIGArM2AgdG8gYSBmdWxseSBjb3ZlcmVkIHNlZ21lbnQgb2YgbGVuZ3RoIGZvdXIgY2hhbmdlcyB0aGUgc3RvcmVkIHN1bSBieSBgMTJgLCBub3QgYDNgOgoKYGBgdGV4dApiZWZvcmU6IFsyLCAxLCA0LCAzXSBzdW0gPSAxMAphZnRlcjogIFs1LCA0LCA3LCA2XSBzdW0gPSAyMgpgYGAKCmBgYGphdmEKc3RhdGljIGxvbmcgYXBwbHlSYW5nZVN1bShsb25nIHN1bSwgbG9uZyBkZWx0YSwgaW50IGxlbmd0aCkgewogICAgaWYgKGxlbmd0aCA8PSAwKSB0aHJvdyBuZXcgSWxsZWdhbEFyZ3VtZW50RXhjZXB0aW9uKCk7CiAgICByZXR1cm4gTWF0aC5hZGRFeGFjdChzdW0sIE1hdGgubXVsdGlwbHlFeGFjdChkZWx0YSwgbGVuZ3RoKSk7Cn0KYGBgCgpBIGxhenkgdGFnIG1lYW5zIOKAnHRoaXMgdXBkYXRlIGJlbG9uZ3MgdG8gdGhlIGRlc2NlbmRhbnRzIGJ1dCBoYXMgbm90IHlldCBiZWVuIG1hdGVyaWFsaXplZCB0aGVyZS7igJ0gUHVzaGluZyB0cmFuc2ZlcnMgdGhhdCBvd25lcnNoaXAgb25jZToKCmBgYG1lcm1haWQKZmxvd2NoYXJ0IFRECiAgQVtQYXJlbnQgb3ducyBwZW5kaW5nIHBsdXMgNV0gLS0+IEJbQWRkIDUgdG8gbGVmdCB0YWddCiAgQSAtLT4gQ1tBZGQgNSB0byByaWdodCB0YWddCiAgQiAtLT4gRFtDbGVhciBwYXJlbnQgdGFnIHRvIHplcm9dCiAgQyAtLT4gRApgYGAKCnwgU3RhdGUgfCBQYXJlbnQgdGFnIHwgTGVmdCB0YWcgfCBSaWdodCB0YWcgfAp8LS0tfC0tLTp8LS0tOnwtLS06fAp8IGJlZm9yZSBwdXNoIHwgYDVgIHwgYDJgIHwgYC0xYCB8CnwgYWZ0ZXIgdHJhbnNmZXIgfCBgMGAgfCBgN2AgfCBgNGAgfAp8IGVycm9uZW91cyBzZWNvbmQgcHVzaCBpZiBwYXJlbnQgd2VyZSBub3QgY2xlYXJlZCB8IGA1YCB8IGAxMmAgfCBgOWAgfAoKRmVud2ljayB0cmVlcyBuZWVkIGFuIGVxdWFsbHkgZXhwbGljaXQgaW5kZXggYm91bmRhcnkuIE9mZmVyIGEgemVyby1iYXNlZCBwdWJsaWMgQVBJIGlmIHRoYXQgaXMgbmF0dXJhbCBmb3IgSmF2YSBhcnJheXMsIGJ1dCBjb252ZXJ0IGV4YWN0bHkgb25jZSB0byB0aGUgb25lLWJhc2VkIGludGVybmFsIHJlcHJlc2VudGF0aW9uOgoKYGBgamF2YQp2b2lkIGFkZEF0WmVyb0Jhc2VkKGludCBpbmRleCwgbG9uZyBkZWx0YSkgewogICAgZm9yIChpbnQgaSA9IGluZGV4ICsgMTsgaSA8IHRyZWUubGVuZ3RoOyBpICs9IGkgJiAtaSkgewogICAgICAgIHRyZWVbaV0gKz0gZGVsdGE7CiAgICB9Cn0KCmxvbmcgcHJlZml4VGhyb3VnaFplcm9CYXNlZChpbnQgaW5kZXgpIHsKICAgIGxvbmcgc3VtID0gMDsKICAgIGZvciAoaW50IGkgPSBpbmRleCArIDE7IGkgPiAwOyBpIC09IGkgJiAtaSkgc3VtICs9IHRyZWVbaV07CiAgICByZXR1cm4gc3VtOwp9CmBgYAoKRm9yIGFuIGFycmF5IG9mIGxlbmd0aCBmaXZlLCBwdWJsaWMgaW5kZXggYDBgIG1hcHMgdG8gaW50ZXJuYWwgaW5kZXggYDFgOyBwdWJsaWMgaW5kZXggYDRgIG1hcHMgdG8gYDVgLiBWYWxpZGF0ZSB0aGUgcHVibGljIGluZGV4IGJlZm9yZSBjb252ZXJzaW9uLiBBbGxvd2luZyBgLTFgIG9ubHkgYXMgdGhlIGRvY3VtZW50ZWQgZW1wdHktcHJlZml4IHF1ZXJ5IGlzIHNhZmU7IGFsbG93aW5nIGAwYCBpbnRvIGEgb25lLWJhc2VkIHVwZGF0ZSBsb29wIGlzIG5vdCwgYmVjYXVzZSBgbG93Yml0KDApID0gMGAgYW5kIHByb2dyZXNzIHN0b3BzLgoKVGhlIHJhbmdlLXVwZGF0ZSBwcm9vZiBpcyBjb25zZXJ2YXRpb24gb2Ygb3duZXJzaGlwLiBUaGUgYWdncmVnYXRlIGltbWVkaWF0ZWx5IHJlZmxlY3RzIHRoZSB3aG9sZSBjb3ZlcmVkIGludGVydmFsLCB3aGlsZSB0aGUgbGF6eSB0YWcgcmVjb3JkcyBleGFjdGx5IG9uZSBkZWZlcnJlZCBjaGlsZCB1cGRhdGUuIFB1c2ggbW92ZXMgdGhhdCBvYmxpZ2F0aW9uIHRvIGJvdGggY2hpbGRyZW4gYW5kIGNsZWFycyB0aGUgcGFyZW50LiBUaGUgRmVud2ljayBwcm9vZiBpcyBwYXJ0aXRpb25lZC1wcmVmaXggY292ZXJhZ2U6IHN1YnRyYWN0aW5nIGxvd2JpdCB2aXNpdHMgZGlzam9pbnQgYnVja2V0cyB3aG9zZSB1bmlvbiBpcyB0aGUgcmVxdWVzdGVkIHByZWZpeC4KCiMjIEV4ZWN1dGFibGUgbWlzdGFrZSBjb250cmFjdHMKCltgVHJlZU1pc3Rha2VDb250cmFjdHMuamF2YWBdKGphdmEvVHJlZU1pc3Rha2VDb250cmFjdHMuamF2YSkgZW5jb2RlcyB0aGUgZm91ciByZXBhaXIgZmFtaWxpZXMgYW5kIGFsbCB0d2VsdmUgc291cmNlIHRyYXBzOiBhbmNlc3Rvci1ib3VuZCBCU1QgdmFsaWRhdGlvbjsgQVZMIHBvc3Qtc3RhdGUgY2xhc3NpZmljYXRpb247IHJlZC1ibGFjayByb290IG5vcm1hbGl6YXRpb247IEItdHJlZSBwcmUtc3BsaXQgYW5kIEIrIHJvbGUgc2VwYXJhdGlvbjsgaGVhcCBvcmRlcmVkIGRyYWluOyB0cmllIHRlcm1pbmFsIG1lbWJlcnNoaXA7IGxlbmd0aC1hd2FyZSBzZWdtZW50IGFnZ3JlZ2F0aW9uOyBvbmUtdGltZSBsYXp5IHRyYW5zZmVyOyBhbmQgYSB6ZXJvLWJhc2VkIEZlbndpY2sgQVBJIG92ZXIgb25lLWJhc2VkIGludGVybmFscy4KClR3ZW50eSBkZXRlcm1pbmlzdGljIGdyb3VwcyBjb3ZlciBleHBsaWNpdCBib3VuZGFyeSBhbmQgZmFpbHVyZSBjYXNlcy4gVGhlbiAyMCwwMDAgc2VlZGVkIHRyaWFscyBwZXJmb3JtIDgwLDAwMCBpbmRlcGVuZGVudCBjaGVja3MgYWNyb3NzIGFuY2VzdG9yIHRyYXBzLCBBVkwgcm90YXRpb24gY2xhc3NpZmljYXRpb24sIHJlcGVhdGVkLXZlcnN1cy1tdWx0aXBsaWVkIHJhbmdlIHVwZGF0ZXMgYW5kIEZlbndpY2sgcHJlZml4ZXMuCgpgYGBiYXNoCmphdmEgLWVhIHN0dWR5LWd1aWRlcy9sb2NhbC1wcm9qZWN0LW5vdGVzL2FkdmFuY2VkLXRyZWVzL2phdmEvVHJlZU1pc3Rha2VDb250cmFjdHMuamF2YQpgYGAKCkV4cGVjdGVkIHJlc3VsdDoKCmBgYHRleHQKUEFTUyBncm91cHM9MjAgdHJpYWxzPTIwMDAwIGNoZWNrcz04MDAwMApgYGAKCiMjIFJlZmVyZW5jZXMgYW5kIHByb3ZlbmFuY2UKCi0gT3JhY2xlLCBbSmF2YSBTRSAyNSBgUHJpb3JpdHlRdWV1ZWBdKGh0dHBzOi8vZG9jcy5vcmFjbGUuY29tL2VuL2phdmEvamF2YXNlLzI1L2RvY3MvYXBpL2phdmEuYmFzZS9qYXZhL3V0aWwvUHJpb3JpdHlRdWV1ZS5odG1sKSDigJQgaGVhZCBvcGVyYXRpb25zIGV4cG9zZSBwcmlvcml0eSBvcmRlcjsgaXRlcmF0b3IgYW5kIHNwbGl0ZXJhdG9yIG9yZGVyIGlzIHVuc3BlY2lmaWVkLgotIFBvc3RncmVTUUwgMTksIFtCLVRyZWUgSW5kZXhlc10oaHR0cHM6Ly93d3cucG9zdGdyZXNxbC5vcmcvZG9jcy9jdXJyZW50L2J0cmVlLmh0bWwpIOKAlCBjdXJyZW50IGludGVybmFsLXBhZ2Ugcm91dGluZyBhbmQgbGVhZi1wYWdlIHRhYmxlLXJvdyBwb2ludGVyIHJvbGVzLgotIEcuIE0uIEFkZWwnc29uLVZlbCdza2lpIGFuZCBFLiBNLiBMYW5kaXMsIFvigJxBbiBhbGdvcml0aG0gZm9yIG9yZ2FuaXphdGlvbiBvZiBpbmZvcm1hdGlvbuKAnV0oaHR0cHM6Ly93d3cubWF0aG5ldC5ydS9waHAvYXJjaGl2ZS5waHRtbD9qcm5pZD1kYW4mb3B0aW9uX2xhbmc9ZW5nJnBhcGVyaWQ9MjY5NjQmd3Nob3c9cGFwZXIpLCAxOTYyIOKAlCBvcmlnaW5hbCBoZWlnaHQtYmFsYW5jZWQgc2VhcmNoLXRyZWUgd29yay4KLSBMZW8gSi4gR3VpYmFzIGFuZCBSb2JlcnQgU2VkZ2V3aWNrLCBb4oCcQSBEaWNocm9tYXRpYyBGcmFtZXdvcmsgZm9yIEJhbGFuY2VkIFRyZWVz4oCdXShodHRwczovL2RvaS5vcmcvMTAuMTEwOS9TRkNTLjE5NzguMyksIDE5Nzgg4oCUIGNvbG9yLWJhc2VkIGludmFyaWFudHMgYW5kIGJhbGFuY2VkLXRyZWUgcmVwYWlyIGZyYW1ld29yay4KLSBSdWRvbGYgQmF5ZXIgYW5kIEVkd2FyZCBNY0NyZWlnaHQsIFvigJxPcmdhbml6YXRpb24gYW5kIE1haW50ZW5hbmNlIG9mIExhcmdlIE9yZGVyZWQgSW5kZXhlc+KAnV0oaHR0cHM6Ly9kb2kub3JnLzEwLjEwMDcvQkYwMDI4ODY4MyksIDE5NzIg4oCUIG9yaWdpbmFsIEItdHJlZSBwYWdlIG9yZ2FuaXphdGlvbiBhbmQgbG9nYXJpdGhtaWMgbWFpbnRlbmFuY2UgYW5hbHlzaXMuCi0gUGV0ZXIgTS4gRmVud2ljaywgW+KAnEEgTmV3IERhdGEgU3RydWN0dXJlIGZvciBDdW11bGF0aXZlIEZyZXF1ZW5jeSBUYWJsZXPigJ1dKGh0dHBzOi8vZG9pLm9yZy8xMC4xMDAyL1NQRS40MzgwMjQwMzA2KSwgMTk5NCDigJQgYmluYXJ5IGluZGV4ZWQgdHJlZSBkZWNvbXBvc2l0aW9uIGFuZCBsb2dhcml0aG1pYyBwcmVmaXgvdXBkYXRlIHRyYXZlcnNhbC4KClNvdXJjZSBpbnRha2U6CgotIFNlbGVjdGVkIGBBZHZhbmNlZF9UcmVlc19GQUFOR19NZXJtYWlkX1N0dWR5X0d1aWRlLm1kYCwgTGlicmFyeSBmaWxlIGBsaWJmaWxlXzczNDZhYmYyM2EzYzgxOTE4ODQzYzlhOWY1YjVkODBmYCwgNjgsNzc1IGJ5dGVzLCBTSEEtMjU2IGA4NmNiNjVmM2Q2ZDBmMzI3ZTVkMjJjMDNiNWQ1ODcxNDRlYjExY2M5ZmYyN2E1YjUyM2IyOThiMDlhZDdmNWIxYC4gVGhpcyBwYXNzIHByb21vdGVzIG9ubHkgU2VjdGlvbiAxMyBhdCBsaW5lcyAxMzE34oCTMTMzMiwgYm91bmRlZCBiZWZvcmUgdGhlIFNlY3Rpb24gMTQgYW5jaG9yLgotIENvbXBhcmVkIGBUcmVlX0FkdmFuY2VkX0ZBQU5HX1N0dWR5X0d1aWRlLmRvY3hgLCBMaWJyYXJ5IGZpbGUgYGxpYmZpbGVfYjcxZjI3YzgwZDRjODE5MThjNjcyMzAzYWRkNmJmYjVgLCAyMjcsNzQ4IGJ5dGVzLCBTSEEtMjU2IGBmYjFkYzZmN2Q5OTkwYzA0NjkxYTY5ZTIzNDVkYWM1ZTZhMDhmM2QzNjQ0OGUwZTljM2E2N2I5NmI1NWVlNThmYC4gQSBmcmVzaCBQYW5kb2MgR0ZNIGNvbnZlcnNpb24gcGxhY2VzIHRoZSBtYXRjaGluZyBTZWN0aW9uIDEzIHRhYmxlIGF0IGxpbmVzIDE5MjnigJMxOTQ1LCBib3VuZGVkIGJlZm9yZSBTZWN0aW9uIDE0OyB0aGUgb2xkZXIgcXVldWUgcmFuZ2UgYDE3OTLigJMxODA3YCBwb2ludGVkIGludG8gU2VjdGlvbiAxMiBhbmQgaXMgY29ycmVjdGVkIGJ5IHRoaXMgcGFzcy4KLSBUaGUgZWFybGllciBicm9hZCBgYWR2YW5jZWRfdHJlZXNfaW50ZXJ2aWV3X2d1aWRlLm1kYCBhbmQgZm9jdXNlZCBTZWN0aW9ucyAz4oCTMTIgcmVtYWluIGNvbXBhcmlzb24vY2Fub25pY2FsIG1hdGVyaWFsLiBUaGlzIGd1aWRlIGNvbnNvbGlkYXRlcyB0aGUgZGlzdGluY3QgdHJhcCBjaGVja2xpc3QgYW5kIGRvZXMgbm90IGR1cGxpY2F0ZSB0aGVpciBmdWxsIGltcGxlbWVudGF0aW9ucy4KClRoZSByZXF1aXJlbWVudCB0YWJsZSwgZm91ciB3b3JrZWQgcmVwYWlyIHRyYWNlcywgc2V2ZW4gZGlhZ3JhbXMsIGV4ZWN1dGFibGUgY29udHJhY3QgYW5kIHJhbmRvbWl6ZWQgb3JhY2xlcyBhcmUgbmV3bHkgYXV0aG9yZWQgdGVhY2hpbmcgbWF0ZXJpYWwuIFNvdXJjZSBTZWN0aW9ucyAxNOKAkzE1IGFuZCB0aGUgd2lkZXIgMTcwLXBsYWNlaG9sZGVyIGJhY2tsb2cgcmVtYWluIGluY29tcGxldGUuCg==</script>
+<script id="search-index" type="application/json">[{"level": "1", "id": "advanced-trees--common-mistakes-and-interview-traps", "title": "Advanced Trees — Common Mistakes and Interview Traps", "text": "Incremental status: this guide promotes source Section 13, “Common Mistakes & Interview Traps,” at selected Markdown lines 1317–1332 and corroborating DOCX Pandoc lines 1929–1945. Sections 14–15 remain queued."}, {"level": "2", "id": "contents", "title": "Contents", "text": "- Requirement contract requirement-contract - Example 1 — repair the invariant, not the symptom example-1--repair-the-invariant-not-the-symptom - Example 2 — split routing from record ownership example-2--split-routing-from-record-ownership - Example 3 — distinguish structural order from query semantics example-3--distinguish-structural-order-from-query-semantics - Example 4 — make deferred range state explicit example-4--make-deferred-range-state-explicit - Executable mistake contracts executable-mistake-contracts - References and provenance references-and-provenance"}, {"level": "2", "id": "requirement-contract", "title": "Requirement contract", "text": "The twelve source traps share one failure pattern: code relies on a local shape while the data structure promises a global invariant or a different public operation. Diagnose the promised observation first, then identify the state that is sufficient to prove it. Structure Promise to the caller State the implementation must preserve Typical invalid shortcut --- --- --- --- strict BST every inorder key is strictly increasing all ancestor bounds compare only parent and child AVL BST order and balance factor in -1,1 child heights after structural movement use the deleted key to select a case red-black tree BST order, black root, no red-red edge, equal black height color plus local shape, normalized through the root memorize cases without checking invariants B-tree bounded page occupancy during every descent child occupancy before recursion descend into a full child B+ tree internal routing; records and ordered scan at leaves separator/record role and leaf links treat a separator as a full record heap extremum at the root parent-child priority assume the backing array is sorted trie prefix reachability and exact word membership are distinct terminal bit at the final node return true for every reachable prefix segment tree aggregate over a declared interval interval length and aggregate operator add a range delta only once lazy propagation deferred update is applied exactly once per descendant tag ownership before and after push copy a tag downward but leave it at the parent Fenwick tree prefix sums over a documented API index convention one conversion boundary plus lowbit traversal mix zero-based and one-based loops mermaid flowchart TD A Name the public promise -- B Write the global invariant B -- C Identify sufficient state C -- D Trace ownership before mutation D -- E Apply repair E -- F Recheck invariant and boundary The repair is not “add another if .” It is to restore the proof obligation. That framing keeps the same reasoning valid across insertion, deletion, range updates and read-only queries."}, {"level": "2", "id": "example-1--repair-the-invariant-not-the-symptom", "title": "Example 1 — repair the invariant, not the symptom", "text": "This tree passes every direct parent-child comparison but is not a strict BST: text 10 / \\ 5 15 / 6 The node 6 is below its parent 15 , yet it violates the lower bound inherited from ancestor 10 . mermaid flowchart TD A 10 accepts unbounded interval -- B 5 receives less than 10 A -- C 15 receives greater than 10 C -- D 6 receives greater than 10 and less than 15 D -- E Reject because 6 is not greater than 10 java static boolean inside Node node, long lowExclusive, long highExclusive { if node == null return true; if node.key <= lowExclusive node.key = highExclusive return false; return inside node.left, lowExclusive, node.key && inside node.right, node.key, highExclusive ; } Visit Local parent test Inherited interval Correct decision ---: --- --- --- 10 root -∞,+∞ accept 15 15 10 10,+∞ accept 6 6 < 15 10,15 reject AVL deletion has the same diagnosis rule. After deletion, the deleted key no longer identifies which grandchild is heavy. Recompute balance from the surviving children: Unbalanced node Heavy child balance Repair ---: ---: --- +2 = 0 single right rotation +2 < 0 left child left, then parent right -2 <= 0 single left rotation -2 0 right child right, then parent left mermaid flowchart TD A{Root balance} -- greater than 1 B{Left child balance} A -- less than -1 C{Right child balance} B -- nonnegative D Right rotation B -- negative E Left-right rotation C -- nonpositive F Left rotation C -- positive G Right-left rotation After a rotation, update the node moved downward before the new local root; the new root's height depends on the moved-down node's repaired height. For a red-black tree, finish the top-level update by forcing the root black. That does not replace the red-red and black-height repairs—it closes the root-specific invariant after them. Correctness comes from carrying the information the invariant quantifies over: ancestor intervals for BST order and surviving subtree heights/colors for balancing. A key that was deleted is not part of the post-state and cannot be a reliable repair witness."}, {"level": "2", "id": "example-2--split-routing-from-record-ownership", "title": "Example 2 — split routing from record ownership", "text": "For a B-tree with maximum five keys per node, suppose the root contains 20,40 and the middle child is full: text root: 20 40 middle child: 22 25 30 35 38 insert: 33 Descending first would ask an already-full child to accept a sixth key. Top-down insertion instead splits the full child before recursion, promotes the median separator, and then chooses one non-full side. mermaid flowchart TD A Parent chooses child -- B{Child is full?} B -- No C Descend B -- Yes D Split child and promote separator D -- E Compare key with promoted separator E -- C One possible split trace for minimum degree t = 3 : State Parent separators Candidate children Decision for 33 --- --- --- --- before split 20,40 middle 22,25,30,35,38 full do not descend after split 20,30,40 22,25 , 35,38 choose interval 30,40 after leaf insert 20,30,40 right half 33,35,38 occupancy remains legal The exact promoted key and occupancy bounds depend on the declared B-tree convention; this guide uses minimum degree t , where a full node has 2t-1 keys. State that convention before the dry run. A B+ tree separates another pair of roles: mermaid flowchart TD A Internal page separator -- B Choose child page B -- C Leaf page C -- D Record pointer or row identifier C -- E Next leaf link for range scan Internal separators are routing evidence. Leaf entries own the indexed record references. A separator may repeat a boundary key, but it is not by itself an extra full record. Current PostgreSQL documentation makes the same structural distinction: internal tuples point to the next level, while leaf tuples point to table rows. The B-tree proof is inductive: recursion begins only in a non-full child, so the leaf insertion has capacity; a split can add one separator to the current parent, whose capacity was guaranteed by the caller. The B+ role split preserves lookup and range-scan semantics because routing ends at the leaf level where records and sibling links live."}, {"level": "2", "id": "example-3--distinguish-structural-order-from-query-semantics", "title": "Example 3 — distinguish structural order from query semantics", "text": "A min-heap array such as 1,4,2,9,7,5 satisfies parent <= child , but it is not globally sorted: 4 appears before 2 , and 9 before 7 . Operation Guaranteed result Not guaranteed --- --- --- peek one minimum element second-smallest element poll repeatedly nondecreasing sequence preservation of the original queue iterator/backing-array scan every stored element priority order java static List<Integer sortedDrain PriorityQueue<Integer queue { PriorityQueue<Integer ownedCopy = new PriorityQueue< queue ; List<Integer ordered = new ArrayList< ; while !ownedCopy.isEmpty ordered.add ownedCopy.remove ; return List.copyOf ordered ; } Oracle Java SE 25 explicitly states that PriorityQueue iteration has no particular order. Repeated removal is the queue operation that exposes priority order. Copy first when the caller retains ownership of the original queue. A trie has a parallel semantic distinction. After inserting tree , nodes for t , tr and tre exist, so all are prefixes; only the final tree node is terminal. mermaid flowchart LR A root -- B t B -- C r C -- D e D -- E e terminal Query Traversal ends at Terminal? Result --- --- ---: --- startsWith \"tr\" r node no true contains \"tr\" r node no false contains \"tree\" final e node yes true contains \"trip\" missing i edge n/a false Heap shape answers “which item has highest priority next?” Trie reachability answers “is this path present?” Neither promise silently expands into sorted enumeration or complete-word membership. The public method must name and enforce the intended observation."}, {"level": "2", "id": "example-4--make-deferred-range-state-explicit", "title": "Example 4 — make deferred range state explicit", "text": "For a range-sum segment tree, adding +3 to a fully covered segment of length four changes the stored sum by 12 , not 3 : text before: 2, 1, 4, 3 sum = 10 after: 5, 4, 7, 6 sum = 22 java static long applyRangeSum long sum, long delta, int length { if length <= 0 throw new IllegalArgumentException ; return Math.addExact sum, Math.multiplyExact delta, length ; } A lazy tag means “this update belongs to the descendants but has not yet been materialized there.” Pushing transfers that ownership once: mermaid flowchart TD A Parent owns pending plus 5 -- B Add 5 to left tag A -- C Add 5 to right tag B -- D Clear parent tag to zero C -- D State Parent tag Left tag Right tag --- ---: ---: ---: before push 5 2 -1 after transfer 0 7 4 erroneous second push if parent were not cleared 5 12 9 Fenwick trees need an equally explicit index boundary. Offer a zero-based public API if that is natural for Java arrays, but convert exactly once to the one-based internal representation: java void addAtZeroBased int index, long delta { for int i = index + 1; i < tree.length; i += i & -i { tree i += delta; } } long prefixThroughZeroBased int index { long sum = 0; for int i = index + 1; i 0; i -= i & -i sum += tree i ; return sum; } For an array of length five, public index 0 maps to internal index 1 ; public index 4 maps to 5 . Validate the public index before conversion. Allowing -1 only as the documented empty-prefix query is safe; allowing 0 into a one-based update loop is not, because lowbit 0 = 0 and progress stops. The range-update proof is conservation of ownership. The aggregate immediately reflects the whole covered interval, while the lazy tag records exactly one deferred child update. Push moves that obligation to both children and clears the parent. The Fenwick proof is partitioned-prefix coverage: subtracting lowbit visits disjoint buckets whose union is the requested prefix."}, {"level": "2", "id": "executable-mistake-contracts", "title": "Executable mistake contracts", "text": "TreeMistakeContracts.java java/TreeMistakeContracts.java encodes the four repair families and all twelve source traps: ancestor-bound BST validation; AVL post-state classification; red-black root normalization; B-tree pre-split and B+ role separation; heap ordered drain; trie terminal membership; length-aware segment aggregation; one-time lazy transfer; and a zero-based Fenwick API over one-based internals. Twenty deterministic groups cover explicit boundary and failure cases. Then 20,000 seeded trials perform 80,000 independent checks across ancestor traps, AVL rotation classification, repeated-versus-multiplied range updates and Fenwick prefixes. bash java -ea study-guides/local-project-notes/advanced-trees/java/TreeMistakeContracts.java Expected result: text PASS groups=20 trials=20000 checks=80000"}, {"level": "2", "id": "references-and-provenance", "title": "References and provenance", "text": "- Oracle, Java SE 25 PriorityQueue https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/PriorityQueue.html — head operations expose priority order; iterator and spliterator order is unspecified. - PostgreSQL 19, B-Tree Indexes https://www.postgresql.org/docs/current/btree.html — current internal-page routing and leaf-page table-row pointer roles. - G. M. Adel'son-Vel'skii and E. M. Landis, “An algorithm for organization of information” https://www.mathnet.ru/php/archive.phtml?jrnid=dan&option lang=eng&paperid=26964&wshow=paper , 1962 — original height-balanced search-tree work. - Leo J. Guibas and Robert Sedgewick, “A Dichromatic Framework for Balanced Trees” https://doi.org/10.1109/SFCS.1978.3 , 1978 — color-based invariants and balanced-tree repair framework. - Rudolf Bayer and Edward McCreight, “Organization and Maintenance of Large Ordered Indexes” https://doi.org/10.1007/BF00288683 , 1972 — original B-tree page organization and logarithmic maintenance analysis. - Peter M. Fenwick, “A New Data Structure for Cumulative Frequency Tables” https://doi.org/10.1002/SPE.4380240306 , 1994 — binary indexed tree decomposition and logarithmic prefix/update traversal. Source intake: - Selected Advanced Trees FAANG Mermaid Study Guide.md , Library file libfile 7346abf23a3c81918843c9a9f5b5d80f , 68,775 bytes, SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1 . This pass promotes only Section 13 at lines 1317–1332, bounded before the Section 14 anchor. - Compared Tree Advanced FAANG Study Guide.docx , Library file libfile b71f27c80d4c81918c672303add6bfb5 , 227,748 bytes, SHA-256 fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f . A fresh Pandoc GFM conversion places the matching Section 13 table at lines 1929–1945, bounded before Section 14; the older queue range 1792–1807 pointed into Section 12 and is corrected by this pass. - The earlier broad advanced trees interview guide.md and focused Sections 3–12 remain comparison/canonical material. This guide consolidates the distinct trap checklist and does not duplicate their full implementations. The requirement table, four worked repair traces, seven diagrams, executable contract and randomized oracles are newly authored teaching material. Source Sections 14–15 and the wider 170-placeholder backlog remain incomplete."}]</script>
+<script>
+const input=document.querySelector('#guide-search'),results=document.querySelector('#results'),status=document.querySelector('#search-status');
+const index=JSON.parse(document.querySelector('#search-index').textContent);
+function escapeHtml(value){return value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function search(){const q=input.value.trim().toLocaleLowerCase();results.replaceChildren();if(!q){status.textContent='Type to search headings and section text.';return;}const matches=index.filter(x=>(x.title+' '+x.text).toLocaleLowerCase().includes(q)).slice(0,30);status.textContent=matches.length?`${matches.length} matching sections (first 30 max).`:'No matching section.';for(const item of matches){const li=document.createElement('li'),a=document.createElement('a');a.href='#'+item.id;a.innerHTML=escapeHtml(item.title);li.append(a);results.append(li);}}
+input.addEventListener('input',search);input.addEventListener('keydown',event=>{if(event.key==='Enter'&&results.firstElementChild)results.querySelector('a').click();});
+</script>
+<script type="module">
+try{const{default:mermaid}=await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');document.querySelectorAll('pre.mermaid').forEach(pre=>{const div=document.createElement('div');div.className='mermaid';div.textContent=pre.textContent;pre.replaceWith(div);});mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'neutral'});await mermaid.run({querySelector:'.mermaid'});}catch(error){console.warn('Mermaid unavailable; source diagrams remain readable.',error);}
+</script>
+</body>
+</html>
