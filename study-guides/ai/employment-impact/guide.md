@@ -1,6 +1,6 @@
 # AI Employment Impact — Reading Evidence Without Headline Errors
 
-> **Incremental status:** Source Sections 1–8 are promoted from lines 16–177. Sections 9–10 remain queued. The source's scenario ranges, occupational-pressure list, relative-resistance factors, career strategy, entry-level vulnerability statement and downside conditions are retained as attributed analysis, not presented here as consensus forecasts.
+> **Incremental status:** Source Sections 1–9 are promoted from lines 16–189. Section 10 remains queued. The source's scenario ranges, occupational-pressure list, relative-resistance factors, career strategy, entry-level vulnerability statement, downside conditions and downward-revision conditions are retained as attributed analysis, not presented here as consensus forecasts.
 
 ## Contents
 
@@ -62,6 +62,13 @@
   - [Example 3 — inexpensive models do not imply inexpensive delegation](#example-3--inexpensive-models-do-not-imply-inexpensive-delegation)
   - [Example 4 — productivity reduces labor only when demand fails to absorb it](#example-4--productivity-reduces-labor-only-when-demand-fails-to-absorb-it)
   - [Executable downside-scenario contracts](#executable-downside-scenario-contracts)
+- [9. What could make the forecast too pessimistic](#9-what-could-make-the-forecast-too-pessimistic)
+  - [Downward-revision contract](#downward-revision-contract)
+  - [Example 1 — human plus AI can beat either one alone](#example-1--human-plus-ai-can-beat-either-one-alone)
+  - [Example 2 — required human authority preserves consequential work](#example-2--required-human-authority-preserves-consequential-work)
+  - [Example 3 — lower prices can create enough demand to offset productivity](#example-3--lower-prices-can-create-enough-demand-to-offset-productivity)
+  - [Example 4 — slow diffusion and new work can absorb gross displacement](#example-4--slow-diffusion-and-new-work-can-absorb-gross-displacement)
+  - [Executable pessimism-scenario contracts](#executable-pessimism-scenario-contracts)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Why the headline numbers conflict
@@ -1480,6 +1487,210 @@ Expected result:
 PASS groups=20 trials=20000 checks=80000
 ```
 
+## 9. What could make the forecast too pessimistic
+
+The source says the 30–80 million 2030 planning range could be too high if reliability still requires review, human–AI teams outperform autonomous systems, regulation or liability retains human sign-off, lower costs create new demand, new occupations absorb workers, or adoption takes longer than expected. These are **downward-revision mechanisms**, not proof that displacement disappears. Each mechanism must be measured at the same geography, unit and horizon as the forecast it revises.
+
+```mermaid
+flowchart TD
+  A[Gross displacement scenario] --> B{Reliable without review?}
+  B -->|No| C[Retained review and exception work]
+  B -->|Yes| D{Autonomy beats human plus AI?}
+  D -->|No| E[Complementary team design]
+  D -->|Yes| F[Higher automation pressure]
+  C --> G{Demand and new work absorb transitions?}
+  E --> G
+  F --> G
+  G -->|Yes| H[Revise net loss downward]
+  G -->|No| I[Retain gross downside]
+```
+
+The update direction matters. Evidence that review is still necessary can reduce an autonomy-based displacement estimate, but it does not show that the same number or mix of workers remains. Evidence of new jobs can offset gross losses in a net ledger, but it does not make worker transitions costless or prove that displaced people can fill the new roles.
+
+### Downward-revision contract
+
+For each proposed revision, record:
+
+| Field | Required question | Valid evidence | Invalid shortcut |
+|---|---|---|---|
+| baseline scenario | which gross or net estimate is being revised? | named metric, unit, geography and horizon | “the forecast” without identity |
+| mechanism | reliability, complementarity, authority, demand, absorption or diffusion? | one bounded causal or descriptive channel | treating all optimism as one factor |
+| counterfactual | compared with autonomous AI, no AI or the current workflow? | explicit comparator and assignment/design | comparing unlike baselines |
+| outcome | accepted output, labor hours, headcount, openings or adoption? | numerator, denominator and time window | quality score equals jobs |
+| retained work | review, exception, accountability, relationship or physical execution? | task inventory and measured load | “human in the loop” with no work count |
+| demand response | did lower cost expand quantity, quality or product variety? | price, output and elasticity evidence | productivity automatically creates demand |
+| worker absorption | can workers move into the new work, when and at what cost? | skills, geography, wages, training and transition time | gross creation equals painless transition |
+| diffusion | what share of firms, functions, workers and tasks adopted? | observed adoption path | exposure equals immediate economy-wide use |
+| uncertainty | what would falsify the revision? | confidence interval, sensitivity or scenario bounds | one favorable case proves neutrality |
+
+```mermaid
+flowchart LR
+  A[Capability evidence] --> B[Work design]
+  B --> C[Accepted output]
+  C --> D[Demand response]
+  D --> E[Gross job flows]
+  E --> F[Worker transitions]
+  F --> G[Net employment]
+```
+
+A study can support one arrow without identifying the rest. The revision must stop at the last measured outcome.
+
+### Example 1 — human plus AI can beat either one alone
+
+Harvard's preregistered BCG experiment assigned 758 consultants to no-AI, GPT-4, or GPT-4-plus-guidance conditions. Across 18 tasks inside the tested capability frontier, AI users completed 12.2% more tasks, worked 25.1% faster and produced higher-quality results. On a selected task outside that frontier, AI users were 19% less likely to reach the correct answer. The lesson is heterogeneity: assistance can raise accepted throughput while uncritical reliance can reduce correctness.
+
+Use **accepted outputs per hour**, not raw attempts, as a minimal team metric:
+
+`accepted outputs/hour = attempts/hour × completion rate × acceptance rate`.
+
+| Workflow | Attempts/hour | Completion | Accepted quality | Accepted outputs/hour |
+|---|---:|---:|---:|---:|
+| human baseline | 6 | 100% | 90% | `6 × 1.00 × 0.90 = 5.40` |
+| fast AI-only | 12 | 100% | 40% | `12 × 1.00 × 0.40 = 4.80` |
+| human + AI | 10 | 95% | 85% | `10 × 0.95 × 0.85 = 8.08` |
+
+These figures are illustrative, not the BCG results. They show why speed alone is insufficient and why review can be economically productive rather than mere friction.
+
+```mermaid
+sequenceDiagram
+  participant H as Human owner
+  participant A as AI assistant
+  participant V as Validator
+  H->>A: Delegate bounded draft or analysis
+  A-->>H: Candidate plus evidence
+  H->>V: Test critical assumptions and quality
+  V-->>H: Accept, repair or reject
+  H->>H: Own final decision and exception
+```
+
+NBER's customer-support study supplies a different setting: staggered access for 5,179 agents increased issues resolved per hour by 14% on average, with a 34% gain for novice and lower-skilled workers and little effect for the most experienced workers. That is evidence of assistance and heterogeneous learning in one deployed environment. It does not estimate the long-run staffing response, and it should not be pooled numerically with the consultant experiment.
+
+Trace the safe inference:
+
+1. Define the task frontier and accepted-quality threshold.
+2. Compare human-only, AI-assisted and—if actually deployed—AI-only configurations.
+3. Count review and repair time inside the assisted workflow.
+4. Segment results by task and worker experience.
+5. Revise displacement only for work where complementary labor remains economically useful.
+
+### Example 2 — required human authority preserves consequential work
+
+The EU AI Act's Article 14 requires high-risk systems to be designed so natural persons can effectively oversee them during use. Oversight measures must be commensurate with risk, autonomy and context, and assigned people must be able to understand limitations, monitor anomalies, avoid automation bias, interpret outputs and intervene. This is a concrete authority boundary, not a universal requirement that every AI output receive a manual click.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Proposed
+  Proposed --> Reviewed: consequential action
+  Reviewed --> Approved: within authority
+  Reviewed --> Rejected: unsafe or unsupported
+  Reviewed --> Escalated: exception or conflict
+  Escalated --> Approved: accountable resolution
+  Approved --> Executed
+  Executed --> Reconciled
+  Reconciled --> [*]
+```
+
+Retained-human-work trace for a high-risk decision:
+
+| Step | System contribution | Human contribution | Labor implication |
+|---|---|---|---|
+| prepare | assemble evidence and propose decision | define policy and verify source scope | preparation may shrink |
+| review | flag uncertainty and policy conflicts | interpret, challenge and detect automation bias | review remains |
+| authorize | present action packet | exercise legal/organizational authority | sign-off remains |
+| exception | route unsupported cases | resolve context and competing duties | exception work remains |
+| reconcile | record outcome | own appeal, correction and accountability | post-decision work remains |
+
+This can make a forecast too pessimistic when it assumed the whole job disappears after model competence. It can also change the occupation: fewer routine preparers, more reviewers or exception owners. Regulation is therefore a task-allocation input, not a one-for-one employment guarantee.
+
+### Example 3 — lower prices can create enough demand to offset productivity
+
+Suppose automation raises productivity by 25% and the savings reduce the delivered price by 20%. Under a constant-elasticity teaching model, quantity demand changes by:
+
+`demand multiplier = (1 - price reduction)^(-elasticity)`.
+
+| Demand elasticity | Demand multiplier after 20% price reduction | Labor factor after 25% productivity growth |
+|---:|---:|---:|
+| 0.5 | `0.8^-0.5 = 1.118` | `1.118 / 1.25 = 0.894` |
+| 1.0 | `0.8^-1.0 = 1.250` | `1.250 / 1.25 = 1.000` |
+| 1.5 | `0.8^-1.5 = 1.398` | `1.398 / 1.25 = 1.118` |
+
+With weak demand response, labor falls in the toy model. At unit elasticity it is unchanged; with a strong response it rises. This is not an estimate of AI demand elasticity. It exposes the threshold a forecast must justify.
+
+```mermaid
+flowchart TD
+  A[Higher productivity] --> B[Lower cost or better quality]
+  B --> C[Lower price, new features or new product]
+  C --> D{Quantity and variety response}
+  D -->|Weak| E[Labor demand falls]
+  D -->|Matches productivity| F[Labor demand stable]
+  D -->|Strong| G[Labor demand rises]
+```
+
+The calculation assumes full price pass-through, constant elasticity, no capacity bottleneck and unchanged hours per worker. A real revision needs observed price, quantity, service quality and labor inputs. BLS explicitly models final demand, industry output, productivity and occupational employment in linked stages; that structure is why productivity alone cannot settle the job count.
+
+### Example 4 — slow diffusion and new work can absorb gross displacement
+
+Exposure is an upper boundary; realized displacement requires adoption and actual labor removal. An illustrative decomposition is:
+
+`realized displacement share = exposed task share × adoption share × removal share`.
+
+If 60% of tasks are exposed, 20% of the relevant workflow has adopted, and half of adopted task volume removes labor rather than augmenting it, the realized share is:
+
+`0.60 × 0.20 × 0.50 = 0.06`, or **6% of task volume** in the defined frame.
+
+Do not relabel 6% of task volume as 6% of jobs. The trace only shows how timing and implementation can shrink a near-term realization relative to an exposure ceiling.
+
+```mermaid
+flowchart LR
+  A[Exposed tasks] --> B[Adopting firms]
+  B --> C[Adopting functions]
+  C --> D[Workers using AI]
+  D --> E[Tasks with labor removal]
+  E --> F[Gross displacement]
+  G[New demand and occupations] --> H[Gross creation]
+  F --> I[Net ledger]
+  H --> I
+```
+
+Census's nationally representative 2026 BTOS supplement found that 18% of firms used AI in a business function during November 2025–January 2026, 32% when weighted by employment, and 57% of adopters used it in three or fewer functions. The New York Fed's August 2026 regional surveys found much broader firm-level use in its region—61% of service firms and 51% of manufacturers—but median worker use was only 17% and 7%, respectively; retraining was the main workforce response and layoffs remained uncommon. Different populations and question wording explain why the percentages must not be merged.
+
+New-work absorption requires a separate gross ledger. The World Economic Forum's multi-driver employer scenario projects 170 million jobs created and 92 million displaced through 2030, a net `+78 million`. That does not isolate AI and does not prove displaced workers enter the created roles. It demonstrates the arithmetic a net-loss forecast must include:
+
+1. measure gross displacement and gross creation in the same unit, population and horizon;
+2. identify skill, wage and geography mismatch;
+3. model training and transition time rather than instant reassignment;
+4. retain distributional loss even when the aggregate net is positive.
+
+Slow adoption, complementary work, retained authority, demand rebound and new occupations are independent revision channels. Evidence for any one can lower the matching part of a displacement scenario; none supports the blanket claim that technological change creates enough jobs automatically.
+
+### Executable pessimism-scenario contracts
+
+[`PessimismScenarioContracts.java`](PessimismScenarioContracts.java) makes the four traces executable. It calculates accepted output rather than raw speed, keeps demand elasticity explicit, decomposes exposure into realized task displacement, preserves the gross-creation/gross-displacement ledger and refuses a downward revision when horizon or unit is mismatched.
+
+```java
+static double realizedDisplacementShare(
+        double exposedTaskShare, double adoptionShare, double removalShare) {
+    return exposedTaskShare * adoptionShare * removalShare;
+}
+
+static boolean supportsDownwardRevision(RevisionPacket packet) {
+    return packet.matchedHorizonAndUnit()
+            && downwardRevisionSignals(packet) > 0;
+}
+```
+
+Twenty deterministic groups cover accepted-throughput arithmetic, two rebound-demand cases, the 6% adoption trace, the WEF gross ledger, invalid inputs and matched-frame revision signals. Then 20,000 seeded trials run 80,000 checks across output bounds, exposure ceilings, nonnegative demand multipliers and exact signal counts.
+
+```bash
+java -ea study-guides/ai/employment-impact/PessimismScenarioContracts.java
+```
+
+Expected result:
+
+```text
+PASS groups=20 trials=20000 checks=80000
+```
+
 ## References and provenance
 
 - [World Economic Forum, *Future of Jobs Report 2025*](https://www.weforum.org/publications/the-future-of-jobs-report-2025/) — survey frame, multiple structural drivers, 170 million created, 92 million displaced and 78 million net growth through 2030.
@@ -1511,9 +1722,14 @@ PASS groups=20 trials=20000 checks=80000
 - [NIST, *Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile*](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence) — July 26, 2024 application-context risk management, confabulation and consequential-decision boundaries.
 - [U.S. Census Bureau, *AI Use Among U.S. Businesses*](https://www2.census.gov/ces/wp/2026/CES-WP-26-25R.pdf) and [BTOS data release](https://www.census.gov/newsroom/press-releases/2026/btos-june-18.html) — nationally representative November 2025–January 2026 firm-use, employment-weighted adoption and business-function breadth; descriptive diffusion evidence rather than a delegation outcome.
 - [U.S. Bureau of Labor Statistics, *Employment Projections Data Overview*](https://www.bls.gov/emp/documentation/data-overview.htm) and [Employment Projections FAQ](https://www.bls.gov/emp/frequently-asked-questions.htm) — linked macro-to-occupation projection steps, target-year assumptions and uncertainty limits for the 2025–2035 projections.
+- [Dell'Acqua et al., *Navigating the Jagged Technological Frontier*](https://www.hbs.edu/ris/Publication%20Files/dell-acqua-et-al-2026-navigating-the-jagged-technological-frontier_5c589c8c-fbb5-458f-b285-c944746cd717.pdf) — March 11, 2026 published preregistered field experiment with 758 consultants, inside-frontier productivity/quality gains and outside-frontier correctness loss.
+- [Brynjolfsson, Li and Raymond, *Generative AI at Work*](https://www.nber.org/papers/w31161) — deployed customer-support-assistant study with 5,179 agents, heterogeneous productivity effects and no direct long-run staffing estimate.
+- [European Union, Regulation (EU) 2024/1689, Article 14](https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32024R1689) — risk-proportionate human oversight requirements for high-risk AI systems, including monitoring, interpretation, automation-bias awareness and intervention.
+- [Federal Reserve Bank of New York, *Businesses Are Using AI to Transform Work, Not Cut Jobs*](https://libertystreeteconomics.newyorkfed.org/2026/09/businesses-are-using-ai-to-transform-work-not-cut-jobs/) — September 1, 2026 regional adoption, worker-use, retraining, hiring and layoff evidence with explicit sample boundaries.
+- [World Economic Forum, *Future of Jobs Report 2025: Jobs Outlook*](https://www.weforum.org/publications/the-future-of-jobs-report-2025/2-jobs-outlook) — multi-driver employer-scenario gross ledger of 170 million created, 92 million displaced and 78 million net growth through 2030.
 
 Source intake:
 
-- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–8 at lines 16–177 are promoted. Sections 9–10 at lines 179–212 remain queued; the exact next bounded continuation is Section 9 at lines 179–189.
+- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–9 at lines 16–189 are promoted. Section 10 at lines 191–197 remains queued; the exact next bounded continuation is Section 10 at lines 191–197.
 
-The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, thirty-two worked traces across eight sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
+The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, thirty-six worked traces across nine sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
