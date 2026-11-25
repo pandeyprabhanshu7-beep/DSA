@@ -866,8 +866,8 @@
     }
   ],
   "next_batch": {
-    "source": "Fair-domain confirmed intake; advanced-trees continuation remains exact",
-    "section": "Re-read the current queue; when advanced trees returns, process Section 13 at selected source lines 1317-1332 / corroborating DOCX Pandoc lines 1792-1807 only",
+    "source": "Fair-domain confirmed intake; AI-employment and advanced-trees continuations remain exact",
+    "section": "Re-read the current queue; when AI employment returns, process Section 4 at source lines 99-121 only; advanced trees remains queued at Section 13, selected lines 1317-1332 / corroborating DOCX Pandoc lines 1792-1807",
     "status": "SELECTION_REQUIRED",
     "estimated_tokens": 6000,
     "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section. No weekly/hourly quota telemetry was exposed.",
@@ -993,18 +993,18 @@
     "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section; no reliable quota percentages were exposed"
   },
   "ai_employment_impact_intake_checkpoint": {
-    "last_processed_at": "2026-11-19T11:00:36-05:00",
+    "last_processed_at": "2026-11-25T03:55:37-05:00",
     "source_library_file_id": "libfile_ec5bdd926d1881918e6f8523ea1ab36a",
     "source_file_id": "file_000000007bb881f5beb88da5cea75ef0",
     "source_sha256": "32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8",
-    "canonical_markdown_sha256": "0d2e7f273a0fcd5ab2ca7c2c9d01903bceb710ad03eccb0882ee220e43ddf014",
-    "processed": "Sections 1-2 at source lines 16-83; latest bounded range is Section 2 What is actually happening so far at lines 58-83; Sections 3-10 remain queued",
+    "canonical_markdown_sha256": "791f5f54048e1de81e10787287944aed12643a3e4d235a06293800dd633a0e44",
+    "processed": "Sections 1-3 at source lines 16-98; latest bounded range is Section 3 Why I use 30-80 million as a central 2030 gross-elimination range at lines 85-98; Sections 4-10 remain queued",
     "status": "IN_PROGRESS",
-    "validation": "The confirmed Library source was refreshed and bounded to Section 2 lines 58-83. Current Yale Budget Lab, Stanford SIEPR and New York Fed evidence, including 2026 official updates, was kept within its scale and denominator. EmploymentEvidenceContracts and ObservedLaborEvidenceContracts each passed 20 deterministic groups, 20,000 seeded trials and 80,000 evidence checks under Java 21 source-file launch. Deterministic reader validation passed exact 26,064-byte Markdown recovery at SHA-256 0d2e7f273a0fcd5ab2ca7c2c9d01903bceb710ad03eccb0882ee220e43ddf014, 48 unique IDs, five search entries, 37 resolved fragments, zero relative links, 32 fence markers, ten Mermaid sources and JavaScript syntax; HTML SHA-256 is c2d883ffe09b0291a92120d37aa2700b00125949170305fbe4e103bee1307e9b. The live placeholder audit remains 170.",
-    "content_commit": "2c1446326f291999fd25d82d6cc3446aade624ba",
-    "next_section": "Re-evaluate fair-domain rotation; when this source returns, process Section 3 Why I use 30-80 million as a central 2030 gross-elimination range at lines 85-98",
+    "validation": "The confirmed Library source was refreshed unchanged and bounded to Section 3 lines 85-98. WEF, ILO, Goldman Sachs and Yale Budget Lab evidence, including the October 14, 2026 tracker update, was kept within provenance, metric, unit, population, horizon, drivers and timing boundaries. EmploymentEvidenceContracts, ObservedLaborEvidenceContracts and ScenarioRangeContracts each passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch. Deterministic reader validation passed exact 37,077-byte Markdown recovery at SHA-256 791f5f54048e1de81e10787287944aed12643a3e4d235a06293800dd633a0e44, 66 unique IDs, six search entries, 53 resolved fragments, 48 fence markers, 15 Mermaid sources and JavaScript syntax; HTML SHA-256 is 1210571b497cbd8b174bf06d3a4714408064808c68f97f6f4297a5c907679b6c. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+    "content_commit": "63c3d6be951d582719f9e68539a872c29e42180d",
+    "next_section": "Re-evaluate fair-domain rotation; when this source returns, process Section 4 The occupations I expect to take the hardest hit at lines 99-121",
     "estimated_next_tokens": 8000,
-    "estimate_method": "Heuristic reserve for one bounded Section 3 source review, primary-reference verification, synthesis-range audit, worked traces, executable contracts, reader synchronization and checkpoint overhead; no reliable account-quota telemetry was exposed"
+    "estimate_method": "Heuristic reserve for one bounded Section 4 source review, primary-reference verification, occupation-risk audit, worked traces, executable contracts, reader synchronization and checkpoint overhead; no reliable account-quota telemetry was exposed"
   },
   "advanced_trees_intake_checkpoint": {
     "last_processed_at": "2026-11-19T14:00:00-05:00",

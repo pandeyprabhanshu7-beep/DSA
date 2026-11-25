@@ -162,9 +162,9 @@
       "modified_at": "2026-09-10T23:06:32.260101Z",
       "size_bytes": 18294,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-11-19T11:00:36-05:00",
+      "last_read_at": "2026-11-25T03:55:37-05:00",
       "sha256": "32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8",
-      "selection": "Selected as the confirmed AI employment-impact source. Sections 1-2 at lines 16-83 are promoted. Section 3 begins at line 85; Sections 3-10 remain queued."
+      "selection": "Selected as the confirmed AI employment-impact source. Sections 1-3 at lines 16-98 are promoted. Section 4 begins at line 99; Sections 4-10 remain queued."
     },
     {
       "name": "Take_U_Forward_Graph_Verified_Problem_Guide_v3.md",
@@ -1124,20 +1124,21 @@
       "source_names": [
         "ai_jobs_elimination_deep_research_2026.md"
       ],
-      "last_processed_at": "2026-11-19T11:00:36-05:00",
+      "last_processed_at": "2026-11-25T03:55:37-05:00",
       "processed_sections": [
         "Section 1 Why the headline numbers conflict — source lines 16-56; seven-field evidence requirement, four worked traces, five diagrams and executable evidence contracts",
-        "Section 2 What is actually happening so far — source lines 58-83; scale/outcome/denominator contract, four worked traces, five diagrams, 2026 official updates and executable observed-labour contracts"
+        "Section 2 What is actually happening so far — source lines 58-83; scale/outcome/denominator contract, four worked traces, five diagrams, 2026 official updates and executable observed-labour contracts",
+        "Section 3 Why I use 30-80 million as a central 2030 gross-elimination range — source lines 85-98; provenance and timing contracts, four worked traces, five diagrams, 2026 official updates and executable scenario-range contracts"
       ],
-      "last_successful_commit": "2c1446326f291999fd25d82d6cc3446aade624ba",
-      "validation": "The confirmed 18,294-byte Library source was refreshed at SHA-256 32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8 and bounded to Section 2 lines 58-83. Current Yale Budget Lab, Stanford SIEPR and New York Fed primary evidence was reconciled by scale, outcome, denominator, period, design, unit and uncertainty, including official May and September 2026 updates. EmploymentEvidenceContracts and ObservedLaborEvidenceContracts each passed 20 deterministic groups, 20,000 seeded trials and 80,000 evidence checks under Java 21 source-file launch. Deterministic reader validation passed exact 26,064-byte Markdown recovery at SHA-256 0d2e7f273a0fcd5ab2ca7c2c9d01903bceb710ad03eccb0882ee220e43ddf014, 48 unique IDs, five search entries, 37 resolved fragments, zero relative links, 32 fence markers, ten Mermaid sources and JavaScript syntax; HTML SHA-256 is c2d883ffe09b0291a92120d37aa2700b00125949170305fbe4e103bee1307e9b. Content commit 2c1446326f291999fd25d82d6cc3446aade624ba. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
-      "next_action": "Re-evaluate fair-domain rotation; when AI employment impact returns, process Section 3 Why I use 30-80 million as a central 2030 gross-elimination range at source lines 85-98 only.",
+      "last_successful_commit": "63c3d6be951d582719f9e68539a872c29e42180d",
+      "validation": "The confirmed 18,294-byte Library source was refreshed unchanged at SHA-256 32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8 and bounded to Section 3 lines 85-98. WEF, ILO, Goldman Sachs and Yale Budget Lab primary evidence was reconciled by provenance, metric, unit, population, horizon, drivers and timing, including the October 14, 2026 tracker update. EmploymentEvidenceContracts, ObservedLaborEvidenceContracts and ScenarioRangeContracts each passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch. Deterministic reader validation passed exact 37,077-byte Markdown recovery at SHA-256 791f5f54048e1de81e10787287944aed12643a3e4d235a06293800dd633a0e44, 66 unique IDs, six search entries, 53 resolved fragments, 48 fence markers, 15 Mermaid sources and JavaScript syntax; HTML SHA-256 is 1210571b497cbd8b174bf06d3a4714408064808c68f97f6f4297a5c907679b6c. Content commit 63c3d6be951d582719f9e68539a872c29e42180d. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+      "next_action": "Re-evaluate fair-domain rotation; when AI employment impact returns, process Section 4 The occupations I expect to take the hardest hit at source lines 99-121 only.",
       "priority": 22,
       "source_revision": {
         "library_file_id": "libfile_ec5bdd926d1881918e6f8523ea1ab36a",
         "file_id": "file_000000007bb881f5beb88da5cea75ef0",
         "source_sha256": "32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8",
-        "canonical_markdown_sha256_after": "0d2e7f273a0fcd5ab2ca7c2c9d01903bceb710ad03eccb0882ee220e43ddf014"
+        "canonical_markdown_sha256_after": "791f5f54048e1de81e10787287944aed12643a3e4d235a06293800dd633a0e44"
       }
     },
     {
@@ -1167,7 +1168,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25 and the selected Arrays source pair are exhausted and promoted through their ends. Re-evaluate fair-domain rotation and choose the next confirmed unprocessed source or one bounded live-placeholder section; retain the wider intake and 170 placeholders.",
+    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25 and the selected Arrays source pair are exhausted. AI employment Sections 1-3 are promoted. Re-evaluate fair-domain rotation and choose the next confirmed unprocessed source or one bounded live-placeholder section; retain the wider intake and 170 placeholders.",
     "batch_policy": {
       "max_sections_per_run": 1,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1390,14 +1391,15 @@
     "AI employment impact Section 1: evidence taxonomy, seven-field claim requirement, four worked traces, five diagrams and executable evidence contracts",
     "Advanced trees Section 11 Decision Matrix: requirement-first gate, four worked traces, six diagrams and executable selector/top-K contracts",
     "AI employment impact Section 2: observed-evidence scale and denominator contract, four worked traces, five diagrams, current official updates and executable observed-labour contracts",
-    "Advanced trees Section 12 FAANG Problem Ladder: strict BST bounds, one-based inorder rank, duplicate-safe suffix counts, four worked examples, six diagrams and executable contracts"
+    "Advanced trees Section 12 FAANG Problem Ladder: strict BST bounds, one-based inorder rank, duplicate-safe suffix counts, four worked examples, six diagrams and executable contracts",
+    "AI employment impact Section 3: author-synthesis scenario range, provenance and timing contracts, four worked traces, five diagrams, current official updates and executable scenario-range contracts"
     ],
-  "processed_section": "Advanced trees Section 12 FAANG Problem Ladder, selected Markdown lines 1188-1314 / corroborating DOCX Pandoc lines 1587-1791; Sections 13-15 remain queued",
-  "validation": "Both advanced-tree sources were refreshed at SHA-256 86cb65f3d6d0f327e5d22c03b5d587144eb11cc9ff27a5b523b298b09ad7f5b1 and fb1dc6f7d9990c04691a69e2345dac5e6a08f3d36448e0e9c3a67b96b55ee58f. Java 21 source launch passed 20 groups, 20,000 seeded trials and 80,000 checks. Reader validation passed exact 12,235-byte recovery, SHA-256 a64ec0584c837694d6ed187eeaee0eda9c448bdf696ee00b210cb097a9d7d9d3, 45 unique IDs, 10 search entries, 35 fragments, one relative link, 24 fences, six Mermaid sources, JavaScript syntax and deterministic HTML SHA-256 0f809e2150e03796aeaae1db3bf70fa2cc74ffdfba8367051bb80298f1afe63b. Content commit 0b132f0c805b2b3266bd9dd94190de3109f3ff16. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
-  "estimated_next_tokens": 6000,
+  "processed_section": "AI employment impact Section 3 Why I use 30-80 million as a central 2030 gross-elimination range, source lines 85-98; Sections 4-10 remain queued",
+  "validation": "The confirmed source was refreshed unchanged at SHA-256 32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8. Java 21 source launch passed all three employment contracts at 20 groups, 20,000 seeded trials and 80,000 checks each. Reader validation passed exact 37,077-byte recovery, SHA-256 791f5f54048e1de81e10787287944aed12643a3e4d235a06293800dd633a0e44, 66 unique IDs, six search entries, 53 fragments, 48 fences, 15 Mermaid sources, JavaScript syntax and deterministic HTML SHA-256 1210571b497cbd8b174bf06d3a4714408064808c68f97f6f4297a5c907679b6c. Content commit 63c3d6be951d582719f9e68539a872c29e42180d. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
+  "estimated_next_tokens": 8000,
   "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section; no reliable account-quota telemetry was exposed.",
-  "last_successful_commit": "0b132f0c805b2b3266bd9dd94190de3109f3ff16",
-  "last_processed_at": "2026-11-19T14:00:00-05:00",
-  "next_batch_decision": "Advanced trees Section 12 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. Re-evaluate fair-domain rotation; when advanced trees returns, Section 13 at selected lines 1317-1332 / corroborating DOCX Pandoc lines 1792-1807 is the exact continuation."
+  "last_successful_commit": "63c3d6be951d582719f9e68539a872c29e42180d",
+  "last_processed_at": "2026-11-25T03:55:37-05:00",
+  "next_batch_decision": "AI employment Section 3 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. AWS/cloud rotation remained source-blocked. Re-evaluate fair-domain rotation; when AI employment returns, Section 4 at source lines 99-121 is the exact continuation."
   }
 }
