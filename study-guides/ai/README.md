@@ -8,7 +8,7 @@ Canonical study material is promoted by conceptual topic. Historical source file
 |---|---|---|---|
 | AI foundations, RAG and CAG | [guide.md](foundations-rag-cag/guide.md) | [guide.html](foundations-rag-cag/guide.html) | Promoted; ongoing deep enrichment |
 | AI platform engineering | [guide.md](platform/guide.md) | [guide.html](platform/guide.html) | Chapters 1–21 promoted; selected master exhausted |
-| AI employment impact | [guide.md](employment-impact/guide.md) | [guide.html](employment-impact/guide.html) | Sections 1–7 promoted incrementally; Sections 8–10 queued |
+| AI employment impact | [guide.md](employment-impact/guide.md) | [guide.html](employment-impact/guide.html) | Sections 1–8 promoted incrementally; Sections 9–10 queued |
 
 ## Build
 

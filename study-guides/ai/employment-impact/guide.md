@@ -1,6 +1,6 @@
 # AI Employment Impact — Reading Evidence Without Headline Errors
 
-> **Incremental status:** Source Sections 1–7 are promoted from lines 16–164. Sections 8–10 remain queued. The source's scenario ranges, occupational-pressure list, relative-resistance factors, career strategy and entry-level vulnerability statement are retained as attributed analysis, not presented here as consensus forecasts.
+> **Incremental status:** Source Sections 1–8 are promoted from lines 16–177. Sections 9–10 remain queued. The source's scenario ranges, occupational-pressure list, relative-resistance factors, career strategy, entry-level vulnerability statement and downside conditions are retained as attributed analysis, not presented here as consensus forecasts.
 
 ## Contents
 
@@ -55,6 +55,13 @@
   - [Example 3 — entry-level outcomes split instead of moving as one block](#example-3--entry-level-outcomes-split-instead-of-moving-as-one-block)
   - [Example 4 — observed task success is still short of workflow delegation](#example-4--observed-task-success-is-still-short-of-workflow-delegation)
   - [Executable evidence-against-destruction contracts](#executable-evidence-against-destruction-contracts)
+- [8. What could make the forecast much worse](#8-what-could-make-the-forecast-much-worse)
+  - [Downside-scenario contract](#downside-scenario-contract)
+  - [Example 1 — long tasks require compounded reliability](#example-1--long-tasks-require-compounded-reliability)
+  - [Example 2 — consequential workflows are governed by failure severity](#example-2--consequential-workflows-are-governed-by-failure-severity)
+  - [Example 3 — inexpensive models do not imply inexpensive delegation](#example-3--inexpensive-models-do-not-imply-inexpensive-delegation)
+  - [Example 4 — productivity reduces labor only when demand fails to absorb it](#example-4--productivity-reduces-labor-only-when-demand-fails-to-absorb-it)
+  - [Executable downside-scenario contracts](#executable-downside-scenario-contracts)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Why the headline numbers conflict
@@ -1264,6 +1271,215 @@ Expected result:
 PASS groups=20 trials=20000 checks=80000
 ```
 
+## 8. What could make the forecast much worse
+
+The source says its 30–80 million 2030 planning range could be too low if several developments arrive together: agents operate reliably across long tasks; consequential-workflow errors fall; integration becomes inexpensive; firms redesign workflows; robotics extends automation into physical work; and demand growth fails to absorb displaced labor. This is a **conjunction stress test**, not a new forecast. Each condition must be measured separately, and correlation between them must be reported rather than hidden in one probability.
+
+The most important distinction is between raw model intelligence and reliable end-to-end automation. METR's task-completion time horizon is a useful capability measure, but it is the human time required for tasks in a mostly software, machine-learning and cybersecurity suite at a stated success threshold. It is not the amount of wall-clock time an agent runs, and measurements above 16 human-hours are currently marked unreliable. The measure therefore supplies evidence about one link, not proof of unattended workplace delegation.
+
+```mermaid
+flowchart TD
+  A[Longer-task capability] --> B[Reliable end-to-end execution]
+  B --> C[Acceptable consequential risk]
+  C --> D[Affordable integration]
+  D --> E[Workflow redesign and adoption]
+  E --> F{Demand absorbs productivity?}
+  F -->|Yes| G[Output growth, redesign or new work]
+  F -->|No| H[Severe labor-demand downside]
+  I[Robotics and physical reach] --> H
+```
+
+Robotics is a scope amplifier in this diagram. It can bring more physical tasks into reach, but it does not substitute for reliability, adoption or a demand model. Likewise, weak demand absorption can turn productivity into lower labor requirements, but it cannot make an unusable system deployable.
+
+### Downside-scenario contract
+
+Before calling a downside case “plausible,” complete this packet:
+
+| Field | Required evidence | Why it matters | Invalid shortcut |
+|---|---|---|---|
+| task horizon | success curve, threshold, task suite and human-duration method | distinguishes longer-task capability from anecdotes | “worked once for hours” |
+| end-to-end reliability | complete workflow boundary, retries, recovery and correlated failures | many individually strong steps can still fail as a chain | single benchmark score |
+| consequential acceptance | failure severity, detectability, residual risk and accountable owner | regulated/customer-facing use is risk-weighted, not accuracy-only | average accuracy is sufficient |
+| integration economics | model, data, tools, identity, monitoring, support and exception costs | cheap inference may coexist with expensive deployment | token price equals automation cost |
+| organizational redesign | changed process, decision rights, training and observed adoption | a copilot in the old workflow need not remove labor | license purchase equals redesign |
+| physical reach | bounded robot tasks, environment variability, safety and utilization | identifies which physical tasks actually enter scope | lab demo equals occupation automation |
+| demand absorption | output demand, productivity, prices, substitution and new work | maps productivity into labor demand | productivity gain equals job loss |
+| comparison frame | geography, sector, horizon and outcome unit | keeps the stress test aligned with the forecast | mixing global jobs with U.S. hours |
+| dependencies | shared causes and correlated failure/adoption assumptions | prevents multiplying invented independent probabilities | opaque “combined likelihood” |
+
+```mermaid
+stateDiagram-v2
+  [*] --> Capable
+  Capable --> Checked: checkpoint
+  Checked --> Complete: verified result
+  Checked --> Recovered: retry or repair
+  Recovered --> Checked
+  Checked --> Escalated: exception or uncertainty
+  Escalated --> Complete: accountable resolution
+  Complete --> [*]
+```
+
+An unattended system must own the transitions, not merely the happy-path action. If a person still detects uncertainty, repairs state, resolves policy exceptions or authorizes consequential actions, the measured result is partial automation or augmentation unless that retained labor is explicitly counted.
+
+### Example 1 — long tasks require compounded reliability
+
+Suppose an illustrative workflow has 100 necessary steps and every step succeeds independently with probability `0.99`. Complete-run success is:
+
+`0.99^100 = 0.3660`, or about **36.6%**.
+
+| Necessary steps | Per-step success | Illustrative complete success |
+|---:|---:|---:|
+| 1 | 99% | 99.0% |
+| 10 | 99% | 90.4% |
+| 50 | 99% | 60.5% |
+| 100 | 99% | 36.6% |
+
+This is a teaching model, not an empirical forecast. Real steps are seldom independent: the same ambiguous instruction, stale data or tool outage can cause several failures together. Checkpoints and retries can improve recovery, but only if the system detects failure, preserves valid state and avoids replaying an irreversible action.
+
+Trace an eight-hour reconciliation job:
+
+1. The agent reads a bounded work queue and records an operation key.
+2. It validates identity, source version and tool permissions before mutation.
+3. After each batch it stores a checkpoint with the expected source version.
+4. A transient tool failure is retried only when the operation is replay-safe.
+5. An ambiguous mismatch enters an exception queue instead of being guessed.
+6. Completion requires reconciliation against the authoritative ledger, not a fluent summary.
+
+```mermaid
+sequenceDiagram
+  participant A as Agent
+  participant S as Source system
+  participant C as Checkpoint store
+  participant O as Accountable owner
+  A->>S: Read versioned batch
+  A->>S: Apply replay-safe operation
+  A->>C: Save version and result
+  S-->>A: Ambiguous mismatch
+  A->>O: Escalate evidence packet
+  O-->>A: Resolve or reject
+  A->>S: Reconcile final state
+```
+
+METR's horizon work directly warns against a common wording error: a “four-hour task” means a task estimated to take an expert four hours, not four hours of autonomous model operation. Its suite is also concentrated in well-specified technical tasks with automatic evaluation. A downside scenario must show transfer to the less-specified, stateful and socially constrained workflows whose labor effects it predicts.
+
+### Example 2 — consequential workflows are governed by failure severity
+
+An apparent `99.9%` decision success rate still implies an expectation of about `1,000` failures across one million decisions:
+
+`1,000,000 × (1 - 0.999) = 1,000`.
+
+That arithmetic does **not** say all failures cause harm. It shows why a mean accuracy number is incomplete. A typo caught before delivery, an incorrect refund, a denied medical benefit and an unsafe robot motion have different severity, detectability and reversibility.
+
+| Gate | Question | Evidence needed |
+|---|---|---|
+| validity | did the system meet the task specification? | representative evaluations and slice results |
+| detection | will an error be noticed before action? | calibrated monitors and tested abstention |
+| severity | what happens if it escapes? | hazard analysis and consequence tiers |
+| recovery | can the action be reversed safely? | versioning, compensation and reconciliation tests |
+| accountability | who accepts residual risk? | named human or organization with decision authority |
+
+```mermaid
+flowchart TD
+  A[Model output] --> B{Valid for this slice?}
+  B -->|No or uncertain| C[Abstain or escalate]
+  B -->|Yes| D{Consequence within delegated authority?}
+  D -->|No| C
+  D -->|Yes| E[Execute with audit record]
+  E --> F{Outcome reconciled?}
+  F -->|No| G[Contain and recover]
+  F -->|Yes| H[Close]
+```
+
+NIST AI 600-1 identifies confabulation as confidently presented erroneous or false content and highlights extra concern in consequential decision-making. Its risk-management framing is about governing, mapping, measuring and managing trustworthiness in the application context—not certifying a universal error rate. The downside condition is therefore met only when residual risk is low enough for the specific workflow and an accountable deployer accepts it.
+
+### Example 3 — inexpensive models do not imply inexpensive delegation
+
+Enterprise delegation is a chain. For an illustrative workflow with stage success probabilities of `0.98` for data access, `0.97` for model reasoning, `0.95` for tool execution and `0.99` for policy/recording, the product under an independence assumption is:
+
+`0.98 × 0.97 × 0.95 × 0.99 = 0.8940`, or about **89.4%**.
+
+The product is not an estimate of any real deployment. It demonstrates why a strong model result cannot stand in for identity, data freshness, tool semantics, policy checks and recovery. A real evaluation should measure the whole chain and retain stage-level outcomes so the limiting component remains visible.
+
+```mermaid
+flowchart LR
+  A[Authorized data] --> B[Model decision]
+  B --> C[Tool action]
+  C --> D[Policy and audit]
+  D --> E[Reconciled outcome]
+```
+
+Workflow-redesign trace:
+
+1. Baseline the existing process, including queueing, review, exceptions and rework.
+2. Define what the system may read, decide and mutate; preserve a human owner for residual authority.
+3. Integrate data and tools with identity, version and audit controls.
+4. Measure accepted outcomes per total attempts, not just model responses per prompt.
+5. Redesign roles only after the exception load, support cost and failure recovery are observed.
+6. Compare total cost and capacity with the baseline at the same service level.
+
+The Census Bureau's 2026 BTOS supplement supplies an adoption reality check. During November 2025–January 2026, 18% of firms reported AI use in a business function, rising to 32% when weighted by employment; among adopting firms, 57% used AI in three or fewer business functions. Those descriptive figures show uneven diffusion and limited breadth, not a cap on future adoption. They also show why a downside scenario needs explicit evidence of organizational spread instead of assuming that capability instantaneously becomes economy-wide redesign.
+
+Physical automation adds another integration chain: perception, planning, actuation, safety interlocks, maintenance and local operating conditions. Robotics can amplify the downside if those stages become reliable and economical across variable environments. A successful bounded demonstration does not show the utilization, exception rate or capital turnover needed for occupational-scale replacement.
+
+### Example 4 — productivity reduces labor only when demand fails to absorb it
+
+For a deliberately simplified one-period trace, hold hours per worker constant and write the labor requirement relative to baseline as:
+
+`labor factor = (1 + output-demand growth) / (1 + productivity growth)`.
+
+| Demand growth | Productivity growth | Labor factor | Mechanical reading before other adjustments |
+|---:|---:|---:|---|
+| 5% | 20% | `1.05 / 1.20 = 0.875` | 12.5% less labor than baseline |
+| 20% | 20% | `1.20 / 1.20 = 1.000` | unchanged labor requirement |
+| 30% | 20% | `1.30 / 1.20 = 1.083` | 8.3% more labor than baseline |
+
+This is an accounting identity for a toy scenario, not a macroeconomic forecast. Prices, substitution, income effects, new products, worker hours, capital constraints and sector reallocation can all change the result. Its value is to expose the missing variable in “productivity means layoffs”: demand.
+
+```mermaid
+flowchart TD
+  A[AI raises output per worker] --> B[Lower unit cost or higher capacity]
+  B --> C{Output demand response}
+  C -->|Below productivity growth| D[Lower labor requirement]
+  C -->|Matches productivity growth| E[Similar labor requirement]
+  C -->|Exceeds productivity growth| F[Higher labor requirement]
+  G[New products and tasks] --> C
+```
+
+BLS develops occupational projections through linked labor-force, aggregate-economy, final-demand, industry-output, industry-employment and occupational-employment models. Its 2025–2035 projections assume a full-employment economy in the target year and explicitly warn that unknown factors make individual-occupation projections uncertain. That system-level method is the right conceptual boundary: adoption, productivity and final demand must interact before a headcount result can be stated.
+
+The severe-downside packet is therefore satisfied only when evidence supports all of the following at a matched horizon: longer-task capability, reliable complete workflows, acceptable consequential risk, affordable integration, organizational redesign, and weak demand absorption. Physical reach broadens the scope when present. No one factor proves the combined forecast, and the packet still supports a conditional scenario—not a probability-weighted prediction.
+
+### Executable downside-scenario contracts
+
+[`DownsideScenarioContracts.java`](DownsideScenarioContracts.java) encodes the four traces. `compoundSuccess` makes its independence assumption explicit; `workflowSuccess` rejects missing or invalid stages; `expectedFailures` preserves the decision count; and `laborFactor` keeps demand and productivity separate. The scenario predicate requires the key capability, reliability, risk, integration, redesign and absorption conditions together, while physical reach is modeled as an amplifier.
+
+```java
+static boolean supportsSevereDownside(ScenarioPacket packet) {
+    return packet.longHorizonCapability()
+            && packet.reliableEndToEnd()
+            && packet.acceptableConsequentialRisk()
+            && packet.affordableIntegration()
+            && packet.workflowRedesign()
+            && packet.weakDemandAbsorption();
+}
+
+static double laborFactor(double demandGrowth, double productivityGrowth) {
+    return (1.0 + demandGrowth) / (1.0 + productivityGrowth);
+}
+```
+
+Twenty deterministic groups cover the `0.99^100` reliability trace, the four-stage integration product, one million consequential decisions, two demand/productivity cases, input rejection and the physical-reach boundary. Then 20,000 seeded trials run 80,000 checks across probability bounds, compounding monotonicity, labor-factor arithmetic and the invariant that no single downside condition is sufficient.
+
+```bash
+java -ea study-guides/ai/employment-impact/DownsideScenarioContracts.java
+```
+
+Expected result:
+
+```text
+PASS groups=20 trials=20000 checks=80000
+```
+
 ## References and provenance
 
 - [World Economic Forum, *Future of Jobs Report 2025*](https://www.weforum.org/publications/the-future-of-jobs-report-2025/) — survey frame, multiple structural drivers, 170 million created, 92 million displaced and 78 million net growth through 2030.
@@ -1291,9 +1507,13 @@ PASS groups=20 trials=20000 checks=80000
 - [CISA, *Secure by Demand Guide*](https://www.cisa.gov/sites/default/files/2024-08/SecureByDemandGuide_080624_508c.pdf) — secure-by-design manufacturer principles for ownership, transparency and organizational responsibility.
 - [PwC, *2026 Global AI Jobs Barometer*](https://www.pwc.com/gx/en/issues/artificial-intelligence/publications/artificial-intelligence-study.html) and [full report](https://www.pwc.com/gx/en/issues/artificial-intelligence/job-barometer/2026/2026-global-ai-jobs-barometer-full-report.pdf) — company headcount/productivity associations, AI-skill posting growth and heterogeneous entry-level outcomes; descriptive rather than causal evidence.
 - [Anthropic, *Economic Index: New building blocks for understanding AI use*](https://www.anthropic.com/research/economic-index-primitives) and [January 2026 report](https://www.anthropic.com/research/anthropic-economic-index-january-2026-report) — automation/augmentation plus task complexity, skill, use case, autonomy and success measures with sampling and classifier limitations.
+- [METR, *Task-Completion Time Horizons of Frontier AI Models*](https://metr.org/time-horizons/) and [method introduction](https://metr.org/blog/2025-03-19-measuring-ai-ability-to-complete-long-tasks/) — human-duration task horizons at explicit success thresholds, suite boundaries and the warning that the horizon is not autonomous wall-clock runtime.
+- [NIST, *Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile*](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence) — July 26, 2024 application-context risk management, confabulation and consequential-decision boundaries.
+- [U.S. Census Bureau, *AI Use Among U.S. Businesses*](https://www2.census.gov/ces/wp/2026/CES-WP-26-25R.pdf) and [BTOS data release](https://www.census.gov/newsroom/press-releases/2026/btos-june-18.html) — nationally representative November 2025–January 2026 firm-use, employment-weighted adoption and business-function breadth; descriptive diffusion evidence rather than a delegation outcome.
+- [U.S. Bureau of Labor Statistics, *Employment Projections Data Overview*](https://www.bls.gov/emp/documentation/data-overview.htm) and [Employment Projections FAQ](https://www.bls.gov/emp/frequently-asked-questions.htm) — linked macro-to-occupation projection steps, target-year assumptions and uncertainty limits for the 2025–2035 projections.
 
 Source intake:
 
-- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–7 at lines 16–164 are promoted. Sections 8–10 at lines 166–212 remain queued; the exact next bounded continuation is Section 8 at lines 166–177.
+- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–8 at lines 16–177 are promoted. Sections 9–10 at lines 179–212 remain queued; the exact next bounded continuation is Section 9 at lines 179–189.
 
-The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, twenty-eight worked traces across seven sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
+The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, thirty-two worked traces across eight sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
