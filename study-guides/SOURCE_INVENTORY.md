@@ -25,7 +25,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | cloud-comparisons | AWS/cloud | NEEDS_SOURCE | `study-guides/cloud/comparisons/` | Repository source or earlier analysis; locate as needed |
 | java-security-protocols | DevOps/backend | NEEDS_SOURCE | `study-guides/backend/java-security-protocols/` | Repository source or earlier analysis; locate as needed |
 | ai-project-docs | AI | DISCOVERED | `study-guides/ai/projects/` | spring-boot-ai-labs.zip<br>spring-boot-ai-journey.zip<br>GITHUB_PUSH_COMMANDS.md<br>README.md<br>enterprise-rag-assistant.zip |
-| ai-employment-impact | AI | IN PROGRESS | [`study-guides/ai/employment-impact/`](ai/employment-impact/) | ai_jobs_elimination_deep_research_2026.md — Sections 1–6 lines 16–150 promoted; line 152 coda and Sections 7–10 remain queued |
+| ai-employment-impact | AI | IN PROGRESS | [`study-guides/ai/employment-impact/`](ai/employment-impact/) | ai_jobs_elimination_deep_research_2026.md — Sections 1–7 lines 16–164 promoted; Sections 8–10 remain queued |
 | technical-study-workflows | Learning workflows | DISCOVERED | `study-guides/study-workflows/` | MASTER_PROMPT.md |
 
 ## Discovered source files
@@ -45,7 +45,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | top_5_system_design_interview_blueprints.md | 2026-09-11T21:27:10.870584Z | PROMOTED — Blueprints 1–5 plus cross-question/practice supplement lines 1127–1264 promoted through source end |
 | system_design_fundamentals_deep_research.md | 2026-09-11T21:27:08.096531Z | PROMOTED — canonical fundamentals base |
 | system_design_fundamentals.md | 2026-09-11T04:57:16.259594Z | READY — compared; distinct case studies reserved for blueprints |
-| ai_jobs_elimination_deep_research_2026.md | 2026-09-10T23:06:32.260101Z | IN PROGRESS — refreshed Library bytes SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`; Sections 1–6 lines 16–150 promoted; exact next bounded source is line 152 plus Section 7 lines 154–164 |
+| ai_jobs_elimination_deep_research_2026.md | 2026-09-10T23:06:32.260101Z | IN PROGRESS — refreshed Library bytes SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`; Sections 1–7 lines 16–164 promoted; exact next bounded source is Section 8 lines 166–177 |
 | Take_U_Forward_Graph_Verified_Problem_Guide_v3.md | 2026-09-08T04:49:59.864498Z | DISCOVERED |
 | Take_U_Forward_Tree_Verified_Problem_Guide_v3.md | 2026-09-08T04:49:59.825371Z | DISCOVERED |
 | Take_U_Forward_Graph_Complete_Deep_Guide_v2.md | 2026-09-08T01:35:54.662720Z | DISCOVERED |

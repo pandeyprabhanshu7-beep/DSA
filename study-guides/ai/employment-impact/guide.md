@@ -1,6 +1,6 @@
 # AI Employment Impact — Reading Evidence Without Headline Errors
 
-> **Incremental status:** Source Sections 1–6 are promoted from lines 16–150. Sections 7–10 and the Section 6 coda at line 152 remain queued. The source's scenario ranges, occupational-pressure list, relative-resistance factors and career strategy are retained as attributed analysis, not presented here as consensus forecasts.
+> **Incremental status:** Source Sections 1–7 are promoted from lines 16–164. Sections 8–10 remain queued. The source's scenario ranges, occupational-pressure list, relative-resistance factors, career strategy and entry-level vulnerability statement are retained as attributed analysis, not presented here as consensus forecasts.
 
 ## Contents
 
@@ -48,6 +48,13 @@
   - [Example 3 — architecture is option generation plus accountable choice](#example-3--architecture-is-option-generation-plus-accountable-choice)
   - [Example 4 — AI integration begins after the API call](#example-4--ai-integration-begins-after-the-api-call)
   - [Executable software-responsibility contracts](#executable-software-responsibility-contracts)
+- [7. Evidence against a simple “AI destroys jobs” model](#7-evidence-against-a-simple-ai-destroys-jobs-model)
+  - [Association-to-delegation contract](#association-to-delegation-contract)
+  - [Example 1 — faster exposed-company growth is evidence against inevitability, not proof of causation](#example-1--faster-exposed-company-growth-is-evidence-against-inevitability-not-proof-of-causation)
+  - [Example 2 — AI-skill postings need both numerator and denominator](#example-2--ai-skill-postings-need-both-numerator-and-denominator)
+  - [Example 3 — entry-level outcomes split instead of moving as one block](#example-3--entry-level-outcomes-split-instead-of-moving-as-one-block)
+  - [Example 4 — observed task success is still short of workflow delegation](#example-4--observed-task-success-is-still-short-of-workflow-delegation)
+  - [Executable evidence-against-destruction contracts](#executable-evidence-against-destruction-contracts)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Why the headline numbers conflict
@@ -1095,6 +1102,168 @@ Expected result:
 PASS groups=20 trials=20000 checks=80000
 ```
 
+## 7. Evidence against a simple “AI destroys jobs” model
+
+The source's Section 6 coda says entry-level and commodity implementation work is likely to be vulnerable first. Treat that as a **testable heterogeneity hypothesis**, not a universal result. PwC's 2026 data show sharply different outcomes even inside highly AI-exposed entry-level work, while its company comparison shows exposed firms growing headcount faster than less-exposed firms. Anthropic's January 2026 Economic Index observes real task use, automation/augmentation patterns, autonomy and estimated success—but not the complete organizational chain from use to staffing.
+
+Together, these sources reject the deterministic rule “more exposure automatically means fewer jobs.” They do not establish the opposite rule that AI causes job growth.
+
+### Association-to-delegation contract
+
+Classify each claim before using it:
+
+| Layer | Required evidence | Safe conclusion | Invalid shortcut |
+|---|---|---|---|
+| exposure | capability/task match with a defined occupation universe and vintage | AI may assist or complete some tasks | exposure equals workplace adoption |
+| observed use | real interactions mapped to work tasks with coverage and sampling limits | the tool is being used in these measured ways | usage equals successful automation |
+| descriptive association | exposure/use and outcome measured for comparable units, baseline and horizon | the variables move together in the sample | exposure caused the outcome |
+| causal effect | credible identification, matched treatment/comparator and outcome | the intervention changed the bounded outcome under stated assumptions | one study proves a universal law |
+| workflow delegation | workplace use covers the complete workflow reliably, with authorization and exception handling | labor can be removed from this bounded workflow under tested conditions | task success eliminates an occupation |
+
+```mermaid
+flowchart TD
+  A[Task exposure] --> B[Observed use]
+  B --> C[Measured task success]
+  C --> D{Complete workflow covered?}
+  D -->|No| E[Augmentation or partial automation evidence]
+  D -->|Yes| F{Reliable, authorized and exception-safe?}
+  F -->|No| E
+  F -->|Yes| G[Bounded delegation evidence]
+  G --> H{Matched headcount design?}
+  H -->|No| I[Do not claim a causal job effect]
+  H -->|Yes| J[Bounded causal headcount claim]
+```
+
+BLS's current exposure categories provide an independent interpretation check: their theoretical and observed-use inputs do not directly observe whether workers used AI on the job, and the categories do not estimate adoption, productivity, replacement or employment growth. The same restraint applies when reading vendor usage data and company-level associations.
+
+### Example 1 — faster exposed-company growth is evidence against inevitability, not proof of causation
+
+PwC reports that, relative to a 2018 baseline, headcount at the most AI-exposed companies reached 52% growth in 2025 versus 36% at the least-exposed companies. The descriptive difference is 16 percentage points.
+
+| Gate | PwC packet | Interpretation |
+|---|---|---|
+| units | companies grouped by AI exposure | company outcome, not an occupation count |
+| outcome | headcount change from a common 2018 baseline | growth rate, not jobs created by AI |
+| comparator | most- versus least-exposed companies | supports a descriptive association |
+| confounders | sector mix, firm quality, investment and prior growth may differ | blocks a simple causal claim |
+| valid use | exposure did not mechanically force headcount decline in this sample | evidence against inevitability |
+
+```mermaid
+flowchart LR
+  A[AI exposure] --> C[Observed headcount growth]
+  B[Sector, capital, management and prior growth] --> A
+  B --> C
+  A -. association .-> C
+```
+
+A “super-star” selection effect is especially important: firms that can adopt AI effectively may also be better managed, better capitalized or concentrated in faster-growing markets. A causal design must address those backdoor paths. The source already states this limitation; retaining it is essential, not a footnote.
+
+### Example 2 — AI-skill postings need both numerator and denominator
+
+PwC reports that postings requiring specific AI skills grew 69%, while the total jobs market grew 9%. That is roughly `69 / 9 = 7.7` times the growth rate, often summarized as “almost eight times.”
+
+Trace the arithmetic and its limits:
+
+1. Identify the same comparison period and posting universe.
+2. Keep `69%` as growth in AI-skill postings, not a 69% share of all postings.
+3. Keep `9%` as growth in the broader market, not a control-group causal effect.
+4. Report the ratio only after preserving both original rates.
+5. Do not convert posting growth into filled jobs, employment stocks or net job creation.
+
+```mermaid
+flowchart TD
+  A[AI-skill postings growth: 69%] --> C[Growth-rate ratio: about 7.7x]
+  B[All-postings growth: 9%] --> C
+  C --> D[Demand signal for listed skills]
+  D --> E{Observed hires or employment stock?}
+  E -->|No| F[Stop before headcount claim]
+  E -->|Yes| G[Analyze matched employment outcome separately]
+```
+
+This finding is strong evidence that employer skill demand is changing. It is compatible with job creation, job redesign, higher requirements for the same number of openings, or churn in posting behavior. The posting unit cannot choose among those mechanisms by itself.
+
+### Example 3 — entry-level outcomes split instead of moving as one block
+
+PwC's targeted U.S. analysis covers 2.4 million entry-level postings. Within the top AI-exposure quartile, roles that added more than ten traditionally senior skills grew 35% from 2019 to 2025, while other entry-level roles declined 10%.
+
+| Source statement | Supported reading | Unsupported reading |
+|---|---|---|
+| “seniorised” exposed entry roles grew 35% | some exposed junior work expanded while skill requirements changed | all junior workers benefited |
+| other exposed entry roles declined 10% | a vulnerable segment exists inside the entry-level market | AI caused every decline |
+| leadership, judgement and interaction appear more often | apprenticeship and hiring criteria may be changing | a skill keyword proves job quality or worker proficiency |
+
+```mermaid
+flowchart TD
+  A[Highly exposed entry-level postings] --> B{More than ten senior skills added?}
+  B -->|Yes| C[Seniorised group: +35%]
+  B -->|No| D[Other group: -10%]
+  C --> E[Heterogeneous redesign evidence]
+  D --> E
+  E --> F[Investigate causes, access and training]
+```
+
+This result refines the source's line 152 hypothesis. Commodity entry work can be vulnerable, but exposure alone is not the partition: skill redesign, sector, employer strategy and task composition matter. It also raises a separate policy question—how workers acquire senior judgement if routine apprenticeship tasks shrink—which the posting data do not resolve.
+
+### Example 4 — observed task success is still short of workflow delegation
+
+Anthropic's January 15, 2026 report adds five primitives to its automation/augmentation measure: task complexity, human and AI skills, use case, AI autonomy and task success. The underlying sample uses Claude conversations from November 2025, predominantly Sonnet 4.5. The report describes the classifiers as directionally accurate and notes that workplace effects depend on complementarity and demand.
+
+Trace a support-ticket workflow:
+
+1. Claude summarizes the ticket and drafts a response; the interaction is classified as work use.
+2. The draft is successful at the bounded text task and may be “directive,” meaning little back-and-forth.
+3. Customer identity, refund eligibility and policy exceptions live in systems outside the conversation.
+4. An authorized worker checks those systems, decides the exception and owns the customer outcome.
+5. Only a deployed system that performs all steps reliably, handles exceptions and is authorized to act supplies complete-workflow delegation evidence.
+
+```mermaid
+sequenceDiagram
+  participant U as Worker
+  participant A as AI
+  participant S as Enterprise systems
+  participant O as Accountable owner
+  U->>A: Ticket and request
+  A-->>U: Successful draft
+  U->>S: Verify identity, policy and state
+  S-->>U: Proprietary evidence
+  U->>O: Escalate exception or approval
+  O-->>U: Authorized decision
+  U->>S: Execute and record outcome
+```
+
+Automation/augmentation and autonomy are related but distinct. A simple translation can be highly automated yet require little autonomous decision-making; a complex delegated workflow may require many decisions and repeated exception handling. Neither task coverage nor a model-judged success rate establishes an employer's staffing response.
+
+### Executable evidence-against-destruction contracts
+
+[`EvidenceAgainstDestructionContracts.java`](EvidenceAgainstDestructionContracts.java) makes the four layers executable. It admits a descriptive association only with a comparator, baseline and matched unit/horizon; admits a causal headcount claim only with an identification design and outcome direction; and admits complete-workflow delegation only with observed workplace use, full coverage, reliability and authority.
+
+```java
+static boolean supportsCausalHeadcountEffect(EvidencePacket packet) {
+    return supportsAssociation(packet)
+            && packet.causalDesign()
+            && packet.headcountDirection() != Direction.UNKNOWN;
+}
+
+static boolean supportsCompleteWorkflowDelegation(EvidencePacket packet) {
+    return packet.workplaceUseObserved()
+            && packet.completeWorkflowCoverage()
+            && packet.reliableSuccess()
+            && packet.authorizedDeployment();
+}
+```
+
+Twenty deterministic groups cover the PwC company comparison, AI-skill postings, entry-level split, Anthropic task-use packet and a deliberately stronger workflow trial. Then 20,000 seeded trials run 80,000 checks across association, causality, delegation and the invariant that exposure never proves automatic job destruction.
+
+```bash
+java -ea study-guides/ai/employment-impact/EvidenceAgainstDestructionContracts.java
+```
+
+Expected result:
+
+```text
+PASS groups=20 trials=20000 checks=80000
+```
+
 ## References and provenance
 
 - [World Economic Forum, *Future of Jobs Report 2025*](https://www.weforum.org/publications/the-future-of-jobs-report-2025/) — survey frame, multiple structural drivers, 170 million created, 92 million displaced and 78 million net growth through 2030.
@@ -1120,9 +1289,11 @@ PASS groups=20 trials=20000 checks=80000
 - [O*NET OnLine, *Paramedics*](https://www.onetonline.org/link/summary/29-2043.00) — work-context evidence for proximity, physical environment, decision freedom and consequence of error.
 - [NIST, *Secure Software Development Framework publications*](https://csrc.nist.gov/Projects/ssdf/publications) — final SSDF 1.1, final generative-AI community profile and status of the 1.2 draft.
 - [CISA, *Secure by Demand Guide*](https://www.cisa.gov/sites/default/files/2024-08/SecureByDemandGuide_080624_508c.pdf) — secure-by-design manufacturer principles for ownership, transparency and organizational responsibility.
+- [PwC, *2026 Global AI Jobs Barometer*](https://www.pwc.com/gx/en/issues/artificial-intelligence/publications/artificial-intelligence-study.html) and [full report](https://www.pwc.com/gx/en/issues/artificial-intelligence/job-barometer/2026/2026-global-ai-jobs-barometer-full-report.pdf) — company headcount/productivity associations, AI-skill posting growth and heterogeneous entry-level outcomes; descriptive rather than causal evidence.
+- [Anthropic, *Economic Index: New building blocks for understanding AI use*](https://www.anthropic.com/research/economic-index-primitives) and [January 2026 report](https://www.anthropic.com/research/anthropic-economic-index-january-2026-report) — automation/augmentation plus task complexity, skill, use case, autonomy and success measures with sampling and classifier limitations.
 
 Source intake:
 
-- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–6 at lines 16–150 are promoted. The Section 6 coda at line 152 and Sections 7–10 at lines 154–212 remain queued; the exact next bounded continuation is the line 152 coda plus Section 7 at lines 154–164.
+- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–7 at lines 16–164 are promoted. Sections 8–10 at lines 166–212 remain queued; the exact next bounded continuation is Section 8 at lines 166–177.
 
-The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, twenty-four worked traces across six sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
+The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, twenty-eight worked traces across seven sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
