@@ -1,6 +1,6 @@
 # AI Employment Impact — Reading Evidence Without Headline Errors
 
-> **Incremental status:** Source Sections 1–5 are promoted from lines 16–137. Sections 6–10 remain queued. The source's scenario ranges, occupational-pressure list and relative-resistance factors are retained as attributed analysis, not presented here as consensus forecasts.
+> **Incremental status:** Source Sections 1–6 are promoted from lines 16–150. Sections 7–10 and the Section 6 coda at line 152 remain queued. The source's scenario ranges, occupational-pressure list, relative-resistance factors and career strategy are retained as attributed analysis, not presented here as consensus forecasts.
 
 ## Contents
 
@@ -41,6 +41,13 @@
   - [Example 3 — cybersecurity illustrates complementarity, not immunity](#example-3--cybersecurity-illustrates-complementarity-not-immunity)
   - [Example 4 — architecture ownership is a role design, not an occupation forecast](#example-4--architecture-ownership-is-a-role-design-not-an-occupation-forecast)
   - [Executable relative-resistance contracts](#executable-relative-resistance-contracts)
+- [6. Software engineering deserves a separate answer](#6-software-engineering-deserves-a-separate-answer)
+  - [Software-responsibility contract](#software-responsibility-contract)
+  - [Example 1 — ticket-to-PR work exposes the weak position](#example-1--ticket-to-pr-work-exposes-the-weak-position)
+  - [Example 2 — incident assistance does not transfer production authority](#example-2--incident-assistance-does-not-transfer-production-authority)
+  - [Example 3 — architecture is option generation plus accountable choice](#example-3--architecture-is-option-generation-plus-accountable-choice)
+  - [Example 4 — AI integration begins after the API call](#example-4--ai-integration-begins-after-the-api-call)
+  - [Executable software-responsibility contracts](#executable-software-responsibility-contracts)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Why the headline numbers conflict
@@ -905,6 +912,189 @@ Expected result:
 PASS groups=20 trials=20000 checks=80000
 ```
 
+## 6. Software engineering deserves a separate answer
+
+Generative AI can produce, explain, transform and test code, so software work is an unusually direct capability match. The source correctly identifies the weakest position as receiving a well-specified ticket, writing straightforward code and handing it to someone else. That is a **task-boundary claim**, however—not proof that the software-developer occupation is disappearing.
+
+Current BLS evidence is more restrained than the source's older 2024–2034 figures. For 2025–2035, BLS projects U.S. software-developer employment to rise from about 1.718 million to 1.893 million: approximately **174,700 additional jobs, or 10.2% growth**. The broader developer/QA/tester group is projected to grow 10%, with about 106,100 openings per year. BLS names AI, IoT, robotics, automation and security software among demand drivers. These are projections under stated assumptions, not guarantees; BLS separately warns that AI exposure is not a replacement estimate, productivity forecast or employment forecast.
+
+The correct economic identity has two unknowns:
+
+```text
+developer labor demanded = software output demanded / output per developer
+```
+
+AI can raise the denominator by reducing labor per unit of software. It can also raise the numerator by making more software worth building. Without evidence for both effects, “developers per feature fell” does not determine whether developer headcount rises or falls.
+
+### Software-responsibility contract
+
+Fill this packet before turning a coding capability into an employment claim:
+
+| Field | Required question | Invalid shortcut prevented |
+|---|---|---|
+| task boundary | Is the evidence about drafting, testing, review, deployment, incident response or the complete role? | turning a coding benchmark into occupation replacement |
+| requirement authority | Who resolves ambiguity and decides that the requested behavior is correct? | assuming a ticket contains complete ground truth |
+| validation | Which tests, security checks, evaluations and acceptance criteria can falsify the output? | equating plausible code with working software |
+| production authority | Who may deploy, roll back, isolate systems or accept operational risk? | treating a recommendation as an authorized action |
+| responsibility | Who owns incidents, audits, maintenance and downstream consequences? | transferring accountability to a code generator |
+| productivity evidence | What unit improved—minutes, accepted changes, throughput or business outcomes—and against what baseline? | mapping a local time saving directly to staffing |
+| demand response | Does lower software cost expand output, quality, customization or previously uneconomic projects? | holding software demand fixed without evidence |
+| outcome metadata | Does an employment claim name the occupation, geography, horizon, direction and projection assumptions? | mixing a global capability claim with a U.S. occupation forecast |
+
+```mermaid
+flowchart TD
+  A[AI completes a coding task] --> B{Requirements and acceptance complete?}
+  B -->|No| C[Human resolves product intent]
+  B -->|Yes| D[Validate behavior and security]
+  C --> D
+  D --> E{Production authority required?}
+  E -->|Yes| F[Accountable owner decides and operates]
+  E -->|No| G[Bounded task may be delegated]
+  F --> H[Task evidence stays separate from headcount]
+  G --> H
+```
+
+The BLS AI-exposure categories reinforce this separation. They describe relative task-capability overlap, and explicitly do not estimate worker replacement, adoption probability, productivity or employment growth. The current BLS projection is a different evidence object with a U.S. occupation, a 2025–2035 horizon and a modeled direction. Keep both objects visible rather than using either one to erase the other.
+
+### Example 1 — ticket-to-PR work exposes the weak position
+
+Suppose a ticket says: “Add a CSV export button to the account-history page.” An AI assistant can inspect local patterns, draft a handler, generate serialization code and propose tests. That is meaningful task assistance. It is also the source's weak-position example because the implementation is digitally bounded and easy to review.
+
+Trace the boundary:
+
+1. The model drafts a pull request from the ticket and repository context.
+2. A contract test reveals that commas inside merchant names are not escaped.
+3. Security review finds that the query omitted the tenant predicate.
+4. A product owner clarifies that exports require an audit event and a 90-day limit.
+5. The corrected change is accepted only after the hidden requirements become explicit.
+
+| Observation | Supported conclusion | Unsupported conclusion |
+|---|---|---|
+| first draft took 8 rather than 40 minutes | drafting time fell for this task and setup | developer employment falls 80% |
+| review caught two material defects | validation and repository context remain part of delivery | the model is useless |
+| a reviewer can specify all rules up front | more of this bounded task may be delegated | every software workflow has the same boundary |
+
+```mermaid
+sequenceDiagram
+  participant P as Product owner
+  participant A as AI assistant
+  participant E as Engineer
+  participant C as CI and security
+  P->>A: Ticket and repository context
+  A->>E: Draft pull request
+  E->>C: Run behavioral and security gates
+  C-->>E: CSV and tenant failures
+  E->>P: Resolve audit and retention rules
+  P-->>E: Acceptance criteria
+  E->>C: Corrected change
+```
+
+The defensible career inference is narrower than “move up the value chain”: reduce dependence on commodity implementation alone, and learn to own requirements, validation and production outcomes. It is advice derived from workflow structure, not an empirical prediction that every senior title is safe.
+
+### Example 2 — incident assistance does not transfer production authority
+
+At 02:10, an order service's error rate jumps after a schema migration. An assistant can summarize logs, correlate the deployment, propose a rollback and draft a status update. It cannot silently decide the acceptable loss of new writes, whether a rollback is compatible with already-migrated rows, or which customer commitments take priority.
+
+| Time | Evidence and action | Authority boundary |
+|---|---|---|
+| 02:10 | alert fires; traces show deserialization failures | observation is automatable |
+| 02:13 | assistant links the failure to deployment `v42` | diagnosis is a hypothesis, not authorization |
+| 02:16 | engineer finds 8% of rows already use the new schema | proprietary state changes the rollback plan |
+| 02:19 | incident commander chooses write isolation plus a forward fix | human owns blast radius and business trade-off |
+| 02:41 | service recovers; team records causes and guardrails | accountability continues after recovery |
+
+```mermaid
+stateDiagram-v2
+  [*] --> Detect
+  Detect --> Diagnose: logs and traces
+  Diagnose --> AssessBlastRadius: candidate cause
+  AssessBlastRadius --> AuthorizeAction: proprietary state and risk
+  AuthorizeAction --> Execute
+  Execute --> Verify
+  Verify --> AuthorizeAction: recovery incomplete
+  Verify --> Postmortem: service restored
+  Postmortem --> [*]
+```
+
+This is why production ownership, observability, security and distributed-systems knowledge are defensible strategy areas: they enlarge the engineer's responsibility loop. They do not make the person immune to restructuring, and they do not prove a particular staffing level.
+
+### Example 3 — architecture is option generation plus accountable choice
+
+Consider splitting identity data from a monolith. A model can generate event-driven, synchronous-service and shared-database options. The architecture decision still depends on facts that may not appear in the prompt: a regional residency rule, a recovery-time objective, a partner's fixed contract, the on-call team's skills and an acquisition deadline.
+
+1. AI generates three plausible designs and lists textbook trade-offs.
+2. The team attaches proprietary constraints and failure-history evidence.
+3. Security rejects a cross-region replication path; operations rejects a new broker before peak season.
+4. The accountable owner chooses a staged synchronous extraction, records rejected options and defines rollback gates.
+
+```mermaid
+flowchart LR
+  A[Generated options] --> B[Proprietary constraints]
+  B --> C[Security and operations review]
+  C --> D[Accountable decision record]
+  D --> E[Production feedback]
+  E --> B
+```
+
+Option generation can become cheap while decision quality remains scarce. The evidence boundary is important: this trace supports a skill strategy around systems, trade-offs and organizational coordination. It is not an occupation projection. Attach the separate BLS 15-1252 projection only when making a current U.S. software-developer employment claim.
+
+### Example 4 — AI integration begins after the API call
+
+Calling a model endpoint is a small part of production AI integration. A support-summary feature needs an evaluation set, authorization-safe context, prompt/model versioning, latency and cost budgets, harmful-output handling, monitoring, fallback behavior and an owner who can disable the feature.
+
+Trace one release:
+
+1. The team defines a 500-case evaluation set with critical privacy and hallucination slices.
+2. The candidate passes aggregate quality but fails 7 of 20 cross-tenant adversarial cases.
+3. Engineers fix retrieval authorization, rerun the exact versioned suite and require zero critical failures.
+4. A 5% canary monitors latency, abstention, support-agent overrides and privacy signals.
+5. An automated threshold pauses rollout; an accountable owner decides whether to roll back or repair.
+
+```mermaid
+flowchart TD
+  A[Versioned candidate] --> B[Offline evaluation]
+  B --> C{Critical slices pass?}
+  C -->|No| D[Repair retrieval or policy]
+  D --> B
+  C -->|Yes| E[Bounded canary]
+  E --> F{Runtime signals healthy?}
+  F -->|No| G[Pause and accountable decision]
+  F -->|Yes| H[Gradual release and monitoring]
+```
+
+NIST's final SSDF 1.1 and its final generative-AI community profile treat secure development as lifecycle work, not code generation alone. CISA's Secure by Design guidance likewise puts ownership of customer security outcomes, transparency and organizational responsibility on software manufacturers. These sources support the responsibility boundary; they do not establish employment growth. The separate current BLS projection supplies the occupation-level evidence.
+
+### Executable software-responsibility contracts
+
+[`SoftwareResponsibilityContracts.java`](SoftwareResponsibilityContracts.java) encodes three independent gates: bounded coding assistance, retained human responsibility and projection-backed employment direction. It deliberately rejects the shortcut from measured productivity to headcount reduction.
+
+```java
+static boolean retainsHumanResponsibility(SoftwarePacket packet) {
+    return packet.requirementsOwnership()
+            || packet.securityApproval()
+            || packet.productionAuthority()
+            || packet.incidentOwnership()
+            || packet.crossSystemDecision();
+}
+
+static boolean supportsGrowthClaim(SoftwarePacket packet) {
+    return packet.projectionDirection() == Direction.GROWTH
+            && hasProjectionMetadata(packet);
+}
+```
+
+Twenty deterministic groups cover the ticket, incident, architecture and AI-integration traces. Then 20,000 seeded trials run 80,000 checks that responsibility remains an exact workflow predicate, task assistance stays bounded to task evidence, growth requires occupation/geography/horizon metadata, and productivity never determines headcount by itself.
+
+```bash
+java -ea study-guides/ai/employment-impact/SoftwareResponsibilityContracts.java
+```
+
+Expected result:
+
+```text
+PASS groups=20 trials=20000 checks=80000
+```
+
 ## References and provenance
 
 - [World Economic Forum, *Future of Jobs Report 2025*](https://www.weforum.org/publications/the-future-of-jobs-report-2025/) — survey frame, multiple structural drivers, 170 million created, 92 million displaced and 78 million net growth through 2030.
@@ -923,14 +1113,16 @@ PASS groups=20 trials=20000 checks=80000
 - [U.S. Bureau of Labor Statistics, *Artificial Intelligence exposure categories*](https://www.bls.gov/emp/publications/ai-exposure-categories.htm) — current methodology and warning that exposure is not an employment-growth forecast.
 - [U.S. Bureau of Labor Statistics, *Customer Service Representatives*](https://www.bls.gov/ooh/office-and-administrative-support/customer-service-representatives.htm) — 2025–2035 decline and replacement-opening distinction.
 - [U.S. Bureau of Labor Statistics, *Paralegals and Legal Assistants*](https://www.bls.gov/ooh/legal/paralegals-and-legal-assistants.htm) and [*Interpreters and Translators*](https://www.bls.gov/ooh/media-and-communication/interpreters-and-translators.htm) — task-efficiency pressure alongside flat or growing occupational projections and replacement openings.
-- [U.S. Bureau of Labor Statistics, *Software Developers, Quality Assurance Analysts, and Testers*](https://www.bls.gov/ooh/computer-and-information-technology/software-developers.htm) — task automation alongside 2025–2035 demand growth and annual openings.
+- [U.S. Bureau of Labor Statistics, *Software Developers, Quality Assurance Analysts, and Testers*](https://www.bls.gov/ooh/computer-and-information-technology/software-developers.htm) — current 2025–2035 occupation projection, annual openings, stated demand drivers and the task-automation/headcount boundary.
 - [International Labour Organization, *Generative AI and Jobs: A Refined Global Index of Occupational Exposure*](https://www.ilo.org/publications/generative-ai-and-jobs-refined-global-index-occupational-exposure) — 2025 task-level exposure gradients and the transformation-versus-redundancy boundary.
 - [U.S. Bureau of Labor Statistics, *Electricians*](https://www.bls.gov/ooh/construction-and-extraction/electricians.htm) — current 2025–2035 growth, annual openings and electricity-demand factors.
 - [U.S. Bureau of Labor Statistics, *Information Security Analysts*](https://www.bls.gov/ooh/computer-and-information-technology/information-security-analysts.htm) — current 2025–2035 growth, annual openings and AI/security demand interaction.
 - [O*NET OnLine, *Paramedics*](https://www.onetonline.org/link/summary/29-2043.00) — work-context evidence for proximity, physical environment, decision freedom and consequence of error.
+- [NIST, *Secure Software Development Framework publications*](https://csrc.nist.gov/Projects/ssdf/publications) — final SSDF 1.1, final generative-AI community profile and status of the 1.2 draft.
+- [CISA, *Secure by Demand Guide*](https://www.cisa.gov/sites/default/files/2024-08/SecureByDemandGuide_080624_508c.pdf) — secure-by-design manufacturer principles for ownership, transparency and organizational responsibility.
 
 Source intake:
 
-- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–5 at lines 16–137 are promoted. Source lines 139–212 remain queued; Section 6 is the next bounded continuation at lines 139–150.
+- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–6 at lines 16–150 are promoted. The Section 6 coda at line 152 and Sections 7–10 at lines 154–212 remain queued; the exact next bounded continuation is the line 152 coda plus Section 7 at lines 154–164.
 
-The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, twenty worked traces across five sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
+The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, twenty-four worked traces across six sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
