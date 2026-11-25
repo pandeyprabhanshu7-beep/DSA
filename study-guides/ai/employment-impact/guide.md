@@ -1,6 +1,6 @@
 # AI Employment Impact — Reading Evidence Without Headline Errors
 
-> **Incremental status:** Source Sections 1–9 are promoted from lines 16–189. Section 10 remains queued. The source's scenario ranges, occupational-pressure list, relative-resistance factors, career strategy, entry-level vulnerability statement, downside conditions and downward-revision conditions are retained as attributed analysis, not presented here as consensus forecasts.
+> **Incremental status:** Source Sections 1–10 are promoted from lines 16–197. The selected source analysis is exhausted through its final analytical line; its reference list at lines 199–212 has been reconciled into the provenance below. The source's scenario ranges, occupational-pressure list, relative-resistance factors, career strategy, entry-level vulnerability statement, downside conditions, downward-revision conditions and bottom-line synthesis are retained as attributed analysis, not presented here as consensus forecasts. Wider intake and the repository placeholder backlog remain incomplete.
 
 ## Contents
 
@@ -69,6 +69,13 @@
   - [Example 3 — lower prices can create enough demand to offset productivity](#example-3--lower-prices-can-create-enough-demand-to-offset-productivity)
   - [Example 4 — slow diffusion and new work can absorb gross displacement](#example-4--slow-diffusion-and-new-work-can-absorb-gross-displacement)
   - [Executable pessimism-scenario contracts](#executable-pessimism-scenario-contracts)
+- [10. Bottom line](#10-bottom-line)
+  - [Bottom-line claim contract](#bottom-line-claim-contract)
+  - [Example 1 — split one headline into four evidence packets](#example-1--split-one-headline-into-four-evidence-packets)
+  - [Example 2 — a positive net can conceal a hard transition](#example-2--a-positive-net-can-conceal-a-hard-transition)
+  - [Example 3 — a mid-2030s displacement range is conditional](#example-3--a-mid-2030s-displacement-range-is-conditional)
+  - [Example 4 — design a role around retained responsibility](#example-4--design-a-role-around-retained-responsibility)
+  - [Executable bottom-line contracts](#executable-bottom-line-contracts)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Why the headline numbers conflict
@@ -1691,6 +1698,219 @@ Expected result:
 PASS groups=20 trials=20000 checks=80000
 ```
 
+## 10. Bottom line
+
+The source ends with a compact judgment: tens of millions of jobs may be eliminated or never created during the rest of this decade; exposed jobs must not be relabelled as unemployed people; junior and routine white-collar hiring may compress first; gross displacement could reach the low hundreds of millions by the mid-2030s if agentic automation becomes reliable; and net loss may be much smaller. It then recommends moving toward outcome ownership, judgment, architecture, relationships, physical execution, accountability and AI-assisted leverage.
+
+That paragraph is useful only after it is **unbundled**. It combines present evidence, a near-term planning scenario, a longer-horizon conditional scenario and career advice. Those claim types need different support and must not inherit one another's confidence.
+
+```mermaid
+flowchart TD
+  A[Bottom-line paragraph] --> B[Observed evidence]
+  A --> C[Near-term planning scenario]
+  A --> D[Conditional 2035 scenario]
+  A --> E[Role-design advice]
+  B --> F[Update with labor data]
+  C --> G[Keep gross and net separate]
+  D --> H[Name reliability and adoption triggers]
+  E --> I[Measure retained responsibility]
+```
+
+The defensible synthesis is therefore narrower:
+
+> AI exposure is already broad, but broad exposure is not broad unemployment. Current aggregate U.S. evidence does not show clear large-scale disruption, while some subgroup and employer evidence is consistent with pressure on early-career or routine cognitive work. Large global displacement numbers remain scenarios whose realization depends on reliability, adoption, organizational delegation, demand and worker transitions. A positive net aggregate would not erase distributional loss. Career planning should build AI leverage around responsibilities that remain owned by people, without calling any occupation “safe.”
+
+The first two sentences above summarize observed and associational evidence. The third is a conditional scenario rule. The last is advice. None is a probability estimate.
+
+### Bottom-line claim contract
+
+Before presenting a conclusion, label each packet and fill its contract:
+
+| Field | Required question | Bottom-line rule |
+|---|---|---|
+| claim kind | observed, association, forecast, conditional scenario or advice? | never let advice inherit a forecast's apparent certainty |
+| metric and unit | exposure, workers, jobs, work hours, hiring, layoffs, creation or net change? | do not convert exposed tasks into unemployed people |
+| population | global, national, sector, occupation, firm or age band? | keep early-career evidence inside its subgroup |
+| horizon and vintage | observed window, 2030 or mid-2030s; updated when? | do not treat a future scenario as a current count |
+| gross or net | displacement, creation or their difference? | publish the gross ledger before its net |
+| condition | which reliability, cost, adoption, delegation or demand state must hold? | a conditional scenario without its trigger is incomplete |
+| distribution | who bears losses, gains, mismatch and transition time? | positive net employment does not imply painless matching |
+| revision rule | what new result would raise, lower or retire the claim? | make the synthesis falsifiable |
+| action | what can a learner, worker or team change now? | prefer measurable role design over “future-proof” labels |
+
+```mermaid
+flowchart LR
+  A[Claim kind] --> B[Metric plus unit]
+  B --> C[Population plus horizon]
+  C --> D[Conditions plus evidence]
+  D --> E[Gross net distribution]
+  E --> F[Revision rule plus action]
+```
+
+Confidence attaches to a packet, not to the paragraph. For example, the ILO's one-in-four estimate is an exposure result; Stanford's 13% figure is a conditional relative employment estimate for ages 22–25 in highly exposed occupations; WEF's 92 million displaced and 170 million created form a multi-driver employer scenario; and “own outcomes” is a strategy. Pooling those numbers would be invalid even though they can inform the same conclusion.
+
+### Example 1 — split one headline into four evidence packets
+
+Take the source's bold sentence and decompose it before repeating it:
+
+| Packet | Kind | Defensible wording | Confidence boundary |
+|---|---|---|---|
+| A | near-term scenario | AI may contribute to tens of millions of gross job losses or forgone jobs globally through 2030 | no cited source directly observes this global AI-only count |
+| B | observed/association | pressure may appear earlier in junior and routine white-collar work | Stanford finds a 13% relative decline for one U.S. early-career exposed subgroup; causal attribution remains contested |
+| C | conditional scenario | gross displacement could reach the low hundreds of millions by the mid-2030s if reliable agentic delegation becomes widespread | the condition is doing essential work; no calibrated probability is supplied |
+| D | net-outcome scenario | net loss could be smaller, neutral or positive if creation and demand offset displacement | gross creation, worker matching, wages and transition time must be modelled separately |
+
+Trace the evidence boundary:
+
+1. The ILO estimates **exposure**, not eliminations, and says transformation is more likely because many occupations retain human tasks.
+2. The Budget Lab's October 14, 2026 tracker finds no clear evidence of large-scale U.S. disruption through September 2026, while warning that exposed-worker unemployment estimates are volatile.
+3. Stanford reports a 13% **relative** decline for ages 22–25 in the most exposed occupations after firm controls; it does not estimate a universal entry-level decline.
+4. BLS explicitly says its relative exposure categories are not employment, wage, adoption, replacement or productivity forecasts.
+5. Therefore the near-term packet remains a planning scenario, the subgroup packet remains bounded, and neither becomes an observed global headcount.
+
+```mermaid
+flowchart TD
+  A[Exposure evidence] --> B{Observed labor outcome?}
+  B -->|No| C[Retain exposure label]
+  B -->|Yes| D{Same population and horizon?}
+  D -->|No| E[Keep studies separate]
+  D -->|Yes| F[Report bounded outcome]
+  F --> G[Add uncertainty and revision date]
+```
+
+This split is not rhetorical caution. It is what prevents a reader from turning “some task overlap” into “hundreds of millions unemployed.”
+
+### Example 2 — a positive net can conceal a hard transition
+
+Suppose an illustrative global scenario reports 100 million gross displacements and 130 million gross creations, so net employment is `+30 million`. Now suppose only 30 million displaced workers can move directly into the created jobs during the scenario window.
+
+| Ledger item | Illustrative value | Meaning |
+|---|---:|---|
+| gross displaced | 100 million | positions removed or transformed out of the starting frame |
+| gross created | 130 million | positions added in the same population and horizon |
+| aggregate net | `130 - 100 = +30 million` | change in total positions, not matched people |
+| directly matched | 30 million | displaced workers immediately able to enter created roles |
+| unmatched transition | `100 - 30 = 70 million` | people still facing retraining, relocation, wage or timing friction |
+
+All values are teaching inputs, not forecasts. The trace shows why net and distribution are separate outputs.
+
+```mermaid
+flowchart LR
+  A[100M displaced] --> B[30M direct matches]
+  A --> C[70M transition gap]
+  D[130M created] --> B
+  D --> E[Other entrants or later matches]
+  C --> F[Training wage geography time]
+```
+
+A complete bottom line reports at least four ledgers:
+
+1. **position ledger:** gross created, gross displaced, net change;
+2. **person ledger:** directly matched, temporarily unemployed, exited and newly entering;
+3. **distribution ledger:** occupation, age, gender, region, wage and contract type;
+4. **time ledger:** immediate adjustment, retraining delay and the target-year stock.
+
+WEF's `170 million - 92 million = +78 million` scenario illustrates the first ledger across several structural drivers. It does not populate the other three and cannot be attributed to AI alone.
+
+### Example 3 — a mid-2030s displacement range is conditional
+
+“Low hundreds of millions by the mid-2030s” is not a measured baseline. Treat it as an explicit branch:
+
+```mermaid
+flowchart TD
+  A[Agentic capability improves] --> B{Reliable on full workflows?}
+  B -->|No| C[Retain review and repair work]
+  B -->|Yes| D{Economical and widely adopted?}
+  D -->|No| E[Slow realized displacement]
+  D -->|Yes| F{Authority delegated?}
+  F -->|No| G[Retain approval and accountability]
+  F -->|Yes| H{Demand and new work absorb output?}
+  H -->|Strong| I[Gross loss may coexist with stable net]
+  H -->|Weak| J[Higher net-loss pressure]
+```
+
+Scenario trace:
+
+| Gate | Raise displacement if… | Lower displacement if… | Evidence to watch |
+|---|---|---|---|
+| workflow reliability | long tasks succeed at required quality without frequent repair | error correlation or exception load remains high | accepted end-to-end outcomes, not benchmark attempts |
+| economics | total delegated cost beats human-plus-AI cost | verification, liability and integration dominate | full workflow cost including failures |
+| adoption | firms deploy across functions and worker task volume | use stays narrow or concentrated | firm, function, worker and task adoption |
+| authority | organizations can delegate consequential decisions | law, policy or customers retain human approval | audit logs, approval rules and liability |
+| demand | output expansion is weak | lower cost creates more quantity, quality or varieties | price, output, hours and hiring together |
+| absorption | new work does not match displaced workers | training and mobility close the gap | occupations, skills, wages, geography and duration |
+
+The range should be revised upward only when several gates move in the displacement direction at the same population and horizon. A single benchmark improvement is evidence about capability, not proof that the complete branch has executed.
+
+### Example 4 — design a role around retained responsibility
+
+The source's final career advice is strongest when converted from an occupation label into a task-and-authority audit. Score five retained axes—**outcome ownership, judgment, relationships, physical execution and accountability**—then pair them with task exposure. The score is a planning prompt, not a job-survival probability.
+
+| Role packet | Exposed work | Retained responsibility | Near-term design action |
+|---|---|---|---|
+| junior implementer | routine code, tests, documentation and issue triage | production context, debugging, user intent and learning | use AI for drafts; add tracing, review, incident and domain ownership |
+| support agent | retrieval, summarization and standard replies | empathy, escalation, exception resolution and customer trust | automate bounded suggestions; own difficult cases and feedback loops |
+| architect/security owner | option generation, boilerplate analysis and draft controls | trade-offs, threat judgment, approval and incident accountability | delegate evidence assembly; retain decision records and validation |
+| electrician or paramedic | scheduling, documentation and decision support | variable physical execution, local sensing and consequence-bearing action | use AI for preparation; strengthen field judgment and handoff quality |
+
+```mermaid
+quadrantChart
+  title Role-design priority
+  x-axis Low exposed-task share --> High exposed-task share
+  y-axis Low retained responsibility --> High retained responsibility
+  quadrant-1 Augment and extend ownership
+  quadrant-2 Monitor and learn
+  quadrant-3 Redesign now
+  quadrant-4 Add judgment and accountability
+  Junior implementer: [0.76, 0.34]
+  Support agent: [0.69, 0.53]
+  Security owner: [0.42, 0.85]
+  Field responder: [0.18, 0.92]
+```
+
+The plotted positions are illustrative. Do not compare their distances as measured occupational risk. The useful trace is procedural:
+
+1. inventory recurring tasks and identify which AI can assist or complete;
+2. separate output generation from authority to accept, execute and answer for it;
+3. measure review, exception, relationship and physical work rather than calling it residual;
+4. adopt AI where accepted output improves, including repair time;
+5. move learning toward system context, decision quality and outcome ownership;
+6. revisit the inventory when capability, regulation, demand or the role changes.
+
+No occupation is guaranteed safe. BLS warns that even “low” relative exposure does not mean an occupation is unaffected, while “very high” exposure does not imply decline. Role design is an adaptive response to uncertainty, not a forecast substitute.
+
+### Executable bottom-line contracts
+
+[`BottomLineContracts.java`](BottomLineContracts.java) makes the four traces executable. It validates claim packets, preserves gross and net arithmetic, calculates the unmatched transition rather than assuming instant reassignment, scores retained-responsibility axes and emits a role-design priority without calling it a safety probability.
+
+```java
+static long netJobs(long created, long displaced) {
+    if (created < 0 || displaced < 0) {
+        throw new IllegalArgumentException("gross flows must be nonnegative");
+    }
+    return Math.subtractExact(created, displaced);
+}
+
+static long unmatchedTransition(long displaced, long directlyMatched) {
+    if (displaced < 0 || directlyMatched < 0 || directlyMatched > displaced) {
+        throw new IllegalArgumentException("match must be within displaced flow");
+    }
+    return displaced - directlyMatched;
+}
+```
+
+Twenty deterministic groups cover observed, forecast and conditional packets; missing conditions and revision triggers; the WEF and illustrative ledgers; invalid flows; transition mismatch; responsibility scores; and role-design priorities. Then 20,000 seeded trials run 80,000 checks across the net identity, transition bounds, responsibility-score bounds and the mandatory conditional-scenario guard.
+
+```bash
+java -ea study-guides/ai/employment-impact/BottomLineContracts.java
+```
+
+Expected result:
+
+```text
+PASS groups=20 trials=20000 checks=80000
+```
+
 ## References and provenance
 
 - [World Economic Forum, *Future of Jobs Report 2025*](https://www.weforum.org/publications/the-future-of-jobs-report-2025/) — survey frame, multiple structural drivers, 170 million created, 92 million displaced and 78 million net growth through 2030.
@@ -1730,6 +1950,6 @@ PASS groups=20 trials=20000 checks=80000
 
 Source intake:
 
-- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–9 at lines 16–189 are promoted. Section 10 at lines 191–197 remains queued; the exact next bounded continuation is Section 10 at lines 191–197.
+- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–10 at lines 16–197 are promoted. The selected source analysis is exhausted through its final analytical line; its reference list at lines 199–212 is reconciled above.
 
-The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, thirty-six worked traces across nine sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
+The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, forty worked traces across ten sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied. Exhausting this selected source does not mark the wider collection or repository placeholder backlog complete.
