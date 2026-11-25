@@ -25,7 +25,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 | cloud-comparisons | AWS/cloud | NEEDS_SOURCE | `study-guides/cloud/comparisons/` | Repository source or earlier analysis; locate as needed |
 | java-security-protocols | DevOps/backend | NEEDS_SOURCE | `study-guides/backend/java-security-protocols/` | Repository source or earlier analysis; locate as needed |
 | ai-project-docs | AI | DISCOVERED | `study-guides/ai/projects/` | spring-boot-ai-labs.zip<br>spring-boot-ai-journey.zip<br>GITHUB_PUSH_COMMANDS.md<br>README.md<br>enterprise-rag-assistant.zip |
-| ai-employment-impact | AI | IN PROGRESS | [`study-guides/ai/employment-impact/`](ai/employment-impact/) | ai_jobs_elimination_deep_research_2026.md — Sections 1–2 lines 16–83 promoted; Sections 3–10 remain queued |
+| ai-employment-impact | AI | IN PROGRESS | [`study-guides/ai/employment-impact/`](ai/employment-impact/) | ai_jobs_elimination_deep_research_2026.md — Sections 1–3 lines 16–98 promoted; Sections 4–10 remain queued |
 | technical-study-workflows | Learning workflows | DISCOVERED | `study-guides/study-workflows/` | MASTER_PROMPT.md |
 
 ## Discovered source files
@@ -88,7 +88,7 @@ Inventory: 2026-10-08. Source metadata has been discovered; file contents have n
 - The AI/CI-CD/Spring-Python ZIP may contain Markdown and assets for three separate topics; inspect archive contents before deciding.
 - The AI-platform illustrated edition may hold useful material missing from a later master guide. Compare content; merge the best coverage in place.
 - Database internals, caching and Java connectivity are a distinct source, and arrays, advanced trees and frontend guides are newly enrolled topics.
-- The confirmed advanced-trees guide's Sections 1–11 are processed under [local project notes](local-project-notes/): Fenwick, lazy segment tree, trie, heap, B+ tree, B-tree, Red-Black Tree, AVL Tree and the requirement-first selection matrix are focused modules, while Sections 1–2 improved canonical BT-1/BT-3 and BST-6/BST-7 in place. Sections 12–15 remain queued rather than being treated as reviewed content.
+- The confirmed advanced-trees guide's Sections 1–12 are processed under [local project notes](local-project-notes/): Fenwick, lazy segment tree, trie, heap, B+ tree, B-tree, Red-Black Tree, AVL Tree, the requirement-first selection matrix and FAANG problem ladder are focused modules, while Sections 1–2 improved canonical BT-1/BT-3 and BST-6/BST-7 in place. Sections 13–15 remain queued rather than being treated as reviewed content.
 - Angular intake now has one canonical guide through Q74, rapid-fire items 1–39 and the Final Revision Sheet from both paired sources; that source pair is exhausted. JavaScript/HTML/CSS intake likewise covers Q1–Q72, rapid-fire items 1–32 and its Final Revision Sheet. Continue consolidating rather than duplicating canonical answers.
 - AI projects keep their code in existing repositories. Enroll technical explanations, setup, architecture and lessons here.
 - Missing AWS master-guide, cloud-comparison and Java/security source bytes remain NEEDS_SOURCE. Known topics are queued without pretending they were imported.

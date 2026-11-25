@@ -1,6 +1,6 @@
 # AI Enrichment Status
 
-Last updated: 2026-10-28.
+Last updated: 2026-11-25.
 
 ## AI platform engineering
 
@@ -62,18 +62,18 @@ The selected AI-platform master is exhausted through Chapter 21. The immediate c
 
 Validation for Chapter 21: Java 17 source-file launch passed all twenty-one AI-platform contracts; `PlatformDesignExercisesContracts` passed 28 scenario groups and 10,000 seeded trials. Two deterministic Pandoc builds produced identical readers. The platform reader recovered the exact 289,924-byte Markdown payload at SHA-256 `0404941b3dffa9eeac3ef9dff1f0ecc8a0e385a5d02e5d634071fd56344550b6`; 701 unique HTML IDs, 76 search entries, 487 resolved fragment links, 292 balanced fence markers, 96 Mermaid sources, search JSON, inline/module JavaScript, responsive controls and `git diff --check` passed. Standalone `javac`, live identity/order/payment/queue/index integration, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live literal-marker audit remains 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this section added none.
 
-## AI employment impact evidence taxonomy — November 19, 2026 ET
+## AI employment impact evidence taxonomy — November 25, 2026 ET
 
-State: **IN PROGRESS; source Sections 1–2 promoted**.
+State: **IN PROGRESS; source Sections 1–3 promoted**.
 
 Canonical pair:
 
 - [Markdown](employment-impact/guide.md)
 - [mobile-friendly searchable HTML](employment-impact/guide.html)
 
-The confirmed `ai_jobs_elimination_deep_research_2026.md` source was refreshed from Library at SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`. Sections 1–2 are now promoted through source line 83. The bounded Section 2 pass separates aggregate, subgroup and firm-survey evidence; distinguishes employment stocks, hiring flows, layoffs, expectations, relative percentages and firm-share denominators; adds four worked examples with traces, five diagrams, 2026 official updates and an executable Java 21 source-file contract. Sections 3–10 remain queued; the exact next source section is Section 3, “Why I use 30–80 million as a central 2030 gross-elimination range,” at lines 85–98, after fair-domain rotation is re-evaluated.
+The confirmed `ai_jobs_elimination_deep_research_2026.md` source was refreshed from Library at SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`. Sections 1–3 are now promoted through source line 98. The bounded Section 3 pass labels the 30–80 million central range as author synthesis rather than an institutional forecast; preserves metric, unit, population, horizon, driver and provenance boundaries; adds four worked examples with traces, five diagrams, current official references and an executable Java 21 source-file contract that rejects exposure-to-elimination relabeling and undeclared linear timing. Sections 4–10 remain queued; the exact next source section is Section 4, “The occupations I expect to take the hardest hit,” at lines 99–121, after fair-domain rotation is re-evaluated.
 
-Validation: both `EmploymentEvidenceContracts.java` and `ObservedLaborEvidenceContracts.java` passed 20 deterministic groups, 20,000 seeded trials and 80,000 evidence checks under Java 21 source-file launch. Two Pandoc builds produced the same reader. The HTML recovered the exact 26,064-byte Markdown payload at SHA-256 `0d2e7f273a0fcd5ab2ca7c2c9d01903bceb710ad03eccb0882ee220e43ddf014`; all 48 IDs were unique, all 37 fragment links resolved, five search entries parsed, 32 fence markers were balanced, ten Mermaid sources were retained, classic and module JavaScript syntax passed, and `git diff --check` passed. Standalone `javac`, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live literal-marker audit remains 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this section added none.
+Validation: `EmploymentEvidenceContracts.java`, `ObservedLaborEvidenceContracts.java` and `ScenarioRangeContracts.java` each passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under Java 21 source-file launch. Two Pandoc builds produced the same reader. The HTML recovered the exact 37,077-byte Markdown payload at SHA-256 `791f5f54048e1de81e10787287944aed12643a3e4d235a06293800dd633a0e44`; all 66 IDs were unique, all 53 fragment links resolved, six search entries parsed, 48 fence markers were balanced, 15 Mermaid sources were retained, classic and module JavaScript syntax passed, and `git diff --check` passed. The deterministic HTML SHA-256 is `1210571b497cbd8b174bf06d3a4714408064808c68f97f6f4297a5c907679b6c`. Standalone `javac`, browser, assistive-technology and rendered Mermaid visual QA were unavailable. The live literal-marker audit remains 170 placeholders (51 graph, 27 hashing, 27 linked list, 18 stack/queue and 47 trees/BST); this section added none.
 
 ## AI foundations, RAG and CAG
 

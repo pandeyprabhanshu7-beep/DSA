@@ -1,6 +1,6 @@
 # AI Employment Impact — Reading Evidence Without Headline Errors
 
-> **Incremental status:** Source Sections 1–2 are promoted from lines 16–83. Sections 3–10 remain queued. The source's scenario ranges are retained as attributed analysis, not presented here as consensus forecasts.
+> **Incremental status:** Source Sections 1–3 are promoted from lines 16–98. Sections 4–10 remain queued. The source's scenario ranges are retained as attributed analysis, not presented here as consensus forecasts.
 
 ## Contents
 
@@ -20,6 +20,13 @@
   - [Example 3 — reduced hiring is not a layoff](#example-3--reduced-hiring-is-not-a-layoff)
   - [Example 4 — all three observations can be true together](#example-4--all-three-observations-can-be-true-together)
   - [Executable observed-labour contracts](#executable-observed-labour-contracts)
+- [3. Why 30–80 million is a planning range, not a forecast](#3-why-3080-million-is-a-planning-range-not-a-forecast)
+  - [Scenario-range contract](#scenario-range-contract)
+  - [Example 1 — WEF supplies a compatibility ceiling, not an AI allocation](#example-1--wef-supplies-a-compatibility-ceiling-not-an-ai-allocation)
+  - [Example 2 — ILO exposure constrains interpretation, not headcount arithmetic](#example-2--ilo-exposure-constrains-interpretation-not-headcount-arithmetic)
+  - [Example 3 — a ten-year displacement path cannot be silently compressed to 2030](#example-3--a-ten-year-displacement-path-cannot-be-silently-compressed-to-2030)
+  - [Example 4 — a scenario ledger keeps evidence and assumptions separate](#example-4--a-scenario-ledger-keeps-evidence-and-assumptions-separate)
+  - [Executable scenario-range contracts](#executable-scenario-range-contracts)
 - [References and provenance](#references-and-provenance)
 
 ## 1. Why the headline numbers conflict
@@ -371,6 +378,183 @@ Expected result:
 PASS groups=20 trials=20000 evidence checks=80000
 ```
 
+## 3. Why 30–80 million is a planning range, not a forecast
+
+The source proposes **30–80 million gross job eliminations globally by 2030** as a central planning range. No cited institution publishes that exact interval. It is an author synthesis intended to sit between two overconfident claims: “almost no jobs will disappear” and “all exposed work becomes unemployment.”
+
+The range is useful only when every label stays attached:
+
+`(author synthesis, gross eliminations, jobs, global, AI-attributable, by 2030, 30M–80M)`
+
+It is **not** a probability interval, a net-employment forecast, a current layoff count, or a quotation from WEF, ILO, Goldman Sachs or the Budget Lab. The evidence constrains a scenario; it does not mechanically derive its endpoints.
+
+### Scenario-range contract
+
+Before using an authored range, record these fields:
+
+| Field | Section 3 value | What must not replace it |
+|---|---|---|
+| provenance | author synthesis | “WEF predicts 30–80 million” |
+| metric | gross job elimination | exposure, work hours, hiring slowdown or net change |
+| unit | jobs | workers, tasks, firms or FTE-equivalent task volume |
+| population | global | U.S. workers or one regional survey |
+| horizon | by 2030 | a ten-year transition ending later |
+| driver scope | AI-attributable | all structural macrotrends |
+| uncertainty form | planning interval | confidence interval or probability distribution |
+
+```mermaid
+flowchart TD
+  A[Quoted evidence] --> B[Metric, unit, population]
+  B --> C[Horizon and driver scope]
+  C --> D[Explicit synthesis assumptions]
+  D --> E[30M to 80M planning interval]
+  E --> F{New evidence changes a boundary?}
+  F -->|Yes| G[Revise and version the scenario]
+  F -->|No| H[Retain labels; do not call it consensus]
+```
+
+The contract prevents a common forecasting failure: combining individually credible numbers into a result that none of them supports. A scenario may be coherent without being estimated. Its value comes from transparent boundaries, falsifiable update rules and decision usefulness—not from extra decimal places.
+
+### Example 1 — WEF supplies a compatibility ceiling, not an AI allocation
+
+The World Economic Forum projects 92 million jobs displaced and 170 million created through 2030, for 78 million net growth. Its displacement ledger covers several structural forces, including technological, demographic, geoeconomic and green-transition change. Therefore:
+
+1. `92M` is a multi-driver gross-displacement figure.
+2. It is not an AI-only gross-elimination estimate.
+3. Using `80M < 92M` as a **compatibility check** keeps the authored upper endpoint below that chosen multi-driver frame.
+4. The comparison does not prove that 80 million is likely, nor that WEF places 80/92 of displacement on AI.
+
+| operation | result | verdict |
+|---|---:|---|
+| `170M created - 92M displaced` | `+78M net` | valid inside WEF's own ledger |
+| `80M scenario max <= 92M WEF displacement` | true | conservative compatibility check |
+| `92M × AI share` | unknown | no cited AI-attribution share exists in this section |
+| `92M = permanent AI unemployment` | false | wrong driver scope, metric and outcome |
+
+```mermaid
+flowchart LR
+  A[WEF 92M multi-driver displacement] --> B[Compatibility boundary]
+  C[Authored 30M to 80M AI elimination] --> B
+  B --> D[Coherent, not derived]
+```
+
+The distinction matters because a subset relation is not an allocation rule. The WEF number can reject a scenario that claims to be a conservative subset yet exceeds its chosen ceiling; it cannot select the correct point inside the remaining interval.
+
+### Example 2 — ILO exposure constrains interpretation, not headcount arithmetic
+
+The ILO–NASK refined index reports that one in four workers globally is in an occupation with some GenAI exposure and 3.3% of global employment is in the highest exposure gradient. It also concludes that job transformation is more likely than wholesale redundancy because most occupations retain tasks requiring human input.
+
+Invalid trace:
+
+`3.3% × global employment = jobs eliminated`
+
+The multiplication fails before any population number is inserted:
+
+| step | evidence category | can it become elimination headcount? |
+|---|---|---|
+| classify occupation tasks | exposure score | no |
+| place occupation in Gradient 4 | highest exposure category | no |
+| observe adoption and workflow redesign | missing in the index | requires new evidence |
+| measure reduced labour demand | missing in the index | requires an outcome model or observation |
+| count gross eliminated jobs | target scenario metric | only after the missing transitions |
+
+```mermaid
+flowchart LR
+  A[Task exposure] --> B[Adoption]
+  B --> C[Workflow redesign]
+  C --> D[Labour-demand change]
+  D --> E[Gross job elimination]
+```
+
+ILO evidence therefore pushes against an “all exposed jobs vanish” upper model. It does not by itself set the 30 million lower endpoint or the 80 million upper endpoint. The correct use is qualitative constraint: transformation, augmentation and retained human tasks must remain possible outcomes in every scenario.
+
+### Example 3 — a ten-year displacement path cannot be silently compressed to 2030
+
+Goldman Sachs Research's March 2026 base case describes 6–7% of workers being displaced during an approximately ten-year adoption transition. That horizon is not automatically “by 2030.” If an illustrative transition runs from 2026 through 2036, only four of ten years have elapsed at 2030:
+
+`(2030 - 2026) / (2036 - 2026) = 0.4`
+
+Multiplying a ten-year total by `0.4` would still require an explicit **linear timing assumption**. Adoption could be front-loaded, back-loaded or S-shaped. The arithmetic is a timing illustration, not a forecast:
+
+| assumed path for a hypothetical 70M ten-year total | by-2030 share | illustrative by-2030 count |
+|---|---:|---:|
+| linear, explicitly declared | 40% | 28M |
+| front-loaded | greater than 40% | requires a specified curve |
+| back-loaded | less than 40% | requires a specified curve |
+| no timing model | unknown | must not be calculated |
+
+```mermaid
+flowchart TD
+  A[Ten-year displacement scenario] --> B{Timing curve declared?}
+  B -->|No| C[Do not convert to 2030]
+  B -->|Linear| D[Use elapsed-time share]
+  B -->|Front or back loaded| E[Use stated adoption curve]
+  D --> F[Label result illustrative]
+  E --> F
+```
+
+The Budget Lab's tracker, updated October 14, 2026 with September CPS microdata, still found no clear evidence of large-scale U.S. labour-market disruption associated with AI. That observation is a brake on claims that the global transition is already complete. It does not rule out later or concentrated effects, and it is not a global forecast.
+
+### Example 4 — a scenario ledger keeps evidence and assumptions separate
+
+A defensible planning note uses three columns rather than blending every input into one formula:
+
+| item | type | role in the 30M–80M scenario |
+|---|---|---|
+| WEF 92M displaced, 170M created by 2030 | quoted multi-driver employer scenario | compatibility boundary and net/gross reminder |
+| ILO 3.3% highest gradient; transformation dominates | quoted exposure analysis | blocks exposure-equals-elimination reasoning |
+| Goldman 6–7% over roughly ten years | quoted transition scenario | shows material displacement is plausible but horizon-sensitive |
+| Budget Lab tracker through September 2026 | quoted observed U.S. evidence | blocks claims that a large broad shock is already measured |
+| agent reliability and workflow autonomy improve | explicit directional assumption | upside risk; no headcount conversion without adoption data |
+| 30M–80M global AI gross eliminations by 2030 | authored planning interval | stress-test decisions; not a consensus forecast |
+
+Use the range for decisions that tolerate scenario uncertainty—for example, testing whether a reskilling program, education plan or workforce strategy still works at 30 million and at 80 million. Do not use it as a point prediction or expected value.
+
+The update rule is explicit:
+
+1. Narrow or shift the range only when new evidence speaks to the same metric, unit, population, horizon and AI-only scope.
+2. Keep exposure, adoption, displacement, elimination, creation and net change in separate ledgers.
+3. Record new timing assumptions instead of hiding them in arithmetic.
+4. Preserve dated observations; do not freeze a 2025 or 2026 rate through 2030.
+
+```mermaid
+flowchart TD
+  A[New publication] --> B{Same scenario tuple?}
+  B -->|No| C[Store as related evidence]
+  B -->|Yes| D{Observed outcome or modeled assumption?}
+  D -->|Observed| E[Reassess range boundary]
+  D -->|Modeled| F[Compare assumptions and sensitivity]
+  E --> G[Version the planning range]
+  F --> G
+```
+
+### Executable scenario-range contracts
+
+`ScenarioRangeContracts.java` encodes provenance, metric, unit, population, horizon and driver scope. It refuses to present the 30–80 million interval as an institution estimate, refuses undeclared linear timing and refuses to relabel exposure as elimination.
+
+```java
+static boolean isPlanningScenario(Range range) {
+    return range.provenance() == Provenance.AUTHOR_SYNTHESIS;
+}
+
+static long linearizedCount(long total, double share, boolean linearAssumptionDeclared) {
+    require(linearAssumptionDeclared, "linear timing is an assumption, not evidence");
+    return Math.round(total * share);
+}
+```
+
+Twenty deterministic groups cover the authored range, WEF compatibility boundary, provenance separation, ten-year horizon and rejection paths. Then 20,000 seeded trials check range order, interval containment, elapsed-time bounds and explicitly declared linear arithmetic—80,000 scenario checks.
+
+```bash
+java -ea study-guides/ai/employment-impact/ScenarioRangeContracts.java
+```
+
+Expected result:
+
+```text
+PASS groups=20 trials=20000 scenario checks=80000
+```
+
 ## References and provenance
 
 - [World Economic Forum, *Future of Jobs Report 2025*](https://www.weforum.org/publications/the-future-of-jobs-report-2025/) — survey frame, multiple structural drivers, 170 million created, 92 million displaced and 78 million net growth through 2030.
@@ -380,12 +564,13 @@ PASS groups=20 trials=20000 evidence checks=80000
 - [McKinsey Global Institute, *Generative AI and the Future of Work in America*](https://www.mckinsey.com/mgi/our-research/generative-ai-and-the-future-of-work-in-america) — work-hour automation unit and occupational-transition framing.
 - [The Budget Lab at Yale, *Evaluating the Impact of AI on the Labor Market: Current State of Affairs*](https://budgetlab.yale.edu/research/evaluating-impact-ai-labor-market-current-state-affairs) — October 1, 2025 broad U.S. occupational-mix, exposure and employment evidence.
 - [The Budget Lab at Yale, *What We Do and Don't Know About How AI is Affecting the Labor Market*](https://budgetlab.yale.edu/research/what-we-do-and-dont-know-about-how-ai-affecting-labor-market) — May 7, 2026 synthetic difference-in-differences update and explicit aggregate/subgroup limitations.
+- [The Budget Lab at Yale, *AI Labor Market Tracker*](https://interactives.budgetlab.yale.edu/tools/ai-labor-market-tracker/) — October 14, 2026 update incorporating September 2026 CPS microdata and retaining the no-clear-large-scale-disruption boundary.
 - [Stanford SIEPR, *Canaries in the Coal Mine? Six Facts about the Recent Employment Effects of Artificial Intelligence*](https://siepr.stanford.edu/publications/working-paper/canaries-coal-mine-six-facts-about-recent-employment-effects-artificial) — August 2025 working paper, administrative payroll design and conditional 13% relative early-career estimate.
 - [Federal Reserve Bank of New York, *Are Businesses Scaling Back Hiring Due to AI?*](https://libertystreeteconomics.newyorkfed.org/2025/09/are-businesses-scaling-back-hiring-due-to-ai/) — September 4, 2025 regional survey, realized versus expected workforce responses and firm-share denominators.
 - [Federal Reserve Bank of New York, *Businesses Are Using AI to Transform Work, Not Cut Jobs*](https://libertystreeteconomics.newyorkfed.org/2026/09/businesses-are-using-ai-to-transform-work-not-cut-jobs/) — September 1, 2026 update showing time-varying adoption, layoffs, hiring and retraining responses.
 
 Source intake:
 
-- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 19, 2026. Source Sections 1–2 at lines 16–83 are promoted. Source lines 85–212 remain queued; Section 3 is the next bounded continuation at lines 85–98.
+- `ai_jobs_elimination_deep_research_2026.md`, Library file `libfile_ec5bdd926d1881918e6f8523ea1ab36a`, SHA-256 `32006ec0ff03ed1b643e6e10083977df523266112cfe8f2646e827b8c2e1e0a8`, refreshed November 25, 2026. Source Sections 1–3 at lines 16–98 are promoted. Source lines 99–212 remain queued; Section 4 is the next bounded continuation at lines 99–121.
 
-The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, eight worked traces across the two sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
+The source provides the section boundaries, cited evidence and seed distinctions. The evidence tuples, requirements gates, twelve worked traces across three sections, diagrams, comparison rules and executable Java contracts are newly authored study-guide material. No older or competing AI guide was copied, and this incremental promotion does not mark the source or wider collection complete.
