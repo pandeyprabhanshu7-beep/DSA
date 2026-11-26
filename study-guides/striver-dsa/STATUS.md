@@ -739,4 +739,12 @@ Only G-8 at selected source lines 520–570 was promoted in this bounded pass af
 
 Fresh literal-marker audit is **163**: 44 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The next exact selected-source boundary is G-9 at source lines 571–621. The selected source, wider intake and placeholder backlog remain incomplete.
 
+## Graph G-9 four-direction Flood Fill enrichment — 2026-11-26 ET
+
+Only G-9 at selected source lines 571–621 was promoted in this bounded pass after comparison with four earlier Graph workbooks. The canonical card now fixes four-direction adjacency, original-color eligibility, in-place versus copy-preserving ownership, equal-color early return and reusable rectangular-input validation. Four examples cover the canonical image, a diagonal exclusion, an equal-color no-op and negative colors; an exact queue trace and Mermaid control flow expose the recolor-before-enqueue invariant. Current Take U Forward, LeetCode and Oracle Java 21 references were verified on 2026-11-26. The older workbooks' useful early-mark rule was retained, but their terse recursive implementation was not copied.
+
+`GraphFloodFillContracts.java` passed 20 deterministic groups, 20,000 seeded rectangular-image trials and 80,000 recursive parity, disjoint-set parity, copy-nonmutation and idempotence checks under OpenJDK 21 source-file launch. Standalone `javac` was unavailable. The reader recovered the exact 322,953-byte canonical Markdown at SHA-256 `526e44aa24d09db95c4fb70dea0abdb0555fff14edf7d47fa3b8dac29830200f`; validation found 56 unique anchors, 172 balanced fence markers, eleven Mermaid sources, nine resolved relative links and parseable inline JavaScript. The synchronized HTML is 338,423 bytes at SHA-256 `e0b053d84dbf25ca70d52e265b9dcce1151f0a26f7580ae72c266e3d5b12a5e2`. Browser, assistive-technology and rendered-Mermaid QA were unavailable.
+
+Fresh literal-marker audit is **162**: 43 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The next exact selected-source boundary is G-10 at source lines 622–672. The selected source, wider intake and placeholder backlog remain incomplete.
+
 

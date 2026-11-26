@@ -1221,89 +1221,180 @@ The companion runs 20 deterministic groups plus 20,000 seeded rectangular grids.
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Flood Fill. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given a non-empty rectangular integer image, a valid starting cell `(sr, sc)`, and `newColor`, recolor exactly the cells in the start cell's **four-direction connected component** whose original value equals `image[sr][sc]`.
 
-### Three requirement-clarifying examples
+This card uses the platform-style ownership contract: `floodFillInPlace` **mutates the supplied rows and returns the same top-level array reference**. A separate `floodFillCopy` wrapper is appropriate when the caller requires preservation. Diagonal cells do not share an edge, and equality is always tested against the captured **original** color.
 
-| # | Input / setup | Output / observation | Why it matters |
+| Requirement | Contract used here |
+|---|---|
+| adjacency | up, down, left, right only |
+| eligibility | cell value equals the source's original color |
+| ownership | core method may mutate; copy wrapper must not alias any row |
+| equal colors | if `oldColor == newColor`, return immediately |
+| invalid reusable input | reject null, empty, ragged, null-row, or out-of-range start |
+
+Do not inherit G-8's eight-direction rule: the diagonally touching bottom-right `1` in the standard example must remain unchanged.
+
+### Four requirement-clarifying examples
+
+| # | Image, start, new color | Result | Contract exposed |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | `[[1,1,1],[1,1,0],[1,0,1]]`, `(1,1)`, `2` | `[[2,2,2],[2,2,0],[2,0,1]]` | standard four-direction region; diagonal corner excluded |
+| 2 | `[[1,0],[0,1]]`, `(0,0)`, `7` | `[[7,0],[0,1]]` | diagonal equality does not imply connectivity |
+| 3 | `[[4,4],[4,3]]`, `(0,0)`, `4` | unchanged | equal-color early return avoids losing the visited marker |
+| 4 | `[[-2,-2],[-1,-2]]`, `(0,0)`, `9` | `[[9,9],[-1,9]]` | colors are ordinary integers; only equality matters |
 
 ### Pattern recognition
 
-**Primary pattern:** Graph modeling
+**Primary pattern:** implicit-grid traversal from one source.
 
-> **KEY INTUITION —** Write NODE, EDGE, DIRECTION, COST and GOAL before naming an algorithm.
+> **KEY INTUITION —** A pixel is claimed exactly once by recoloring it **before** enqueueing it.
+
+The image is already an implicit graph: each cell is a vertex and each legal same-original-color side contact is an edge. Building adjacency lists would store information that row/column arithmetic can recover in constant time.
 
 ### Brute-force / straightforward baseline
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+A repeated whole-image scan can recolor the source, then repeatedly recolor any old-color cell adjacent to the growing new-color region until a pass changes nothing. It can be made correct, but a one-cell-wide region may advance only one step per pass. On an `R × C` image, up to `RC` passes each scan `RC` cells: `O((RC)²)` work.
+
+DFS/BFS follows only edges leaving the discovered component. No global pass is needed.
 
 ### Optimized reasoning
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+Capture `oldColor` before any write. If it equals `newColor`, return: recoloring cannot serve as the discovered marker in that case. Otherwise:
+
+1. recolor the source and enqueue it;
+2. remove one claimed cell;
+3. for each of four neighbors, accept it only if it is in bounds and still equals `oldColor`;
+4. recolor that neighbor **before** enqueueing it.
+
+**Queue invariant:** every queued cell belongs to the source component and is already `newColor`; every accepted cell enters the queue once. A separate `visited[][]` is therefore unnecessary for the mutating method.
+
+```mermaid
+flowchart TD
+    A["Validate and capture old color"] --> B{"old equals new?"}
+    B -->|yes| C["Return same image"]
+    B -->|no| D["Recolor and enqueue source"]
+    D --> E["Poll; claim eligible 4-neighbors before enqueue"]
+    E -->|queue nonempty| E
+    E -->|empty| C
+```
 
 ### Detailed dry run
 
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
+Use Example 1 and the direction order up, down, left, right. The source `(1,1)` has `oldColor=1`; it is changed to `2` before entering the queue.
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+| Step | Polled | Accepted and recolored before enqueue | Queue after step | Image state |
+|---:|---|---|---|---|
+| seed | — | `(1,1)` | `[(1,1)]` | `[[1,1,1],[1,2,0],[1,0,1]]` |
+| 1 | `(1,1)` | `(0,1)`, `(1,0)` | `[(0,1),(1,0)]` | `[[1,2,1],[2,2,0],[1,0,1]]` |
+| 2 | `(0,1)` | `(0,0)`, `(0,2)` | `[(1,0),(0,0),(0,2)]` | `[[2,2,2],[2,2,0],[1,0,1]]` |
+| 3 | `(1,0)` | `(2,0)` | `[(0,0),(0,2),(2,0)]` | `[[2,2,2],[2,2,0],[2,0,1]]` |
+| 4–6 | remaining cells | none | `[]` | unchanged final image |
+
+The final `(2,2)` stays `1`: its only same-color contacts with the filled region are diagonal, which this contract forbids.
 
 ### Java implementation / template
 
 ```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+static int[][] floodFillInPlace(int[][] image, int sr, int sc, int newColor) {
+    int cols = validate(image, sr, sc); // rejects empty/ragged/out-of-range input
+    int oldColor = image[sr][sc];
+    if (oldColor == newColor) return image;
+
+    int[] dr = {-1, 1, 0, 0};
+    int[] dc = {0, 0, -1, 1};
+    Deque<Integer> queue = new ArrayDeque<>();
+
+    image[sr][sc] = newColor;
+    queue.addLast(sr * cols + sc);
+
+    while (!queue.isEmpty()) {
+        int cell = queue.removeFirst();
+        int row = cell / cols, col = cell % cols;
+        for (int direction = 0; direction < 4; direction++) {
+            int nextRow = row + dr[direction];
+            int nextCol = col + dc[direction];
+            if (nextRow >= 0 && nextRow < image.length
+                    && nextCol >= 0 && nextCol < cols
+                    && image[nextRow][nextCol] == oldColor) {
+                image[nextRow][nextCol] = newColor; // claim before scheduling
+                queue.addLast(nextRow * cols + nextCol);
+            }
+        }
+    }
+    return image;
+}
 ```
+
+The complete executable companion includes validation, a copy-preserving wrapper, a reverse-mechanism recursive oracle, a disjoint-set oracle, ownership checks, and seeded randomized tests: [`GraphFloodFillContracts.java`](../java/GraphFloodFillContracts.java).
 
 ### Key line to highlight
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+```java
+image[nextRow][nextCol] = newColor; // before queue.addLast(...)
+```
+
+If marking is delayed until dequeue, two already-processed neighbors can enqueue the same cell. Recolor-before-enqueue is both the visited record and the duplicate-suppression rule.
 
 ### Correctness checklist
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+Let `S` be the source's four-direction component in the original image.
+
+1. **Soundness:** the source is in `S`. A neighbor is accepted only from an already accepted cell, through a legal side edge, while its value is still `oldColor`; therefore every recolored cell lies in `S`.
+2. **No duplicates:** an accepted cell is immediately changed away from `oldColor`, so no later edge can accept it again.
+3. **Completeness:** take any cell `x` in `S`. Along an original-color path from the source to `x`, the source is processed. Inductively, when each predecessor is polled, its not-yet-accepted successor still has `oldColor`, so it is accepted. Thus `x` is eventually recolored.
+4. **Preservation:** cells outside `S` either are never side-reachable from an accepted cell or fail the original-color test, so they are unchanged.
+
+When the queue is empty, soundness and completeness imply that exactly `S` has the new color.
 
 ### Boundary conditions
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+- `oldColor == newColor`: required early return for color-as-visited implementations;
+- a diagonal-only equal cell is excluded;
+- singleton, one-row, one-column, and all-one-color images;
+- negative or large integer colors: equality, not a special palette, defines membership;
+- mutation permission: call the copy wrapper when the input must survive unchanged;
+- rectangularity and valid coordinates in reusable code; platform constraints may guarantee them;
+- flattened `row * cols + col` uses `int` safely under the referenced platform's small bounds; production-scale matrices may require `long` or coordinate records;
+- iterative BFS avoids recursive-stack overflow on a snake-shaped component.
 
 ### Complexity — derive it instead of memorizing it
 
-**Adjacency-list traversal O(V+E); representation O(V+E).**
+There are `RC` implicit vertices and at most four inspected directions per accepted cell. Recolor-before-enqueue permits at most one enqueue and dequeue per cell.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+- **Time:** `Θ(RC)` in the worst case.
+- **Auxiliary space:** `O(RC)` for the queue in the worst case; no explicit visited matrix.
+- **Copy wrapper:** additionally allocates `Θ(RC)` output storage and preserves the caller's rows.
+- **In-place core:** returns the same array reference; the image itself is output, not auxiliary space.
 
 ### Memoization / repeated-work note
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+This is reachability, not overlapping-subproblem dynamic programming. The changed color is the one-bit discovered memo. For many fills on an immutable image, preprocessing same-color components can help only if updates do not change component structure; ordinary flood fill mutates colors, so such cached components quickly become stale.
 
-> **MEMORY TRICK —** MODEL FIRST; ALGORITHM SECOND.
+> **MEMORY TRICK —** CAPTURE OLD; IF SAME, STOP; PAINT BEFORE QUEUE.
+
+### Validation strategy
+
+The companion program checks 20 deterministic contract groups and 20,000 seeded rectangular images. Each trial compares iterative BFS with both a recursive traversal and an independently constructed disjoint-set component, verifies copy-wrapper nonmutation, and checks fill idempotence: 80,000 randomized oracle/preservation checks.
+
+The older workbooks agree on the four-direction rule and equal-color early return, but their terse recursive implementation was not copied. This version makes ownership and validation explicit and uses iterative BFS while preserving the source's claim-before-schedule invariant.
+
+### Current primary references
+
+- [Take U Forward — Flood Fill Algorithm](https://takeuforward.org/blogs/data-structure-and-algorithm/flood-fill-algorithm) — four directions, recolor-before-enqueue/recursion, equal-color early return, BFS/DFS complexity.
+- [Take U Forward practice — Flood Fill](https://takeuforward.org/practice/dsa/flood-fill-algorithm) — exact connected-region contract.
+- [LeetCode 733 — Flood Fill](https://leetcode.com/problems/flood-fill/) — canonical examples, constraints, and modified-image return.
+- [Oracle Java 21 `ArrayDeque`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ArrayDeque.html) — resizable deque and amortized constant-time queue-end operations.
+- [Oracle Java 21 `Arrays`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Arrays.html) — row copying and deep-content comparison used by preservation tests.
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. Switch to DFS: what risk moves from the explicit queue to the call stack?
+2. Permit eight directions: which two arrays change, and which cells join Example 2?
+3. Preserve the input: deep-copy every row or use a separate result/visited matrix?
+4. Return the filled area or bounding box while traversing.
+5. Add a tolerance predicate for image colors instead of exact equality.
+6. Generalize to multi-source recoloring with conflicting colors: define ownership and tie rules before choosing BFS.
 
 [↑ Back to Index](#navigation-and-index)
 
