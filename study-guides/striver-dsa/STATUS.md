@@ -755,4 +755,12 @@ Only G-10 at selected source lines 622–672 was promoted in this bounded pass a
 
 Fresh literal-marker audit is **161**: 42 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The next exact selected-source boundary is G-11 at source lines 673–723. The selected source, wider intake and placeholder backlog remain incomplete.
 
+## Graph G-11 undirected-cycle BFS enrichment — 2026-11-26 ET
+
+Only G-11 at selected source lines 673–723 was promoted in this bounded pass after comparison with four earlier Graph workbooks. The canonical card now fixes disconnected undirected edge-list semantics, mark-before-enqueue uniqueness, parent-edge rather than merely parent-vertex identity, and explicit self-loop/parallel-edge multigraph behavior. Four examples cover a triangle, a chain, a disconnected cyclic component and parallel edges; an exact queue trace and edge-labeled Mermaid graph expose the BFS-forest/non-tree-edge invariant. Current Take U Forward, GeeksforGeeks, Princeton Algorithms 4/e and Oracle Java 21 references were verified on 2026-11-26. The older workbooks' useful parent exception was retained, but their detailed DFS implementation was not copied into this BFS lesson.
+
+`GraphUndirectedCycleBfsContracts.java` passed 20 deterministic groups, a 50,000-vertex chain, 20,000 seeded undirected-multigraph trials and 80,000 recursive-DFS parity, disjoint-set parity, edge-order and vertex-relabeling checks under OpenJDK 21 source-file launch. All eleven Graph companions also passed. Standalone `javac` was unavailable. The reader recovered the exact 336,991-byte canonical Markdown at SHA-256 `f30db32ba99f71c636f747215d30edac56fa700cdbf020cd0a00d9b23ba66cd2`; validation found 56 unique anchors, 180 balanced fence markers, thirteen Mermaid sources, eleven resolved relative links and parseable inline JavaScript. The synchronized HTML is 352,666 bytes at SHA-256 `434392aa23b5ff7b59995c4c3f1c9d8d053eaf93fe8b61abd0a10b8ab3fd18cd`. Browser, assistive-technology and rendered-Mermaid QA were unavailable.
+
+Fresh literal-marker audit is **160**: 41 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The next exact selected-source boundary is G-12 at source lines 724–774. The selected source, wider intake and placeholder backlog remain incomplete.
+
 

@@ -1598,89 +1598,182 @@ The earlier workbooks agree on multi-source BFS, time-zero seeding and the unrea
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Undirected Cycle Detection — BFS. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given `V` labeled vertices and undirected edges, return whether **any connected component** contains a cycle. This card uses an edge-list API and supports an undirected multigraph: a self-loop is a one-edge cycle and two parallel edges form a two-edge cycle. The input edge rows are validated and never mutated.
 
-### Three requirement-clarifying examples
+BFS needs more state than ordinary reachability. Every undirected edge is encountered from both endpoints, so a visited neighbor can merely be the endpoint just used to reach the current vertex. The queue must remember the exact **parent edge**, not merely whether a neighbor was seen.
 
-| # | Input / setup | Output / observation | Why it matters |
+| Requirement | Contract used here |
+|---|---|
+| graph | undirected, possibly disconnected, with vertices `0..V-1` |
+| cycle | a closed edge-distinct walk; self-loops and parallel-edge pairs count |
+| BFS state | `(vertex, parentEdgeId)` |
+| discovery | mark a vertex visited before enqueueing it |
+| detection | a scanned edge to a visited endpoint is a cycle iff it is not the state's parent edge |
+| ownership | the edge list is read-only |
+| reusable validation | reject negative `V`, null/malformed rows, or endpoints outside `0..V-1` |
+
+For a judge that explicitly guarantees a simple graph, `(vertex,parentVertex)` is sufficient. Edge identity is the stronger reusable contract: it also distinguishes two separate edges joining the same endpoints.
+
+### Four requirement-clarifying examples
+
+| # | Vertices and edges | Result | Contract exposed |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | `V=3`, `[[0,1],[1,2],[2,0]]` | `true` | triangle closes through a non-parent edge |
+| 2 | `V=4`, `[[0,1],[1,2],[2,3]]` | `false` | every revisit is only the exact parent edge |
+| 3 | `V=6`, `[[0,1],[2,3],[3,4],[4,2]]` | `true` | the outer root loop must inspect every component |
+| 4 | `V=2`, `[[0,1],[0,1]]` | `true` | parallel edges require parent **edge** identity |
 
 ### Pattern recognition
 
-**Primary pattern:** DFS state coloring
+**Primary pattern:** BFS forest plus parent-edge tracking.
 
-> **KEY INTUITION —** Visited alone is not enough: a directed cycle is an edge to a node that is still active on the recursion path.
+> **KEY INTUITION —** In an undirected BFS, the exact edge that discovered a vertex is the only visited-edge encounter that must be excused.
+
+The accepted discovery edges form a BFS forest. Any other edge whose endpoint is already in that forest supplies a second connection and therefore closes a cycle.
 
 ### Brute-force / straightforward baseline
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+For each edge `e=(u,v)`, temporarily ignore that exact edge and run a fresh reachability search from `u` to `v`; a self-loop is an immediate cycle. If `v` remains reachable, another path plus `e` forms a cycle. This handles parallel edges when removal is by edge identity, but performs up to `E` traversals: `O(E(V+E))` time.
+
+One traversal can retain the same decisive fact—the edge by which each vertex first entered the forest—and avoid every repeated search.
 
 ### Optimized reasoning
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+Build two adjacency arcs for every undirected edge, both carrying the same edge ID. For each unseen vertex, start a BFS component:
+
+1. mark the root before enqueueing `(root,-1)`;
+2. dequeue `(u,parentEdge)` and scan every incident arc `(u,v,edgeId)`;
+3. if `v` is unseen, mark it immediately and enqueue `(v,edgeId)`;
+4. otherwise, if `edgeId != parentEdge`, return `true`;
+5. return `false` only after every component is exhausted.
+
+**Forest invariant:** every visited vertex has been claimed exactly once. Except for component roots, its queued parent edge is the unique discovery edge connecting it to the current BFS forest. Thus only that exact reverse arc is harmless.
+
+```mermaid
+graph TD
+    v0((0)) ---|e0 tree| v1((1))
+    v1 ---|e1 non-tree| v2((2))
+    v2 ---|e2 tree| v0
+    v2 ---|e3 tail| v3((3))
+```
+
+Starting at `0`, edges `e0` and `e2` claim `1` and `2`. When `1` later scans `e1` to already visited `2`, `e1` is not `1`'s parent edge, so the triangle is certified.
 
 ### Detailed dry run
 
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
+Use Example 1 with input edge IDs `e0=(0,1)`, `e1=(1,2)`, `e2=(2,0)` and adjacency order inherited from that edge list.
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+| Step | Dequeued state | Arc examined | Decision | Queue after decision | Visited |
+|---:|---|---|---|---|---|
+| seed | — | — | claim root | `[(0,-1)]` | `{0}` |
+| 1 | `(0,-1)` | `e0: 0→1` | claim `1`; parent edge is `e0` | `[(1,e0)]` | `{0,1}` |
+| 2 | `(0,-1)` | `e2: 0→2` | claim `2`; parent edge is `e2` | `[(1,e0),(2,e2)]` | `{0,1,2}` |
+| 3 | `(1,e0)` | `e0: 1→0` | exact parent edge; ignore | `[(2,e2)]` | unchanged |
+| 4 | `(1,e0)` | `e1: 1→2` | visited endpoint via non-parent `e1`; cycle | — | return `true` |
+
+The result is independent of which two triangle edges become tree edges; the remaining edge will be a non-tree edge.
 
 ### Java implementation / template
 
 ```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+static boolean hasCycle(int vertices, int[][] edges) {
+    validate(vertices, edges);
+    List<List<Arc>> graph = buildGraph(vertices, edges); // arcs retain edgeId
+    boolean[] visited = new boolean[vertices];
+    Deque<State> queue = new ArrayDeque<>();
+
+    for (int start = 0; start < vertices; start++) {
+        if (visited[start]) continue;
+        visited[start] = true;
+        queue.addLast(new State(start, -1));
+
+        while (!queue.isEmpty()) {
+            State state = queue.removeFirst();
+            for (Arc arc : graph.get(state.vertex())) {
+                if (!visited[arc.to()]) {
+                    visited[arc.to()] = true; // claim before enqueue
+                    queue.addLast(new State(arc.to(), arc.edgeId()));
+                } else if (arc.edgeId() != state.parentEdgeId()) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
 ```
+
+The complete executable companion includes edge-list construction, full validation, multigraph semantics, recursive and disjoint-set oracles, metamorphic checks, and a 50,000-vertex nonrecursive stress case: [`GraphUndirectedCycleBfsContracts.java`](../java/GraphUndirectedCycleBfsContracts.java).
 
 ### Key line to highlight
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+```java
+} else if (arc.edgeId() != state.parentEdgeId()) {
+    return true;
+}
+```
+
+Using `arc.to() != parentVertex` is correct only for a simple graph. With two parallel `u—v` edges, both arcs point to the parent vertex, but only the exact discovery edge is the harmless reverse traversal; the second edge completes a two-edge cycle.
 
 ### Correctness checklist
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+1. **Discovery forest:** a root starts a tree; every other vertex is first claimed through one parent edge. Mark-before-enqueue gives each vertex exactly one such discovery.
+2. **Soundness:** when BFS reports edge `e=(u,v)`, `v` is already in the forest and `e` is not `u`'s parent edge. The forest path connecting `u` and `v`, together with distinct edge `e`, contains a cycle. This also covers loops and parallel edges.
+3. **No false parent report:** the reverse arc of the discovery edge has the same ID as `parentEdgeId` and is skipped exactly once for that state.
+4. **Completeness:** suppose a component contains a cycle. The discovery forest cannot contain all cycle edges because a forest is acyclic. When any non-tree cycle edge is scanned, both endpoints have been or will be claimed; its scan from the later state reaches a visited endpoint through a non-parent edge and reports `true`.
+5. **Disconnected coverage:** the outer loop starts BFS at every unseen root, so a cycle in any component is examined.
+
+Therefore the method returns `true` exactly when the undirected multigraph contains a cycle.
 
 ### Boundary conditions
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+- `V=0` with no edges and isolated vertices: acyclic under this reusable extension;
+- self-loop: cycle immediately;
+- two parallel edges: a length-two multigraph cycle, requiring edge identity;
+- one ordinary edge: its reverse adjacency arc is not a cycle;
+- disconnected graph: scan every unseen root;
+- mark visited at enqueue, not dequeue, to prevent duplicate queue states;
+- malformed edge rows, negative `V`, and endpoints outside `0..V-1`;
+- adjacency-list judge input: confirm whether duplicate edges are excluded before using parent vertex alone;
+- directed input: this rule is invalid; use active-path state or a topological method instead;
+- a long chain: iterative BFS avoids call-stack overflow.
 
 ### Complexity — derive it instead of memorizing it
 
-**O(V+E).**
+Building the adjacency list creates two arcs per undirected edge. Mark-before-enqueue permits one queue insertion and removal per vertex, and every arc is scanned once.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+- **Time:** `Θ(V+E)`.
+- **Auxiliary traversal state:** `O(V)` for visited and the queue.
+- **Edge-list adapter:** `Θ(V+E)` additional adjacency storage; if adjacency is supplied, it is input storage.
+- **Early return:** may finish sooner on a detected cycle, but does not change the worst-case bound.
 
 ### Memoization / repeated-work note
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+This is not dynamic programming. `visited` memoizes membership in the BFS forest, while `parentEdgeId` supplies the one exception needed to interpret an undirected revisit. For an incremental stream of edge insertions, rebuilding BFS after every edge repeats work; a disjoint-set structure can report whether each new edge joins vertices already connected. Deletions require a different dynamic-connectivity design.
 
-> **MEMORY TRICK —** DIRECTED CYCLE = EDGE TO ACTIVE NODE.
+> **MEMORY TRICK —** UNDIRECTED BFS: VISITED + NOT THE ARRIVAL EDGE = CYCLE.
+
+### Validation strategy
+
+The companion checks 20 deterministic groups, including loops, parallel edges, disconnected graphs, malformed input, nonmutation and a 50,000-vertex chain. It then runs 20,000 seeded multigraph trials. Every trial compares BFS with recursive parent-edge DFS and a disjoint-set oracle, then verifies edge-order and vertex-relabeling invariance: 80,000 randomized oracle/metamorphic checks.
+
+The earlier workbooks correctly emphasize ignoring the parent relationship, but their detailed section implements DFS and uses parent vertex identity. That code was not copied. This section implements the selected BFS lesson and strengthens the reusable contract with parent edge identity.
+
+### Current primary references
+
+- [Take U Forward practice — Cycle Detection in Undirected Graph (BFS)](https://takeuforward.org/practice/dsa/cycle-detection-in-undirected-graph) — current lesson identity and judge entry point.
+- [GeeksforGeeks practice — Undirected Graph Cycle](https://www.geeksforgeeks.org/problems/detect-cycle-in-an-undirected-graph/1) — current disconnected edge-list contract, examples and expected complexity.
+- [Princeton Algorithms 4/e — `Cycle`](https://algs4.cs.princeton.edu/code/javadoc/edu/princeton/cs/algs4/Cycle.html) — explicit undirected-cycle, self-loop and parallel-edge semantics and `Θ(V+E)` bounds.
+- [Oracle Java 21 `ArrayDeque`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ArrayDeque.html) — resizable deque and amortized constant-time queue-end operations.
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. Return an actual cycle: store parent vertex and edge, then reconstruct when a non-tree edge appears.
+2. Simple-graph-only API: replace parent edge with parent vertex and state the lost multigraph support.
+3. Use DFS instead: the same parent-edge exception applies, but the working structure becomes recursion or explicit frames.
+4. Directed cycle detection: parent is insufficient; distinguish active from finished vertices or use Kahn's algorithm.
+5. Online edge insertions: use DSU; an edge whose endpoints already share a root closes a cycle.
+6. Dynamic deletions: ordinary DSU cannot undo arbitrary edges; discuss offline rollback or dynamic connectivity.
 
 [↑ Back to Index](#navigation-and-index)
 
