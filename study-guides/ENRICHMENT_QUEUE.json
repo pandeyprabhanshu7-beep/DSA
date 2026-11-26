@@ -173,7 +173,11 @@
       "version_id": null,
       "modified_at": "2026-09-08T04:49:59.864498Z",
       "size_bytes": 166312,
-      "status": "DISCOVERED"
+      "status": "IN_PROGRESS",
+      "last_read_at": "2026-11-25T22:08:01-05:00",
+      "sha256": "2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3",
+      "canonical_target": "study-guides/striver-dsa/graph-dsa/markdown/Striver_Graph_DSA_FINAL_Deep_Dive.md",
+      "selection": "Selected after comparing the four accessible Graph Markdown workbooks. The corrected 56-section sequence aligns exactly with the canonical G-1 through G-56 spine. G-1 at source lines 163-213 is promoted; G-2 at lines 214-264 is the next bounded section."
     },
     {
       "name": "Take_U_Forward_Tree_Verified_Problem_Guide_v3.md",
@@ -209,7 +213,7 @@
       "version_id": null,
       "modified_at": "2026-09-08T00:10:00.856206Z",
       "size_bytes": 108786,
-      "status": "PROMOTED",
+      "status": "IN_PROGRESS",
       "last_read_at": "2026-10-08T07:37:33-04:00",
       "sha256": "d302fcc91dfc510ca514962d8fec4229c4ac418c227ca9aafd080552fbc99e08",
       "canonical_target": "study-guides/ai/foundations-rag-cag/guide.md",
@@ -446,9 +450,20 @@
         "Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
         "DSA_Graph_FAANG_Question_Workbook.docx"
       ],
-      "last_processed_at": "2026-10-08",
-      "next_action": "Read latest canonical source and status; reconcile earlier source improvements in place.",
-      "priority": 1
+      "last_processed_at": "2026-11-25T22:08:01-05:00",
+      "processed_sections": [
+        "G-1 Graph vocabulary and conventions — source lines 163-213; explicit model contract, four examples, multigraph/self-loop trace, two diagrams, executable Java builder and conservation proof"
+      ],
+      "last_successful_commit": "9618666432139986291b6b006c4e6a5979990e3e",
+      "validation": "The selected 166,312-byte Library source was hashed at SHA-256 2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3 and bounded to G-1 lines 163-213 after comparison with the three other accessible Graph Markdown workbooks. Current NIST, Princeton Algorithms 4/e and Take U Forward references were verified. GraphModelContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under OpenJDK 21 source-file launch. Reader validation passed exact 292,374-byte Markdown recovery at SHA-256 b2668135ab3bb4d6925b685219deb6b795f55ed77af01f37b2a10fe12750604d, 56 unique explicit anchors, 152 balanced fence markers, two Mermaid sources, relative links, inline JavaScript syntax and deterministic rebuilding; HTML SHA-256 is 91b1e49c6444ac856d681d3148e44bbea436bfa05765dee9150bb127c9c46dd0. All seven content-commit remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 169.",
+      "next_action": "Process exactly G-2 Graph representation in C++ at selected source lines 214-264 after the next fair-domain check; keep the canonical in-place guide and do not duplicate competing workbooks.",
+      "priority": 1,
+      "source_revision": {
+        "library_file_id": "libfile_4ce4c60ac9c881918a412133400539be",
+        "file_id": "file_0000000019ac81fd96289a9f6f15bb12",
+        "source_sha256": "2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3",
+        "canonical_markdown_sha256_after": "b2668135ab3bb4d6925b685219deb6b795f55ed77af01f37b2a10fe12750604d"
+      }
     },
     {
       "id": "dsa-trees",
@@ -1178,7 +1193,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "AI-platform Chapters 1-21, Spring AI/Python Sections 1-25, the selected Arrays source pair, the selected advanced-trees source pair and AI-employment Sections 1-10 are exhausted. Re-evaluate fair-domain rotation and choose the next confirmed unprocessed source or one bounded live-placeholder section; retain the wider intake and 170 placeholders.",
+    "next_action": "Graph G-1 at selected source lines 163-213 is promoted. After the next fair-domain check, G-2 lines 214-264 is the exact Graph continuation; retain the wider intake and 169 placeholders.",
     "batch_policy": {
       "max_sections_per_run": 1,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1412,14 +1427,15 @@
     "AI employment impact Section 7: exposure, observed-use, descriptive-association, causal-headcount and complete-workflow-delegation boundaries, four worked traces, five diagrams, current PwC/Anthropic/BLS references and executable evidence-against-destruction contracts",
     "AI employment impact Section 8: capability/reliability/risk/integration/redesign/physical-reach/demand-absorption conjunction, four worked traces, six diagrams, current METR/NIST/Census/BLS references and executable downside-scenario contracts",
     "AI employment impact Section 9: reliability-with-review/complementarity/authority/demand/absorption/diffusion revision boundaries, four worked traces, six diagrams, current HBS/NBER/EU/Census/Federal Reserve/BLS/WEF references and executable pessimism-scenario contracts",
-    "AI employment impact Section 10: observed/scenario/advice claim packets, gross/net transition accounting, conditional agentic-automation gates, role-design boundaries, four worked traces, six diagrams and executable bottom-line contracts; selected source analysis exhausted"
+    "AI employment impact Section 10: observed/scenario/advice claim packets, gross/net transition accounting, conditional agentic-automation gates, role-design boundaries, four worked traces, six diagrams and executable bottom-line contracts; selected source analysis exhausted",
+    "Graph G-1: explicit vertex/edge/direction/weight/scope/goal contract, four examples, multigraph and self-loop trace, two diagrams, executable Java builder and conservation proof"
     ],
-  "processed_section": "AI employment impact Section 10 Bottom line at source lines 191-197 only; selected source analysis exhausted",
-  "validation": "The confirmed AI-employment source remained unchanged and the bounded range was Section 10 lines 191-197. Java 21 source launch passed all ten employment-impact contracts; each reported 20 groups, 20,000 seeded trials and 80,000 checks. Reader validation passed exact 134,257-byte recovery, SHA-256 bae6e113c41576b2126b93fd3dd94428f2a1b5585320c70e34898fcafa444ce6, 215 unique IDs, thirteen search entries, 188 fragments, six Java links, 172 fences, 55 Mermaid sources, responsive controls, JavaScript syntax and deterministic HTML SHA-256 deecf058a5103d87f9815e6e74063aa1cbe7d3320db108cb49180be7039a5178. Content commit 2d427137b9b28027b3f8b62d35e9ced51a12a615. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
-  "estimated_next_tokens": 8000,
-  "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section; no reliable account-quota telemetry was exposed.",
-  "last_successful_commit": "2d427137b9b28027b3f8b62d35e9ced51a12a615",
-  "last_processed_at": "2026-11-25T18:10:08-05:00",
-  "next_batch_decision": "AI employment Section 10 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. The selected source analysis is exhausted; re-evaluate fair-domain rotation and choose the next confirmed unprocessed source or one bounded live-placeholder section. The wider 170-placeholder backlog remains open."
+  "processed_section": "Graph G-1 Graph vocabulary and conventions at selected source lines 163-213 only",
+  "validation": "The selected Graph source was hashed at SHA-256 2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3 and bounded to G-1 lines 163-213 after four-workbook comparison. GraphModelContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under OpenJDK 21 source-file launch. Reader validation passed exact 292,374-byte recovery, SHA-256 b2668135ab3bb4d6925b685219deb6b795f55ed77af01f37b2a10fe12750604d, 56 explicit anchors, 152 fences, two Mermaid sources, relative links, inline JavaScript syntax and deterministic HTML SHA-256 91b1e49c6444ac856d681d3148e44bbea436bfa05765dee9150bb127c9c46dd0. Content commit 9618666432139986291b6b006c4e6a5979990e3e; all seven remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 169.",
+  "estimated_next_tokens": 7500,
+  "estimate_method": "Heuristic reserve for one bounded Graph G-2 source section or fair-domain alternative; no reliable account-quota telemetry was exposed.",
+  "last_successful_commit": "9618666432139986291b6b006c4e6a5979990e3e",
+  "last_processed_at": "2026-11-25T22:08:01-05:00",
+  "next_batch_decision": "Graph G-1 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. After the next fair-domain check, G-2 lines 214-264 is the exact selected-source continuation. The wider 169-placeholder backlog remains open."
   }
 }
