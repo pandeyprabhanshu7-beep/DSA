@@ -731,4 +731,12 @@ Only G-7 at selected source lines 469–519 was promoted in this bounded pass af
 
 Fresh literal-marker audit is **164**: 45 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The next exact selected-source boundary is G-8 at source lines 520–570. The selected source, wider intake and placeholder backlog remain incomplete.
 
+## Graph G-8 eight-direction Number of Islands enrichment — 2026-11-26 ET
+
+Only G-8 at selected source lines 520–570 was promoted in this bounded pass after comparing the selected source with four earlier Graph workbooks. The canonical card now makes the eight-direction Take U Forward/GeeksforGeeks contract explicit and rejects the older workbooks' four-direction implementation for this lesson. Four examples cover a diagonal merge, four separated corners, the current Take U Forward sample and all water; an exact queue trace and Mermaid control flow expose the implicit-grid, mark-on-enqueue and one-root-per-island invariants. Current Take U Forward, GeeksforGeeks and Oracle Java 21 references were verified on 2026-11-26.
+
+`GraphEightDirectionIslandsContracts.java` passed 20 deterministic groups, 20,000 seeded rectangular-grid trials and 80,000 DSU parity, reverse-scan recursive-DFS parity, rotation-invariance and nonmutation checks under OpenJDK 21 source-file launch. Standalone `javac` was unavailable. The reader recovered the exact 316,732-byte canonical Markdown at SHA-256 `ea77fc78b642e04a70f3126d67e2e0793c868006a16c7c287cc42e6817b75f90`; validation found 56 unique anchors, 168 balanced fence markers, ten Mermaid sources, eight resolved relative links and parseable inline JavaScript. The synchronized HTML is 332,101 bytes at SHA-256 `3e25e1983201916d06bbe883bcd464c1b572b07fef032889e362e40e76c9c915`. Browser, assistive-technology and rendered-Mermaid QA were unavailable.
+
+Fresh literal-marker audit is **163**: 44 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The next exact selected-source boundary is G-9 at source lines 571–621. The selected source, wider intake and placeholder backlog remain incomplete.
+
 

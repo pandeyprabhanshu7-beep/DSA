@@ -1074,89 +1074,141 @@ The companion runs 20 deterministic groups plus 20,000 seeded symmetric matrices
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Number of Islands. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given a rectangular grid of `'0'` water and `'1'` land, return the number of maximal land components when cells connect **horizontally, vertically, or diagonally**. Each land cell is an implicit graph vertex. Its legal neighbors are the eight cells whose row and column offsets are both in `{-1,0,1}`, excluding offset `(0,0)`.
 
-### Three requirement-clarifying examples
+This is the Take U Forward / GeeksforGeeks **eight-direction** contract. It is not LeetCode 200, whose islands use only four directions. The connectivity rule is part of the input contract; changing it changes the graph and can change the answer.
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+> **KEY INTUITION — SCAN FOR A ROOT; FLOOD ALL EIGHT DIRECTIONS.** Every unvisited land cell encountered by the outer scan starts exactly one island. Mark its entire eight-connected closure before scanning for another root.
 
-### Pattern recognition
+**Verified source note (accessed 2026-11-26).** The selected G-8 source explicitly joins corner-touching land. All four earlier Library workbooks instead implement the four-direction variant and even state that diagonal land is separate; copying that older code would be wrong for this lesson. Their useful shared idea—model the grid implicitly and claim a cell before scheduling it—is retained. Take U Forward's page updated 2026-11-24 and the current GeeksforGeeks practice contract both specify eight directions. The immutable input contract, validation, proof and executable cross-oracle suite below are study-guide additions.
 
-**Primary pattern:** Graph modeling
+### Four requirement-clarifying examples
 
-> **KEY INTUITION —** Write NODE, EDGE, DIRECTION, COST and GOAL before naming an algorithm.
+| # | Grid | Eight-direction result | Requirement exposed |
+|---:|---|---:|---|
+| 1 | `[[1,0],[0,1]]` | `1` | a corner touch connects; four-direction code would return `2` |
+| 2 | `[[1,0,1],[0,0,0],[1,0,1]]` | `4` | separated corners do not connect across a two-cell gap |
+| 3 | `[[1,1,1,0,1],[1,0,0,0,0],[1,1,1,0,1],[0,0,0,1,1]]` | `2` | the lower-right diagonal merges into one island |
+| 4 | `[[0,0,0],[0,0,0]]` | `0` | water is not a graph vertex |
 
-### Brute-force / straightforward baseline
+The reusable companion accepts an empty outer grid or a rectangular zero-column grid as returning `0`. It rejects null rows, ragged shapes, and symbols other than `'0'` and `'1'` before traversal.
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+### Implicit-grid traversal
 
-### Optimized reasoning
-
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
-
-### Detailed dry run
-
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```mermaid
+flowchart TD
+    A["row-major scan"] --> B{"unseen land?"}
+    B -->|no| A
+    B -->|yes| C["count island; mark and enqueue root"]
+    C --> D["dequeue one land cell"]
+    D --> E["try all dr,dc in -1..1 except 0,0"]
+    E --> F{"in bounds, land, unseen?"}
+    F -->|yes| G["mark before enqueue"]
+    G --> D
+    F -->|no / offsets done| H{"queue empty?"}
+    H -->|no| D
+    H -->|yes| A
 ```
 
-### Key line to highlight
+Bounds, land eligibility and unseen state are three separate gates. Checking a coordinate after indexing can throw; omitting the land check crosses water; marking after dequeue allows several neighbors to enqueue the same cell.
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+### Exact queue trace
 
-### Correctness checklist
+Trace `[[1,0,1,0],[0,1,0,0],[0,0,0,1]]`. Queue order is not part of the return contract; the count is.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+| Step | scan / queue before | Accepted eight-direction evidence | Seen land | islands |
+|---:|---|---|---|---:|
+| 0 | scan `(0,0)`, `[]` | new root; mark/enqueue `(0,0)` | `{(0,0)}` | 1 |
+| 1 | `[(0,0)]` | diagonal `(1,1)` is land; claim it | `{(0,0),(1,1)}` | 1 |
+| 2 | `[(1,1)]` | diagonal `(0,2)` is land; claim it | `{(0,0),(1,1),(0,2)}` | 1 |
+| 3 | scan reaches `(0,2)` | already seen; do not recount | same | 1 |
+| 4 | scan `(2,3)`, `[]` | no seen path reaches it; new root | add `(2,3)` | 2 |
+| 5 | `[(2,3)]` | all legal neighbors are water/outside | all four land cells | 2 |
 
-### Boundary conditions
+### Java — nonmutating eight-direction BFS
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+The complete executable companion is [`GraphEightDirectionIslandsContracts.java`](../java/GraphEightDirectionIslandsContracts.java).
 
-### Complexity — derive it instead of memorizing it
+```java
+static int countIslands(char[][] grid) {
+    int columns = validate(grid);              // rectangular, binary characters
+    int rows = grid.length;
+    boolean[][] seen = new boolean[rows][columns];
+    Deque<Cell> queue = new ArrayDeque<>();
+    int islands = 0;
 
-**Adjacency-list traversal O(V+E); representation O(V+E).**
+    for (int row = 0; row < rows; row++) {
+        for (int column = 0; column < columns; column++) {
+            if (grid[row][column] != '1' || seen[row][column]) continue;
+            islands++;
+            seen[row][column] = true;
+            queue.addLast(new Cell(row, column));
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+            while (!queue.isEmpty()) {
+                Cell cell = queue.removeFirst();
+                for (int dr = -1; dr <= 1; dr++) {
+                    for (int dc = -1; dc <= 1; dc++) {
+                        if (dr == 0 && dc == 0) continue;
+                        int nr = cell.row() + dr, nc = cell.column() + dc;
+                        if (nr < 0 || nr >= rows || nc < 0 || nc >= columns
+                                || grid[nr][nc] != '1' || seen[nr][nc]) continue;
+                        seen[nr][nc] = true;    // claim before scheduling
+                        queue.addLast(new Cell(nr, nc));
+                    }
+                }
+            }
+        }
+    }
+    return islands;
+}
+```
 
-### Memoization / repeated-work note
+Nested `dr/dc` loops make the neighborhood definition auditable: nine offset pairs minus `(0,0)` equals eight moves. A fixed direction table is equally correct if it contains exactly those pairs once.
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+### Correctness argument
 
-> **MEMORY TRICK —** MODEL FIRST; ALGORITHM SECOND.
+Before each outer-scan position, `seen` contains exactly the land cells belonging to islands already counted, and any earlier unvisited land would contradict completion of its flood fill. Water never enters the queue. If the current land cell is seen, it belongs to a counted island. If it is unseen, no previously counted island can reach it, so incrementing is necessary.
+
+During BFS, every queued cell is land and is eight-connected to the root. Mark-before-enqueue admits each cell at most once. When the queue empties, suppose a root-connected land cell remained unseen. On a shortest eight-direction path to it, the first unseen cell follows a seen predecessor whose eight offsets were all examined, so it would have been claimed—a contradiction. Thus one BFS marks exactly one maximal island. Induction over the row-major scan proves the returned count.
+
+### Complexity and ownership boundary
+
+The outer scan examines `R×C` cells. Each land cell enters and leaves the queue once and checks eight constant-size offsets, so time is `Θ(RC)`. The visited matrix and worst-case queue use `Θ(RC)` auxiliary space.
+
+Mutating land to water can remove the visited matrix, but it changes caller-owned input and still needs up to `Θ(RC)` queue or recursion depth. This card chooses nonmutation and explicit ownership. Recursive DFS is concise but can overflow the JVM stack on a large single island; iterative BFS avoids call-stack dependence.
+
+### Boundary conditions and common failures
+
+- Validate the complete shape/content before traversal; do not accept a partial result from a ragged grid.
+- Do not read `grid[0]` before handling an empty outer grid.
+- A single land cell is one island; a single water cell is zero.
+- Diagonal chains are connected here. If the interviewer says four directions, change the direction set and examples before coding.
+- Mark a neighbor when it is enqueued, not when removed.
+- Keep row and column bounds separate for rectangular grids.
+- Reusing `seen` across separate calls is a state leak; allocate it per input or clear it explicitly.
+- If input uses `'L'/'W'` instead of `'1'/'0'`, adapt validation and eligibility consistently rather than mixing encodings.
+
+### Validation strategy
+
+The companion runs 20 deterministic groups plus 20,000 seeded rectangular grids. Every random trial checks parity with an independent four-previous-neighbor DSU oracle, parity with a reverse-scan recursive DFS oracle, invariance under 180-degree rotation, and exact input preservation—80,000 randomized checks total.
+
+### Primary references
+
+- [Take U Forward — Number of Islands using eight directions](https://takeuforward.org/blogs/data-structure-and-algorithm/number-of-islands-8-directions)
+- [Take U Forward practice — Number of Islands](https://takeuforward.org/practice/dsa/number-of-islands)
+- [GeeksforGeeks practice — Count Islands](https://www.geeksforgeeks.org/problems/find-the-number-of-islands/1)
+- [GeeksforGeeks — DFS/BFS with eight-direction neighbors](https://www.geeksforgeeks.org/dsa/find-the-number-of-islands-using-dfs/)
+- [Oracle Java 21 — `ArrayDeque`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ArrayDeque.html)
+
+> **MEMORY TRICK — EIGHT OFFSETS, MARK ON ENTRY, ONE ROOT PER ISLAND.**
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. Which exact examples distinguish four-direction from eight-direction connectivity?
+2. How would you return each island's area or the largest area?
+3. What ownership trade-off permits in-place marking?
+4. How would a streaming grid change the memory strategy?
+5. Can DSU count islands online as land cells are added?
 
 [↑ Back to Index](#navigation-and-index)
 
