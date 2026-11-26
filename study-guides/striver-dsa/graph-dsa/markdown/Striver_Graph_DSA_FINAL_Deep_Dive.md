@@ -409,89 +409,128 @@ No memoization is involved. Representation is preprocessing: pay once to make la
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Java Graph Representation. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Build a Java adjacency list from a declared vertex count and edge stream. The contract must say whether the graph is directed, whether weights and parallel edges matter, and who may mutate the result.
 
-### Three requirement-clarifying examples
+This card assumes vertices `0..V-1`, preserves every input edge occurrence, assigns its input index as `edgeId`, and stores `Arc(to, weight, edgeId)`. For an undirected graph, every input edge creates two oriented arcs—even a self-loop. That convention makes degree equal the bucket size and retains edge identity for later low-link or removal algorithms.
+
+> **KEY INTUITION — AN ADJACENCY LIST IS AN OWNED, TYPED INDEX OVER THE EDGE STREAM.** Keep empty buckets for isolated vertices, retain the fields future algorithms need, and freeze the finished structure when callers should only read it.
+
+**Verified source note (accessed 2026-11-25).** Princeton Algorithms 4/e models an undirected graph as a vertex-indexed array of adjacency bags, permits parallel edges and self-loops, and stores a self-loop twice. Oracle Java 21 documents amortized constant-time `ArrayList.add`; `List.copyOf` creates an unmodifiable snapshot in encounter order. The bounded Take U Forward lesson requires Java adjacency lists for weighted and unweighted input. The typed ownership contract, diagrams, traces, proofs and executable oracle below are study-guide additions.
+
+### Four requirement-clarifying examples
 
 | # | Input / setup | Output / observation | Why it matters |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | undirected `V=4`, `(0,1,4)`, `(0,2,7)` | `adj[0]=[(1,4,#0),(2,7,#1)]`; `adj[3]=[]` | reverse arcs plus isolated bucket |
+| 2 | directed `V=3`, `(0,1,5)`, `(1,2,-2)` | only `0→1` and `1→2`; negative weight is preserved | direction and data are representation facts |
+| 3 | undirected parallel edges `(0,1,9)`, `(0,1,3)` | both buckets retain edge IDs `#0` and `#1` | endpoint pairs alone are not edge identity |
+| 4 | undirected self-loop `(1,1,6)` | bucket 1 contains two arcs with edge ID `#0` | degree contribution is two under this convention |
 
-### Pattern recognition
+### Java ownership model
 
-**Primary pattern:** Graph modeling
-
-> **KEY INTUITION —** Write NODE, EDGE, DIRECTION, COST and GOAL before naming an algorithm.
-
-### Brute-force / straightforward baseline
-
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
-
-### Optimized reasoning
-
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
-
-### Detailed dry run
-
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```mermaid
+flowchart TD
+    E["InputEdge(from, to, weight)"] --> B["validate endpoints"]
+    B --> F["append forward Arc"]
+    F --> D{"directed?"}
+    D -->|yes| Z["freeze every bucket"]
+    D -->|no| R["append reverse Arc"]
+    R --> Z
 ```
 
-### Key line to highlight
+Use a typed record instead of `int[]`: `arc.to()` and `arc.weight()` cannot be accidentally swapped. Build with mutable `ArrayList` buckets, then snapshot every inner list and the outer list. Returning only an unmodifiable outer list is insufficient because callers could still mutate its buckets.
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+### Detailed build trace
 
-### Correctness checklist
+Trace Example 1. The input position becomes the stable edge ID.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+| Step | input | mutation | adjacency after step |
+|---:|---|---|---|
+| 0 | — | allocate four buckets | `[[],[],[],[]]` |
+| 1a | edge `#0=(0,1,4)` | append forward `(1,4,#0)` to bucket 0 | `[[(1,4,#0)],[],[],[]]` |
+| 1b | undirected reverse | append `(0,4,#0)` to bucket 1 | `[[(1,4,#0)],[(0,4,#0)],[],[]]` |
+| 2a | edge `#1=(0,2,7)` | append forward `(2,7,#1)` to bucket 0 | `[[(1,4,#0),(2,7,#1)],[(0,4,#0)],[],[]]` |
+| 2b | undirected reverse | append `(0,7,#1)` to bucket 2, then freeze | `[[(1,4,#0),(2,7,#1)],[(0,4,#0)],[(0,7,#1)],[]]` |
 
-### Boundary conditions
+Vertex `3` survives because buckets are allocated from `V`, not discovered from edges.
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+### Java — typed, immutable adjacency list
 
-### Complexity — derive it instead of memorizing it
+The full executable companion is [`GraphAdjacencyListContracts.java`](../java/GraphAdjacencyListContracts.java).
 
-**Adjacency-list traversal O(V+E); representation O(V+E).**
+```java
+record InputEdge(int from, int to, long weight) {}
+record Arc(int to, long weight, int edgeId) {}
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+static Graph build(int vertices, boolean directed, List<InputEdge> edges) {
+    if (vertices < 0) throw new IllegalArgumentException("negative V");
+    Objects.requireNonNull(edges, "edges");
 
-### Memoization / repeated-work note
+    List<List<Arc>> mutable = new ArrayList<>(vertices);
+    for (int v = 0; v < vertices; v++) mutable.add(new ArrayList<>());
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+    for (int edgeId = 0; edgeId < edges.size(); edgeId++) {
+        InputEdge edge = Objects.requireNonNull(edges.get(edgeId), "null edge");
+        validateVertex(edge.from(), vertices);
+        validateVertex(edge.to(), vertices);
+        mutable.get(edge.from()).add(new Arc(edge.to(), edge.weight(), edgeId));
+        if (!directed) {
+            mutable.get(edge.to()).add(new Arc(edge.from(), edge.weight(), edgeId));
+        }
+    }
 
-> **MEMORY TRICK —** MODEL FIRST; ALGORITHM SECOND.
+    List<List<Arc>> frozen = mutable.stream().map(List::copyOf).toList();
+    return new Graph(vertices, directed, edges.size(), frozen);
+}
+```
+
+The returned `Graph` owns an immutable snapshot of the adjacency structure. `long weight` prevents representation-level truncation; whether a later algorithm accepts negative weights is a separate algorithm contract.
+
+### Correctness argument
+
+After processing the first `k` input edges:
+
+1. every vertex owns exactly one bucket, including isolated vertices;
+2. for each processed edge `i=(u,v,w)`, bucket `u` contains exactly one arc `(v,w,i)`;
+3. if the graph is undirected, bucket `v` additionally contains exactly one arc `(u,w,i)`; and
+4. no arc refers to an unprocessed edge ID.
+
+The invariant is true for `k=0` because all `V` buckets are empty. Processing edge `k` validates both endpoints, appends exactly its required forward arc and, only for an undirected graph, its required reverse arc. No earlier bucket entry changes. Therefore the invariant holds for `k+1`; at `k=E`, the adjacency list represents the complete input multiset. Freezing copies changes mutability, not content.
+
+### Complexity and ownership costs
+
+Creating `V` buckets costs `Θ(V)`. Each directed input creates one arc; each undirected input creates two, so construction and freezing cost `Θ(V+E)` time and space. Iterating bucket `u` costs `Θ(outdegree(u))` for directed graphs or `Θ(degree(u))` under the declared undirected convention. `ArrayList.add` is amortized `O(1)`; freezing is deliberately linear because it establishes ownership.
+
+There is no memoization: the representation is a reusable index that prevents later algorithms from rescanning all `E` raw edges to discover one vertex's neighbors.
+
+### Boundary conditions and contract failures
+
+- `V=0` is valid only with an empty edge list; any endpoint is out of range.
+- Reject negative `V`, null edge lists, null edge records and endpoints outside `0..V-1`.
+- Do not discard negative or zero weights at representation time.
+- Preserve parallel edges when edge multiplicity or identity can matter.
+- Decide the self-loop convention explicitly; this card stores two arcs for an undirected loop.
+- `List.copyOf` is shallow: using immutable `Arc` records makes that sufficient here.
+- Encounter order is deterministic in this builder but is not an intrinsic graph property.
+- For concurrent mutation, publish a new immutable graph snapshot or add explicit synchronization; fail-fast iterators are not a correctness mechanism.
+
+### Primary references
+
+- [Oracle Java 21 — `ArrayList`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ArrayList.html)
+- [Oracle Java 21 — `List.copyOf`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/List.html#copyOf(java.util.Collection))
+- [Oracle Java 21 — records](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Record.html)
+- [Princeton Algorithms 4/e — adjacency-list `Graph`](https://algs4.cs.princeton.edu/code/javadoc/edu/princeton/cs/algs4/Graph.html)
+- [Take U Forward — Graph representation in Java](https://takeuforward.org/graph/graph-representation-in-java)
+
+> **MEMORY TRICK — ALLOCATE, VALIDATE, EXPAND, FREEZE.**
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. When is `List<List<Integer>>` sufficient, and when is an `Arc` record required?
+2. How would a simple-graph contract reject or deduplicate parallel edges?
+3. What changes if vertices use strings or sparse external IDs?
+4. How would compressed sparse row trade build cost for locality and lower overhead?
+5. How would dynamic insertion/deletion change the immutable ownership design?
 
 [↑ Back to Index](#navigation-and-index)
 
