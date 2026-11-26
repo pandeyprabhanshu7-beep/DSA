@@ -2,7 +2,7 @@
   "archive_name": "untitled.zip",
   "library_file_id": "libfile_ebe78a3fe6848191a2c6f27a5801e6f8",
   "archive_sha256": "27765f71de9fbb03f1896af62810ef69ef641561417e7e4972014fccf7ea6b1e",
-  "last_successful_commit": "3987481c9b08be25159011959d63e80142bfbc5f",
+  "last_successful_commit": "c5abc0e06f4a62719e8d9dd761103ab149afb94b",
   "inventory_only_except": [
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 7",
     "Advanced_Trees_FAANG_Mermaid_Study_Guide.md section 8",
@@ -873,10 +873,10 @@
   ],
   "next_batch": {
     "source": "Take_U_Forward_Graph_Verified_Problem_Guide_v3.md after four-workbook content comparison",
-    "section": "After the next fair-domain check, process exactly G-10 Rotten Oranges at selected source lines 622-672; retain canonical in-place consolidation",
+    "section": "After the next fair-domain check, process exactly G-11 Undirected Cycle Detection using BFS at selected source lines 673-723; retain canonical in-place consolidation",
     "status": "QUEUED",
     "estimated_tokens": 7500,
-    "estimate_method": "Heuristic reserve for one bounded Graph G-10 source section or fair-domain alternative. No weekly/hourly quota telemetry was exposed.",
+    "estimate_method": "Heuristic reserve for one bounded Graph G-11 source section or fair-domain alternative. No weekly/hourly quota telemetry was exposed.",
     "budget_action": "One bounded section per invocation when account quota is unknown; stop at real limit and retry later."
   },
   "validation": {
@@ -890,8 +890,8 @@
     "spring_ai_python": "The refreshed selected ZIP member final Section 25 at editable lines 1359-1370 and byte-identical standalone HTML direct lines 1403-1415 were compared through both source endings; no duplicate guide was created. Four worked implementation traces and four diagrams cover exact offline parity, server-owned identity, crash-convergent ingestion, explicit stream completion, digest/provenance verification and fixed-slice promotion. Java 17 source-file launch and Python 3 passed all twenty-five contract pairs; the new pair produced identical parity output, 21 scenario groups and 20,000 seeded trials per language. The full suites passed 710 Java and 709 Python scenario groups plus 250,000 trials per language. Reader validation passed exact 352703-byte Markdown recovery, SHA-256 c205cf37e4d2d99ac78ce34cfbda1774b8de8ffae79f00b41fb7c6a3e5ddc22c, 969 unique IDs, 26 search entries, 653 fragments, 22 relative links, 484 fence markers, 111 Mermaid sources, four script blocks, JavaScript syntax, responsive/search controls and deterministic rebuilding. Six content files were published at 9349877c7f6468b83f0cdab6f034d237f0487e24 with an expected-head guard and matching blob hashes. Standalone javac, live identity/ACL/provider/outbox/stream/build/deployment integration, browser, assistive-technology and rendered Mermaid integration were unavailable. The live canonical marker audit remains 170 placeholders; this backend section added none.",
     "arrays": "The final Markdown-only Arrays supplement at lines 5215-5221 / source end was promoted; the corroborating DOCX is exhausted at page 116 and has no counterpart. Java 21 source launch passed all 71 documented executables: 1,380 groups and 1,400,000 trials/comparisons. Reader validation passed exact 732253-byte recovery, SHA-256 960ba831299228788a385019a23b387459f21f690163ce02de66124cc81f5db5, 2599 IDs, 131 search entries, 2199 fragments, zero relative links, 924 fence markers, 340 Mermaid sources, JavaScript syntax and deterministic HTML SHA-256 1723f276c753e11b6de3b4d28b80296090b906ec1b03c45314a2e02eabf497eb. Content commit 072d3d8082d159f2c05f062ba8c84f28f718a320. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
     "ai_employment_impact": "The confirmed AI-employment source remained unchanged and Section 10 was bounded to lines 191-197. Current ILO, Stanford, Yale, BLS and WEF evidence was reconciled without converting exposure, subgroup association or conditional scenarios into observed global loss. All ten employment-impact contracts each passed 20 groups, 20,000 seeded trials and 80,000 checks under Java 21 source launch. Reader validation passed exact 134257-byte recovery, SHA-256 bae6e113c41576b2126b93fd3dd94428f2a1b5585320c70e34898fcafa444ce6, 215 IDs, 13 search entries, 188 fragments, six Java links, 172 fences, 55 Mermaid sources, responsive controls, JavaScript syntax and deterministic HTML SHA-256 deecf058a5103d87f9815e6e74063aa1cbe7d3320db108cb49180be7039a5178. Content commit 2d427137b9b28027b3f8b62d35e9ced51a12a615. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 170.",
-    "graph_dsa": "G-9 at selected source lines 571-621 was promoted after comparison with four earlier Graph workbooks. Their useful early-mark invariant was retained, but their terse recursive implementation was not copied. Current Take U Forward, LeetCode and Oracle Java 21 references were verified. GraphFloodFillContracts passed 20 deterministic groups, 20000 seeded rectangular-image trials and 80000 recursive parity, disjoint-set parity, copy-nonmutation and idempotence checks under OpenJDK 21 source-file launch. Reader validation passed exact 322953-byte Markdown recovery at SHA-256 526e44aa24d09db95c4fb70dea0abdb0555fff14edf7d47fa3b8dac29830200f, 56 explicit anchors, 172 fences, eleven Mermaid sources, nine relative links, inline JavaScript syntax and deterministic HTML SHA-256 e0b053d84dbf25ca70d52e265b9dcce1151f0a26f7580ae72c266e3d5b12a5e2. Content commit 3987481c9b08be25159011959d63e80142bfbc5f; all six remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 162.",
-    "last_processed_at": "2026-11-26T08:50:47-05:00"
+    "graph_dsa": "G-10 at selected source lines 622-672 was promoted after comparison with four earlier Graph workbooks. Their useful multi-source layer invariant was retained, but their terse mutating implementation was not copied. Current Take U Forward, LeetCode and Oracle Java 21 references were verified. GraphRottingOrangesContracts passed 20 deterministic groups, 20000 seeded rectangular-grid trials and 80000 synchronous-simulation parity, repeated-relaxation parity, nonmutation and rotation-invariance checks under OpenJDK 21 source-file launch; all ten Graph companions passed. Reader validation passed exact 330084-byte Markdown recovery at SHA-256 721c3c210f6f7128e89f39fff7fedfa8210b28ee82ef9c426f33c6fa0d6a44f6, 56 explicit anchors, 176 fences, twelve Mermaid sources, ten relative links, inline JavaScript syntax and deterministic HTML SHA-256 64ef19fe25f78ee056d80eaa032ff714a6a71fba7db29c0b947ceeed34db7914. Content commit c5abc0e06f4a62719e8d9dd761103ab149afb94b; all six remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 161.",
+    "last_processed_at": "2026-11-26T09:40:37-05:00"
   },
   "angular_intake_checkpoint": {
     "last_processed_at": "2026-10-21T08:11:37-04:00",
@@ -1015,18 +1015,18 @@
     "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section; no reliable account-quota telemetry was exposed"
   },
   "graph_dsa_intake_checkpoint": {
-    "last_processed_at": "2026-11-26T08:50:47-05:00",
+    "last_processed_at": "2026-11-26T09:40:37-05:00",
     "selected_library_file_id": "libfile_4ce4c60ac9c881918a412133400539be",
     "selected_file_id": "file_0000000019ac81fd96289a9f6f15bb12",
     "selected_source_sha256": "2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3",
-    "canonical_markdown_sha256": "526e44aa24d09db95c4fb70dea0abdb0555fff14edf7d47fa3b8dac29830200f",
-    "processed": "G-1 through G-9 at selected source lines 163-621; source remains in progress",
+    "canonical_markdown_sha256": "721c3c210f6f7128e89f39fff7fedfa8210b28ee82ef9c426f33c6fa0d6a44f6",
+    "processed": "G-1 through G-10 at selected source lines 163-672; source remains in progress",
     "status": "IN_PROGRESS",
-    "validation": "G-9 now contains the exact four-direction grid contract, four examples, an ownership boundary, control-flow diagram and queue trace, iterative Java BFS, a correctness proof and recursive/DSU cross-oracles. The older workbooks' early-mark invariant was retained, but their terse recursive code was not copied. GraphFloodFillContracts passed 20 deterministic groups, 20,000 seeded rectangular-image trials and 80,000 recursive parity, disjoint-set parity, copy-nonmutation and idempotence checks under OpenJDK 21 source-file launch. Reader validation passed exact 322,953-byte Markdown recovery, SHA-256 526e44aa24d09db95c4fb70dea0abdb0555fff14edf7d47fa3b8dac29830200f, 56 explicit anchors, 172 balanced fence markers, eleven Mermaid sources, nine relative links, inline JavaScript syntax and deterministic HTML SHA-256 e0b053d84dbf25ca70d52e265b9dcce1151f0a26f7580ae72c266e3d5b12a5e2. All six content-commit remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 162.",
-    "content_commit": "3987481c9b08be25159011959d63e80142bfbc5f",
-    "next_section": "After the next fair-domain check, process exactly G-10 Rotten Oranges at selected source lines 622-672",
+    "validation": "G-10 now contains the exact simultaneous four-direction spread contract, four examples, a copy-preserving ownership boundary, control-flow diagram and layer trace, iterative multi-source Java BFS, a correctness proof and synchronous/relaxation cross-oracles. The older workbooks' multi-source layer invariant was retained, but their terse mutating code was not copied. GraphRottingOrangesContracts passed 20 deterministic groups, 20,000 seeded rectangular-grid trials and 80,000 synchronous-simulation parity, repeated-relaxation parity, nonmutation and rotation-invariance checks under OpenJDK 21 source-file launch; all ten Graph companions passed. Reader validation passed exact 330,084-byte Markdown recovery, SHA-256 721c3c210f6f7128e89f39fff7fedfa8210b28ee82ef9c426f33c6fa0d6a44f6, 56 explicit anchors, 176 balanced fence markers, twelve Mermaid sources, ten relative links, inline JavaScript syntax and deterministic HTML SHA-256 64ef19fe25f78ee056d80eaa032ff714a6a71fba7db29c0b947ceeed34db7914. All six content-commit remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 161.",
+    "content_commit": "c5abc0e06f4a62719e8d9dd761103ab149afb94b",
+    "next_section": "After the next fair-domain check, process exactly G-11 Undirected Cycle Detection using BFS at selected source lines 673-723",
     "estimated_next_tokens": 7500,
-    "estimate_method": "Heuristic reserve for one bounded Graph G-10 source section or fair-domain alternative; no reliable account-quota telemetry was exposed"
+    "estimate_method": "Heuristic reserve for one bounded Graph G-11 source section or fair-domain alternative; no reliable account-quota telemetry was exposed"
   },
   "advanced_trees_intake_checkpoint": {
     "last_processed_at": "2026-11-25T10:33:27-05:00",
