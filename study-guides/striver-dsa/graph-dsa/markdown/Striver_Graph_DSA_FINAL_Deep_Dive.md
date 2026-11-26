@@ -543,89 +543,123 @@ There is no memoization: the representation is a reusable index that prevents la
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Connected Components — Core Idea. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given an **undirected** graph with vertices `0..V-1`, partition every vertex into its maximal connected component. Return a dense component ID for each vertex and, when requested, the component members.
 
-### Three requirement-clarifying examples
+A traversal from one root reaches exactly that root's component—not the whole graph. Therefore the essential structure is an outer loop over every vertex plus one BFS/DFS from each still-unassigned vertex.
+
+> **KEY INTUITION — ONE NEW ROOT MEANS ONE NEW COMPONENT.** Mark a vertex when it enters the queue so cycles, self-loops and parallel edges cannot enqueue it repeatedly.
+
+**Verified source note (accessed 2026-11-26).** NIST defines connected components as maximal connected subgraphs that partition the vertices. Princeton Algorithms 4/e exposes dense component IDs `0..k-1`, connectivity and count queries, and gives `Θ(V+E)` preprocessing with `Θ(V)` extra space. Oracle Java 21 documents amortized constant-time deque operations used by the iterative BFS. The deterministic ID contract, traces, Java implementation, diagrams and independent union-find oracle below are study-guide additions.
+
+### Four requirement-clarifying examples
 
 | # | Input / setup | Output / observation | Why it matters |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | `V=6`, edges `0—1, 1—2, 3—4` | members `[[0,1,2],[3,4],[5]]`, IDs `[0,0,0,1,1,2]` | disconnected graph plus isolated vertex |
+| 2 | `V=3`, triangle `0—1—2—0` | one component | cycles do not create extra components |
+| 3 | `V=3`, no edges | three singleton components | every vertex must be an outer-loop candidate |
+| 4 | `V=2`, loop `0—0` and two copies of `0—1` | one component | loops/parallel edges do not change reachability |
 
-### Pattern recognition
+Component IDs here are deterministic: scan roots in ascending vertex order, and assign the next ID to the first unassigned root. Member order is BFS encounter order and depends on adjacency order; connectivity does not.
 
-**Primary pattern:** Graph modeling
+### Why one start is insufficient
 
-> **KEY INTUITION —** Write NODE, EDGE, DIRECTION, COST and GOAL before naming an algorithm.
-
-### Brute-force / straightforward baseline
-
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
-
-### Optimized reasoning
-
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
-
-### Detailed dry run
-
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```mermaid
+flowchart TD
+    O["scan vertex v = 0..V-1"] --> A{"already assigned?"}
+    A -->|yes| O
+    A -->|no| N["create next component ID"]
+    N --> B["BFS from v; assign every reached vertex"]
+    B --> O
 ```
 
-### Key line to highlight
+The outer loop supplies completeness across components. The inner traversal supplies closure within one component.
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+### Detailed trace — Example 1
 
-### Correctness checklist
+| Step | outer/root or queue action | queue | component IDs | members completed/in progress |
+|---:|---|---|---|---|
+| 0 | initialize | `[]` | `[-1,-1,-1,-1,-1,-1]` | `[]` |
+| 1 | root `0` → ID `0` | `[0]` | `[0,-1,-1,-1,-1,-1]` | `[0]` |
+| 2 | pop `0`, accept `1` | `[1]` | `[0,0,-1,-1,-1,-1]` | `[0,1]` |
+| 3 | pop `1`, reject seen `0`, accept `2` | `[2]` | `[0,0,0,-1,-1,-1]` | `[0,1,2]` |
+| 4 | root `3` → ID `1`, then accept `4` | `[4]` | `[0,0,0,1,1,-1]` | `[[0,1,2],[3,4]]` |
+| 5 | root `5` → ID `2` | `[5]` | `[0,0,0,1,1,2]` | `[[0,1,2],[3,4],[5]]` |
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+### Java — outer loop plus iterative BFS
 
-### Boundary conditions
+The full executable companion is [`GraphComponentsContracts.java`](../java/GraphComponentsContracts.java).
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+```java
+static Components findComponents(int vertices, List<Edge> edges) {
+    List<List<Integer>> graph = buildUndirected(vertices, edges);
+    int[] id = new int[vertices];
+    Arrays.fill(id, -1);
+    List<List<Integer>> members = new ArrayList<>();
 
-### Complexity — derive it instead of memorizing it
+    for (int root = 0; root < vertices; root++) {
+        if (id[root] != -1) continue;
+        int component = members.size();
+        List<Integer> current = new ArrayList<>();
+        Deque<Integer> queue = new ArrayDeque<>();
+        id[root] = component;              // mark when enqueued
+        queue.addLast(root);
 
-**Adjacency-list traversal O(V+E); representation O(V+E).**
+        while (!queue.isEmpty()) {
+            int vertex = queue.removeFirst();
+            current.add(vertex);
+            for (int next : graph.get(vertex)) {
+                if (id[next] == -1) {
+                    id[next] = component;  // prevents duplicate enqueue
+                    queue.addLast(next);
+                }
+            }
+        }
+        members.add(List.copyOf(current));
+    }
+    return freezeResult(id, members);
+}
+```
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+### Correctness argument
 
-### Memoization / repeated-work note
+Before each outer-loop iteration at vertex `v`, every earlier vertex is assigned to exactly its true connected component, and every assigned component is complete. If `v` is already assigned, it belongs to one of those complete components. Otherwise `v` is the smallest vertex in a not-yet-discovered component.
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+The BFS invariant is: queued or processed vertices are exactly the discovered vertices reachable from the root, all have the new component ID, and no vertex is enqueued twice. Mark-on-enqueue preserves uniqueness. Every accepted neighbor is reachable; conversely, along any path from the root, induction on path length ensures the next vertex is eventually accepted. Thus BFS assigns exactly the root's maximal connected component. When the outer loop ends, every vertex has been considered, so the returned components are disjoint and cover all vertices.
 
-> **MEMORY TRICK —** MODEL FIRST; ALGORITHM SECOND.
+### Complexity — count vertices and stored arcs
+
+Building the undirected adjacency list costs `Θ(V+E)` time and space. Each vertex is enqueued once, and each of the `2E` stored arcs is inspected once, so component discovery is `Θ(V+E)` time with `Θ(V)` auxiliary queue/ID space. Returning all members uses `Θ(V)` output space. After preprocessing, checking whether two vertices share an ID is `O(1)`.
+
+The `id` array is the reusable solved-state table: it prevents repeated traversal of an already classified component.
+
+### Boundary conditions and contract failures
+
+- `V=0` returns zero components and empty outputs.
+- With `V>0` and no edges, return `V` singleton components.
+- Reject null edges, null edge records and endpoints outside `0..V-1`.
+- Self-loops and parallel edges do not alter the partition; visited state absorbs them safely.
+- This contract is for **undirected** connectivity. Directed graphs require weak components (ignore direction) or strongly connected components—state which one.
+- Recursive DFS may overflow the call stack on a long chain; iterative BFS/DFS avoids that risk.
+- Mark when enqueueing/pushing, not when removing, to bound duplicate frontier entries.
+
+### Primary references
+
+- [NIST DADS — connected components](https://xlinux.nist.gov/dads/HTML/connectedComponents.html)
+- [Princeton Algorithms 4/e — connected-components API](https://algs4.cs.princeton.edu/code/javadoc/edu/princeton/cs/algs4/CC.html)
+- [Princeton Algorithms 4/e — undirected graph applications](https://algs4.cs.princeton.edu/41graph/)
+- [Oracle Java 21 — `ArrayDeque`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ArrayDeque.html)
+- [Take U Forward — Connected components](https://takeuforward.org/graph/connected-components-in-graphs)
+
+> **MEMORY TRICK — OUTER LOOP FINDS ROOTS; INNER LOOP CLOSES COMPONENTS.**
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. How would you return only the component count, sizes, or largest component?
+2. When is union-find preferable to traversal for incremental edge additions?
+3. How do weak and strong components differ for directed graphs?
+4. How would a grid's four- versus eight-neighbor rule change the components?
+5. Can component IDs remain stable after dynamic edge insertion or deletion?
 
 [↑ Back to Index](#navigation-and-index)
 
