@@ -258,89 +258,145 @@ There is no dynamic-programming memoization here. The adjacency list is the norm
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Graph Representation — Adjacency Matrix vs List. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+The same graph contract can have several physical representations. Choose by the operations and density the problem actually needs—not by habit.
 
-### Three requirement-clarifying examples
+| Requirement | Adjacency matrix | Adjacency list |
+|---|---|---|
+| stored state | one cell for every ordered vertex pair | one bucket per vertex plus real outgoing arcs |
+| space | `Θ(V²)` | `Θ(V+E)` |
+| test whether `u→v` exists | `Θ(1)` | `Θ(outdegree(u))` with a plain list |
+| iterate neighbors of `u` | `Θ(V)` row scan | `Θ(outdegree(u))` |
+| initialize/build | `Θ(V²+E)` | `Θ(V+E)` |
+| natural fit | dense graphs; many arbitrary edge-existence queries | sparse graphs; traversals and edge scans |
 
-| # | Input / setup | Output / observation | Why it matters |
+These costs assume a boolean matrix and a plain list. A bit matrix changes constants; a per-vertex hash set gives expected constant-time membership but uses more memory; weighted or parallel edges require richer cell/bucket values.
+
+> **KEY INTUITION — STORE WHAT THE NEXT OPERATION MUST ENUMERATE.** Traversals enumerate real neighbors, so sparse graphs usually want adjacency lists. Constant-time arbitrary pair queries may justify a matrix.
+
+**Verified source note (accessed 2026-11-25).** Princeton Algorithms 4/e presents a vertex-indexed adjacency-list `Graph` and a separate boolean-matrix implementation; its list representation uses `Θ(V+E)` space, while the matrix has one boolean per pair. Oracle's Java 21 `ArrayList` contract gives constant-time `get` and amortized constant-time `add`, supporting the list-build accounting used here. The bounded Take U Forward lesson explicitly compares the two representations and requires both orientations for an undirected edge. The examples, parity contract, diagrams, Java oracle and proofs below are study-guide additions.
+
+### Four requirement-clarifying examples
+
+| # | Graph contract | Matrix observation | List observation |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | undirected `V=4`, edges `0—1, 0—2, 1—2`; vertex `3` isolated | symmetric `1` cells; row 3 all false | `[[1,2],[0,2],[0,1],[]]` |
+| 2 | directed `V=3`, edges `0→1, 1→2` | `M[0][1]` and `M[1][2]` only | `[[1],[2],[]]` |
+| 3 | complete undirected `K4` | 16 cells represent 6 edges; row scan cost 4 | 12 stored arcs; every list length 3 |
+| 4 | weighted parallel edges `(0,1,7)` and `(0,1,3)` | one boolean loses weight/identity; a cost matrix must define aggregation such as `min` | two `Arc` records preserve both edge IDs and weights |
 
-### Pattern recognition
+### Sparse versus dense storage picture
 
-**Primary pattern:** Graph modeling
-
-> **KEY INTUITION —** Write NODE, EDGE, DIRECTION, COST and GOAL before naming an algorithm.
-
-### Brute-force / straightforward baseline
-
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
-
-### Optimized reasoning
-
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
-
-### Detailed dry run
-
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```mermaid
+flowchart LR
+    S["Sparse: V=6, E=4"] --> SM["matrix: 36 cells"]
+    S --> SL["list: 6 buckets + 8 undirected arcs"]
+    D["Dense K6: E=15"] --> DM["matrix: 36 cells"]
+    D --> DL["list: 6 buckets + 30 undirected arcs"]
 ```
 
-### Key line to highlight
+Do not compare only `E` with `V²`: the matrix is simple and predictable, while the list exposes only real neighbors. The required operations decide whether that memory trade is worthwhile.
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+### Detailed build trace
 
-### Correctness checklist
+Build Example 1 from the edge stream. The matrix and list must answer the same simple-graph membership queries after every step.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+| Step | input edge | new matrix cells | adjacency buckets | parity check |
+|---:|---|---|---|---|
+| 0 | — | all false | `[[],[],[],[]]` | every pair absent |
+| 1 | `0—1` | `[0][1]`, `[1][0]` | `[[1],[0],[],[]]` | `has(0,1)=has(1,0)=true` |
+| 2 | `0—2` | `[0][2]`, `[2][0]` | `[[1,2],[0],[0],[]]` | row 0 and bucket 0 both expose `{1,2}` |
+| 3 | `1—2` | `[1][2]`, `[2][1]` | `[[1,2],[0,2],[0,1],[]]` | all 16 pair queries agree |
 
-### Boundary conditions
+Vertex `3` is never mentioned by an edge, yet both representations retain it: an all-false row and an empty bucket.
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+### Representation selection flow
 
-### Complexity — derive it instead of memorizing it
+```mermaid
+flowchart TD
+    A["Exact contract: simple, weighted, or multigraph?"] --> B{"Enumerate real neighbors often?"}
+    B -->|yes| L["adjacency list"]
+    B -->|no| C{"Many arbitrary pair queries and V² fits?"}
+    C -->|yes| M["adjacency matrix / bit matrix"]
+    C -->|no| H["list plus set/index, chosen from measured operations"]
+```
 
-**Adjacency-list traversal O(V+E); representation O(V+E).**
+### Java — build both and cross-check the contract
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+The full executable companion is [`GraphRepresentationContracts.java`](../java/GraphRepresentationContracts.java). It models a **simple unweighted graph**: duplicate input edges are idempotent, and both representations expose the same membership and neighbor sets.
 
-### Memoization / repeated-work note
+```java
+static Pair buildBoth(int vertices, boolean directed, List<Edge> edges) {
+    validateVertexCount(vertices);
+    boolean[][] matrix = new boolean[vertices][vertices];
+    List<Set<Integer>> sets = new ArrayList<>(vertices);
+    for (int u = 0; u < vertices; u++) sets.add(new LinkedHashSet<>());
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+    for (Edge edge : edges) {
+        validateVertex(edge.from(), vertices);
+        validateVertex(edge.to(), vertices);
+        matrix[edge.from()][edge.to()] = true;
+        sets.get(edge.from()).add(edge.to());
 
-> **MEMORY TRICK —** MODEL FIRST; ALGORITHM SECOND.
+        if (!directed) {
+            matrix[edge.to()][edge.from()] = true;
+            sets.get(edge.to()).add(edge.from());
+        }
+    }
+
+    List<List<Integer>> adjacency = sets.stream()
+            .map(set -> List.copyOf(set))
+            .toList();
+    return new Pair(new MatrixGraph(matrix), new ListGraph(adjacency));
+}
+```
+
+For a production multigraph, do **not** use this boolean/idempotent contract. Store an `Arc(to, weight, edgeId)` per occurrence as G‑1 does, or define exactly what a matrix cell aggregates.
+
+### Correctness argument
+
+After processing the first `k` input edges, maintain:
+
+1. `matrix[u][v]` is true iff at least one processed edge permits `u→v`;
+2. list bucket `u` contains `v` iff that same permitted relation exists; and
+3. every vertex has one row and one bucket, even if isolated.
+
+All cells and buckets are empty initially, so the invariant holds. A directed edge sets and inserts exactly `(u,v)`. An undirected edge additionally sets and inserts `(v,u)`. Set insertion makes duplicates idempotent in both representations. No unrelated pair changes, so the invariant is preserved. At termination, every pair query and neighbor set therefore agrees.
+
+### Complexity — include initialization, not only edge insertion
+
+- **Matrix:** allocating/clearing `V×V` cells costs `Θ(V²)` time and space; processing the edge stream adds `Θ(E)` time. One membership query is `Θ(1)` and a neighbor scan is `Θ(V)`.
+- **List:** creating `V` buckets and inserting the arcs costs expected `Θ(V+E)` with hash-backed deduplication in this companion; the final plain lists use `Θ(V+E)` space. Plain-list membership is `Θ(degree(u))`; neighbor iteration is `Θ(degree(u))`.
+- **Undirected storage:** a non-loop edge appears in both endpoint buckets. A self-loop may appear once or twice depending on the declared degree/iteration contract; G‑1 uses the Princeton convention of two stored arcs.
+
+No memoization is involved. Representation is preprocessing: pay once to make later membership or neighbor operations match the algorithm's access pattern.
+
+### Boundary conditions and failure modes
+
+- Keep all `V` rows/buckets, including isolated vertices.
+- Reject labels outside `0..V-1`; never infer one-based conversion.
+- A boolean matrix collapses parallel edges and cannot preserve edge identity.
+- A numeric matrix needs a separate absence sentinel; weight `0` may be a real edge.
+- `V²` can overflow an `int` capacity calculation before allocation; check using `long` and a memory budget.
+- For immutable consumers, freeze buckets so callers cannot corrupt shared graph state.
+- Matrix/list iteration order is not a graph property; sort only when the required output order demands it.
+
+### Primary references
+
+- [Princeton Algorithms 4/e — Undirected Graphs and representations](https://algs4.cs.princeton.edu/41graph/)
+- [Princeton Algorithms 4/e — adjacency-matrix implementation](https://algs4.cs.princeton.edu/41graph/AdjMatrixGraph.java.html)
+- [Princeton Algorithms 4/e — adjacency-list `Graph`](https://algs4.cs.princeton.edu/code/javadoc/edu/princeton/cs/algs4/Graph.html)
+- [Oracle Java 21 — `ArrayList`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ArrayList.html)
+- [Take U Forward — Graph representation in C++ lesson](https://takeuforward.org/graph/graph-representation-in-c)
+
+> **MEMORY TRICK — MATRIX SCANS POSSIBILITIES; LIST SCANS REALITY.**
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. What changes for a bit-packed matrix, a per-vertex hash set, or compressed sparse row (CSR)?
+2. How should a matrix cell represent the lightest of several parallel weighted edges?
+3. Which representation supports dynamic insertion/deletion with the required latency?
+4. When can `Θ(V²)` memory still be faster in practice because of locality and bit operations?
+5. How would you preserve deterministic neighbor order without making every insertion expensive?
 
 [↑ Back to Index](#navigation-and-index)
 
