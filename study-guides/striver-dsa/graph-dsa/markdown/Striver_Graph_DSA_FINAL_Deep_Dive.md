@@ -672,96 +672,104 @@ The `id` array is the reusable solved-state table: it prevents repeated traversa
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Breadth-First Search. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given a directed or undirected adjacency list and a valid source, return the vertices reachable from that source in breadth-first order. This contract also returns minimum **edge-count** distance and one parent certificate per reached vertex.
 
-### Three requirement-clarifying examples
+BFS explores a frontier in nondecreasing distance layers. Traversal order within a layer depends on adjacency encounter order; it is not a unique graph property.
+
+> **KEY INTUITION — THE QUEUE HOLDS THE NEXT DISTANCE FRONTIER.** Mark when enqueueing, not when dequeueing, so each vertex enters the queue once and its first parent already proves a shortest path.
+
+**Verified source note (accessed 2026-11-26).** Princeton Algorithms 4/e proves that BFS computes shortest paths by number of edges and runs in `Θ(V+E)` worst-case time. Oracle Java 21 documents amortized constant-time `ArrayDeque` operations. The bounded Take U Forward lesson stresses adjacency-order output and mark-on-enqueue. The distance/parent contract, traces, diagrams, validation and executable all-pairs oracle below are study-guide additions.
+
+### Four requirement-clarifying examples
 
 | # | Input / setup | Output / observation | Why it matters |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | edges `0→1,0→2,1→3,2→4`, source `0` | order `[0,1,2,3,4]`, distances `[0,1,1,2,2]` | canonical layers |
+| 2 | same graph, source `3` | order `[3]`; others distance `-1` | source-scoped traversal |
+| 3 | adjacency of `0` changed from `[1,2]` to `[2,1]` | order begins `[0,2,1,…]`; distances unchanged | order is representation-dependent |
+| 4 | cycle `0→1→2→0` plus two copies of `0→1` | each vertex appears once | mark-on-enqueue absorbs cycles/duplicates |
 
-### Pattern recognition
+### Queue and layer model
 
-**Primary pattern:** Graph modeling
+```mermaid
+flowchart LR
+    L0["distance 0: source"] --> L1["distance 1: source neighbors"]
+    L1 --> L2["distance 2: first unseen neighbors"]
+    L2 --> LX["continue until queue empty"]
+```
 
-> **KEY INTUITION —** Write NODE, EDGE, DIRECTION, COST and GOAL before naming an algorithm.
+### Detailed trace — Example 1
 
-### Brute-force / straightforward baseline
+| Step | remove | newly enqueue | queue after step | order | distances fixed |
+|---:|---:|---|---|---|---|
+| 0 | — | `0` | `[0]` | `[]` | `d[0]=0` |
+| 1 | `0` | `1,2` | `[1,2]` | `[0]` | `d[1]=d[2]=1` |
+| 2 | `1` | `3` | `[2,3]` | `[0,1]` | `d[3]=2` |
+| 3 | `2` | `4` | `[3,4]` | `[0,1,2]` | `d[4]=2` |
+| 4–5 | `3,4` | — | `[]` | `[0,1,2,3,4]` | final |
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+If marking were delayed until removal, the same vertex could be enqueued by multiple parents. The distances might survive, but queue size and chosen parent would no longer obey this contract.
 
-### Optimized reasoning
+### Java — traversal, distance and parent certificate
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
-
-### Detailed dry run
-
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
+The full executable companion is [`GraphBfsContracts.java`](../java/GraphBfsContracts.java).
 
 ```java
-static List<Integer> bfs(List<List<Integer>> g,int src){
-    boolean[] seen=new boolean[g.size()];
-    Deque<Integer> q=new ArrayDeque<>();
-    List<Integer> order=new ArrayList<>();
-    seen[src]=true; q.offer(src);
-    while(!q.isEmpty()){
-        int u=q.poll(); order.add(u);
-        for(int v:g.get(u)) if(!seen[v]){
-            seen[v]=true; q.offer(v); // mark when enqueued
+static BfsResult bfs(List<List<Integer>> graph, int source) {
+    int[] distance = new int[graph.size()];
+    int[] parent = new int[graph.size()];
+    Arrays.fill(distance, -1);
+    Arrays.fill(parent, -1);
+    Deque<Integer> queue = new ArrayDeque<>();
+    List<Integer> order = new ArrayList<>();
+
+    distance[source] = 0;
+    queue.addLast(source);
+    while (!queue.isEmpty()) {
+        int vertex = queue.removeFirst();
+        order.add(vertex);
+        for (int next : graph.get(vertex)) {
+            if (distance[next] == -1) {
+                distance[next] = distance[vertex] + 1;
+                parent[next] = vertex;
+                queue.addLast(next);
+            }
         }
     }
-    return order;
+    return freeze(order, distance, parent);
 }
 ```
 
-### Key line to highlight
+### Correctness argument
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+Maintain that every queued vertex is reached, has its minimum edge-count distance fixed, and appears in the queue exactly once; queue order is nondecreasing by distance. This is true initially for the source. When removing a vertex at distance `d`, every unseen neighbor receives distance `d+1`. Any path to that neighbor must first reach some predecessor; because BFS removes all layers below `d+1` first, no shorter path can appear later. Mark-on-enqueue prevents a second insertion. When the queue empties, precisely the reachable vertices have finite distance, and following parent links decreases distance by one until the source.
 
-### Correctness checklist
+### Complexity and boundaries
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+Each reached vertex enters and leaves the queue once, and each outgoing arc of a reached vertex is inspected once: `O(V+E)` worst-case time and `O(V)` auxiliary/output state. `ArrayDeque` endpoint operations are amortized `O(1)`.
 
-### Boundary conditions
+- Reject null graphs, null buckets, invalid neighbor labels and an invalid source.
+- An empty graph has no valid source; a singleton returns `[0]` from source `0`.
+- Unreachable vertices retain distance and parent `-1`.
+- BFS minimizes edge count, not weighted cost; use an appropriate shortest-path algorithm for weights.
+- To traverse every component, use the G-4 outer-loop pattern; do not silently change a source-scoped contract.
+- Parent choice and within-layer order depend on adjacency order.
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+### Primary references
 
-### Complexity — derive it instead of memorizing it
+- [Princeton Algorithms 4/e — undirected graphs and BFS proposition](https://algs4.cs.princeton.edu/41graph/)
+- [Oracle Java 21 — `ArrayDeque`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ArrayDeque.html)
+- [Take U Forward — Breadth-first search](https://takeuforward.org/graph/breadth-first-search-bfs-level-order-traversal)
 
-**Adjacency-list traversal O(V+E); representation O(V+E).**
-
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
-
-### Memoization / repeated-work note
-
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
-
-> **MEMORY TRICK —** MODEL FIRST; ALGORITHM SECOND.
+> **MEMORY TRICK — ENQUEUE ONCE; DISTANCE IS DONE.**
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. How do you reconstruct one shortest path from the parent array?
+2. What changes for multi-source BFS?
+3. Why does ordinary BFS fail for arbitrary positive weights?
+4. When can bidirectional BFS reduce explored state?
+5. How do adjacency sorting costs affect deterministic output?
 
 [↑ Back to Index](#navigation-and-index)
 

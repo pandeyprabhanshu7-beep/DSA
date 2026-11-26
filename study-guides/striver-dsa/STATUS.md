@@ -27,6 +27,7 @@
 | G-2 Graph Representation | ✅ | ✅ | Matrix/list operation contracts, four examples, parity trace, two diagrams, Java cross-check, proof and randomized equivalence checks |
 | G-3 Java Graph Representation | ✅ | ✅ | Typed weighted arcs, four examples, build trace, ownership diagram, immutable Java builder, proof and randomized flat-scan oracle |
 | G-4 Connected Components | ✅ | ✅ | Outer-loop invariant, four examples, queue trace, component-flow diagram, iterative Java BFS, proof and randomized union-find oracle |
+| G-5 Breadth-First Search | ✅ | ✅ | Layer invariant, four examples, queue trace, distance diagram, Java distance/parent certificates, proof and randomized all-pairs oracle |
 | G-32 Dijkstra — Priority Queue | ✅ | ✅ | Enriched Markdown synchronized into canonical responsive Graph HTML |
 | Bellman–Ford — negative edges/cycles | ✅ | ✅ | Dedicated deep-dive pair under canonical Graph folders |
 | G-46 Disjoint Set Union | ✅ | ✅ | Path compression, union-by-size, dry run, proof, amortized complexity and variations |
@@ -705,5 +706,13 @@ Only G-4 at selected source lines 316–366 was promoted in this bounded pass. T
 `GraphComponentsContracts.java` passed 20 deterministic groups, 20,000 seeded trials and 80,000 union-find count, pair-connectivity, partition-coverage and minimum-root checks under OpenJDK 21 source-file launch. Standalone `javac` was unavailable. The reproducible reader recovered the exact 303,007-byte canonical Markdown at SHA-256 `f356934ee46a16931a37444c3adfec49c114bb1d5ecd112ae21ac4113edfe3e5`; validation found 56 unique explicit anchors, 160 balanced fence markers, six Mermaid sources, four resolved relative links and parseable inline JavaScript. The synchronized HTML is 318,160 bytes at SHA-256 `df3b9a96efd902987132bd078c14138c4a2568f298a13f570a95018c6217e5b7`. Browser, assistive-technology and rendered-Mermaid QA were unavailable.
 
 Fresh literal-marker audit is **166**: 47 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The next exact selected-source boundary is G-5 at source lines 367–417. The selected source, wider intake and placeholder backlog remain incomplete.
+
+## Graph G-5 breadth-first-search enrichment — 2026-11-26 ET
+
+Only G-5 at selected source lines 367–417 was promoted in this bounded pass. The canonical card now specifies source-scoped traversal, adjacency-order determinism, mark-on-enqueue uniqueness, minimum edge-count distances and parent certificates. Four examples cover canonical layers, a disconnected source, reordered adjacency and duplicate/cyclic arcs; a queue trace and layer diagram make the shortest-path invariant explicit. Current Princeton Algorithms 4/e and Oracle Java 21 references were verified on 2026-11-26.
+
+`GraphBfsContracts.java` passed 20 deterministic groups, 20,000 seeded trials and 80,000 all-pairs distance, parent-edge, uniqueness and layer-order checks under OpenJDK 21 source-file launch. Standalone `javac` was unavailable. The reader recovered the exact 304,024-byte canonical Markdown at SHA-256 `1be0dd77436c6873b5a52694688b99a2f4db56bac2ec5ce091ec274fa576190f`; validation found 56 unique anchors, 162 balanced fence markers, seven Mermaid sources, five resolved relative links and parseable inline JavaScript. The synchronized HTML is 319,193 bytes at SHA-256 `08a8e2837f0811d34a8b4fa03e29697d2a42ac04373ac8b97bee618bfdfb078a`. Browser, assistive-technology and rendered-Mermaid QA were unavailable.
+
+Fresh literal-marker audit remains **166**: 47 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. G-5 already had problem-specific Java, so this pass removed no marker. The next exact selected-source boundary is G-6 at source lines 418–468. The selected source, wider intake and placeholder backlog remain incomplete.
 
 
