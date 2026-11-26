@@ -174,10 +174,10 @@
       "modified_at": "2026-09-08T04:49:59.864498Z",
       "size_bytes": 166312,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-11-26T00:50:56-05:00",
+      "last_read_at": "2026-11-26T02:54:12-05:00",
       "sha256": "2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3",
       "canonical_target": "study-guides/striver-dsa/graph-dsa/markdown/Striver_Graph_DSA_FINAL_Deep_Dive.md",
-      "selection": "Selected after comparing the four accessible Graph Markdown workbooks. The corrected 56-section sequence aligns exactly with the canonical G-1 through G-56 spine. G-1 through G-4 at source lines 163-366 are promoted; G-5 at lines 367-417 is the next bounded section."
+      "selection": "Selected after comparing the four accessible Graph Markdown workbooks. The corrected 56-section sequence aligns exactly with the canonical G-1 through G-56 spine. G-1 through G-5 at source lines 163-417 are promoted; G-6 at lines 418-468 is the next bounded section."
     },
     {
       "name": "Take_U_Forward_Tree_Verified_Problem_Guide_v3.md",
@@ -450,22 +450,23 @@
         "Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
         "DSA_Graph_FAANG_Question_Workbook.docx"
       ],
-      "last_processed_at": "2026-11-26T00:50:56-05:00",
+      "last_processed_at": "2026-11-26T02:54:12-05:00",
       "processed_sections": [
         "G-1 Graph vocabulary and conventions — source lines 163-213; explicit model contract, four examples, multigraph/self-loop trace, two diagrams, executable Java builder and conservation proof",
         "G-2 Graph representation — source lines 214-264; matrix/list operation contracts, four examples, parity trace, two diagrams, executable Java cross-check and equivalence proof",
         "G-3 Java graph representation — source lines 265-315; typed weighted arcs, four examples, ownership flow, build trace, immutable Java builder and flat-scan proof",
-        "G-4 Connected components — source lines 316-366; outer-loop invariant, four examples, queue trace, control-flow diagram, iterative Java BFS and union-find proof"
+        "G-4 Connected components — source lines 316-366; outer-loop invariant, four examples, queue trace, control-flow diagram, iterative Java BFS and union-find proof",
+        "G-5 Breadth-first search — source lines 367-417; source-scoped contract, four examples, layer diagram, queue trace, iterative Java distances and parent certificate, mark-on-enqueue proof"
       ],
-      "last_successful_commit": "b2f6741d134f7481b08bce944c01fbe01cc53ec4",
-      "validation": "G-4 at selected source lines 316-366 was promoted after four-workbook comparison. Current NIST, Princeton Algorithms 4/e and Oracle Java 21 references were verified. GraphComponentsContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under OpenJDK 21 source-file launch. Reader validation passed exact 303,007-byte Markdown recovery at SHA-256 f356934ee46a16931a37444c3adfec49c114bb1d5ecd112ae21ac4113edfe3e5, 56 unique explicit anchors, 160 balanced fence markers, six Mermaid sources, four relative links, inline JavaScript syntax and deterministic rebuilding; HTML SHA-256 is df3b9a96efd902987132bd078c14138c4a2568f298a13f570a95018c6217e5b7. All six content-commit remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 166.",
-      "next_action": "Process exactly G-5 Breadth-first search at selected source lines 367-417 after the next fair-domain check; keep the canonical in-place guide.",
+      "last_successful_commit": "c1e378597fab9bc2ea20c6b767c47f43a6bdcfe8",
+      "validation": "G-5 at selected source lines 367-417 was promoted after four-workbook comparison. Current Princeton Algorithms 4/e and Oracle Java 21 references were verified. GraphBfsContracts passed 20 deterministic groups, 20,000 seeded random trials and 80,000 checks against an independent Floyd-Warshall all-pairs shortest-edge-distance oracle under OpenJDK 21 source-file launch. Reader validation passed exact 304,024-byte Markdown recovery at SHA-256 1be0dd77436c6873b5a52694688b99a2f4db56bac2ec5ce091ec274fa576190f, 56 unique explicit anchors, 162 balanced fence markers, seven Mermaid sources, five relative links, inline JavaScript syntax and deterministic rebuilding; HTML SHA-256 is 08a8e2837f0811d34a8b4fa03e29697d2a42ac04373ac8b97bee618bfdfb078a. All six content-commit remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 166.",
+      "next_action": "Process exactly G-6 Depth-first search at selected source lines 418-468 after the next fair-domain check; keep the canonical in-place guide.",
       "priority": 1,
       "source_revision": {
         "library_file_id": "libfile_4ce4c60ac9c881918a412133400539be",
         "file_id": "file_0000000019ac81fd96289a9f6f15bb12",
         "source_sha256": "2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3",
-        "canonical_markdown_sha256_after": "f356934ee46a16931a37444c3adfec49c114bb1d5ecd112ae21ac4113edfe3e5"
+        "canonical_markdown_sha256_after": "1be0dd77436c6873b5a52694688b99a2f4db56bac2ec5ce091ec274fa576190f"
       }
     },
     {
@@ -1196,7 +1197,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Graph G-1 through G-4 at selected source lines 163-366 are promoted. After the next fair-domain check, G-5 lines 367-417 is the exact Graph continuation; retain the wider intake and 166 placeholders.",
+    "next_action": "Graph G-1 through G-5 at selected source lines 163-417 are promoted. After the next fair-domain check, G-6 lines 418-468 is the exact Graph continuation; retain the wider intake and 166 placeholders.",
     "batch_policy": {
       "max_sections_per_run": 1,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1434,14 +1435,15 @@
     "Graph G-1: explicit vertex/edge/direction/weight/scope/goal contract, four examples, multigraph and self-loop trace, two diagrams, executable Java builder and conservation proof",
     "Graph G-2: matrix/list operation contracts, four examples, parity trace, two diagrams, executable Java cross-check and equivalence proof",
     "Graph G-3: typed weighted arcs, four examples, ownership flow, build trace, immutable Java builder and flat-scan proof",
-    "Graph G-4: outer-loop invariant, four examples, queue trace, control-flow diagram, iterative Java BFS and union-find proof"
+    "Graph G-4: outer-loop invariant, four examples, queue trace, control-flow diagram, iterative Java BFS and union-find proof",
+    "Graph G-5: source-scoped BFS contract, four examples, layer diagram, queue trace, iterative Java distance/parent certificate and mark-on-enqueue proof"
     ],
-  "processed_section": "Graph G-4 Connected components at selected source lines 316-366 only; G-1 through G-4 are promoted",
-  "validation": "The selected Graph source remained SHA-256 2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3 and G-4 was bounded to lines 316-366 after four-workbook comparison. GraphComponentsContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under OpenJDK 21 source-file launch. Reader validation passed exact 303,007-byte recovery, SHA-256 f356934ee46a16931a37444c3adfec49c114bb1d5ecd112ae21ac4113edfe3e5, 56 explicit anchors, 160 fences, six Mermaid sources, four relative links, inline JavaScript syntax and deterministic HTML SHA-256 df3b9a96efd902987132bd078c14138c4a2568f298a13f570a95018c6217e5b7. Content commit b2f6741d134f7481b08bce944c01fbe01cc53ec4; all six remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 166.",
+  "processed_section": "Graph G-5 Breadth-first search at selected source lines 367-417 only; G-1 through G-5 are promoted",
+  "validation": "The selected Graph source remained SHA-256 2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3 and G-5 was bounded to lines 367-417 after four-workbook comparison. GraphBfsContracts passed 20 deterministic groups, 20,000 seeded random trials and 80,000 checks against an independent Floyd-Warshall all-pairs shortest-edge-distance oracle under OpenJDK 21 source-file launch. Reader validation passed exact 304,024-byte recovery, SHA-256 1be0dd77436c6873b5a52694688b99a2f4db56bac2ec5ce091ec274fa576190f, 56 explicit anchors, 162 fences, seven Mermaid sources, five relative links, inline JavaScript syntax and deterministic HTML SHA-256 08a8e2837f0811d34a8b4fa03e29697d2a42ac04373ac8b97bee618bfdfb078a. Content commit c1e378597fab9bc2ea20c6b767c47f43a6bdcfe8; all six remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit remains 166.",
   "estimated_next_tokens": 7500,
-  "estimate_method": "Heuristic reserve for one bounded Graph G-5 source section or fair-domain alternative; no reliable account-quota telemetry was exposed.",
-  "last_successful_commit": "b2f6741d134f7481b08bce944c01fbe01cc53ec4",
-  "last_processed_at": "2026-11-26T00:50:56-05:00",
-  "next_batch_decision": "Graph G-4 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. After the next fair-domain check, G-5 lines 367-417 is the exact selected-source continuation. The wider 166-placeholder backlog remains open."
+  "estimate_method": "Heuristic reserve for one bounded Graph G-6 source section or fair-domain alternative; no reliable account-quota telemetry was exposed.",
+  "last_successful_commit": "c1e378597fab9bc2ea20c6b767c47f43a6bdcfe8",
+  "last_processed_at": "2026-11-26T02:54:12-05:00",
+  "next_batch_decision": "Graph G-5 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. After the next fair-domain check, G-6 lines 418-468 is the exact selected-source continuation. The wider 166-placeholder backlog remains open."
   }
 }
