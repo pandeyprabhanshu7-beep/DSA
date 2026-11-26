@@ -1015,18 +1015,18 @@
     "estimate_method": "Heuristic reserve for one bounded fair-domain intake or live-placeholder section; no reliable account-quota telemetry was exposed"
   },
   "graph_dsa_intake_checkpoint": {
-    "last_processed_at": "2026-11-26T11:00:45-05:00",
+    "last_processed_at": "2026-11-26T13:57:29-05:00",
     "selected_library_file_id": "libfile_4ce4c60ac9c881918a412133400539be",
     "selected_file_id": "file_0000000019ac81fd96289a9f6f15bb12",
     "selected_source_sha256": "2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3",
-    "canonical_markdown_sha256": "f30db32ba99f71c636f747215d30edac56fa700cdbf020cd0a00d9b23ba66cd2",
-    "processed": "G-1 through G-11 at selected source lines 163-723; source remains in progress",
+    "canonical_markdown_sha256": "8a9cf46d071edf0a2dc5dd34055923cff92745bc246f690b635325f4cf05176b",
+    "processed": "G-1 through G-12 at selected source lines 163-774; source remains in progress",
     "status": "IN_PROGRESS",
-    "validation": "G-11 now contains the exact disconnected undirected multigraph contract, four examples, an edge-labeled graph and queue trace, iterative parent-edge Java BFS, a correctness proof and recursive/DSU cross-oracles. The older workbooks' parent exception was retained, but their detailed DFS implementation was not copied into the selected BFS lesson. GraphUndirectedCycleBfsContracts passed 20 deterministic groups, a 50,000-vertex chain, 20,000 seeded undirected-multigraph trials and 80,000 recursive-DFS parity, disjoint-set parity, edge-order and vertex-relabeling checks under OpenJDK 21 source-file launch; all eleven Graph companions passed. Reader validation passed exact 336,991-byte Markdown recovery, SHA-256 f30db32ba99f71c636f747215d30edac56fa700cdbf020cd0a00d9b23ba66cd2, 56 explicit anchors, 180 balanced fence markers, thirteen Mermaid sources, eleven relative links, inline JavaScript syntax and deterministic HTML SHA-256 434392aa23b5ff7b59995c4c3f1c9d8d053eaf93fe8b61abd0a10b8ab3fd18cd. All six content-commit remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 160.",
-    "content_commit": "8c94e9e5e8e0bae7a82111638a1f489941619b01",
-    "next_section": "After the next fair-domain check, process exactly G-12 Undirected Cycle Detection using DFS at selected source lines 724-774",
+    "validation": "G-12 now contains the exact disconnected undirected multigraph contract, four examples, an edge-labeled graph and frame trace, iterative parent-edge Java DFS, a correctness proof and BFS/DSU cross-oracles. The older workbooks' parent exception and triangle trace were retained, but their terse recursive parent-vertex code was not copied. GraphUndirectedCycleDfsContracts passed 20 deterministic groups, a 50,000-vertex chain, 20,000 seeded undirected-multigraph trials and 80,000 breadth-first parity, disjoint-set parity, edge-order and vertex-relabeling checks under OpenJDK 21 source-file launch; all twelve Graph companions passed. Reader validation passed exact 344,106-byte Markdown recovery, SHA-256 8a9cf46d071edf0a2dc5dd34055923cff92745bc246f690b635325f4cf05176b, 56 explicit anchors, 184 balanced fence markers, fourteen Mermaid sources, twelve relative links, inline JavaScript syntax and deterministic HTML SHA-256 d1a570a88a4640717e43a90100531a60c4f0d0479ea9583c98e5d908f98665ea. All six content-commit remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 159.",
+    "content_commit": "cfe6bef57c63410f1d4fa1865202c52428fdda8c",
+    "next_section": "After the next fair-domain check, process exactly G-13 Distance to nearest cell containing 1 at selected source lines 775-825",
     "estimated_next_tokens": 7500,
-    "estimate_method": "Heuristic reserve for one bounded Graph G-12 source section or fair-domain alternative; no reliable account-quota telemetry was exposed"
+    "estimate_method": "Heuristic reserve for one bounded Graph G-13 source section or fair-domain alternative; no reliable account-quota telemetry was exposed"
   },
   "advanced_trees_intake_checkpoint": {
     "last_processed_at": "2026-11-25T10:33:27-05:00",

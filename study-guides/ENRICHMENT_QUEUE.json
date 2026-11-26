@@ -450,7 +450,7 @@
         "Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
         "DSA_Graph_FAANG_Question_Workbook.docx"
       ],
-      "last_processed_at": "2026-11-26T11:00:45-05:00",
+      "last_processed_at": "2026-11-26T13:57:29-05:00",
       "processed_sections": [
         "G-1 Graph vocabulary and conventions — source lines 163-213; explicit model contract, four examples, multigraph/self-loop trace, two diagrams, executable Java builder and conservation proof",
         "G-2 Graph representation — source lines 214-264; matrix/list operation contracts, four examples, parity trace, two diagrams, executable Java cross-check and equivalence proof",
@@ -462,17 +462,18 @@
         "G-8 Number of Islands — source lines 520-570; eight-direction grid contract, four examples, implicit-grid diagram and queue trace, nonmutating Java BFS, proof and DSU/DFS cross-oracles",
         "G-9 Flood Fill — source lines 571-621; four-direction grid contract, four examples, ownership boundary, control-flow diagram and queue trace, iterative Java BFS, proof and recursive/DSU cross-oracles",
         "G-10 Rotten Oranges — source lines 622-672; simultaneous four-direction multi-source BFS, four examples, layer trace and control-flow diagram, copy-preserving Java implementation, proof and simulation/relaxation cross-oracles",
-        "G-11 Undirected Cycle Detection using BFS — source lines 673-723; disconnected multigraph contract, four examples, edge-labeled diagram and queue trace, parent-edge Java BFS, proof and recursive/DSU cross-oracles"
+        "G-11 Undirected Cycle Detection using BFS — source lines 673-723; disconnected multigraph contract, four examples, edge-labeled diagram and queue trace, parent-edge Java BFS, proof and recursive/DSU cross-oracles",
+        "G-12 Undirected Cycle Detection using DFS — source lines 724-774; disconnected multigraph contract, four examples, edge-labeled diagram and frame trace, iterative parent-edge Java DFS, proof and BFS/DSU cross-oracles"
       ],
-      "last_successful_commit": "8c94e9e5e8e0bae7a82111638a1f489941619b01",
-      "validation": "G-11 at selected source lines 673-723 was promoted after comparison with four earlier Graph workbooks. Their parent exception was retained, but their detailed DFS implementation was not copied into the selected BFS lesson. Current Take U Forward, GeeksforGeeks, Princeton Algorithms 4/e and Oracle Java 21 references were verified. GraphUndirectedCycleBfsContracts passed 20 deterministic groups, a 50,000-vertex chain, 20,000 seeded undirected-multigraph trials and 80,000 recursive-DFS parity, disjoint-set parity, edge-order and vertex-relabeling checks under OpenJDK 21 source-file launch; all eleven Graph companions passed. Reader validation passed exact 336,991-byte Markdown recovery at SHA-256 f30db32ba99f71c636f747215d30edac56fa700cdbf020cd0a00d9b23ba66cd2, 56 unique explicit anchors, 180 balanced fence markers, thirteen Mermaid sources, eleven resolved relative links, inline JavaScript syntax and deterministic HTML SHA-256 434392aa23b5ff7b59995c4c3f1c9d8d053eaf93fe8b61abd0a10b8ab3fd18cd. Content commit 8c94e9e5e8e0bae7a82111638a1f489941619b01; all six remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 160.",
-      "next_action": "Process exactly G-12 Undirected Cycle Detection using DFS at selected source lines 724-774 after the next fair-domain check; keep the canonical in-place guide.",
+      "last_successful_commit": "cfe6bef57c63410f1d4fa1865202c52428fdda8c",
+      "validation": "G-12 at selected source lines 724-774 was promoted after comparison with four earlier Graph workbooks. Their parent exception and triangle trace were retained, but their terse recursive parent-vertex code was not copied. Current Take U Forward, GeeksforGeeks, Princeton Algorithms 4/e and Oracle Java 21 references were verified. GraphUndirectedCycleDfsContracts passed 20 deterministic groups, a 50,000-vertex chain, 20,000 seeded undirected-multigraph trials and 80,000 breadth-first parity, disjoint-set parity, edge-order and vertex-relabeling checks under OpenJDK 21 source-file launch; all twelve Graph companions passed. Reader validation passed exact 344,106-byte Markdown recovery at SHA-256 8a9cf46d071edf0a2dc5dd34055923cff92745bc246f690b635325f4cf05176b, 56 unique explicit anchors, 184 balanced fence markers, fourteen Mermaid sources, twelve resolved relative links, inline JavaScript syntax and deterministic HTML SHA-256 d1a570a88a4640717e43a90100531a60c4f0d0479ea9583c98e5d908f98665ea. Content commit cfe6bef57c63410f1d4fa1865202c52428fdda8c; all six remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 159.",
+      "next_action": "Process exactly G-13 Distance to nearest cell containing 1 at selected source lines 775-825 after the next fair-domain check; keep the canonical in-place guide.",
       "priority": 1,
       "source_revision": {
         "library_file_id": "libfile_4ce4c60ac9c881918a412133400539be",
         "file_id": "file_0000000019ac81fd96289a9f6f15bb12",
         "source_sha256": "2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3",
-        "canonical_markdown_sha256_after": "f30db32ba99f71c636f747215d30edac56fa700cdbf020cd0a00d9b23ba66cd2"
+        "canonical_markdown_sha256_after": "8a9cf46d071edf0a2dc5dd34055923cff92745bc246f690b635325f4cf05176b"
       }
     },
     {
@@ -1203,7 +1204,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Graph G-1 through G-11 at selected source lines 163-723 are promoted. After the next fair-domain check, G-12 lines 724-774 is the exact Graph continuation; retain the wider intake and 160 placeholders.",
+    "next_action": "Graph G-1 through G-12 at selected source lines 163-774 are promoted. After the next fair-domain check, G-13 lines 775-825 is the exact Graph continuation; retain the wider intake and 159 placeholders.",
     "batch_policy": {
       "max_sections_per_run": 1,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
