@@ -747,4 +747,12 @@ Only G-9 at selected source lines 571–621 was promoted in this bounded pass af
 
 Fresh literal-marker audit is **162**: 43 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The next exact selected-source boundary is G-10 at source lines 622–672. The selected source, wider intake and placeholder backlog remain incomplete.
 
+## Graph G-10 multi-source Rotten Oranges enrichment — 2026-11-26 ET
+
+Only G-10 at selected source lines 622–672 was promoted in this bounded pass after comparison with four earlier Graph workbooks. The canonical card now fixes simultaneous four-direction spread, all-sources-at-time-zero seeding, one-minute BFS layers, unreachable-fresh detection, copy-preserving ownership and reusable rectangular/value validation. Four examples cover the canonical four-minute wave, an isolated fresh cell, a zero-minute no-fresh case and two-source spread; an exact layer trace and Mermaid control flow expose the claim-before-enqueue and one-layer-per-minute invariants. Current Take U Forward, LeetCode and Oracle Java 21 references were verified on 2026-11-26. The older workbooks' useful multi-source layer invariant was retained, but their terse mutating snippets were not copied.
+
+`GraphRottingOrangesContracts.java` passed 20 deterministic groups, 20,000 seeded rectangular-grid trials and 80,000 synchronous-simulation parity, repeated-relaxation parity, nonmutation and rotation-invariance checks under OpenJDK 21 source-file launch. All ten Graph companions also passed. Standalone `javac` was unavailable. The reader recovered the exact 330,084-byte canonical Markdown at SHA-256 `721c3c210f6f7128e89f39fff7fedfa8210b28ee82ef9c426f33c6fa0d6a44f6`; validation found 56 unique anchors, 176 balanced fence markers, twelve Mermaid sources, ten resolved relative links and parseable inline JavaScript. The synchronized HTML is 345,666 bytes at SHA-256 `64ef19fe25f78ee056d80eaa032ff714a6a71fba7db29c0b947ceeed34db7914`. Browser, assistive-technology and rendered-Mermaid QA were unavailable.
+
+Fresh literal-marker audit is **161**: 42 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The next exact selected-source boundary is G-11 at source lines 673–723. The selected source, wider intake and placeholder backlog remain incomplete.
+
 

@@ -1407,89 +1407,185 @@ The older workbooks agree on the four-direction rule and equal-color early retur
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Rotten Oranges. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given a non-empty rectangular grid, each cell is empty (`0`), fresh (`1`), or rotten (`2`). At the end of every minute, each fresh orange that shared a side with a rotten orange **at the start of that minute** becomes rotten. Return the minimum minutes until no fresh orange remains, or `-1` if that state is impossible.
 
-### Three requirement-clarifying examples
+This is simultaneous, four-direction spread. Diagonals do not count, `0` cells are barriers, and every initially rotten orange acts at minute `0`. The reusable method here validates the whole grid and **does not mutate the caller's rows**; it deep-copies before using cell value `2` as its visited/rotten marker.
 
-| # | Input / setup | Output / observation | Why it matters |
+| Requirement | Contract used here |
+|---|---|
+| adjacency | up, down, left, right only |
+| timing | all initial `2` cells are sources at time `0`; one complete BFS layer is one minute |
+| success | return the greatest first-infection time among fresh oranges; no fresh initially means `0` |
+| impossibility | return `-1` when the queue empties while fresh oranges remain |
+| ownership | `minutesToRot` preserves the input by traversing a deep copy |
+| invalid reusable input | reject null, empty, ragged, null-row, empty-row, or values outside `0..2` |
+
+### Four requirement-clarifying examples
+
+| # | Grid | Result | Contract exposed |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | `[[2,1,1],[1,1,0],[0,1,1]]` | `4` | the canonical wave needs four BFS layers |
+| 2 | `[[2,1,1],[0,1,1],[1,0,1]]` | `-1` | the bottom-left fresh orange is isolated by empty cells |
+| 3 | `[[0,2]]` | `0` | no fresh orange exists at minute `0` |
+| 4 | `[[2,1,1],[1,1,1],[1,1,2]]` | `2` | both time-zero sources must spread simultaneously |
 
 ### Pattern recognition
 
-**Primary pattern:** BFS layers
+**Primary pattern:** multi-source BFS on an implicit grid.
 
-> **KEY INTUITION —** In a unit-cost state graph all states at distance d are processed before d+1, so first discovery is shortest.
+> **KEY INTUITION —** Put every initially rotten orange in the queue before traversal; then BFS layer `d` contains exactly the oranges rotten by minute `d`.
+
+Model every non-empty cell as a vertex with side-adjacency edges. Initial rotten cells form a virtual super-source connected by zero-time starts. The first BFS discovery time of a fresh cell is its shortest path length from any source, which is exactly its earliest possible rotting minute.
 
 ### Brute-force / straightforward baseline
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+Copy the grid, then repeat full synchronous scans. During each pass, inspect the previous minute's snapshot and rot every fresh cell adjacent to a rotten cell. This mirrors the statement and is a useful oracle, but a one-cell-wide chain of `RC` oranges can require `Θ(RC)` scans of `Θ(RC)` cells: `Θ((RC)²)` time, plus snapshot storage.
+
+The repeated scan keeps rediscovering which rotten cells can act next. A queue retains exactly that frontier.
 
 ### Optimized reasoning
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+First scan once: enqueue **all** initial `2` cells and count every `1`. If the fresh count is zero, return `0`. Otherwise, process the queue in fixed-size layers:
+
+1. snapshot `layerSize = queue.size()`;
+2. process exactly those cells—the oranges already rotten at the start of this minute;
+3. when a neighboring cell is `1`, change it to `2` **before** enqueueing and decrement `fresh` once;
+4. after the whole layer, increment `minutes` once.
+
+**Layer invariant:** before a layer begins, the queue prefix of `layerSize` cells is precisely the current minute's active frontier. Every newly enqueued cell has minimum infection time one greater and belongs to the next layer. Mark-at-enqueue prevents two rotten neighbors from scheduling the same fresh orange twice.
+
+```mermaid
+flowchart TD
+    A["Validate; copy; enqueue every initial 2"] --> B{"fresh equals 0?"}
+    B -->|yes| C["Return 0"]
+    B -->|no| D["Freeze layer size"]
+    D --> E["Rot fresh 4-neighbors before enqueue"]
+    E --> F["Increment one minute after full layer"]
+    F -->|fresh remains and queue nonempty| D
+    F -->|fresh equals 0| G["Return minutes"]
+    F -->|queue empty with fresh remaining| H["Return -1"]
+```
 
 ### Detailed dry run
 
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
+Trace Example 1. Coordinates are zero-based. `fresh` starts at `6`; `(0,0)` is the only time-zero source.
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+| Minute just completed | Layer processed | Newly rotten, marked before enqueue | Fresh left | Next frontier |
+|---:|---|---|---:|---|
+| 0 (seed) | — | initial `(0,0)` | 6 | `[(0,0)]` |
+| 1 | `(0,0)` | `(1,0)`, `(0,1)` | 4 | `[(1,0),(0,1)]` |
+| 2 | `(1,0)`, `(0,1)` | `(1,1)`, `(0,2)` | 2 | `[(1,1),(0,2)]` |
+| 3 | `(1,1)`, `(0,2)` | `(2,1)` | 1 | `[(2,1)]` |
+| 4 | `(2,1)` | `(2,2)` | 0 | `[(2,2)]` |
+
+The method returns `4` immediately after the layer that makes `fresh == 0`; it need not process `(2,2)` again because the requested state has already been reached.
 
 ### Java implementation / template
 
 ```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+static int minutesToRot(int[][] grid) {
+    validate(grid);                         // rectangular and values in 0..2
+    int[][] work = deepCopy(grid);          // explicit preservation contract
+    Deque<Cell> queue = new ArrayDeque<>();
+    int fresh = 0;
+
+    for (int row = 0; row < work.length; row++) {
+        for (int col = 0; col < work[0].length; col++) {
+            if (work[row][col] == 2) queue.addLast(new Cell(row, col));
+            else if (work[row][col] == 1) fresh++;
+        }
+    }
+    if (fresh == 0) return 0;
+
+    int minutes = 0;
+    while (!queue.isEmpty() && fresh > 0) {
+        int layerSize = queue.size();
+        for (int item = 0; item < layerSize; item++) {
+            Cell cell = queue.removeFirst();
+            for (int direction = 0; direction < 4; direction++) {
+                int nextRow = cell.row() + DR[direction];
+                int nextCol = cell.col() + DC[direction];
+                if (inBounds(work, nextRow, nextCol)
+                        && work[nextRow][nextCol] == 1) {
+                    work[nextRow][nextCol] = 2; // claim before scheduling
+                    fresh--;
+                    queue.addLast(new Cell(nextRow, nextCol));
+                }
+            }
+        }
+        minutes++;                           // one complete wave elapsed
+    }
+    return fresh == 0 ? minutes : -1;
+}
 ```
+
+The executable companion supplies the omitted helpers, validation, two independent oracles, preservation checks, and seeded randomized tests: [`GraphRottingOrangesContracts.java`](../java/GraphRottingOrangesContracts.java).
 
 ### Key line to highlight
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+```java
+work[nextRow][nextCol] = 2; // before queue.addLast(...)
+```
+
+This is both the state transition and visited mark. Delaying it until dequeue would allow several current-layer parents to enqueue the same orange, corrupting the fresh count and wasting work. Incrementing `minutes` inside this neighbor block would also be wrong: many oranges rot simultaneously during one layer.
 
 ### Correctness checklist
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+Let `d(x)` be the shortest number of side edges from any initially rotten orange to fresh orange `x`, using only non-empty cells.
+
+1. **Initialization:** all and only time-zero sources enter the queue before BFS, so the first frontier has distance `0`.
+2. **Layer order:** if a processed cell has distance `d`, every newly claimed fresh neighbor has a path of length `d+1`. FIFO layer processing finishes all distance-`d` cells before any distance-`d+1` cell acts.
+3. **Minimum discovery:** if a claimed neighbor had a shorter source path, its predecessor on that path would have been processed in an earlier layer and would already have claimed it. Thus first discovery time equals its shortest distance.
+4. **Uniqueness:** changing `1` to `2` before enqueue means each fresh orange is claimed, decremented, and queued at most once.
+5. **Termination:** `fresh == 0` after layer `t` means every original fresh cell has `d(x) <= t`, and some cell first reached in the final necessary layer has distance `t`; therefore `t` is minimum. If the queue empties with fresh cells left, those cells have no source path, so success is impossible.
 
 ### Boundary conditions
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+- no fresh orange initially: return `0`, even if the grid contains rotten oranges or only empties;
+- fresh oranges but no initial rotten source: return `-1`;
+- isolated fresh region behind `0` barriers: return `-1`;
+- multiple initial sources: enqueue all before the first layer, not one BFS after another;
+- four directions only; a diagonal source cannot infect a fresh orange;
+- one row, one column, singleton, all-fresh, and all-rotten grids;
+- ownership: deep-copy for preservation, or document and test an in-place variant;
+- reusable API validation versus judge-guaranteed dimensions and values;
+- minute counting: count completed nonempty frontier layers, not queue operations or individual infections.
 
 ### Complexity — derive it instead of memorizing it
 
-**O(states + transitions), usually O(V+E) or O(RC).**
+The initial scan visits `RC` cells. Mark-at-enqueue permits at most one queue insertion and removal per non-empty cell, and each removed cell checks four directions.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+- **Time:** `Θ(RC)`—the validation/copy/initial scan already establishes the lower bound.
+- **Auxiliary space:** `O(RC)` for the copied grid and worst-case frontier.
+- **In-place variant:** can avoid the copy but still needs `O(RC)` worst-case queue space.
+- **Repeated-scan baseline:** `O((RC)²)` worst-case time because one new layer may require another whole-grid pass.
 
 ### Memoization / repeated-work note
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+Dynamic programming is unnecessary: each cell's first BFS discovery already memoizes its minimum infection time implicitly through layer membership. If explicit per-cell times or infection paths are requested, store `time[row][col]` and optional parent coordinates at first discovery. For many hypothetical source sets on the same barriers, precomputation is useful only when the source set is fixed; changing sources changes all nearest-source distances.
 
-> **MEMORY TRICK —** BFS = RINGS OF EQUAL EDGE COUNT.
+> **MEMORY TRICK —** ALL SOURCES AT ZERO; ONE QUEUE LAYER, ONE MINUTE.
+
+### Validation strategy
+
+The companion checks 20 deterministic contract groups and 20,000 seeded rectangular grids. Every trial compares multi-source BFS with (1) a snapshot-based synchronous simulation and (2) a queue-free repeated shortest-path relaxation, verifies that the input is unchanged, and checks 180-degree rotation invariance: 80,000 randomized oracle/preservation/metamorphic checks.
+
+The earlier workbooks agree on multi-source BFS, time-zero seeding and the unreachable `-1` result. Their useful layer invariant was retained, but their terse mutating snippets were not copied; this version adds explicit ownership, complete reusable-input validation and independent validation mechanisms.
+
+### Current primary references
+
+- [Take U Forward practice — Rotten Oranges](https://takeuforward.org/practice/dsa/rotten-oranges) — current four-direction statement, result contract, examples and constraints.
+- [LeetCode 994 — Rotting Oranges](https://leetcode.com/problems/rotting-oranges/) — canonical four-minute, impossible and zero-minute examples.
+- [Oracle Java 21 `ArrayDeque`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ArrayDeque.html) — resizable deque with amortized constant-time queue-end operations.
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. Return each cell's rotting minute, not just the maximum: store an explicit distance matrix.
+2. Permit diagonal spread: replace the four direction vectors with eight and re-evaluate reachability.
+3. Give edges different transmission delays: unit-layer BFS no longer suffices; use multi-source Dijkstra.
+4. Add walls that disappear over time: the state must include time because adjacency is no longer static.
+5. Return one infection chain to the last orange: save a parent at first discovery.
+6. Mutate in place to save the copy: document aliasing and test that the returned timing remains identical.
 
 [↑ Back to Index](#navigation-and-index)
 
