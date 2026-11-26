@@ -174,10 +174,10 @@
       "modified_at": "2026-09-08T04:49:59.864498Z",
       "size_bytes": 166312,
       "status": "IN_PROGRESS",
-      "last_read_at": "2026-11-25T22:45:40-05:00",
+      "last_read_at": "2026-11-25T23:21:41-05:00",
       "sha256": "2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3",
       "canonical_target": "study-guides/striver-dsa/graph-dsa/markdown/Striver_Graph_DSA_FINAL_Deep_Dive.md",
-      "selection": "Selected after comparing the four accessible Graph Markdown workbooks. The corrected 56-section sequence aligns exactly with the canonical G-1 through G-56 spine. G-1 through G-2 at source lines 163-264 are promoted; G-3 at lines 265-315 is the next bounded section."
+      "selection": "Selected after comparing the four accessible Graph Markdown workbooks. The corrected 56-section sequence aligns exactly with the canonical G-1 through G-56 spine. G-1 through G-3 at source lines 163-315 are promoted; G-4 at lines 316-366 is the next bounded section."
     },
     {
       "name": "Take_U_Forward_Tree_Verified_Problem_Guide_v3.md",
@@ -450,20 +450,21 @@
         "Take_U_Forward_Graph_Java_Mermaid_Deep_Guide.md",
         "DSA_Graph_FAANG_Question_Workbook.docx"
       ],
-      "last_processed_at": "2026-11-25T22:45:40-05:00",
+      "last_processed_at": "2026-11-25T23:21:41-05:00",
       "processed_sections": [
         "G-1 Graph vocabulary and conventions — source lines 163-213; explicit model contract, four examples, multigraph/self-loop trace, two diagrams, executable Java builder and conservation proof",
-        "G-2 Graph representation — source lines 214-264; matrix/list operation contracts, four examples, parity trace, two diagrams, executable Java cross-check and equivalence proof"
+        "G-2 Graph representation — source lines 214-264; matrix/list operation contracts, four examples, parity trace, two diagrams, executable Java cross-check and equivalence proof",
+        "G-3 Java graph representation — source lines 265-315; typed weighted arcs, four examples, ownership flow, build trace, immutable Java builder and flat-scan proof"
       ],
-      "last_successful_commit": "39fff5322f9ab21a3477e8ea7a32301a12d1aa50",
-      "validation": "G-2 at selected source lines 214-264 was promoted after four-workbook comparison. Current Princeton Algorithms 4/e and Oracle Java 21 references were verified. GraphRepresentationContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under OpenJDK 21 source-file launch. Reader validation passed exact 296,661-byte Markdown recovery at SHA-256 e6f7ec386a5367c7a4c311f1530a1df924cad68ab913e757d5ba39fa903c0c5c, 56 unique explicit anchors, 156 balanced fence markers, four Mermaid sources, two relative links, inline JavaScript syntax and deterministic rebuilding; HTML SHA-256 is 50825d172300a27d1ad9d56559596faac641e5517c6cceaa7fa26a16160f4c2b. All six content-commit remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 168.",
-      "next_action": "Process exactly G-3 Java graph representation at selected source lines 265-315 after the next fair-domain check; keep the canonical in-place guide and do not duplicate G-2.",
+      "last_successful_commit": "8956296475ddb6464b1892e4250123e9c03517ea",
+      "validation": "G-3 at selected source lines 265-315 was promoted after four-workbook comparison. Current Oracle Java 21 and Princeton Algorithms 4/e references were verified. GraphAdjacencyListContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under OpenJDK 21 source-file launch. Reader validation passed exact 300,230-byte Markdown recovery at SHA-256 52ebc7ff121510b95036e33c26e9f501eeb5137140d6a9f070c15712158cf9bd, 56 unique explicit anchors, 158 balanced fence markers, five Mermaid sources, three relative links, inline JavaScript syntax and deterministic rebuilding; HTML SHA-256 is 08d802ecaf61bf1da2231b75161e6227c35df6fd7c4e52f439bd264479422b3e. All six content-commit remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 167.",
+      "next_action": "Process exactly G-4 Connected components at selected source lines 316-366 after the next fair-domain check; keep the canonical in-place guide.",
       "priority": 1,
       "source_revision": {
         "library_file_id": "libfile_4ce4c60ac9c881918a412133400539be",
         "file_id": "file_0000000019ac81fd96289a9f6f15bb12",
         "source_sha256": "2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3",
-        "canonical_markdown_sha256_after": "e6f7ec386a5367c7a4c311f1530a1df924cad68ab913e757d5ba39fa903c0c5c"
+        "canonical_markdown_sha256_after": "52ebc7ff121510b95036e33c26e9f501eeb5137140d6a9f070c15712158cf9bd"
       }
     },
     {
@@ -1194,7 +1195,7 @@
     "access_blocker": null,
     "canonical_target": "study-guides/local-project-notes/",
     "discovered_files": 53,
-    "next_action": "Graph G-1 through G-2 at selected source lines 163-264 are promoted. After the next fair-domain check, G-3 lines 265-315 is the exact Graph continuation; retain the wider intake and 168 placeholders.",
+    "next_action": "Graph G-1 through G-3 at selected source lines 163-315 are promoted. After the next fair-domain check, G-4 lines 316-366 is the exact Graph continuation; retain the wider intake and 167 placeholders.",
     "batch_policy": {
       "max_sections_per_run": 1,
       "read_strategy": "metadata -> headings -> selected bounded sections; avoid whole-directory ingestion",
@@ -1430,14 +1431,15 @@
     "AI employment impact Section 9: reliability-with-review/complementarity/authority/demand/absorption/diffusion revision boundaries, four worked traces, six diagrams, current HBS/NBER/EU/Census/Federal Reserve/BLS/WEF references and executable pessimism-scenario contracts",
     "AI employment impact Section 10: observed/scenario/advice claim packets, gross/net transition accounting, conditional agentic-automation gates, role-design boundaries, four worked traces, six diagrams and executable bottom-line contracts; selected source analysis exhausted",
     "Graph G-1: explicit vertex/edge/direction/weight/scope/goal contract, four examples, multigraph and self-loop trace, two diagrams, executable Java builder and conservation proof",
-    "Graph G-2: matrix/list operation contracts, four examples, parity trace, two diagrams, executable Java cross-check and equivalence proof"
+    "Graph G-2: matrix/list operation contracts, four examples, parity trace, two diagrams, executable Java cross-check and equivalence proof",
+    "Graph G-3: typed weighted arcs, four examples, ownership flow, build trace, immutable Java builder and flat-scan proof"
     ],
-  "processed_section": "Graph G-2 Graph representation at selected source lines 214-264 only; G-1 through G-2 are promoted",
-  "validation": "The selected Graph source remained SHA-256 2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3 and G-2 was bounded to lines 214-264 after four-workbook comparison. GraphRepresentationContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under OpenJDK 21 source-file launch. Reader validation passed exact 296,661-byte recovery, SHA-256 e6f7ec386a5367c7a4c311f1530a1df924cad68ab913e757d5ba39fa903c0c5c, 56 explicit anchors, 156 fences, four Mermaid sources, two relative links, inline JavaScript syntax and deterministic HTML SHA-256 50825d172300a27d1ad9d56559596faac641e5517c6cceaa7fa26a16160f4c2b. Content commit 39fff5322f9ab21a3477e8ea7a32301a12d1aa50; all six remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 168.",
+  "processed_section": "Graph G-3 Java graph representation at selected source lines 265-315 only; G-1 through G-3 are promoted",
+  "validation": "The selected Graph source remained SHA-256 2bc8d40ba182bf6cb285cdc13fe0049999d6b34e96036752d205110bd99df7a3 and G-3 was bounded to lines 265-315 after four-workbook comparison. GraphAdjacencyListContracts passed 20 deterministic groups, 20,000 seeded trials and 80,000 checks under OpenJDK 21 source-file launch. Reader validation passed exact 300,230-byte recovery, SHA-256 52ebc7ff121510b95036e33c26e9f501eeb5137140d6a9f070c15712158cf9bd, 56 explicit anchors, 158 fences, five Mermaid sources, three relative links, inline JavaScript syntax and deterministic HTML SHA-256 08d802ecaf61bf1da2231b75161e6227c35df6fd7c4e52f439bd264479422b3e. Content commit 8956296475ddb6464b1892e4250123e9c03517ea; all six remote blob hashes matched. Standalone javac and browser/assistive/rendered-Mermaid QA were unavailable. The live placeholder audit is 167.",
   "estimated_next_tokens": 7500,
-  "estimate_method": "Heuristic reserve for one bounded Graph G-3 source section or fair-domain alternative; no reliable account-quota telemetry was exposed.",
-  "last_successful_commit": "39fff5322f9ab21a3477e8ea7a32301a12d1aa50",
-  "last_processed_at": "2026-11-25T22:45:40-05:00",
-  "next_batch_decision": "Graph G-2 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. After the next fair-domain check, G-3 lines 265-315 is the exact selected-source continuation. The wider 168-placeholder backlog remains open."
+  "estimate_method": "Heuristic reserve for one bounded Graph G-4 source section or fair-domain alternative; no reliable account-quota telemetry was exposed.",
+  "last_successful_commit": "8956296475ddb6464b1892e4250123e9c03517ea",
+  "last_processed_at": "2026-11-25T23:21:41-05:00",
+  "next_batch_decision": "Graph G-3 is the sole bounded section in this pass because exact weekly/hourly quota percentages were not exposed. After the next fair-domain check, G-4 lines 316-366 is the exact selected-source continuation. The wider 167-placeholder backlog remains open."
   }
 }
