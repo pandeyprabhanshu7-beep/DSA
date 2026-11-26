@@ -715,4 +715,12 @@ Only G-5 at selected source lines 367–417 was promoted in this bounded pass. T
 
 Fresh literal-marker audit remains **166**: 47 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. G-5 already had problem-specific Java, so this pass removed no marker. The next exact selected-source boundary is G-6 at source lines 418–468. The selected source, wider intake and placeholder backlog remain incomplete.
 
+## Graph G-6 depth-first-search enrichment — 2026-11-26 ET
+
+Only G-6 at selected source lines 418–468 was promoted in this bounded pass after comparing the selected source with four earlier Graph workbooks. The canonical card now specifies source-scoped adjacency-order preorder, first-discovery parent certificates, mark-before-descending uniqueness and an explicit `(vertex,nextNeighborIndex)` frame machine that exactly preserves recursive order without JVM call-stack risk. Four examples cover canonical order, an isolated source, reordered adjacency, and loop/parallel/cyclic arcs; an exact frame trace and Mermaid control flow expose claim, descend and resume state. Current Princeton Algorithms 4/e and Oracle Java 21 references were verified on 2026-11-26.
+
+`GraphDfsContracts.java` passed 20 deterministic groups, a 50,000-vertex chain, 20,000 seeded directed-graph trials and 80,000 recursive-preorder, parent, Floyd–Warshall reachability and certificate checks under OpenJDK 21 source-file launch. Standalone `javac` was unavailable. The reader recovered the exact 308,319-byte canonical Markdown at SHA-256 `c7796ce8cdaf924fa792aa7c958a49ebe6e7f799ab2a6c54232c12fc35bb672c`; validation found 56 unique anchors, 164 balanced fence markers, eight Mermaid sources, six resolved relative links and parseable inline JavaScript. The synchronized HTML is 323,562 bytes at SHA-256 `f26dcc85f38355c18e78072388862ef19f84dab37eb4b9d1dd8f1f54d815efbf`. Browser, assistive-technology and rendered-Mermaid QA were unavailable.
+
+Fresh literal-marker audit is **165**: 46 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The next exact selected-source boundary is G-7 at source lines 469–519. The selected source, wider intake and placeholder backlog remain incomplete.
+
 

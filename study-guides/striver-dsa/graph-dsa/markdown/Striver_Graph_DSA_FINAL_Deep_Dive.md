@@ -782,89 +782,147 @@ Each reached vertex enters and leaves the queue once, and each outgoing arc of a
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Depth-First Search. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given a validated adjacency list and source `s`, return the **DFS preorder of exactly the vertices reachable from `s`**, following each adjacency bucket in stored order. Retain the first-discovery parent of every reached non-source vertex as a DFS-tree certificate.
 
-### Three requirement-clarifying examples
+This is source-scoped traversal, not a whole-graph forest. Unreachable vertices do not appear. Output is deterministic only relative to the supplied adjacency order; DFS promises neither lexicographically smallest order nor a shortest path.
 
-| # | Input / setup | Output / observation | Why it matters |
+> **KEY INTUITION — CLAIM, DESCEND, RESUME.** Claim a vertex before following any edge, fully explore the first unseen neighbor, then resume the suspended parent at its next neighbor.
+
+**Verified source note (accessed 2026-11-26).** The selected verified Graph guide and four earlier workbooks agree on mark-before-recursing, adjacency-order preorder and `O(V+E)` traversal. One older Markdown workbook accidentally commented out its `seen[u] = true` statement; the canonical code below does not copy that defect. Princeton Algorithms 4/e states that DFS marks source-reachable vertices and first-discovery edges form a parent-link tree. Oracle Java 21 recommends `Deque` instead of legacy `Stack` for LIFO work. The explicit frame machine, validation, examples, proof and executable oracle suite below are study-guide additions.
+
+### Four requirement-clarifying examples
+
+| # | Input / setup | DFS preorder from source | Why it matters |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | undirected buckets `[[1,2],[0,3],[0,4],[1],[2]]`, `s=0` | `[0,1,3,2,4]` | canonical adjacency-order traversal |
+| 2 | three isolated vertices, `s=2` | `[2]` | traversal is source-scoped |
+| 3 | Example 1 but bucket `0=[2,1]` | `[0,2,4,1,3]` | neighbor order changes a valid DFS preorder |
+| 4 | buckets `[[0,1,1],[0,2],[1]]`, `s=0` | `[0,1,2]` | loops, parallel edges and a cycle still visit once |
 
-### Pattern recognition
+The same implementation handles directed or undirected buckets. Direction is already encoded by the adjacency list; traversal must not invent reverse edges.
 
-**Primary pattern:** Graph modeling
+### Recursive meaning and explicit frames
 
-> **KEY INTUITION —** Write NODE, EDGE, DIRECTION, COST and GOAL before naming an algorithm.
-
-### Brute-force / straightforward baseline
-
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
-
-### Optimized reasoning
-
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
-
-### Detailed dry run
-
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```mermaid
+flowchart TD
+    A["claim source; emit preorder"] --> B{"top frame has next neighbor?"}
+    B -->|no| C["pop finished frame"]
+    C --> B
+    B -->|yes| D["advance parent cursor"]
+    D --> E{"neighbor already seen?"}
+    E -->|yes| B
+    E -->|no| F["claim child; set parent; emit"]
+    F --> G["push child frame"]
+    G --> B
 ```
 
-### Key line to highlight
+A frame `(vertex, nextNeighborIndex)` is a suspended recursive call: earlier neighbors were examined and the indexed neighbor is next. It preserves recursive adjacency order without using the JVM call stack.
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+A shorter iterative variant pushes every neighbor onto a vertex stack. It must push in reverse order to imitate recursive preorder, and duplicate pending vertices complicate its state. Frames encode the recursive control state directly and keep at most one live frame per reached vertex.
 
-### Correctness checklist
+### Exact frame trace for Example 1
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+Frame notation is `vertex:nextIndex`; the active frame is leftmost.
 
-### Boundary conditions
+| Step | stack before | inspected edge / action | order | parent update |
+|---:|---|---|---|---|
+| 0 | `[]` | claim `0`; push `0:0` | `[0]` | — |
+| 1 | `[0:0]` | `0→1` unseen; claim/push `1` | `[0,1]` | `parent[1]=0` |
+| 2 | `[1:0,0:1]` | `1→0` already seen | `[0,1]` | — |
+| 3 | `[1:1,0:1]` | `1→3` unseen; claim/push `3` | `[0,1,3]` | `parent[3]=1` |
+| 4 | `[3:0,1:2,0:1]` | skip `3→1`; finish `3`, then `1` | `[0,1,3]` | — |
+| 5 | `[0:1]` | `0→2` unseen; claim/push `2` | `[0,1,3,2]` | `parent[2]=0` |
+| 6 | `[2:0,0:2]` | skip `2→0`; take `2→4`; finish | `[0,1,3,2,4]` | `parent[4]=2` |
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+The parent certificate is `[-1,0,0,1,2]`. Following parents from a reached vertex ends at source `0`, but that tree path is not promised shortest.
 
-### Complexity — derive it instead of memorizing it
+### Java — iterative preorder with exact recursion frames
 
-**Adjacency-list traversal O(V+E); representation O(V+E).**
+The complete executable companion is [`GraphDfsContracts.java`](../java/GraphDfsContracts.java).
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+```java
+static Result dfs(int source, List<List<Integer>> graph) {
+    validate(graph);
+    if (source < 0 || source >= graph.size())
+        throw new IllegalArgumentException("source outside 0..V-1");
 
-### Memoization / repeated-work note
+    boolean[] seen = new boolean[graph.size()];
+    int[] parent = new int[graph.size()];
+    Arrays.fill(parent, -1);
+    List<Integer> order = new ArrayList<>();
+    Deque<Frame> stack = new ArrayDeque<>();
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+    seen[source] = true;
+    order.add(source);
+    stack.push(new Frame(source));
 
-> **MEMORY TRICK —** MODEL FIRST; ALGORITHM SECOND.
+    while (!stack.isEmpty()) {
+        Frame frame = stack.peek();
+        List<Integer> neighbors = graph.get(frame.vertex);
+        if (frame.nextNeighbor == neighbors.size()) {
+            stack.pop();
+            continue;
+        }
+        int neighbor = neighbors.get(frame.nextNeighbor++);
+        if (seen[neighbor]) continue;
+
+        seen[neighbor] = true;
+        parent[neighbor] = frame.vertex;
+        order.add(neighbor);
+        stack.push(new Frame(neighbor));
+    }
+    return immutableResult(order, parent);
+}
+```
+
+The pivotal order is: advance the parent cursor, mark the child, record parent/preorder, then push the child frame. Marking after the push would allow a cycle edge to rediscover an active vertex.
+
+### Correctness argument
+
+At every loop header:
+
+1. `seen[v]` is true exactly for vertices already emitted in `order`;
+2. each seen non-source vertex has one first-discovery parent edge from an earlier emitted vertex;
+3. the stack, bottom to top, is the current DFS-tree path; and
+4. each frame cursor separates examined neighbors from neighbors still to examine.
+
+Initially only the source is seen/emitted and its frame cursor is zero. Popping an exhausted frame returns to its parent without changing reachability state. Skipping a seen neighbor records that edge as examined without duplicating a visit. For an unseen neighbor, claiming/emitting it, recording the discovery edge and pushing a zero-cursor frame is exactly the next recursive DFS call. The invariant is preserved.
+
+When the stack empties, every edge leaving every seen vertex was examined. If a reachable vertex were unseen, the first source-path edge from a seen tail to an unseen head would have claimed its head—a contradiction. Thus the output contains every and only source-reachable vertex, once, in recursive adjacency-order preorder.
+
+### Complexity and stack-safety boundary
+
+Validation scans all `V` buckets and stored entries. DFS emits each reachable vertex once and examines each outgoing entry of every reached vertex once: `Θ(V+E)` worst-case time for a validated graph, `Θ(V)` visited/parent/frame state, plus output. An undirected logical edge normally contributes two adjacency entries, still `Θ(E)`.
+
+The explicit deque prevents call-stack overflow on a long chain; the companion verifies a 50,000-vertex chain. It does **not** make memory constant: depth `V` still needs `Θ(V)` frames. Recursive DFS is appropriate only when maximum depth is safely bounded.
+
+### Boundary conditions and contract failures
+
+- Reject null graphs, buckets or neighbors, invalid endpoints, and a source outside `0..V-1` before traversal.
+- An empty graph has no valid source; an API that returns empty without a source is a different contract.
+- Mark on discovery before descending; marking on return can recurse forever around a cycle.
+- Self-loops and parallel edges are legal when the graph model permits them; `seen` preserves uniqueness.
+- Unreachable vertices and the source both have parent `-1`; membership in `order` distinguishes them.
+- DFS finds a path, not an unweighted shortest path; use BFS when minimum edge count is required.
+- Mutation during traversal invalidates frame cursors. Traverse an immutable snapshot or synchronize explicitly.
+- Whole-graph DFS needs an outer loop that starts a new root after each component; that is a different result.
+
+### Primary references
+
+- [Princeton Algorithms 4/e — undirected graphs and DFS propositions](https://algs4.cs.princeton.edu/41graph/)
+- [Princeton Algorithms 4/e — `DepthFirstSearch`](https://algs4.cs.princeton.edu/code/javadoc/edu/princeton/cs/algs4/DepthFirstSearch.html)
+- [Oracle Java 21 — `Deque` as a LIFO stack](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/Deque.html)
+- [Take U Forward — Depth-first search](https://takeuforward.org/graph/depth-first-search-dfs)
+
+> **MEMORY TRICK — CLAIM, DESCEND, RESUME.**
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. How do you return a whole DFS forest for a disconnected graph?
+2. Why can two valid DFS orders differ on the same abstract graph?
+3. How would discovery and finish timestamps classify edges?
+4. When is reverse-neighbor push equivalent to frame-based DFS?
+5. Which later algorithms need active-path state in addition to ordinary `seen`?
 
 [↑ Back to Index](#navigation-and-index)
 
