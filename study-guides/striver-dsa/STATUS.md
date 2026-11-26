@@ -23,6 +23,7 @@
 | S3 Stack Using One Queue | ✅ | ✅ | Four examples, queue-rotation diagram, Java, detailed trace, proof and complexity |
 | S4 Queue Using Two Stacks | ✅ | ✅ | Full lazy-transfer solution, four examples, detailed state trace, Java, proof, amortized analysis, boundaries and memory trick |
 | S26 Sliding Window Maximum | ✅ | ✅ | Complete Java, deque proof, detailed trace and boundaries |
+| G-1 Introduction to Graph | ✅ | ✅ | Explicit model contract, four examples, multigraph/self-loop trace, two diagrams, Java builder, proof and randomized conservation checks |
 | G-32 Dijkstra — Priority Queue | ✅ | ✅ | Enriched Markdown synchronized into canonical responsive Graph HTML |
 | Bellman–Ford — negative edges/cycles | ✅ | ✅ | Dedicated deep-dive pair under canonical Graph folders |
 | G-46 Disjoint Set Union | ✅ | ✅ | Path compression, union-by-size, dry run, proof, amortized complexity and variations |
@@ -90,7 +91,7 @@
 | Arrays §19 Revision Sheet | ✅ | ✅ | Twenty invariant/proof hooks, four traced pattern rehearsals, six diagrams, speaking script and four independent oracles |
 | Arrays §20 Further Reading and Practice | ✅ | ✅ | Evidence-based final gate, four timed traces, five diagrams, primary contracts and four independent oracles |
 
-## Completion audit — 2026-10-08 ET (updated 21:29)
+## Completion audit — 2026-11-25 ET
 
 The five canonical Markdown guides and their five responsive HTML reading editions exist in the repository.
 
@@ -98,12 +99,12 @@ Current explicit Java placeholder count:
 
 | Guide | Cards with placeholder Java |
 |---|---:|
-| Graph | 51 |
+| Graph | 50 |
 | Stack & Queue | 18 |
 | Linked List | 27 |
 | Trees & BST | 47 |
 | HashMap & Hashing | 27 |
-| **Total** | **170** |
+| **Total** | **169** |
 
 Previously removed placeholders:
 - S4 Queue Using Two Stacks
@@ -136,7 +137,7 @@ S6/S8 verification: Java sources compiled with javac --release 17 and executed o
 All five canonical responsive HTML files have been resynchronized so their embedded Markdown payload now exactly matches the paired canonical Markdown file.
 
 Remaining work:
-1. Replace the **170** remaining Java placeholders with problem-specific code.
+1. Replace the **169** remaining Java placeholders with problem-specific code.
 2. Replace generic examples with concrete 3–4 example sets.
 3. Expand hard-card dry runs into explicit state tables.
 4. Add correctness proofs and boundary-condition reasoning card by card.
@@ -166,7 +167,7 @@ These repository editions preserve the latest retained topic structure and study
 - [x] H-16 Minimum Window Substring deepened
 - [x] S2 Circular Queue and S3 One-Queue Stack deepened and Java-tested
 - [x] S1 Array Stack and S5 Linked Stack deepened and Java-tested
-- [ ] replace remaining 170 Java placeholders
+- [ ] replace remaining 169 Java placeholders
 - [ ] ongoing research-driven dry-run / example / boundary expansion
 
 
@@ -669,5 +670,13 @@ The final Markdown-only supplement is now promoted from heading line 5215 throug
 Java 21 source-file launch passed all 71 documented Arrays executables: 1,380 scenario groups and 1,400,000 seeded/randomized trials or comparisons. Standalone `javac` remains unavailable. The deterministic responsive reader embeds the exact 732,253 canonical Markdown bytes at SHA-256 `960ba831299228788a385019a23b387459f21f690163ce02de66124cc81f5db5`; validation found 2,599 unique HTML IDs, 131 search entries, 2,199 resolved fragment links, zero relative links, 924 balanced fence markers, 340 Mermaid sources and four script blocks. Both executable JavaScript blocks pass syntax checks. Rebuilding produced byte-identical HTML at SHA-256 `1723f276c753e11b6de3b4d28b80296090b906ec1b03c45314a2e02eabf497eb`. Browser, assistive-technology and rendered Mermaid integration were not executed in this pass.
 
 Fresh literal-marker audit remains **170** across the five placeholder-bearing canonical guides: 51 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. Both selected Arrays sources are exhausted: the Markdown through line 5221 / source end and the corroborating DOCX through page 116 / its end. This completes only the selected Arrays source-pair intake, not the collection. The next bounded action is a fresh fair-domain selection from confirmed unprocessed intake and the live-placeholder backlog; no unsupported Arrays continuation is asserted.
+
+## Graph G-1 modeling-contract enrichment — 2026-11-25 ET
+
+The corrected 56-section graph source was selected after comparing the available Graph Markdown workbooks, and only G-1 at source lines 163–213 was promoted in this bounded pass. The canonical card now makes vertex labels, edge identity, direction, weights, self-loop/parallel-edge policy, component scope and goal explicit before algorithm choice. Four examples distinguish undirected degree, directed in/out degree, zero-weight edges from absence, and multigraph/self-loop semantics; two Mermaid diagrams and a six-arc build trace make the representation consequences visible. Current NIST, Princeton Algorithms 4/e and Take U Forward references were verified on 2026-11-25.
+
+`GraphModelContracts.java` passed 20 deterministic groups, 20,000 seeded trials and 80,000 conservation/preservation checks under OpenJDK 21 source-file launch. Standalone `javac` was unavailable. The reproducible graph reader rebuild passed twice and recovered the exact 292,374-byte canonical Markdown at SHA-256 `b2668135ab3bb4d6925b685219deb6b795f55ed77af01f37b2a10fe12750604d`; validation found 56 unique explicit anchors, 152 balanced fence markers, two Mermaid sources, resolved relative links and parseable inline JavaScript. The synchronized HTML is 307,348 bytes at SHA-256 `91b1e49c6444ac856d681d3148e44bbea436bfa05765dee9150bb127c9c46dd0`. Browser, assistive-technology and rendered-Mermaid QA were unavailable.
+
+Fresh literal-marker audit is **169**: 50 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The next exact selected-source boundary is G-2 at source lines 214–264. The selected source, wider intake and placeholder backlog remain incomplete.
 
 

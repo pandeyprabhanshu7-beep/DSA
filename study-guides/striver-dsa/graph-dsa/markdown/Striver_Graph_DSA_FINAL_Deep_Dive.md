@@ -95,89 +95,157 @@ Before naming an algorithm write five lines: NODE, EDGE, DIRECTION, COST, GOAL. 
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Introduction to Graph — Types & Conventions. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Before selecting BFS, Dijkstra, DSU, or any other algorithm, translate the statement into a **graph contract**:
 
-### Three requirement-clarifying examples
+| Contract field | Question that must have one explicit answer |
+|---|---|
+| vertices | What is one vertex, how many exist, and are labels `0..V-1`, `1..V`, strings, or objects? |
+| edges | What relationship creates an edge, and may a self-loop or a parallel edge exist? |
+| direction | Is `(u,v)` ordered (`u → v`) or unordered (`u — v`)? |
+| weight | Is there a cost/capacity/probability? Is weight `0` different from “no edge”? |
+| scope | Must every component be processed, or only vertices reachable from a given start? |
+| goal | Reachability, ordering, shortest path, minimum connection cost, or something else? |
 
-| # | Input / setup | Output / observation | Why it matters |
+This guide and the executable companion use vertices `0..V-1`. Their model permits self-loops and parallel edges only when the `GraphSpec` says so, stores weights as `long`, and never silently assumes that the graph is connected.
+
+> **KEY INTUITION — MODEL FIRST; ALGORITHM SECOND.** A fast algorithm over the wrong direction, label domain, or edge policy is still wrong.
+
+**Verified source note (accessed 2026-11-25).** NIST defines a graph as a vertex set plus an edge relation and distinguishes ordered directed edges from unordered undirected edges. Princeton's current `Graph` and `Digraph` APIs number vertices `0..V-1`, permit parallel edges and self-loops, and count an undirected self-loop twice in its vertex degree. Take U Forward's current introduction likewise separates directed, undirected, weighted, and unweighted models. The four examples, explicit contract, diagrams, Java implementation, validation rules, and proofs below are study-guide additions.
+
+### Four requirement-clarifying examples
+
+| # | Input contract | Derived state | Lesson |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | undirected, `V=3`, edges `0—1, 1—2` | degree `[1,2,1]`; sum `4 = 2E` | one undirected edge contributes at both endpoints |
+| 2 | directed, `V=3`, edges `0→1, 1→2` | indegree `[0,1,1]`; outdegree `[1,1,0]` | reversing an edge changes the model and often the answer |
+| 3 | weighted directed, `V=4`, edges `(0,1,0)`, `(1,2,7)` | vertex `3` is isolated; `0→1` exists with weight zero | “no edge” needs a separate representation from weight `0` |
+| 4 | undirected multigraph, `V=2`, edges `0—1`, `0—1`, `1—1` | degree `[2,4]`; adjacency has six arcs | parallel edges stay distinct; a self-loop contributes two to degree |
 
-### Pattern recognition
+### One edge list, two different graphs
 
-**Primary pattern:** Graph modeling
-
-> **KEY INTUITION —** Write NODE, EDGE, DIRECTION, COST and GOAL before naming an algorithm.
-
-### Brute-force / straightforward baseline
-
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
-
-### Optimized reasoning
-
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
-
-### Detailed dry run
-
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```mermaid
+flowchart TB
+    E["pairs: (0,1), (1,2)"]
+    E --> U["undirected: 0 — 1 — 2"]
+    E --> D["directed: 0 → 1 → 2"]
+    U --> UD["degree = [1,2,1]"]
+    D --> DD["in = [0,1,1]; out = [1,1,0]"]
 ```
 
-### Key line to highlight
+The input numbers alone do not determine direction. A problem statement, API contract, or schema must do that.
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+### Model-first decision flow
 
-### Correctness checklist
+```mermaid
+flowchart TD
+    A["Name vertices and label domain"] --> B["Define edge and direction"]
+    B --> C["Define weight / absence semantics"]
+    C --> D["Choose loop and parallel-edge policy"]
+    D --> E["State component scope and goal"]
+    E --> F["Only now select representation and algorithm"]
+```
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+### Detailed build trace
 
-### Boundary conditions
+Build Example 4 as an undirected adjacency list. Each undirected edge creates two stored arcs, including a self-loop.
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+| Step | source edge | adjacency after insertion | degree |
+|---:|---|---|---|
+| 0 | — | `0: []`, `1: []` | `[0,0]` |
+| 1 | edge 0: `0—1` | `0: [(1,e0)]`, `1: [(0,e0)]` | `[1,1]` |
+| 2 | edge 1: `0—1` | `0: [(1,e0),(1,e1)]`, `1: [(0,e0),(0,e1)]` | `[2,2]` |
+| 3 | edge 2: `1—1` | vertex `1` receives `(1,e2)` twice | `[2,4]` |
 
-### Complexity — derive it instead of memorizing it
+The edge ID matters: if an algorithm later skips “the parent vertex” rather than the exact parent **edge**, it can mishandle parallel edges. The same identity convention is used in the bridge and articulation-point cards.
 
-**Adjacency-list traversal O(V+E); representation O(V+E).**
+### Java — validated graph contract and adjacency builder
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+The repository companion [`GraphModelContracts.java`](../java/GraphModelContracts.java) contains the full executable checks. The core builder is:
 
-### Memoization / repeated-work note
+```java
+static BuiltGraph build(GraphSpec spec, List<Edge> edges) {
+    Objects.requireNonNull(spec, "spec");
+    Objects.requireNonNull(edges, "edges");
+    if (spec.vertices() < 0) throw new IllegalArgumentException("negative V");
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+    List<List<Arc>> adjacency = new ArrayList<>(spec.vertices());
+    for (int v = 0; v < spec.vertices(); v++) adjacency.add(new ArrayList<>());
+    int[] indegree = new int[spec.vertices()];
+    int[] outdegree = new int[spec.vertices()];
+    int[] degree = new int[spec.vertices()];
+    Set<Long> seen = new HashSet<>();
 
-> **MEMORY TRICK —** MODEL FIRST; ALGORITHM SECOND.
+    for (int edgeId = 0; edgeId < edges.size(); edgeId++) {
+        Edge edge = Objects.requireNonNull(edges.get(edgeId), "null edge");
+        validateVertex(edge.from(), spec.vertices());
+        validateVertex(edge.to(), spec.vertices());
+        if (edge.from() == edge.to() && !spec.allowSelfLoops())
+            throw new IllegalArgumentException("self-loop rejected");
+
+        long key = edgeKey(edge.from(), edge.to(), spec.direction());
+        if (!spec.allowParallelEdges() && !seen.add(key))
+            throw new IllegalArgumentException("parallel edge rejected");
+
+        adjacency.get(edge.from()).add(new Arc(edge.to(), edge.weight(), edgeId));
+        if (spec.direction() == Direction.DIRECTED) {
+            outdegree[edge.from()]++;
+            indegree[edge.to()]++;
+        } else {
+            adjacency.get(edge.to()).add(new Arc(edge.from(), edge.weight(), edgeId));
+            degree[edge.from()]++;
+            degree[edge.to()]++; // same cell increments twice for a self-loop
+        }
+    }
+    return freeze(spec, adjacency, indegree, outdegree, degree, edges.size());
+}
+```
+
+The key correctness line for an undirected graph is the second adjacency insertion. Without it, a traversal started at `v` could not follow an edge supplied as `(u,v)` back to `u`; the representation would accidentally become directed.
+
+### Correctness argument
+
+Maintain this loop invariant after processing the first `k` source edges:
+
+1. every processed directed edge has exactly one adjacency arc, from its source to its destination;
+2. every processed undirected edge has exactly two adjacency arcs with the same edge ID, one per orientation—even for a self-loop;
+3. each degree array equals the number of incident processed edge ends under that graph's convention; and
+4. no unprocessed edge appears.
+
+The invariant is true before the loop because all lists and counts are empty. One legal directed insertion adds exactly its source arc and increments exactly one outdegree and one indegree. One legal undirected insertion adds both orientations and increments both endpoints; when the endpoints are equal, the same cell is intentionally incremented twice. No other state changes, so the invariant is preserved. At termination `k=E`, the representation and degree summaries describe exactly the entire input edge multiset.
+
+### Boundary conditions and contract failures
+
+- `V=0` is a legal empty graph only when the edge list is empty.
+- Reject endpoints outside `0..V-1`; do not “fix” one-based labels by guessing.
+- Preserve an isolated vertex with an empty adjacency list.
+- Decide whether self-loops and parallel edges are legal before building. A **simple graph** rejects both; a multigraph may keep them.
+- Preserve zero and negative weights as data. Whether an algorithm supports them is a later choice (for example, ordinary Dijkstra does not support negative edges).
+- Store an edge ID when edge identity matters; endpoint pairs alone cannot distinguish parallel edges.
+- A disconnected graph requires a traversal start from every unvisited vertex when the goal covers the whole graph.
+
+### Complexity — derive it from stored arcs
+
+Validation plus construction takes **O(V+E)** expected time with the hash-set duplicate check. Space is **O(V+E)**: `V` adjacency buckets and either `E` directed arcs or `2E` undirected arcs, plus degree arrays and at most `E` duplicate keys. Iterating one adjacency bucket costs time proportional to its stored degree/outdegree; traversing all buckets visits every stored arc once.
+
+There is no dynamic-programming memoization here. The adjacency list is the normalized reusable model that prevents every later algorithm from repeatedly rescanning the raw edge list.
+
+### Primary references
+
+- [NIST Dictionary of Algorithms and Data Structures — graph](https://xlinux.nist.gov/dads/HTML/graph.html)
+- [NIST DADS — directed graph](https://xlinux.nist.gov/dads/HTML/directedGraph.html)
+- [Princeton Algorithms 4/e — undirected `Graph`](https://algs4.cs.princeton.edu/code/javadoc/edu/princeton/cs/algs4/Graph.html)
+- [Princeton Algorithms 4/e — `Digraph`](https://algs4.cs.princeton.edu/code/javadoc/edu/princeton/cs/algs4/Digraph.html)
+- [Take U Forward — Introduction to Graph](https://takeuforward.org/blogs/data-structure-and-algorithm/introduction-to-graph)
+
+> **MEMORY TRICK — V-E-D-W-S-G:** vertices, edges, direction, weight, scope, goal.
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. How would one-based or string labels be normalized without losing the original identity?
+2. When is an adjacency matrix preferable despite `O(V²)` space?
+3. How do parallel edges change bridge detection, minimum spanning trees, or edge removal?
+4. Which shortest-path algorithms remain valid after adding zero or negative weights?
+5. How would immutable, streaming, or dynamically deleted edges change ownership and representation?
 
 [↑ Back to Index](#navigation-and-index)
 
