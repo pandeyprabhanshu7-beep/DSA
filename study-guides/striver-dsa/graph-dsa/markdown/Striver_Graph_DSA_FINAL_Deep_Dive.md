@@ -1786,89 +1786,192 @@ The earlier workbooks correctly emphasize ignoring the parent relationship, but 
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Undirected Cycle Detection — DFS. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given `V` labeled vertices and undirected edges, return whether **any connected component** contains a cycle. This card uses a read-only edge-list API and supports an undirected multigraph: a self-loop is a one-edge cycle and two parallel edges form a two-edge cycle.
 
-### Three requirement-clarifying examples
+The familiar rule “visited neighbor other than parent” is correct for a simple graph. A reusable multigraph implementation must remember the exact **parent edge**: with parallel `u—v` edges, both edges reach the parent vertex, but only the edge used to enter the child is harmless.
 
-| # | Input / setup | Output / observation | Why it matters |
+| Requirement | Contract used here |
+|---|---|
+| graph | undirected, possibly disconnected, vertices `0..V-1` |
+| cycle | closed edge-distinct walk; loops and parallel-edge pairs count |
+| DFS state | explicit frame `(vertex, parentEdgeId, nextArcIndex)` |
+| discovery | mark a vertex before pushing its frame |
+| detection | after skipping the exact parent edge, any arc to a visited endpoint closes a cycle |
+| ownership | never mutate the edge list |
+| reusable validation | reject negative `V`, null/malformed rows, and out-of-range endpoints |
+
+The explicit frame machine produces the same depth-first order as recursive DFS but does not depend on the Java call stack.
+
+### Four requirement-clarifying examples
+
+| # | Vertices and edges | Result | Contract exposed |
 |---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+| 1 | `V=3`, `[[0,1],[1,2],[2,0]]` | `true` | triangle reaches a visited endpoint by a non-parent edge |
+| 2 | `V=4`, `[[0,1],[1,2],[2,3]]` | `false` | every reverse encounter is the exact parent edge |
+| 3 | `V=6`, `[[0,1],[2,3],[3,4],[4,2]]` | `true` | a root loop must start DFS in every unseen component |
+| 4 | `V=2`, `[[0,1],[0,1]]` | `true` | parallel edges require parent **edge** identity |
 
 ### Pattern recognition
 
-**Primary pattern:** DFS state coloring
+**Primary pattern:** DFS forest plus parent-edge tracking.
 
-> **KEY INTUITION —** Visited alone is not enough: a directed cycle is an edge to a node that is still active on the recursion path.
+> **KEY INTUITION —** In undirected DFS, the exact edge used to enter the current vertex is the only visited-edge encounter that must be excused.
+
+This is not the directed-cycle three-color rule. In an undirected graph, a completed vertex reached through a non-parent edge still proves that two distinct routes connect the endpoints.
 
 ### Brute-force / straightforward baseline
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+For every edge `e=(u,v)`, ignore that exact edge and run a fresh reachability search from `u` to `v`; a self-loop is immediate. If `v` remains reachable, that alternate path plus `e` contains a cycle. Removal must be by edge identity so parallel edges remain distinct.
+
+The baseline is correct but performs up to `E` traversals: `O(E(V+E))` time. One DFS can instead retain its discovery forest and decide every edge during its first scan.
 
 ### Optimized reasoning
 
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
+Build two adjacency arcs for each undirected edge, both carrying the same edge ID. For each unseen vertex:
+
+1. mark the root and push `(root,-1,0)`;
+2. inspect the top frame without removing it;
+3. if all of its arcs are consumed, pop it—the recursive call would now return;
+4. otherwise advance `nextArcIndex` before processing the selected arc;
+5. skip the arc only when its edge ID equals `parentEdgeId`;
+6. if the endpoint is already visited, return `true`;
+7. otherwise mark the endpoint and push its child frame.
+
+**Frame invariant:** every stack frame represents an active DFS call. Arcs before `nextArcIndex` have been completely handled; arcs from that index onward have not. Every visited vertex has exactly one discovery edge except a component root.
+
+```mermaid
+graph TD
+    v0((0)) ---|e0 tree| v1((1))
+    v1 ---|e1 tree| v2((2))
+    v2 ---|e2 back| v0
+    v2 ---|e3 tail| v3((3))
+```
+
+On path `0 → 1 → 2`, scanning `e1` back to `1` is harmless because `e1` is `2`'s parent edge. Scanning `e2` to visited `0` uses a different edge and certifies the triangle.
 
 ### Detailed dry run
 
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
+Use Example 1 with edge IDs `e0=(0,1)`, `e1=(1,2)`, `e2=(2,0)` and input-order adjacency.
 
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
+| Step | Stack, top first | Arc examined | Decision | Visited |
+|---:|---|---|---|---|
+| seed | `[(0,-1,next=0)]` | — | claim root `0` | `{0}` |
+| 1 | `[(0,-1,next=1)]` | `e0: 0→1` | advance parent frame; claim and push `1` | `{0,1}` |
+| 2 | `[(1,e0,next=1),(0,-1,next=1)]` | `e0: 1→0` | exact parent edge; skip | unchanged |
+| 3 | `[(1,e0,next=2),(0,-1,next=1)]` | `e1: 1→2` | claim and push `2` | `{0,1,2}` |
+| 4 | `[(2,e1,next=1),(1,e0,next=2),(0,-1,next=1)]` | `e1: 2→1` | exact parent edge; skip | unchanged |
+| 5 | same frames, `2.next=2` | `e2: 2→0` | visited endpoint via non-parent edge; cycle | return `true` |
+
+Advancing the parent's adjacency index **before** pushing the child is what makes the explicit frame resume exactly where recursion would resume.
 
 ### Java implementation / template
 
 ```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+static boolean hasCycle(int vertices, int[][] edges) {
+    validate(vertices, edges);
+    List<List<Arc>> graph = buildGraph(vertices, edges); // arcs retain edgeId
+    boolean[] visited = new boolean[vertices];
+    Deque<Frame> stack = new ArrayDeque<>();
+
+    for (int start = 0; start < vertices; start++) {
+        if (visited[start]) continue;
+        visited[start] = true;
+        stack.push(new Frame(start, -1));
+
+        while (!stack.isEmpty()) {
+            Frame frame = stack.peek();
+            List<Arc> arcs = graph.get(frame.vertex);
+            if (frame.nextArcIndex == arcs.size()) {
+                stack.pop();
+                continue;
+            }
+
+            Arc arc = arcs.get(frame.nextArcIndex++); // resume after child returns
+            if (arc.edgeId() == frame.parentEdgeId) continue;
+            if (visited[arc.to()]) return true;
+
+            visited[arc.to()] = true;
+            stack.push(new Frame(arc.to(), arc.edgeId()));
+        }
+    }
+    return false;
+}
 ```
+
+The complete executable companion adds input validation, edge-list construction, multigraph semantics, independent BFS and disjoint-set oracles, metamorphic checks, and a 50,000-vertex nonrecursive stress case: [`GraphUndirectedCycleDfsContracts.java`](../java/GraphUndirectedCycleDfsContracts.java).
 
 ### Key line to highlight
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+```java
+Arc arc = arcs.get(frame.nextArcIndex++);
+if (arc.edgeId() == frame.parentEdgeId) continue;
+if (visited[arc.to()]) return true;
+```
+
+The first line preserves recursive-resume state. The second skips only the exact arrival edge. Skipping every edge to the parent vertex would miss a parallel-edge cycle; failing to skip the arrival edge would falsely classify every ordinary tree edge.
 
 ### Correctness checklist
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+1. **DFS simulation:** the frame stack is exactly a recursive DFS call stack; `nextArcIndex` partitions handled and unhandled arcs.
+2. **Discovery forest:** mark-before-push claims every vertex once. Each non-root has one discovery edge, stored as its parent edge.
+3. **No false parent report:** the reverse arc of a discovery edge has the same edge ID and is skipped by the child frame.
+4. **Soundness:** if a different edge reaches visited `v` from `u`, the discovery forest already connects `u` and `v`; adding this distinct edge creates a cycle. The argument includes loops and parallel edges.
+5. **Completeness:** a cycle cannot consist only of discovery-forest edges. When DFS scans any remaining cycle edge, it connects vertices already related by the forest and is not the current frame's parent edge, so the algorithm reports it.
+6. **Disconnected coverage:** the outer loop starts a new DFS at every unseen vertex.
+
+Therefore the method returns `true` exactly when the undirected multigraph contains a cycle.
 
 ### Boundary conditions
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+- `V=0` with no edges and isolated vertices: acyclic under this reusable extension;
+- one self-loop: cycle immediately;
+- two parallel edges: length-two multigraph cycle, so parent edge ID matters;
+- one ordinary edge: its reverse adjacency arc is not a cycle;
+- disconnected graph: launch DFS from every unseen root;
+- deep chain: explicit frames avoid Java call-stack overflow;
+- malformed edge rows, negative `V`, and endpoints outside `0..V-1`;
+- input ownership: adjacency construction must not sort or rewrite edge rows;
+- a judge that guarantees a simple graph may track parent vertex instead;
+- directed input: this rule is invalid; use active-path state or a topological method.
 
 ### Complexity — derive it instead of memorizing it
 
-**O(V+E).**
+Building adjacency creates two arcs per undirected edge. Each vertex is marked and pushed at most once. Each frame advances across each incident arc once, so the total arc scans are `2E`.
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+- **Time:** `Θ(V+E)`.
+- **Auxiliary traversal state:** `O(V)` for visited and the explicit frame stack.
+- **Edge-list adapter:** `Θ(V+E)` adjacency storage; this is input storage when adjacency is supplied.
+- **Early return:** can reduce actual work but not the worst-case bound.
 
 ### Memoization / repeated-work note
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+This is not dynamic programming: DFS subproblems do not overlap. `visited` prevents re-expanding solved vertices, while the frame stores the minimum continuation state needed after a child returns.
 
-> **MEMORY TRICK —** DIRECTED CYCLE = EDGE TO ACTIVE NODE.
+For a stream containing only edge insertions, rerunning DFS repeats work. A disjoint-set structure can report whether each inserted edge joins endpoints already connected. Arbitrary deletions require a different dynamic-connectivity design.
+
+> **MEMORY TRICK —** UNDIRECTED DFS: SKIP THE ARRIVAL EDGE; ANY OTHER VISITED EDGE CLOSES A CYCLE.
+
+### Validation strategy
+
+The companion runs 20 deterministic groups covering empty/isolated graphs, loops, parallel edges, disconnected graphs, malformed input, nonmutation and a 50,000-vertex chain. It then runs 20,000 seeded undirected-multigraph trials. Every trial checks parity with an independently structured BFS oracle and a disjoint-set oracle, followed by edge-order and vertex-relabeling invariance: 80,000 randomized oracle/metamorphic checks.
+
+The older Graph editions correctly retain the parent exception and a useful triangle trace, but their terse recursive implementation uses parent vertex identity. That code is not copied. This card implements the selected G-12 DFS lesson, preserves the stronger multigraph contract established in G-11, and uses explicit resumable frames.
+
+### Current primary references
+
+- [Take U Forward — Detect a Cycle in an Undirected Graph](https://takeuforward.org/blogs/data-structure-and-algorithm/detect-a-cycle-in-an-undirected-graph) — current disconnected DFS contract, parent rule, examples and `O(V+E)` analysis.
+- [GeeksforGeeks practice — Undirected Graph Cycle](https://www.geeksforgeeks.org/problems/detect-cycle-in-an-undirected-graph/1) — current edge-list judge contract, multiple components and expected bounds.
+- [Princeton Algorithms 4/e — `Cycle`](https://algs4.cs.princeton.edu/code/javadoc/edu/princeton/cs/algs4/Cycle.html) — DFS cycle detection plus explicit self-loop and parallel-edge semantics.
+- [Oracle Java 21 `ArrayDeque`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ArrayDeque.html) — stack operations used by the explicit DFS frame machine.
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. Return an actual cycle: retain parent vertex and edge, then reconstruct at the non-tree edge.
+2. Recursive version: pass `parentEdgeId`; discuss when Java recursion depth is safe.
+3. Simple-graph-only input: replace edge identity with parent vertex and state the lost loop/parallel guarantees.
+4. Directed cycle detection: parent is insufficient; use active/finished state or Kahn's algorithm.
+5. Online insertions: use DSU; an edge inside one existing set closes a cycle.
+6. Arbitrary updates: ordinary DSU cannot undo deletions; discuss rollback/offline or dynamic connectivity.
 
 [↑ Back to Index](#navigation-and-index)
 
