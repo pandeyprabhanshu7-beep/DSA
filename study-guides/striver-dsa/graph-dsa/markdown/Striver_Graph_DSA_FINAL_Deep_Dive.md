@@ -935,89 +935,133 @@ The explicit deque prevents call-stack overflow on a long chain; the companion v
 
 ### Detailed question understanding
 
-**What is the problem/lesson asking?** Number of Provinces. Rewrite the exact input state, legal operation/relationship, and requested output before choosing a technique. Similar titles often hide materially different variants—for example nearest greater versus count of all greater values, four-direction versus eight-direction grid adjacency, or node identity versus equal node values.
+Given an `n × n` binary symmetric matrix `isConnected`, city `i` and city `j` share an undirected edge exactly when `isConnected[i][j] == 1`. Return the number of connected components, including singleton cities. A province is therefore a **maximal transitive connectivity group**, not merely one direct row-neighborhood.
 
-### Three requirement-clarifying examples
+The platform contract requires `1 <= n`, square rows, binary entries, diagonal ones and symmetry. The reusable companion validates square/binary/symmetric input before traversal, accepts `n=0` as the natural empty extension, and deliberately ignores whether diagonal entries are zero or one because self-connectivity cannot merge different cities. State that extension instead of silently changing a judge contract.
 
-| # | Input / setup | Output / observation | Why it matters |
-|---:|---|---|---|
-| 1 | `smallest valid input` | `trace base state` | base/boundary semantics |
-| 2 | `typical nontrivial input` | `trace expected result` | core invariant |
-| 3 | `boundary-shaped input` | `verify edge behavior` | protect implementation |
+> **KEY INTUITION — ONE UNSEEN ROOT = ONE WHOLE PROVINCE.** The first unseen city starts a traversal that claims its entire component. No later city in that component can start another province.
 
-### Pattern recognition
+**Verified source note (accessed 2026-11-26).** The selected G-7 source specifies an undirected connectivity matrix and transitive groups. Four earlier Library workbooks instead teach the equivalent DSU view: start with `n` components and decrement only after a successful upper-triangle union. That is retained as an independent executable oracle, while their generic `O(V+E)` wording is not copied: scanning rows of an `n × n` matrix is `Θ(n²)`. Take U Forward's current problem contract and LeetCode 547 both require square binary symmetric input with diagonal ones. The validation policy, diagonal-zero extension, proof and cross-oracle suite below are study-guide additions.
 
-**Primary pattern:** Graph modeling
+### Four requirement-clarifying examples
 
-> **KEY INTUITION —** Write NODE, EDGE, DIRECTION, COST and GOAL before naming an algorithm.
+| # | `isConnected` | Result | Requirement exposed |
+|---:|---|---:|---|
+| 1 | `[[1,1,0],[1,1,0],[0,0,1]]` | `2` | `{0,1}` and singleton `{2}` are maximal groups |
+| 2 | `[[1,1,0,0],[1,1,1,0],[0,1,1,1],[0,0,1,1]]` | `1` | indirect chain connections are transitive |
+| 3 | `[[1,0,0],[0,1,0],[0,0,1]]` | `3` | every isolated city is a province |
+| 4 | `[[0,1,0],[1,0,0],[0,0,0]]` | `2` under the reusable extension | diagonal values do not change connectivity |
 
-### Brute-force / straightforward baseline
+Reject a null, ragged, nonbinary or asymmetric matrix rather than returning a plausible count for a different graph.
 
-Start with the direct simulation/repeated scan that mirrors the statement. It is valuable because it exposes **what is being recomputed**. Then ask: *what exact fact from earlier work would make the next decision immediate?*
+### Matrix rows become traversal closure
 
-### Optimized reasoning
-
-Name the invariant before code. The optimized solution for this family is derived from the intuition above. Every state change must preserve the invariant; if you cannot say what the working structure means after processing the first *i* items/nodes/states, the implementation is not ready.
-
-### Detailed dry run
-
-Write frontier, current node, neighbor/edge considered, and every visited/dist/color/indegree/low change.
-
-For interview practice, include at least four snapshots: initial state, first nontrivial state change, the state where the central invariant does real work, and final state. Explain **why each mutation occurred**, not merely what the values became.
-
-### Java implementation / template
-
-```java
-// Card-specific Java implementation is expanded during the scheduled deepening pass.
-// Interview discipline:
-// 1) define the state/invariant,
-// 2) implement exactly one valid transition,
-// 3) test empty/single/duplicate/extreme cases,
-// 4) use long for sums/distances when constraints can overflow int.
+```mermaid
+flowchart TD
+    A["scan city roots in order"] --> B{"root already seen?"}
+    B -->|yes| A
+    B -->|no| C["increment provinces; claim root"]
+    C --> D["pop city; scan all n columns"]
+    D --> E{"unseen direct neighbor?"}
+    E -->|yes| F["claim neighbor; push once"]
+    F --> D
+    E -->|no / row done| G{"stack empty?"}
+    G -->|no| D
+    G -->|yes| A
 ```
 
-### Key line to highlight
+Mark when pushing, not when popping. In a dense cyclic matrix, delayed marking can schedule the same city many times even though the final count may accidentally remain correct.
 
-Find the line that changes the invariant: the monotonic `while`, a graph relaxation `if`, a pointer splice, a recursive return combination, or a HashMap lookup/update. Explain what would break if its comparison or ordering changed.
+### Exact trace for Example 1
 
-### Correctness checklist
+The stack is shown with its top on the left. Diagonal ones are skipped because the current city is already seen.
 
-1. State the invariant before the loop/recursion.
-2. Show it is true initially.
-3. Show every transition preserves it.
-4. Explain why the terminal state implies the requested answer.
-5. For greedy algorithms, identify the exchange/cut/monotonic argument that makes the local choice safe.
+| Step | outer root / stack before | row evidence and action | `seen` | provinces |
+|---:|---|---|---|---:|
+| 0 | root `0`, `[]` | unseen root: count and push `0` | `{0}` | 1 |
+| 1 | `[0]` | row 0 discovers `1`; push once | `{0,1}` | 1 |
+| 2 | `[1]` | row 1 reaches only already-seen `0,1` | `{0,1}` | 1 |
+| 3 | root `1`, `[]` | already seen: no new traversal | `{0,1}` | 1 |
+| 4 | root `2`, `[]` | unseen root: count and push `2` | `{0,1,2}` | 2 |
+| 5 | `[2]` | row 2 has no unseen neighbor; finish | `{0,1,2}` | 2 |
 
-### Boundary conditions
+### Java — iterative matrix DFS
 
-- empty/null input when the platform permits it;
-- one element/node/state;
-- duplicates and strict-versus-nonstrict comparisons;
-- monotone/skewed/disconnected shape where relevant;
-- overflow in sums, products, distances and path counts—prefer `long` when needed;
-- value vs index vs node identity;
-- online/streaming input versus offline preprocessing;
-- repeated queries may justify preprocessing that a one-shot query does not.
+The complete executable companion is [`GraphProvincesContracts.java`](../java/GraphProvincesContracts.java).
 
-### Complexity — derive it instead of memorizing it
+```java
+static int countProvinces(int[][] isConnected) {
+    validate(isConnected);                 // square, binary, symmetric
+    int n = isConnected.length;
+    boolean[] seen = new boolean[n];
+    Deque<Integer> stack = new ArrayDeque<>();
+    int provinces = 0;
 
-**Adjacency-list traversal O(V+E); representation O(V+E).**
+    for (int root = 0; root < n; root++) {
+        if (seen[root]) continue;
+        provinces++;                       // exactly one new component root
+        seen[root] = true;
+        stack.push(root);
 
-Count how many times each element/node/edge can enter and leave the working structure, then multiply by the operation cost: array/index O(1), expected hash O(1), balanced tree/heap O(log n), full edge scan O(E).
+        while (!stack.isEmpty()) {
+            int city = stack.pop();
+            for (int next = 0; next < n; next++) {
+                if (isConnected[city][next] == 1 && !seen[next]) {
+                    seen[next] = true;      // claim before scheduling
+                    stack.push(next);
+                }
+            }
+        }
+    }
+    return provinces;
+}
+```
 
-### Memoization / repeated-work note
+The key line is `provinces++` immediately before traversing an unseen root. The inner traversal must claim that root's entire reachable set; otherwise a later member could be counted twice.
 
-Memoization is useful only when the same logical state can be solved repeatedly. In many one-pass stack/list/tree problems there are no overlapping subproblems; the data structure itself stores the minimal reusable history. In graph, prefix-hash, and repeated-query problems, `visited`, `dist`, prefix maps, parent maps, or cached subtree metadata play the “do not recompute solved state” role.
+### Correctness argument
 
-> **MEMORY TRICK —** MODEL FIRST; ALGORITHM SECOND.
+Before outer iteration `root`, `seen` is exactly the union of the provinces already counted, and every city with index below `root` is seen. If `root` is seen, it belongs to a counted province and skipping it preserves the invariant. If it is unseen, it cannot belong to a counted province. Incrementing begins one new component; the inner traversal marks exactly the cities reachable from `root`: every pushed city is connected through a discovered matrix edge, and when the stack empties every row of every reached city has been scanned, so no reachable city remains unseen. Thus one and only one count is added for that province. Induction through all roots yields exactly the number of connected components.
+
+The DSU proof is equivalent: inspect only `i < j` to avoid symmetric duplicates; every successful union joins two formerly distinct components and decreases the count exactly once. It is a useful oracle, not a reason to duplicate the G-48 DSU card here.
+
+### Complexity and representation boundary
+
+Validation and traversal each inspect at most all `n²` matrix cells, so time is `Θ(n²)` even when the graph has few logical edges. `seen` and the explicit stack use `Θ(n)` auxiliary space. The input itself already occupies `Θ(n²)` space.
+
+Converting first to an adjacency list still costs `Θ(n²)` to inspect the matrix, then `Θ(n+e)` to traverse and `Θ(n+e)` extra storage. Conversion helps only when the same sparse graph will support enough later neighbor scans to repay that cost; it does not improve this one-shot asymptotic bound.
+
+### Boundary conditions and contract failures
+
+- The judge's legal minimum is one city; the companion's documented empty extension returns `0`.
+- A singleton is one province whether its diagonal is `0` or `1` under the extension.
+- Diagonal entries never connect distinct cities; toggling them preserves the answer.
+- Symmetry is part of the undirected model. If asymmetric matrices are meaningful, define directed reachability or strongly connected components instead.
+- Traversal does not mutate the matrix. Validate completely before starting so invalid input cannot produce a partial result.
+- Label order can change traversal order but not the component count.
+- Recursive DFS is concise but can overflow on deep components; the deque keeps control state on the heap.
+
+### Validation strategy
+
+The companion runs 20 deterministic groups plus 20,000 seeded symmetric matrices. Each trial checks four independent properties: parity with an upper-triangle union-find oracle, parity with a reverse-order BFS oracle, invariance under a random label permutation, and invariance when every diagonal bit is toggled—80,000 randomized checks total.
+
+### Primary references
+
+- [Take U Forward — Number of Provinces matrix contract](https://takeuforward.org/practice/dsa/number-of-provinces?subject=graphs)
+- [LeetCode 547 — Number of Provinces](https://leetcode.com/problems/number-of-provinces/)
+- [Princeton Algorithms 4/e — connected components](https://algs4.cs.princeton.edu/41graph/)
+- [Princeton Algorithms 4/e — `CC`](https://algs4.cs.princeton.edu/code/javadoc/edu/princeton/cs/algs4/CC.html)
+- [Oracle Java 21 — `ArrayDeque`](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ArrayDeque.html)
+
+> **MEMORY TRICK — UNSEEN ROOT, ONE PROVINCE; ROW CLOSURE, MARK ON PUSH.**
 
 ### Interview follow-ups and variations
 
-1. Can auxiliary space be reduced, and what invariant replaces it?
-2. What changes if equality/duplicate semantics change?
-3. What changes if input arrives online?
-4. What changes for many repeated queries?
-5. Name two related problems that reuse this invariant with only one comparison or one state dimension changed.
+1. Why is matrix traversal `Θ(n²)` while adjacency-list traversal is `Θ(V+E)`?
+2. How does the DSU upper-triangle solution avoid double-processing symmetric edges?
+3. What changes if the matrix is asymmetric?
+4. When is conversion to an adjacency list worthwhile?
+5. How would you return stable component IDs or member lists instead of only the count?
 
 [↑ Back to Index](#navigation-and-index)
 

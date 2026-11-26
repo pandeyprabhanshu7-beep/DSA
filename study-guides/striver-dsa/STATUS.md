@@ -723,4 +723,12 @@ Only G-6 at selected source lines 418–468 was promoted in this bounded pass af
 
 Fresh literal-marker audit is **165**: 46 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The next exact selected-source boundary is G-7 at source lines 469–519. The selected source, wider intake and placeholder backlog remain incomplete.
 
+## Graph G-7 Number of Provinces enrichment — 2026-11-26 ET
+
+Only G-7 at selected source lines 469–519 was promoted in this bounded pass after comparing the selected source with four earlier Graph workbooks. The canonical card now defines provinces as maximal transitive groups in a binary symmetric connectivity matrix, distinguishes the judge contract from a documented empty/diagonal-zero extension, validates the entire matrix before traversal, and derives matrix-specific `Θ(n²)` time. Four examples cover two components, a transitive chain, identity-matrix singletons and diagonal irrelevance; an exact stack trace and Mermaid control flow expose the unseen-root and row-closure invariants. Current Take U Forward, LeetCode, Princeton Algorithms 4/e and Oracle Java 21 references were verified on 2026-11-26.
+
+`GraphProvincesContracts.java` passed 20 deterministic groups, 20,000 seeded symmetric-matrix trials and 80,000 union-find parity, reverse-order BFS parity, label-permutation and diagonal-toggle checks under OpenJDK 21 source-file launch. Standalone `javac` was unavailable. The reader recovered the exact 312,348-byte canonical Markdown at SHA-256 `c7cd67cdc150dde7a840f1593178b85e9803d9e186df04c370d69d4eed92005f`; validation found 56 unique anchors, 166 balanced fence markers, nine Mermaid sources, seven resolved relative links and parseable inline JavaScript. The synchronized HTML is 327,649 bytes at SHA-256 `0fe20e090b4b981c057e90b2ada0ff7a684ad4c6c79ca725c664fda3abcd580d`. Browser, assistive-technology and rendered-Mermaid QA were unavailable.
+
+Fresh literal-marker audit is **164**: 45 graph, 18 stack/queue, 27 linked list, 47 trees/BST and 27 hashing. The next exact selected-source boundary is G-8 at source lines 520–570. The selected source, wider intake and placeholder backlog remain incomplete.
+
 
